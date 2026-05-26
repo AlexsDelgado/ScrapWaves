@@ -23,6 +23,8 @@ public class PlayerMovement : MonoBehaviour
     public event Action<int, int> OnDashChargesChanged;
 
     [SerializeField] private Transform _cameraTransform;
+    [SerializeField, Tooltip("Con camera_Aim: movimiento relativo al jugador y sin rotar por dirección de movimiento.")]
+    private camera_Aim _aimCamera;
     [SerializeField] private float _rotationSpeed = 540f;
     [SerializeField, Min(0.1f)] private float _baseMoveAcceleration = 38f;
     [SerializeField, Min(0.1f)] private float _baseFriction = 9f;
@@ -167,8 +169,9 @@ public class PlayerMovement : MonoBehaviour
         _moveInput = ReadWasd();
         if (_moveInput.sqrMagnitude > 1f) _moveInput.Normalize();
 
-        Vector3 flatForward = FlattenOnXZ(_cameraTransform.forward);
-        Vector3 flatRight = FlattenOnXZ(_cameraTransform.right);
+        Transform moveReference = _aimCamera != null ? transform : _cameraTransform;
+        Vector3 flatForward = FlattenOnXZ(moveReference.forward);
+        Vector3 flatRight = FlattenOnXZ(moveReference.right);
         _moveDirectionWorld = flatForward * _moveInput.y + flatRight * _moveInput.x;
         if (_moveDirectionWorld.sqrMagnitude > 0.0001f) _moveDirectionWorld.Normalize();
 
@@ -184,11 +187,14 @@ public class PlayerMovement : MonoBehaviour
     // Apply acceleration force and rotate player while respecting movement state priorities.
     private void HandleMovement()
     {
-        Vector3 facingDirection = _isSliding ? _slideDirectionWorld : _moveDirectionWorld;
-        if (facingDirection.sqrMagnitude > 0.0001f)
+        if (_aimCamera == null)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(facingDirection);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, _rotationSpeed * Time.fixedDeltaTime);
+            Vector3 facingDirection = _isSliding ? _slideDirectionWorld : _moveDirectionWorld;
+            if (facingDirection.sqrMagnitude > 0.0001f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(facingDirection);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, _rotationSpeed * Time.fixedDeltaTime);
+            }
         }
 
         if (_isSliding) return;

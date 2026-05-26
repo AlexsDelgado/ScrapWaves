@@ -35,6 +35,9 @@ public class UpgradeManager : MonoBehaviour
     [SerializeField, Tooltip("Cámara orbital del jugador. Si está vacío, se busca ThirdPersonCamera en la escena.")]
     private ThirdPersonCamera _thirdPersonCamera;
 
+    [SerializeField, Tooltip("Cámara de apuntado. Si está vacío, se busca camera_Aim en la escena.")]
+    private camera_Aim _aimCamera;
+
     private PlayerXP _playerXp;
     private PlayerStats _playerStats;
 
@@ -49,6 +52,7 @@ public class UpgradeManager : MonoBehaviour
     private readonly List<Button> _spawnedButtons = new List<Button>();
 
     private ThirdPersonCamera _resolvedCamera;
+    private camera_Aim _resolvedAimCamera;
 
     private void Awake()
     {
@@ -353,6 +357,14 @@ public class UpgradeManager : MonoBehaviour
                 : Object.FindFirstObjectByType<ThirdPersonCamera>();
         }
 
+        if (_resolvedAimCamera == null)
+        {
+            _resolvedAimCamera = _aimCamera != null
+                ? _aimCamera
+                : Object.FindFirstObjectByType<camera_Aim>();
+        }
+
         _resolvedCamera?.SetLookBlockedByUi(blocked);
+        _resolvedAimCamera?.SetLookBlockedByUi(blocked);
     }
 }

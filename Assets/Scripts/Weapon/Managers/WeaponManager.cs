@@ -13,6 +13,9 @@ public class WeaponManager : MonoBehaviour
     [SerializeField] private float _manualCycleCooldown = 1.25f;
     [SerializeField] private float _singleWeaponCycleCooldown = 2.5f;
 
+    [SerializeField, Tooltip("Cámara de apuntado. Si está vacío, se busca en la escena.")]
+    private camera_Aim _aimCamera;
+
     private readonly List<IWeaponBehaviour> _equipped = new();
     private int _currentManualIndex;
     private float _manualCooldownTimer;
@@ -27,6 +30,13 @@ public class WeaponManager : MonoBehaviour
         _stats = GetComponent<PlayerStats>();
         _heat = HeatManager.GetInstance();
         _targeting = new ClosestEnemyTargeting();
+
+        if (_projectilePool == null)
+            _projectilePool = FindFirstObjectByType<ProjectilePool>();
+
+        if (_aimCamera == null)
+            _aimCamera = FindFirstObjectByType<camera_Aim>();
+
         AddStartingWeapons();
     }
 
@@ -130,7 +140,7 @@ public class WeaponManager : MonoBehaviour
         if (_equipped.Count == 0)
             return;
 
-        Vector3 aimDirection = transform.forward;
+        Vector3 aimDirection = GetManualAimDirection();
         bool fireHeld = IsFireHeld();
         bool abilityPressed = IsAbilityPressed();
 
@@ -144,6 +154,25 @@ public class WeaponManager : MonoBehaviour
             EndManualMode();
     }
 
+
+    private Vector3 GetManualAimDirection()
+    {
+        Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
+
+        if (_aimCamera != null)
+            return _aimCamera.GetAimDirectionFrom(spawn.position);
+
+        if (Camera.main != null)
+        {
+            Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            Vector3 toTarget = ray.GetPoint(300f) - spawn.position;
+            if (toTarget.sqrMagnitude > 0.0001f)
+                return toTarget.normalized;
+            return ray.direction;
+        }
+
+        return transform.forward;
+    }
 
     // Reads primary fire state from active input backend.
     private bool IsFireHeld()

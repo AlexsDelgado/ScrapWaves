@@ -723,6 +723,7 @@ GameObject:
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
   - component: {fileID: 330585548}
+  - component: {fileID: 330585549}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -855,7 +856,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f1274deb2e3188940876d93f3bc01de9, type: 3}
   m_Name: 
@@ -869,6 +870,36 @@ MonoBehaviour:
   _minPitch: -30
   _maxPitch: 20
   _lockCursorOnPlay: 1
+--- !u!114 &330585549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fab87c8d4aa532a428b82656d1547ca5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::camera_Aim
+  _followTarget: {fileID: 511705366}
+  _pivotOffset: {x: 0, y: 1.2, z: 0}
+  _cameraOffset: {x: 0, y: 0.35, z: -4.5}
+  _horizontalSensitivity: 0.12
+  _verticalSensitivity: 0.12
+  _invertVertical: 1
+  _minPitch: -40
+  _maxPitch: 55
+  _lockCursorOnPlay: 1
+  _aimRayDistance: 300
+  _aimRaycastMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _showCrosshair: 1
+  _crosshairSize: 14
+  _crosshairThickness: 2
+  _crosshairGap: 4
+  _crosshairColor: {r: 1, g: 1, b: 1, a: 0.92}
 --- !u!1 &400431837
 GameObject:
   m_ObjectHideFlags: 0
