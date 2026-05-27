@@ -181,6 +181,21 @@ public class ProjectilePool : MonoBehaviour
     // Spawns projectile configured with explosion radius and damage falloff.
     public bool TrySpawnExplosiveProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float explosionRadius, float falloff)
     {
+        return TrySpawnExplosiveProjectile(position, rotation, fireDirection, damage, explosionRadius, falloff, 1f, 0f, false);
+    }
+
+    // Spawns projectile configured with explosion, speed, and optional range detonation.
+    public bool TrySpawnExplosiveProjectile(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel)
+    {
         GameObject go = TryGet();
         if (go == null)
             return false;
@@ -195,8 +210,10 @@ public class ProjectilePool : MonoBehaviour
         }
 
         projectile.ConfigurePooled(_projectileLifetime, damage);
-        projectile.ConfigureExplosion(explosionRadius, falloff);
         projectile.Launch(fireDirection);
+        projectile.ConfigureExplosion(explosionRadius, falloff);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
         return true;
     }
 

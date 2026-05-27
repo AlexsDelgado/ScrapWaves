@@ -21,8 +21,8 @@ MonoBehaviour:
   BaseAttackRate: 1
   BaseRange: 20
   BaseKnockback: 5
-  BaseManualAmmo: 30
-  ActiveAbilityAmmoCost: 20
+  BaseManualAmmo: 40
+  ActiveAbilityAmmoCost: 10
   LevelData: []
   PathA:
     PathName: 

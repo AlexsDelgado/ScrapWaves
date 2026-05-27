@@ -1,7 +1,10 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class RocketLauncherWeapon : BasicProjectileWeapon
 {
+    private readonly List<Transform> _abilityTargets = new();
+
     public RocketLauncherWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
     {
@@ -17,12 +20,22 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         if (FireTimer > 0f)
             return;
 
-        FireTimer = GetFireInterval();
+        if (Spawn == null)
+            return;
+
         if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, out Transform target))
             return;
 
+        FireTimer = GetFireInterval();
         int extra = GetThresholdRocketBonus();
-        FireBurstAt(target.position, 2 + extra, 1f, 0.03f, 1.8f, 0.45f);
+        RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        FireBurstAt(
+            target.position,
+            tuning.RocketAutoBaseRocketCount + extra,
+            1f,
+            tuning.RocketAutoExplosionRadius,
+            tuning.RocketAutoExplosionFalloff,
+            tuning.RocketAutoSpeedMultiplier);
     }
 
     // Fires one fast manual rocket and consumes one ammo unit.
@@ -35,11 +48,20 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         if (FireTimer > 0f)
             return;
 
-        FireTimer = GetManualFireInterval();
+        if (aimDirection.sqrMagnitude <= 0.0001f)
+            return;
+
         if (!TrySpendManualAmmo(1f, requireFullAmount: false))
             return;
 
-        FireBurstAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1, 1.15f, 0f, 2.4f, 0.35f);
+        FireTimer = GetManualFireInterval();
+        RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        FireRocketAt(
+            Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange,
+            1f,
+            tuning.RocketManualExplosionRadius,
+            tuning.RocketManualExplosionFalloff,
+            tuning.RocketManualSpeedMultiplier);
     }
 
     // Fires overloaded multi-target volley scaled by current heat amount.
@@ -48,13 +70,39 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         if (Runtime.State != WeaponState.Manual)
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+        if (Spawn == null || aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
         int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
-        int rocketCount = Mathf.Clamp(10 + heatBonus, 1, 20);
-        FireBurstAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, rocketCount, 2f, 0.08f, 2.9f, 0.5f);
+        RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        int rocketCount = tuning.RocketActiveBaseRocketCount + heatBonus;
+        int targetsFound = EnemyRegistry.CollectClosestOnPlaneInCone(
+            Spawn.position,
+            aimDirection,
+            Runtime.Data.BaseRange,
+            tuning.RocketActiveConeAngle,
+            rocketCount,
+            _abilityTargets);
+
+        if (targetsFound <= 0)
+            return;
+
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+            return;
+
+        for (int i = 0; i < targetsFound; i++)
+        {
+            FireRocketAt(
+                _abilityTargets[i].position,
+                tuning.RocketActiveDamageScale,
+                tuning.RocketActiveExplosionRadius,
+                tuning.RocketActiveExplosionFalloff,
+                tuning.RocketActiveSpeedMultiplier);
+        }
     }
+
+    // Rocket launcher heat adds rockets or manual fire rate, not passive automatic fire rate.
+    protected override float GetHeatFireRateMultiplier() => 1f;
 
     // Returns manual fire interval boosted by heat percentage.
     private float GetManualFireInterval()
@@ -78,16 +126,16 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         return bonus;
     }
 
-    // Spawns explosive rocket volley with optional spread and blast profile.
-    private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float spreadRadius, float explosionRadius, float falloff)
+    // Spawns explosive rocket volley at the same target point.
+    private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float explosionRadius, float falloff, float speedMultiplier)
     {
         for (int i = 0; i < count; i++)
-        {
-            Vector3 spread = spreadRadius > 0f
-                ? new Vector3(UnityEngine.Random.Range(-spreadRadius, spreadRadius), 0f, UnityEngine.Random.Range(-spreadRadius, spreadRadius))
-                : Vector3.zero;
+            FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier);
+    }
 
-            FireExplosiveAt(targetPosition + spread, damageScale, false, explosionRadius, falloff);
-        }
+    // Fires a rocket that detonates on enemy hit or when it reaches weapon range.
+    private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier)
+    {
+        FireExplosiveAt(targetPosition, damageScale, false, explosionRadius, falloff, speedMultiplier, Runtime.Data.BaseRange, true);
     }
 }

@@ -2,14 +2,6 @@ using UnityEngine;
 
 public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 {
-    private const int AutomaticBurstCount = 3;
-    private const int ManualBurstCount = 5;
-    private const int ActiveBaseBulletCount = 20;
-    private const float ActiveSpreadDegrees = 22f;
-    private const float LineProjectileSpacing = 0.45f;
-    private const float HeatDamageBonusPerThreshold = 0.15f;
-    private const float CriticalDamageOverride = 2f;
-
     public AutomaticCannonWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
     {
@@ -31,8 +23,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, out Transform target))
             return;
 
+        AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
         FireTimer = GetFireInterval();
-        FireLineBurst(target.position - Spawn.position, AutomaticBurstCount, GetHeatDamageMultiplier());
+        FireLineBurst(
+            target.position - Spawn.position,
+            Mathf.Max(1, tuning.CannonAutoBurstCount),
+            GetHeatDamageMultiplier(),
+            tuning.CannonAutoLineSpacing);
     }
 
     // Fires five-round burst in manual mode.
@@ -48,12 +45,18 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        int bulletsToFire = Mathf.Clamp(Mathf.CeilToInt(Runtime.CurrentAmmo), 1, ManualBurstCount);
+        AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
+        int manualBurstCount = Mathf.Max(1, tuning.CannonManualBurstCount);
+        int bulletsToFire = Mathf.Clamp(Mathf.CeilToInt(Runtime.CurrentAmmo), 1, manualBurstCount);
         if (!TrySpendManualAmmo(bulletsToFire, requireFullAmount: false))
             return;
 
         FireTimer = GetFireInterval();
-        FireLineBurst(aimDirection, bulletsToFire, GetHeatDamageMultiplier());
+        FireLineBurst(
+            aimDirection,
+            bulletsToFire,
+            GetHeatDamageMultiplier(),
+            tuning.CannonManualLineSpacing);
     }
 
     // Fires spread burst active ability, scaled by heat.
@@ -68,8 +71,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
             return;
 
-        int extra = Heat != null ? Mathf.FloorToInt((Heat.NormalizedHeat * 100f) / 5f) : 0;
-        FireScatterBurst(aimDirection, ActiveBaseBulletCount + extra, GetHeatDamageMultiplier(), ActiveSpreadDegrees);
+        AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
+        int extra = GetActiveHeatBonusBulletCount(tuning);
+        FireScatterBurst(
+            aimDirection,
+            Mathf.Max(1, tuning.CannonActiveBaseBulletCount) + extra,
+            GetHeatDamageMultiplier(),
+            tuning.CannonAbilityScatterRadius);
     }
 
     // Automatic cannon can critically strike, with a custom multiplier override below.
@@ -79,7 +87,10 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     protected override float GetHeatFireRateMultiplier() => 1f;
 
     // Critical hits deal double the normal critical damage effect.
-    protected override float GetCritMultiplierOverride() => CriticalDamageOverride;
+    protected override float GetCritMultiplierOverride()
+    {
+        return Runtime?.Data != null ? Runtime.Data.AutomaticCannon.CannonCriticalDamageMultiplierOverride : AutomaticCannonTuning.Defaults.CannonCriticalDamageMultiplierOverride;
+    }
 
     // Converts 25/50/75 heat thresholds into stacking damage bonuses.
     private float GetHeatDamageMultiplier()
@@ -87,36 +98,54 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (Heat == null)
             return 1f;
 
+        AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
+        float stepPercent = Mathf.Max(0.01f, tuning.CannonHeatDamageThresholdStepPercent);
+        int maxThresholds = Mathf.Max(0, tuning.CannonHeatDamageThresholdCount);
         float percent = Heat.NormalizedHeat * 100f;
-        int thresholds = 0;
-        if (percent >= 25f) thresholds++;
-        if (percent >= 50f) thresholds++;
-        if (percent >= 75f) thresholds++;
-        return 1f + thresholds * HeatDamageBonusPerThreshold;
+        int thresholds = Mathf.Clamp(Mathf.FloorToInt(percent / stepPercent), 0, maxThresholds);
+        return 1f + thresholds * Mathf.Max(0f, tuning.CannonHeatDamageBonusPerThreshold);
+    }
+
+    // Converts each configured heat step into one extra active ability projectile.
+    private int GetActiveHeatBonusBulletCount(AutomaticCannonTuning tuning)
+    {
+        if (Heat == null)
+            return 0;
+
+        float stepPercent = Mathf.Max(0.01f, tuning.CannonActiveHeatBulletStepPercent);
+        return Mathf.FloorToInt((Heat.NormalizedHeat * 100f) / stepPercent);
     }
 
     // Spawns normal cannon bursts as a straight line of projectiles.
-    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale)
+    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale, float lineSpacing)
     {
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
+        float spacing = Mathf.Max(0f, lineSpacing);
 
         for (int i = 0; i < count; i++)
         {
-            Vector3 position = Spawn.position + baseDirection * (LineProjectileSpacing * i);
+            Vector3 position = Spawn.position + baseDirection * (spacing * i);
             FireFromPositionInDirection(position, baseDirection, damageScale, false);
         }
     }
 
-    // Spawns active ability burst with horizontal angular spread.
+    // Spawns active ability burst with shotgun-style two-axis angular spread.
     private void FireScatterBurst(Vector3 aimDirection, int count, float damageScale, float spreadDegrees)
     {
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
+        Quaternion aimRotation = Quaternion.LookRotation(baseDirection, GetStableUp(baseDirection));
 
         for (int i = 0; i < count; i++)
         {
-            float yaw = spreadDegrees > 0f ? UnityEngine.Random.Range(-spreadDegrees, spreadDegrees) : 0f;
-            Vector3 shotDirection = Quaternion.AngleAxis(yaw, Vector3.up) * baseDirection;
+            Vector2 spread = spreadDegrees > 0f ? UnityEngine.Random.insideUnitCircle * spreadDegrees : Vector2.zero;
+            Vector3 shotDirection = aimRotation * Quaternion.Euler(spread.y, spread.x, 0f) * Vector3.forward;
             FireInDirection(shotDirection, damageScale, false);
         }
+    }
+
+    // Avoids LookRotation instability if the shot direction points almost straight up/down.
+    private static Vector3 GetStableUp(Vector3 direction)
+    {
+        return Mathf.Abs(Vector3.Dot(direction.normalized, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
     }
 }

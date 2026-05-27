@@ -105,4 +105,59 @@ public static class EnemyRegistry
 
         return closest != null;
     }
+
+    // Fills results with the closest active enemies inside a horizontal aim cone.
+    public static int CollectClosestOnPlaneInCone(Vector3 from, Vector3 forward, float range, float coneAngle, int maxCount, List<Transform> results)
+    {
+        results.Clear();
+        if (range <= 0f || maxCount <= 0)
+            return 0;
+
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.0001f)
+            forward = Vector3.forward;
+        forward.Normalize();
+
+        float rangeSqr = range * range;
+        float cosHalfAngle = Mathf.Cos(Mathf.Clamp(coneAngle, 0f, 360f) * 0.5f * Mathf.Deg2Rad);
+        bool useCone = coneAngle < 359.9f;
+
+        while (results.Count < maxCount)
+        {
+            Transform best = null;
+            float bestSqr = float.MaxValue;
+
+            for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+            {
+                Transform candidate = _activeEnemies[i];
+                if (candidate == null)
+                {
+                    _activeEnemies.RemoveAt(i);
+                    continue;
+                }
+
+                if (results.Contains(candidate))
+                    continue;
+
+                Vector3 delta = candidate.position - from;
+                delta.y = 0f;
+                float sqr = delta.sqrMagnitude;
+                if (sqr <= 0.0001f || sqr > rangeSqr || sqr >= bestSqr)
+                    continue;
+
+                if (useCone && Vector3.Dot(forward, delta.normalized) < cosHalfAngle)
+                    continue;
+
+                best = candidate;
+                bestSqr = sqr;
+            }
+
+            if (best == null)
+                break;
+
+            results.Add(best);
+        }
+
+        return results.Count;
+    }
 }

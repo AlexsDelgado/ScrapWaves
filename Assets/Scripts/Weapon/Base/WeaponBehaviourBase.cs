@@ -123,6 +123,20 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     // Spawns explosive projectile with configurable radius and falloff behavior.
     protected void FireExplosiveAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, float explosionRadius, float falloff)
     {
+        FireExplosiveAt(targetPosition, damageScale, eliteOrBoss, explosionRadius, falloff, 1f, 0f, false);
+    }
+
+    // Spawns explosive projectile with speed and max-range detonation options.
+    protected void FireExplosiveAt(
+        Vector3 targetPosition,
+        float damageScale,
+        bool eliteOrBoss,
+        float explosionRadius,
+        float falloff,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel)
+    {
         if (Pool == null || Spawn == null)
             return;
 
@@ -132,7 +146,16 @@ public class BasicProjectileWeapon : IWeaponBehaviour
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale;
-        Pool.TrySpawnExplosiveProjectile(Spawn.position, rotation, direction, Mathf.RoundToInt(damage), explosionRadius, falloff);
+        Pool.TrySpawnExplosiveProjectile(
+            Spawn.position,
+            rotation,
+            direction,
+            Mathf.RoundToInt(damage),
+            explosionRadius,
+            falloff,
+            speedMultiplier,
+            maxTravelDistance,
+            explodeOnMaxTravel);
     }
 
     // Spawns one projectile toward position and resolves final scaled damage.

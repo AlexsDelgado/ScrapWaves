@@ -20,6 +20,11 @@ public class Projectile : MonoBehaviour
     private bool _useExplosion;
     private float _explosionRadius;
     private float _explosionFalloff;
+    private float _activeSpeed;
+    private Vector3 _launchPosition;
+    private float _maxTravelDistance;
+    private bool _explodeOnMaxTravel;
+    private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
 
     private void Awake()
     {
@@ -31,6 +36,7 @@ public class Projectile : MonoBehaviour
         SphereCollider sphere = GetComponent<SphereCollider>();
         sphere.isTrigger = true;
         _activeMaxLifetime = _maxLifetime;
+        _activeSpeed = _speed;
     }
 
     public void ConfigurePooled(float maxLifetimeSeconds)
@@ -55,9 +61,13 @@ public class Projectile : MonoBehaviour
 
         _rigidbody.position = transform.position;
         _rigidbody.rotation = transform.rotation;
+        _launchPosition = transform.position;
+        _activeSpeed = _speed;
         _useExplosion = false;
         _explosionRadius = 0f;
         _explosionFalloff = 0f;
+        _maxTravelDistance = 0f;
+        _explodeOnMaxTravel = false;
     }
 
 
@@ -69,13 +79,29 @@ public class Projectile : MonoBehaviour
         _explosionFalloff = Mathf.Clamp01(falloff);
     }
 
+    // Overrides projectile speed for one shot.
+    public void ConfigureSpeedMultiplier(float multiplier)
+    {
+        _activeSpeed = _speed * Mathf.Max(0.01f, multiplier);
+    }
+
+    // Configures detonation once the projectile travels its weapon range.
+    public void ConfigureMaxTravel(float maxDistance, bool explodeOnMaxTravel)
+    {
+        _maxTravelDistance = Mathf.Max(0f, maxDistance);
+        _explodeOnMaxTravel = explodeOnMaxTravel;
+    }
+
     private void FixedUpdate()
     {
         if (_consumed)
             return;
 
-        Vector3 delta = _direction * (_speed * Time.fixedDeltaTime);
+        Vector3 delta = _direction * (_activeSpeed * Time.fixedDeltaTime);
         _rigidbody.MovePosition(_rigidbody.position + delta);
+
+        if (_maxTravelDistance > 0f && Vector3.Distance(_launchPosition, _rigidbody.position) >= _maxTravelDistance)
+            ConsumeAtCurrentPosition(_explodeOnMaxTravel);
     }
 
     private void Update()
@@ -85,7 +111,7 @@ public class Projectile : MonoBehaviour
 
         _elapsed += Time.deltaTime;
         if (_elapsed >= _activeMaxLifetime)
-            DespawnOrDestroy();
+            ConsumeAtCurrentPosition(_explodeOnMaxTravel);
     }
 
     private void OnTriggerEnter(Collider other)
@@ -93,30 +119,74 @@ public class Projectile : MonoBehaviour
         if (_consumed)
             return;
 
-        // Si choca contra el entorno (Terrain), se destruye sin aplicar daño.
+        // World impact: explosive shots detonate, normal bullets despawn.
         int terrainLayer = LayerMask.NameToLayer("Terrain");
-        if (terrainLayer >= 0 && other.gameObject.layer == terrainLayer)
+        bool hitTerrain = terrainLayer >= 0 && other.gameObject.layer == terrainLayer;
+        if (hitTerrain)
         {
-            DespawnOrDestroy();
+            if (_useExplosion)
+                ConsumeAtCurrentPosition(detonate: true);
+            else
+                DespawnOrDestroy();
+
             return;
         }
+
+        if (IsIgnoredCollision(other))
+            return;
 
         IDamageable damageable = other.GetComponentInParent<IDamageable>();
         if (_useExplosion)
         {
-            ApplyExplosionDamage();
-            DespawnOrDestroy();
+            if (damageable != null || IsSolidWorldCollider(other))
+                ConsumeAtCurrentPosition(detonate: true);
+
+            return;
         }
-        else if (damageable != null)
+
+        if (damageable != null)
         {
             damageable.ApplyDamage(_damage);
             DespawnOrDestroy();
         }
     }
 
+    // Keeps projectiles from detonating on the player or non-target trigger volumes.
+    private bool IsIgnoredCollision(Collider other)
+    {
+        int playerLayer = LayerMask.NameToLayer("Player");
+        if (playerLayer >= 0 && other.gameObject.layer == playerLayer)
+            return true;
+
+        if (other.GetComponentInParent<PlayerHealth>() != null)
+            return true;
+
+        return false;
+    }
+
+    // Treats non-trigger colliders as world geometry for impact detonation.
+    private bool IsSolidWorldCollider(Collider other)
+    {
+        return !other.isTrigger;
+    }
+
+    // Applies optional explosion before removing this projectile.
+    private void ConsumeAtCurrentPosition(bool detonate)
+    {
+        if (_consumed)
+            return;
+
+        if (_useExplosion && detonate)
+            ApplyExplosionDamage();
+
+        DespawnOrDestroy();
+    }
+
     // Applies area damage around impact point with distance-based falloff.
     private void ApplyExplosionDamage()
     {
+        ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius);
+
         Collider[] hits = Physics.OverlapSphere(transform.position, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
         {
@@ -130,6 +200,15 @@ public class Projectile : MonoBehaviour
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
             damageable.ApplyDamage(finalDamage);
         }
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!_useExplosion || _explosionRadius <= 0f)
+            return;
+
+        Gizmos.color = ExplosionGizmoColor;
+        Gizmos.DrawWireSphere(transform.position, _explosionRadius);
     }
 
     // Returns projectile to pool or destroys when pooling unavailable.
