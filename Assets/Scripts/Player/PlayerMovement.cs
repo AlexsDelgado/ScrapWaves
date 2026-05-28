@@ -73,6 +73,9 @@ public class PlayerMovement : MonoBehaviour
     private int _currentDashCharges;
     private Vector3 _aimFacingDirection;
 
+    // Exposes camera-relative movement direction for weapons that aim from movement input.
+    public Vector3 CurrentMoveDirectionWorld => _moveDirectionWorld;
+
     // Cache movement components and initialize singleton and physics defaults.
     private void Awake()
     {

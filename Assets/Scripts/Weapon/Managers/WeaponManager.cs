@@ -37,7 +37,7 @@ public class WeaponManager : MonoBehaviour
             _reticleAimProvider = GetComponent<ReticleAimProvider>();
 
         _heat = HeatManager.GetInstance();
-        _targeting = new ClosestEnemyTargeting();
+        _targeting = new ConfiguredEnemyTargeting();
         AddStartingWeapons();
     }
 
@@ -47,8 +47,9 @@ public class WeaponManager : MonoBehaviour
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 
-        UpdateAutomaticWeapons(Time.deltaTime);
-        UpdateManualWeapon(Time.deltaTime);
+        Vector3 aimDirection = GetAimDirection();
+        UpdateAutomaticWeapons(Time.deltaTime, aimDirection);
+        UpdateManualWeapon(Time.deltaTime, aimDirection);
         UpdateManualCycle(Time.deltaTime);
     }
 
@@ -119,29 +120,31 @@ public class WeaponManager : MonoBehaviour
         return data.WeaponType switch
         {
             WeaponType.AutomaticCannon => new AutomaticCannonWeapon(_targeting, _projectilePool, spawn),
+            WeaponType.Flamethrower => new FlamethrowerWeapon(_targeting, _projectilePool, spawn, _movement),
             WeaponType.RocketLauncher => new RocketLauncherWeapon(_targeting, _projectilePool, spawn),
             _ => new BasicProjectileWeapon(_targeting, _projectilePool, spawn)
         };
     }
 
     // Ticks automatic mode for every non-manual equipped weapon.
-    private void UpdateAutomaticWeapons(float deltaTime)
+    private void UpdateAutomaticWeapons(float deltaTime, Vector3 aimDirection)
     {
         for (int i = 0; i < _equipped.Count; i++)
         {
             if (i == _currentManualIndex)
                 continue;
-            _equipped[i].TickAutomatic(deltaTime);
+
+            // Off-hand weapons receive reticle aim even if their automatic behavior chooses a target.
+            _equipped[i].TickAutomatic(deltaTime, aimDirection);
         }
     }
 
     // Routes input and active ability usage to manual weapon.
-    private void UpdateManualWeapon(float deltaTime)
+    private void UpdateManualWeapon(float deltaTime, Vector3 aimDirection)
     {
         if (_equipped.Count == 0)
             return;
 
-        Vector3 aimDirection = GetManualAimDirection();
         bool fireHeld = IsFireHeld();
         bool firePressed = IsFirePressed();
         bool abilityPressed = IsAbilityPressed();
@@ -159,7 +162,7 @@ public class WeaponManager : MonoBehaviour
             EndManualMode();
     }
 
-    private Vector3 GetManualAimDirection()
+    private Vector3 GetAimDirection()
     {
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
         if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, out Vector3 aimDirection))

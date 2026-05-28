@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 32578834035818b4886e041fb388197c, type: 3}
   m_Name: AmmoMultiplier
   m_EditorClassIdentifier: Assembly-CSharp::StatDefinition
-  <StatType>k__BackingField: 19
-  <Category>k__BackingField: 3
-  <BaseValue>k__BackingField: 50
-  <UpgradeableByLevel>k__BackingField: 0
+  <StatType>k__BackingField: 13
+  <Category>k__BackingField: 1
+  <BaseValue>k__BackingField: 1
+  <UpgradeableByLevel>k__BackingField: 1
   <UpgradeableByItems>k__BackingField: 1
   <LevelUpgradeBaseAmount>k__BackingField: 0
   <IsPercentage>k__BackingField: 0

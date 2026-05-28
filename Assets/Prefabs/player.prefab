@@ -579,6 +579,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d5a12188b5c5abe409f85a1ccafb3d7a, type: 2}
   - {fileID: 11400000, guid: e47a8da7f4dfba5478d27fbee519c7e0, type: 2}
   - {fileID: 11400000, guid: d3cf3ea5eb402af48828369e1668902a, type: 2}
+  - {fileID: 11400000, guid: 5a656f8a46a52d94d8d781aecfeb43fa, type: 2}
   - {fileID: 11400000, guid: f100fbebc3ca92648a5813e91da5f31d, type: 2}
   - {fileID: 11400000, guid: 47934be4c6b415b4b9c953295e99a672, type: 2}
   - {fileID: 11400000, guid: 603f83912fa267a4bb42c95a523bbfa3, type: 2}
@@ -670,6 +671,7 @@ MonoBehaviour:
   _startingWeapons:
   - {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
   - {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
+  - {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
   _projectileSpawn: {fileID: 123637993059655878}
   _projectilePool: {fileID: 0}
   _reticleAimProvider: {fileID: 3355374661182279101}

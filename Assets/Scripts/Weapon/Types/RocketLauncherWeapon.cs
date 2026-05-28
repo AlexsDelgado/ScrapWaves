@@ -4,6 +4,7 @@ using UnityEngine;
 public sealed class RocketLauncherWeapon : BasicProjectileWeapon
 {
     private readonly List<Transform> _abilityTargets = new();
+    private readonly List<Transform> _abilityCandidates = new();
 
     public RocketLauncherWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
@@ -11,7 +12,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
     }
 
     // Fires automatic rocket bursts with heat-scaled extra rockets.
-    public override void TickAutomatic(float deltaTime)
+    public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
             return;
@@ -23,7 +24,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         if (Spawn == null)
             return;
 
-        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, out Transform target))
+        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
             return;
 
         FireTimer = GetFireInterval();
@@ -76,13 +77,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         int rocketCount = tuning.RocketActiveBaseRocketCount + heatBonus;
-        int targetsFound = EnemyRegistry.CollectClosestOnPlaneInCone(
-            Spawn.position,
-            aimDirection,
-            Runtime.Data.BaseRange,
-            tuning.RocketActiveConeAngle,
-            rocketCount,
-            _abilityTargets);
+        int targetsFound = BuildActiveRocketTargets(aimDirection, rocketCount, tuning);
 
         if (targetsFound <= 0)
             return;
@@ -131,6 +126,49 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
     {
         for (int i = 0; i < count; i++)
             FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier);
+    }
+
+    // Builds active volley targets in proximity order, allowing extra rockets for elites/bosses.
+    private int BuildActiveRocketTargets(Vector3 aimDirection, int rocketCount, RocketLauncherTuning tuning)
+    {
+        _abilityTargets.Clear();
+        if (rocketCount <= 0)
+            return 0;
+
+        EnemyRegistry.CollectClosestOnPlaneInCone(
+            Spawn.position,
+            aimDirection,
+            Runtime.Data.BaseRange,
+            tuning.RocketActiveConeAngle,
+            Mathf.Max(rocketCount, 64),
+            _abilityCandidates);
+
+        for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < rocketCount; i++)
+        {
+            Transform candidate = _abilityCandidates[i];
+            int rocketsForTarget = GetMaxActiveRocketsForTarget(candidate);
+            for (int j = 0; j < rocketsForTarget && _abilityTargets.Count < rocketCount; j++)
+                _abilityTargets.Add(candidate);
+        }
+
+        return _abilityTargets.Count;
+    }
+
+    // Uses current prefab naming until a dedicated elite/boss metadata component exists.
+    private int GetMaxActiveRocketsForTarget(Transform target)
+    {
+        if (target == null)
+            return 1;
+
+        string rootName = target.root != null ? target.root.name : target.name;
+        if (rootName.Contains("Boss", System.StringComparison.OrdinalIgnoreCase))
+            return 5;
+
+        if (rootName.Contains("Elite", System.StringComparison.OrdinalIgnoreCase)
+            || rootName.Contains("variant", System.StringComparison.OrdinalIgnoreCase))
+            return 2;
+
+        return 1;
     }
 
     // Fires a rocket that detonates on enemy hit or when it reaches weapon range.

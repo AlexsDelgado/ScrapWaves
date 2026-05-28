@@ -47,6 +47,7 @@ public class EnemyFollow : MonoBehaviour
     private float _separationRadiusSqr;
     private CharacterController _characterController;
     private Collider[] _overlapBuffer;
+    private EnemyKnockbackReceiver _knockback;
     private float _verticalVelocity;
 
     private void Awake()
@@ -57,6 +58,7 @@ public class EnemyFollow : MonoBehaviour
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
         _characterController = GetComponent<CharacterController>();
+        _knockback = GetComponent<EnemyKnockbackReceiver>();
         _overlapBuffer = new Collider[MaxSeparationNeighbors];
     }
 
@@ -82,6 +84,8 @@ public class EnemyFollow : MonoBehaviour
             _target = PlayerMovement.PlayerTransform;
         if (_pooled == null)
             _pooled = GetComponent<SwarmPooledEnemy>();
+        if (_knockback == null)
+            _knockback = GetComponent<EnemyKnockbackReceiver>();
         _difficultySpeedMultiplier = 1f;
         CacheDerived();
     }
@@ -98,11 +102,16 @@ public class EnemyFollow : MonoBehaviour
 
     private void Update()
     {
-        if (_target == null)
-            return;
-
         if (_characterController == null)
             return;
+
+        Vector3 knockbackDisplacement = ConsumeKnockback(Time.deltaTime);
+        if (_target == null)
+        {
+            if (knockbackDisplacement.sqrMagnitude > 0.0001f)
+                _characterController.Move(knockbackDisplacement);
+            return;
+        }
 
         Vector3 toTarget = _target.position - transform.position;
         toTarget.y = 0f;
@@ -119,7 +128,11 @@ public class EnemyFollow : MonoBehaviour
         moveDir.y = 0f;
 
         if (moveDir.sqrMagnitude < 0.0001f)
+        {
+            if (knockbackDisplacement.sqrMagnitude > 0.0001f)
+                _characterController.Move(knockbackDisplacement);
             return;
+        }
 
         moveDir.Normalize();
 
@@ -142,7 +155,7 @@ public class EnemyFollow : MonoBehaviour
 
         Vector3 velocity = moveDir * speed;
         velocity.y = _verticalVelocity;
-        _characterController.Move(velocity * Time.deltaTime);
+        _characterController.Move(velocity * Time.deltaTime + knockbackDisplacement);
 
         Quaternion targetRotation = Quaternion.LookRotation(moveDir);
         transform.rotation = Quaternion.RotateTowards(
@@ -213,5 +226,13 @@ public class EnemyFollow : MonoBehaviour
             return Vector3.zero;
 
         return sum.normalized;
+    }
+
+    private Vector3 ConsumeKnockback(float deltaTime)
+    {
+        if (_knockback == null)
+            _knockback = GetComponent<EnemyKnockbackReceiver>();
+
+        return _knockback != null ? _knockback.ConsumeDisplacement(deltaTime) : Vector3.zero;
     }
 }

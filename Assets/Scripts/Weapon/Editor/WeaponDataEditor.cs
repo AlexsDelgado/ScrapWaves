@@ -58,6 +58,9 @@ public sealed class WeaponDataEditor : Editor
             case WeaponType.AutomaticCannon:
                 DrawAutomaticCannonFields();
                 break;
+            case WeaponType.Flamethrower:
+                DrawFlamethrowerFields();
+                break;
             case WeaponType.RocketLauncher:
                 DrawRocketLauncherFields();
                 break;
@@ -79,6 +82,7 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAbilityScatterRadius), "Ability Scatter Radius");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonManualLineSpacing), "Manual Line Spacing");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoLineSpacing), "Auto Line Spacing");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoAccuracySpreadDegrees), "Auto Accuracy Spread Degrees");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonActiveHeatBulletStepPercent), "Active Heat Bullet Step Percent");
@@ -86,6 +90,35 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonHeatDamageThresholdCount), "Heat Damage Threshold Count");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonHeatDamageBonusPerThreshold), "Heat Damage Bonus Per Threshold");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonCriticalDamageMultiplierOverride), "Critical Damage Multiplier Override");
+    }
+
+    private void DrawFlamethrowerFields()
+    {
+        EditorGUILayout.LabelField("Flamethrower", EditorStyles.boldLabel);
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoConeAngle), "Auto Cone Angle");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualConeAngle), "Manual Cone Angle");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameMaxTargetsPerTick), "Max Targets Per Tick");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoTickInterval), "Auto Tick Interval");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameOverheatAutoTickInterval), "Overheat Auto Tick Interval");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameOverheatTickThresholdPercent), "Overheat Tick Threshold Percent");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualTickInterval), "Manual Tick Interval");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualAmmoPerSecond), "Manual Ammo Per Second");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualRangeHeatMultiplier), "Manual Range Heat Multiplier");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameBurnDuration), "Burn Duration");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameBurnTickInterval), "Burn Tick Interval");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameBurnDamageScale), "Burn Damage Scale");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveRadius), "Active Radius");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveDamageScale), "Active Damage Scale");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualKnockbackScale), "Manual Knockback Scale");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveKnockbackScale), "Active Knockback Scale");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameVisualDuration), "Stream Visual Duration");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveVisualDuration), "Active Visual Duration");
     }
 
     private void DrawRocketLauncherFields()

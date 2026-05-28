@@ -19,6 +19,7 @@ public sealed class AutomaticCannonTuning : WeaponSpecificTuning
     [Min(0f)] public float CannonAbilityScatterRadius = 22f;
     [Min(0f)] public float CannonManualLineSpacing = 0.45f;
     [Min(0f)] public float CannonAutoLineSpacing = 0.45f;
+    [Min(0f)] public float CannonAutoAccuracySpreadDegrees = 6f;
 
     [Min(0.01f)] public float CannonActiveHeatBulletStepPercent = 5f;
     [Min(0.01f)] public float CannonHeatDamageThresholdStepPercent = 25f;
@@ -40,14 +41,42 @@ public sealed class RocketLauncherTuning : WeaponSpecificTuning
     [Min(0f)] public float RocketManualExplosionRadius = 2.4f;
     [Min(0f)] public float RocketActiveExplosionRadius = 2.9f;
 
-    [Range(0f, 1f)] public float RocketAutoExplosionFalloff = 0.45f;
-    [Range(0f, 1f)] public float RocketManualExplosionFalloff = 0.35f;
-    [Range(0f, 1f)] public float RocketActiveExplosionFalloff = 0.5f;
+    [Range(0f, 1f)] public float RocketAutoExplosionFalloff = 0.85f;
+    [Range(0f, 1f)] public float RocketManualExplosionFalloff = 0.85f;
+    [Range(0f, 1f)] public float RocketActiveExplosionFalloff = 0.85f;
 
     [Min(0.01f)] public float RocketAutoSpeedMultiplier = 1f;
     [Min(0.01f)] public float RocketManualSpeedMultiplier = 1.35f;
     [Min(0.01f)] public float RocketActiveSpeedMultiplier = 1.15f;
     [Min(0f)] public float RocketActiveDamageScale = 2f;
+}
+
+[Serializable]
+public sealed class FlamethrowerTuning : WeaponSpecificTuning
+{
+    public static readonly FlamethrowerTuning Defaults = new();
+
+    [Range(1f, 180f)] public float FlameAutoConeAngle = 45f;
+    [Range(1f, 180f)] public float FlameManualConeAngle = 38f;
+    [Min(1)] public int FlameMaxTargetsPerTick = 64;
+
+    [Min(0.01f)] public float FlameAutoTickInterval = 1f;
+    [Min(0.01f)] public float FlameOverheatAutoTickInterval = 0.5f;
+    [Range(0f, 100f)] public float FlameOverheatTickThresholdPercent = 75f;
+    [Min(0.01f)] public float FlameManualTickInterval = 0.5f;
+    [Min(0f)] public float FlameManualAmmoPerSecond = 10f;
+    [Min(0f)] public float FlameManualRangeHeatMultiplier = 0.75f;
+
+    [Min(0f)] public float FlameBurnDuration = 3f;
+    [Min(0.01f)] public float FlameBurnTickInterval = 0.5f;
+    [Min(0f)] public float FlameBurnDamageScale = 0.5f;
+
+    [Min(0f)] public float FlameActiveRadius = 6f;
+    [Min(0f)] public float FlameActiveDamageScale = 2f;
+    [Min(0f)] public float FlameManualKnockbackScale = 0.25f;
+    [Min(0f)] public float FlameActiveKnockbackScale = 3f;
+    [Min(0f)] public float FlameVisualDuration = 0.18f;
+    [Min(0f)] public float FlameActiveVisualDuration = 0.45f;
 }
 
 [CreateAssetMenu(fileName = "WeaponData", menuName = "ScrapWaves/Weapon Data")]
@@ -74,12 +103,14 @@ public class WeaponData : ScriptableObject
 
     public AutomaticCannonTuning AutomaticCannon => _specificTuning as AutomaticCannonTuning ?? AutomaticCannonTuning.Defaults;
     public RocketLauncherTuning RocketLauncher => _specificTuning as RocketLauncherTuning ?? RocketLauncherTuning.Defaults;
+    public FlamethrowerTuning Flamethrower => _specificTuning as FlamethrowerTuning ?? FlamethrowerTuning.Defaults;
 
     public static WeaponSpecificTuning CreateSpecificTuning(WeaponType weaponType)
     {
         return weaponType switch
         {
             WeaponType.AutomaticCannon => new AutomaticCannonTuning(),
+            WeaponType.Flamethrower => new FlamethrowerTuning(),
             WeaponType.RocketLauncher => new RocketLauncherTuning(),
             _ => null
         };

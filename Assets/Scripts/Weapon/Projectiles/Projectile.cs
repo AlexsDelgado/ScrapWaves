@@ -20,6 +20,7 @@ public class Projectile : MonoBehaviour
     private bool _useExplosion;
     private float _explosionRadius;
     private float _explosionFalloff;
+    private float _knockback;
     private float _activeSpeed;
     private Vector3 _launchPosition;
     private float _maxTravelDistance;
@@ -42,12 +43,19 @@ public class Projectile : MonoBehaviour
     public void ConfigurePooled(float maxLifetimeSeconds)
     {
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
+        _knockback = 0f;
     }
 
     public void ConfigurePooled(float maxLifetimeSeconds, int damageForThisShot)
     {
+        ConfigurePooled(maxLifetimeSeconds, damageForThisShot, 0f);
+    }
+
+    public void ConfigurePooled(float maxLifetimeSeconds, int damageForThisShot, float knockbackForThisShot)
+    {
         ConfigurePooled(maxLifetimeSeconds);
         _damage = Mathf.Max(1, damageForThisShot);
+        _knockback = Mathf.Max(0f, knockbackForThisShot);
     }
 
     // Launches projectile and resets runtime damage mode state.
@@ -146,7 +154,8 @@ public class Projectile : MonoBehaviour
 
         if (damageable != null)
         {
-            damageable.ApplyDamage(_damage);
+            if (damageable.ApplyDamage(_damage))
+                EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback);
             DespawnOrDestroy();
         }
     }
@@ -198,7 +207,8 @@ public class Projectile : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _explosionFalloff, t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
-            damageable.ApplyDamage(finalDamage);
+            if (damageable.ApplyDamage(finalDamage))
+                EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback * falloffScale);
         }
     }
 

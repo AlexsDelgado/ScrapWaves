@@ -160,6 +160,11 @@ public class ProjectilePool : MonoBehaviour
 
     public bool TrySpawnProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage)
     {
+        return TrySpawnProjectile(position, rotation, fireDirection, damage, 0f);
+    }
+
+    public bool TrySpawnProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float knockback)
+    {
         GameObject go = TryGet();
         if (go == null)
             return false;
@@ -173,7 +178,7 @@ public class ProjectilePool : MonoBehaviour
             return false;
         }
 
-        projectile.ConfigurePooled(_projectileLifetime, damage);
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
         projectile.Launch(fireDirection);
         return true;
     }
@@ -181,7 +186,7 @@ public class ProjectilePool : MonoBehaviour
     // Spawns projectile configured with explosion radius and damage falloff.
     public bool TrySpawnExplosiveProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float explosionRadius, float falloff)
     {
-        return TrySpawnExplosiveProjectile(position, rotation, fireDirection, damage, explosionRadius, falloff, 1f, 0f, false);
+        return TrySpawnExplosiveProjectile(position, rotation, fireDirection, damage, explosionRadius, falloff, 0f, 1f, 0f, false);
     }
 
     // Spawns projectile configured with explosion, speed, and optional range detonation.
@@ -192,6 +197,7 @@ public class ProjectilePool : MonoBehaviour
         int damage,
         float explosionRadius,
         float falloff,
+        float knockback,
         float speedMultiplier,
         float maxTravelDistance,
         bool explodeOnMaxTravel)
@@ -209,7 +215,7 @@ public class ProjectilePool : MonoBehaviour
             return false;
         }
 
-        projectile.ConfigurePooled(_projectileLifetime, damage);
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
         projectile.Launch(fireDirection);
         projectile.ConfigureExplosion(explosionRadius, falloff);
         projectile.ConfigureSpeedMultiplier(speedMultiplier);

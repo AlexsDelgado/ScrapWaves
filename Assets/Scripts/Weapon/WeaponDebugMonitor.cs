@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 public class WeaponDebugMonitor : MonoBehaviour
 {
     [SerializeField] private WeaponManager _weaponManager;
-    [SerializeField] private bool _showOverlay = true;
+    [SerializeField] private bool _showOverlay;
     [SerializeField] private bool _logStateChanges = true;
 
     private int _lastIndex = -1;
@@ -92,7 +92,8 @@ public class WeaponDebugMonitor : MonoBehaviour
 
         sb.AppendLine($"Manual Weapon: {manual.Data.DisplayName} ({manual.Data.WeaponType})");
         sb.AppendLine($"State: {manual.State}");
-        sb.AppendLine($"Ammo: {manual.CurrentAmmo:0.0} / {WeaponMath.GetMaxManualAmmo(manual, GetComponent<PlayerStats>()):0.0}");
+        sb.AppendLine($"Manual Ammo: {manual.CurrentAmmo:0.0} / {WeaponMath.GetMaxManualAmmo(manual, GetComponent<PlayerStats>()):0.0}");
+        sb.AppendLine($"Ability Cost: {manual.Data.ActiveAbilityAmmoCost:0.0}");
         sb.AppendLine("Input: LMB fire, Q ability");
 
         return sb.ToString();

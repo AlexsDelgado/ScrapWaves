@@ -8,7 +8,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     }
 
     // Fires three-round burst in automatic mode.
-    public override void TickAutomatic(float deltaTime)
+    public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
             return;
@@ -20,7 +20,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (Spawn == null)
             return;
 
-        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, out Transform target))
+        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
             return;
 
         AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
@@ -29,7 +29,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             target.position - Spawn.position,
             Mathf.Max(1, tuning.CannonAutoBurstCount),
             GetHeatDamageMultiplier(),
-            tuning.CannonAutoLineSpacing);
+            tuning.CannonAutoLineSpacing,
+            tuning.CannonAutoAccuracySpreadDegrees);
     }
 
     // Fires five-round burst in manual mode.
@@ -55,8 +56,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         FireLineBurst(
             aimDirection,
             bulletsToFire,
-            GetHeatDamageMultiplier(),
-            tuning.CannonManualLineSpacing);
+            1f,
+            tuning.CannonManualLineSpacing,
+            0f);
     }
 
     // Fires spread burst active ability, scaled by heat.
@@ -76,7 +78,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         FireScatterBurst(
             aimDirection,
             Mathf.Max(1, tuning.CannonActiveBaseBulletCount) + extra,
-            GetHeatDamageMultiplier(),
+            1f,
             tuning.CannonAbilityScatterRadius);
     }
 
@@ -117,9 +119,10 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     }
 
     // Spawns normal cannon bursts as a straight line of projectiles.
-    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale, float lineSpacing)
+    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale, float lineSpacing, float accuracySpreadDegrees)
     {
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
+        baseDirection = ApplyAccuracySpread(baseDirection, accuracySpreadDegrees);
         float spacing = Mathf.Max(0f, lineSpacing);
 
         for (int i = 0; i < count; i++)
@@ -127,6 +130,17 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             Vector3 position = Spawn.position + baseDirection * (spacing * i);
             FireFromPositionInDirection(position, baseDirection, damageScale, false);
         }
+    }
+
+    // Medium automatic accuracy offsets the whole burst while keeping bullets in a clean line.
+    private Vector3 ApplyAccuracySpread(Vector3 direction, float spreadDegrees)
+    {
+        if (spreadDegrees <= 0f)
+            return direction;
+
+        Quaternion aimRotation = Quaternion.LookRotation(direction, GetStableUp(direction));
+        Vector2 spread = UnityEngine.Random.insideUnitCircle * spreadDegrees;
+        return (aimRotation * Quaternion.Euler(spread.y, spread.x, 0f) * Vector3.forward).normalized;
     }
 
     // Spawns active ability burst with shotgun-style two-axis angular spread.

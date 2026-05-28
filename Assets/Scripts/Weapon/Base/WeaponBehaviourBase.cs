@@ -4,7 +4,7 @@ public interface IWeaponBehaviour
 {
     WeaponInstance Runtime { get; }
     void Setup(WeaponInstance instance, Transform owner, PlayerStats stats, HeatManager heat);
-    void TickAutomatic(float deltaTime);
+    void TickAutomatic(float deltaTime, Vector3 aimDirection);
     void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring);
     void UseActiveAbility(Vector3 aimDirection);
     bool CanCrit();
@@ -40,7 +40,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     }
 
     // Handles automatic fire attempts using selected targeting logic.
-    public virtual void TickAutomatic(float deltaTime)
+    public virtual void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
             return;
@@ -50,7 +50,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
             return;
 
         FireTimer = GetFireInterval();
-        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, out Transform target))
+        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
             return;
 
         FireAt(target.position, 1f, false);
@@ -145,14 +145,17 @@ public class BasicProjectileWeapon : IWeaponBehaviour
             return;
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale;
+        float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
+        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale);
+        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale);
         Pool.TrySpawnExplosiveProjectile(
             Spawn.position,
             rotation,
             direction,
-            Mathf.RoundToInt(damage),
-            explosionRadius,
+            finalDamage,
+            scaledExplosionRadius,
             falloff,
+            knockback,
             speedMultiplier,
             maxTravelDistance,
             explodeOnMaxTravel);
@@ -187,7 +190,21 @@ public class BasicProjectileWeapon : IWeaponBehaviour
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale;
-        Pool.TrySpawnProjectile(position, rotation, direction, Mathf.RoundToInt(damage));
+        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale);
+        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale);
+        Pool.TrySpawnProjectile(position, rotation, direction, finalDamage, knockback);
+    }
+
+    // Applies projectile/area size stat to weapon ranges and areas without affecting angles.
+    protected float GetAreaSizeMultiplier()
+    {
+        return WeaponMath.GetStatScale(Stats, StatType.ProjectileAreaSize);
+    }
+
+    // Applies weapon knockback to a damage receiver after a successful hit.
+    protected void ApplyKnockback(IDamageable damageable, Vector3 impactOrigin, int damage, float scale)
+    {
+        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, scale);
+        EnemyKnockbackReceiver.TryApply(damageable, impactOrigin, knockback);
     }
 }

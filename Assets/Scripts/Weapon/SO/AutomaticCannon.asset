@@ -23,6 +23,8 @@ MonoBehaviour:
   BaseKnockback: 1
   BaseManualAmmo: 200
   ActiveAbilityAmmoCost: 20
+  _specificTuning:
+    rid: 5516199871946686465
   LevelData: []
   PathA:
     PathName: 
@@ -34,3 +36,21 @@ MonoBehaviour:
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+  references:
+    version: 2
+    RefIds:
+    - rid: 5516199871946686465
+      type: {class: AutomaticCannonTuning, ns: , asm: Assembly-CSharp}
+      data:
+        CannonAutoBurstCount: 3
+        CannonManualBurstCount: 5
+        CannonActiveBaseBulletCount: 20
+        CannonAbilityScatterRadius: 11
+        CannonManualLineSpacing: 1
+        CannonAutoLineSpacing: 1
+        CannonAutoAccuracySpreadDegrees: 6
+        CannonActiveHeatBulletStepPercent: 5
+        CannonHeatDamageThresholdStepPercent: 25
+        CannonHeatDamageThresholdCount: 3
+        CannonHeatDamageBonusPerThreshold: 0.15
+        CannonCriticalDamageMultiplierOverride: 2

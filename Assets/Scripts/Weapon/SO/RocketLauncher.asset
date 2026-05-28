@@ -15,7 +15,7 @@ MonoBehaviour:
   WeaponId: RocketLauncher
   DisplayName: Rocket Launcher
   WeaponType: 2
-  AutoTargetingMode: 1
+  AutoTargetingMode: 0
   ManualMode: 0
   BaseDamage: 20
   BaseAttackRate: 1
@@ -23,6 +23,8 @@ MonoBehaviour:
   BaseKnockback: 5
   BaseManualAmmo: 40
   ActiveAbilityAmmoCost: 10
+  _specificTuning:
+    rid: 7782109439718619137
   LevelData: []
   PathA:
     PathName: 
@@ -34,3 +36,22 @@ MonoBehaviour:
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+  references:
+    version: 2
+    RefIds:
+    - rid: 7782109439718619137
+      type: {class: RocketLauncherTuning, ns: , asm: Assembly-CSharp}
+      data:
+        RocketAutoBaseRocketCount: 2
+        RocketActiveBaseRocketCount: 10
+        RocketActiveConeAngle: 90
+        RocketAutoExplosionRadius: 1.8
+        RocketManualExplosionRadius: 2.4
+        RocketActiveExplosionRadius: 2.9
+        RocketAutoExplosionFalloff: 0.85
+        RocketManualExplosionFalloff: 0.85
+        RocketActiveExplosionFalloff: 0.85
+        RocketAutoSpeedMultiplier: 1
+        RocketManualSpeedMultiplier: 1.35
+        RocketActiveSpeedMultiplier: 1.15
+        RocketActiveDamageScale: 2

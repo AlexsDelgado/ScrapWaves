@@ -39,6 +39,8 @@ public static class WeaponMath
             return 0f;
 
         float ammo = Mathf.Max(0f, instance.Data.BaseManualAmmo);
+        ammo *= GetStatScale(stats, StatType.AmmoMultiplier);
+
         WeaponLevelData levelData = GetLevelData(instance);
         WeaponUpgradePathData pathData = GetPathData(instance);
 
@@ -49,6 +51,30 @@ public static class WeaponMath
             ammo = pathData.ManualAmmoOverride;
 
         return ammo;
+    }
+
+    // Reads a multiplier stat with a safe neutral fallback.
+    public static float GetStatScale(PlayerStats stats, StatType statType)
+    {
+        if (stats == null)
+            return 1f;
+
+        if (stats.GetDefinition(statType) == null)
+            return 1f;
+
+        return Mathf.Max(0.01f, stats.GetStat(statType));
+    }
+
+    // Calculates a gameplay-friendly impulse from weapon tuning, damage, player stat, and caller scale.
+    public static float CalculateKnockback(PlayerStats stats, WeaponInstance instance, int damage, float scale = 1f, float falloffScale = 1f)
+    {
+        if (instance?.Data == null || scale <= 0f || falloffScale <= 0f)
+            return 0f;
+
+        float baseKnockback = Mathf.Max(0f, instance.Data.BaseKnockback);
+        float statKnockback = GetStatScale(stats, StatType.Knockback);
+        float damageFactor = 1f + Mathf.Sqrt(Mathf.Max(0, damage)) * 0.25f;
+        return baseKnockback * statKnockback * Mathf.Max(0f, scale) * Mathf.Max(0f, falloffScale) * damageFactor;
     }
 
     // Calculates final attack-rate scalar from level and selected path.
