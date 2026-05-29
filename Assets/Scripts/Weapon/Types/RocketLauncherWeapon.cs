@@ -28,15 +28,16 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
             return;
 
         FireTimer = GetFireInterval();
-        int extra = GetThresholdRocketBonus();
+        int extra = GetThresholdRocketBonus() + GetFragmentationRocketBonus();
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         FireBurstAt(
             target.position,
             tuning.RocketAutoBaseRocketCount + extra,
             1f,
-            tuning.RocketAutoExplosionRadius,
-            tuning.RocketAutoExplosionFalloff,
-            tuning.RocketAutoSpeedMultiplier);
+            GetPathAdjustedExplosionRadius(tuning.RocketAutoExplosionRadius),
+            GetPathAdjustedFalloff(tuning.RocketAutoExplosionFalloff),
+            tuning.RocketAutoSpeedMultiplier,
+            WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
     // Fires one fast manual rocket and consumes one ammo unit.
@@ -60,8 +61,8 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         FireRocketAt(
             Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange,
             1f,
-            tuning.RocketManualExplosionRadius,
-            tuning.RocketManualExplosionFalloff,
+            GetPathAdjustedExplosionRadius(tuning.RocketManualExplosionRadius),
+            GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff),
             tuning.RocketManualSpeedMultiplier);
     }
 
@@ -76,7 +77,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
 
         int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
-        int rocketCount = tuning.RocketActiveBaseRocketCount + heatBonus;
+        int rocketCount = tuning.RocketActiveBaseRocketCount + heatBonus + GetFragmentationActiveBonus();
         int targetsFound = BuildActiveRocketTargets(aimDirection, rocketCount, tuning);
 
         if (targetsFound <= 0)
@@ -90,9 +91,10 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
             FireRocketAt(
                 _abilityTargets[i].position,
                 tuning.RocketActiveDamageScale,
-                tuning.RocketActiveExplosionRadius,
-                tuning.RocketActiveExplosionFalloff,
-                tuning.RocketActiveSpeedMultiplier);
+                GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius),
+                GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
+                tuning.RocketActiveSpeedMultiplier,
+                WeaponEnemyClassifier.CountsAsEliteOrBoss(_abilityTargets[i]));
         }
     }
 
@@ -121,11 +123,40 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         return bonus;
     }
 
+    private int GetFragmentationRocketBonus()
+    {
+        return Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1 : 0;
+    }
+
+    private int GetFragmentationActiveBonus()
+    {
+        int bonus = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 4 : 0;
+        if (Runtime.Level >= 10)
+            bonus += 2;
+        return bonus;
+    }
+
+    private float GetPathAdjustedExplosionRadius(float radius)
+    {
+        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+            radius *= 1.3f;
+        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
+            radius *= 0.8f;
+        return radius;
+    }
+
+    private float GetPathAdjustedFalloff(float falloff)
+    {
+        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+            return Mathf.Clamp01(falloff * 0.65f);
+        return falloff;
+    }
+
     // Spawns explosive rocket volley at the same target point.
-    private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float explosionRadius, float falloff, float speedMultiplier)
+    private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
     {
         for (int i = 0; i < count; i++)
-            FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier);
+            FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier, eliteOrBoss);
     }
 
     // Builds active volley targets in proximity order, allowing extra rockets for elites/bosses.
@@ -160,20 +191,22 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         if (target == null)
             return 1;
 
-        string rootName = target.root != null ? target.root.name : target.name;
-        if (rootName.Contains("Boss", System.StringComparison.OrdinalIgnoreCase))
-            return 5;
-
-        if (rootName.Contains("Elite", System.StringComparison.OrdinalIgnoreCase)
-            || rootName.Contains("variant", System.StringComparison.OrdinalIgnoreCase))
-            return 2;
-
-        return 1;
+        return WeaponEnemyClassifier.GetKind(target) switch
+        {
+            WeaponEnemyKind.Boss => 5,
+            WeaponEnemyKind.Elite => 2,
+            _ => 1
+        };
     }
 
     // Fires a rocket that detonates on enemy hit or when it reaches weapon range.
     private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier)
     {
-        FireExplosiveAt(targetPosition, damageScale, false, explosionRadius, falloff, speedMultiplier, Runtime.Data.BaseRange, true);
+        FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier, false);
+    }
+
+    private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
+    {
+        FireExplosiveAt(targetPosition, damageScale, eliteOrBoss, explosionRadius, falloff, speedMultiplier, Runtime.Data.BaseRange, true);
     }
 }

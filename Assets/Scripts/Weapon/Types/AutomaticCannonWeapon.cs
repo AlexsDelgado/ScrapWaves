@@ -27,10 +27,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         FireTimer = GetFireInterval();
         FireLineBurst(
             target.position - Spawn.position,
-            Mathf.Max(1, tuning.CannonAutoBurstCount),
-            GetHeatDamageMultiplier(),
+            Mathf.Max(1, tuning.CannonAutoBurstCount + GetContinuousFireBonus()),
+            GetHeatDamageMultiplier() * GetHeadHunterScale(target),
             tuning.CannonAutoLineSpacing,
-            tuning.CannonAutoAccuracySpreadDegrees);
+            tuning.CannonAutoAccuracySpreadDegrees,
+            WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
     // Fires five-round burst in manual mode.
@@ -47,7 +48,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
 
         AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
-        int manualBurstCount = Mathf.Max(1, tuning.CannonManualBurstCount);
+        int manualBurstCount = Mathf.Max(1, tuning.CannonManualBurstCount + GetContinuousFireBonus());
         int bulletsToFire = Mathf.Clamp(Mathf.CeilToInt(Runtime.CurrentAmmo), 1, manualBurstCount);
         if (!TrySpendManualAmmo(bulletsToFire, requireFullAmount: false))
             return;
@@ -58,7 +59,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             bulletsToFire,
             1f,
             tuning.CannonManualLineSpacing,
-            0f);
+            0f,
+            false);
     }
 
     // Fires spread burst active ability, scaled by heat.
@@ -78,7 +80,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         FireScatterBurst(
             aimDirection,
             Mathf.Max(1, tuning.CannonActiveBaseBulletCount) + extra,
-            1f,
+            Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1.25f : 1f,
             tuning.CannonAbilityScatterRadius);
     }
 
@@ -91,7 +93,10 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     // Critical hits deal double the normal critical damage effect.
     protected override float GetCritMultiplierOverride()
     {
-        return Runtime?.Data != null ? Runtime.Data.AutomaticCannon.CannonCriticalDamageMultiplierOverride : AutomaticCannonTuning.Defaults.CannonCriticalDamageMultiplierOverride;
+        float multiplier = Runtime?.Data != null ? Runtime.Data.AutomaticCannon.CannonCriticalDamageMultiplierOverride : AutomaticCannonTuning.Defaults.CannonCriticalDamageMultiplierOverride;
+        if (Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
+            multiplier *= 1.5f;
+        return multiplier;
     }
 
     // Converts 25/50/75 heat thresholds into stacking damage bonuses.
@@ -118,8 +123,24 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return Mathf.FloorToInt((Heat.NormalizedHeat * 100f) / stepPercent);
     }
 
+    private int GetContinuousFireBonus()
+    {
+        int bonus = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA ? 2 : 0;
+        if (Runtime.Level >= 10 && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+            bonus += 2;
+        return bonus;
+    }
+
+    private float GetHeadHunterScale(Transform target)
+    {
+        if (!Runtime.HasAdvancedPath || Runtime.SelectedPath != WeaponUpgradePath.PathB)
+            return 1f;
+
+        return WeaponEnemyClassifier.CountsAsEliteOrBoss(target) ? 1.35f : 1.15f;
+    }
+
     // Spawns normal cannon bursts as a straight line of projectiles.
-    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale, float lineSpacing, float accuracySpreadDegrees)
+    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale, float lineSpacing, float accuracySpreadDegrees, bool eliteOrBoss)
     {
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
         baseDirection = ApplyAccuracySpread(baseDirection, accuracySpreadDegrees);
@@ -128,7 +149,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         for (int i = 0; i < count; i++)
         {
             Vector3 position = Spawn.position + baseDirection * (spacing * i);
-            FireFromPositionInDirection(position, baseDirection, damageScale, false);
+            FireFromPositionInDirection(position, baseDirection, damageScale, eliteOrBoss);
         }
     }
 

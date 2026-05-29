@@ -1,11 +1,34 @@
 using UnityEngine;
 
+public readonly struct WeaponDamageRoll
+{
+    public readonly WeaponInstance Weapon;
+    public readonly bool EliteOrBoss;
+    public readonly bool CanCrit;
+    public readonly bool IsCritical;
+    public readonly float BaseDamage;
+    public readonly float FinalDamage;
+
+    public WeaponDamageRoll(WeaponInstance weapon, bool eliteOrBoss, bool canCrit, bool isCritical, float baseDamage, float finalDamage)
+    {
+        Weapon = weapon;
+        EliteOrBoss = eliteOrBoss;
+        CanCrit = canCrit;
+        IsCritical = isCritical;
+        BaseDamage = baseDamage;
+        FinalDamage = finalDamage;
+    }
+}
+
 public static class WeaponDamageResolver
 {
+    public static event System.Action<WeaponDamageRoll> OnDamageResolved;
+
     // Calculates damage from weapon base, level/path, stats, and crit.
     public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f)
     {
         float damage = Mathf.Max(0f, instance.Data.BaseDamage);
+        float baseDamage = damage;
         damage *= GetLevelDamageMultiplier(instance);
         damage *= GetPathDamageMultiplier(instance);
         damage *= Mathf.Max(0f, stats.GetStat(StatType.DamageMultiplier));
@@ -13,9 +36,11 @@ public static class WeaponDamageResolver
         if (eliteOrBoss)
             damage *= Mathf.Max(0f, stats.GetStat(StatType.EliteDamageMultiplier));
 
-        if (canCrit && RollCrit(stats))
+        bool isCritical = canCrit && RollCrit(stats);
+        if (isCritical)
             damage *= Mathf.Max(1f, stats.GetStat(StatType.CriticalDamage) * critMultiplierOverride);
 
+        OnDamageResolved?.Invoke(new WeaponDamageRoll(instance, eliteOrBoss, canCrit, isCritical, baseDamage, damage));
         return damage;
     }
 

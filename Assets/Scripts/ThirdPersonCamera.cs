@@ -76,6 +76,27 @@ public class ThirdPersonCamera : MonoBehaviour
         }
     }
 
+    public void SetFollowTarget(Transform followTarget)
+    {
+        _followTarget = followTarget;
+    }
+
+    public void ApplyMainGameOrbitDefaults()
+    {
+        _followOffset = new Vector3(0f, 1.9f, -4.2f);
+        _lookAtOffset = new Vector3(0f, 1.2f, 0f);
+        _horizontalSensitivity = 0.12f;
+        _verticalSensitivity = 0.12f;
+        _invertVertical = true;
+        _minPitch = -70f;
+        _maxPitch = 70f;
+        _avoidCameraClipping = true;
+        _cameraCollisionRadius = 0.25f;
+        _cameraCollisionPadding = 0.12f;
+        _minimumDistanceFromLookPoint = 0.65f;
+        _lockCursorOnPlay = true;
+    }
+
     private void LateUpdate()
     {
         if (_followTarget == null)
