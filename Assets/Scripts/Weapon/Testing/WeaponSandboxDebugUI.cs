@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Text;
 using TMPro;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
@@ -21,6 +24,11 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private readonly StringBuilder _sb = new(1024);
     private float _nextRefreshTime;
     private bool _isRefreshing;
+    private Vector2 _immediateScroll;
+    private int _immediateUpgradeSlot;
+    private bool _uiMouseMode = true;
+    private bool _autoCursorMode = true;
+    private bool _temporaryCameraAim;
 
     public void Bind(WeaponTestingSandboxManager sandbox)
     {
@@ -33,16 +41,363 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             _sandbox = GetComponent<WeaponTestingSandboxManager>();
 
         BuildUi();
+        ApplyUiMouseMode();
         RefreshAllStaticSelections();
     }
 
     private void LateUpdate()
     {
-        if (_sandbox == null || Time.unscaledTime < _nextRefreshTime)
+        if (_sandbox == null)
+            return;
+
+#if ENABLE_INPUT_SYSTEM
+        if (Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
+        {
+            _autoCursorMode = true;
+            _temporaryCameraAim = false;
+            _uiMouseMode = true;
+            ApplyUiMouseMode();
+        }
+#endif
+        TickTemporaryCameraAim();
+
+        if (Time.unscaledTime < _nextRefreshTime)
             return;
 
         _nextRefreshTime = Time.unscaledTime + 0.12f;
         RefreshDynamicText();
+    }
+
+    private void OnGUI()
+    {
+        if (_sandbox == null)
+            return;
+
+        Rect rect = new Rect(10f, 10f, 500f, Screen.height - 20f);
+        HandleAutoCursorMode(rect);
+
+        GUILayout.BeginArea(rect, GUI.skin.box);
+        _immediateScroll = GUILayout.BeginScrollView(_immediateScroll);
+
+        GUILayout.Label("Weapon Testing Sandbox");
+        DrawImmediateCursorMode();
+        DrawImmediateLoadout();
+        DrawImmediateStats();
+        DrawImmediateHeat();
+        DrawImmediateRuntimeControls();
+        DrawImmediateSpawner();
+        DrawImmediateMetrics();
+        DrawImmediateGizmos();
+
+        GUILayout.EndScrollView();
+        GUILayout.EndArea();
+    }
+
+    private void DrawImmediateCursorMode()
+    {
+        GUILayout.BeginHorizontal();
+        _autoCursorMode = GUILayout.Toggle(_autoCursorMode, "Auto Cursor", GUILayout.Width(110f));
+        GUILayout.Label(_uiMouseMode ? "Mode: UI Mouse" : "Mode: Camera Aim");
+        if (GUILayout.Button(_uiMouseMode ? "Lock Camera" : "Unlock UI"))
+        {
+            if (_uiMouseMode)
+            {
+                _autoCursorMode = false;
+                _temporaryCameraAim = false;
+                _uiMouseMode = false;
+            }
+            else
+            {
+                _autoCursorMode = true;
+                _temporaryCameraAim = false;
+                _uiMouseMode = true;
+            }
+            ApplyUiMouseMode();
+        }
+        GUILayout.EndHorizontal();
+        if (_autoCursorMode)
+        {
+            GUILayout.Label(_uiMouseMode
+                ? "Cursor is unlocked. Hold-click the game view to aim; release to use UI again."
+                : "Temporary camera aim. Release the mouse to unlock UI.");
+        }
+        else
+        {
+            GUILayout.Label(_uiMouseMode
+                ? "Cursor is unlocked. Enable Auto Cursor or lock camera manually."
+                : "Cursor is locked. Press F1 or use Unlock UI.");
+        }
+    }
+
+    private void HandleAutoCursorMode(Rect panelRect)
+    {
+        if (!_autoCursorMode)
+            return;
+
+        Event current = Event.current;
+        if (current == null)
+            return;
+
+        if (current.type == EventType.KeyDown && current.keyCode == KeyCode.F1)
+        {
+            _autoCursorMode = true;
+            _temporaryCameraAim = false;
+            _uiMouseMode = true;
+            ApplyUiMouseMode();
+            current.Use();
+            return;
+        }
+
+        if (current.type != EventType.MouseDown)
+            return;
+
+        bool clickedPanel = panelRect.Contains(current.mousePosition);
+        if (clickedPanel)
+        {
+            _temporaryCameraAim = false;
+            if (!_uiMouseMode)
+            {
+                _uiMouseMode = true;
+                ApplyUiMouseMode();
+            }
+            return;
+        }
+
+        if (_uiMouseMode)
+        {
+            _temporaryCameraAim = true;
+            _uiMouseMode = false;
+            ApplyUiMouseMode();
+        }
+    }
+
+    private void TickTemporaryCameraAim()
+    {
+        if (!_autoCursorMode || !_temporaryCameraAim || _uiMouseMode)
+            return;
+
+        if (IsAnyMouseButtonPressed())
+            return;
+
+        _temporaryCameraAim = false;
+        _uiMouseMode = true;
+        ApplyUiMouseMode();
+    }
+
+    private void DrawImmediateLoadout()
+    {
+        GUILayout.Space(6f);
+        GUILayout.Label("Player Weapon Loadout");
+        for (int slot = 0; slot < WeaponTestingSandboxManager.WeaponSlots; slot++)
+        {
+            WeaponInstance weapon = _sandbox.GetWeaponInSlot(slot);
+            GUILayout.Label($"Slot {slot + 1}: {(weapon?.Data != null ? weapon.Data.DisplayName : "None")}");
+            GUILayout.BeginHorizontal();
+            DrawWeaponButton(slot, "None", null);
+            DrawWeaponButton(slot, "Flame", WeaponType.Flamethrower);
+            DrawWeaponButton(slot, "Rocket", WeaponType.RocketLauncher);
+            DrawWeaponButton(slot, "Mortar", WeaponType.Mortar);
+            DrawWeaponButton(slot, "Cannon", WeaponType.AutomaticCannon);
+            DrawWeaponButton(slot, "Blade", WeaponType.RotatingBlade);
+            GUILayout.EndHorizontal();
+        }
+
+        WeaponInstance current = _sandbox.CurrentManualWeapon;
+        GUILayout.Label($"Manual: {(current?.Data != null ? current.Data.DisplayName : "None")} | State: {(current != null ? current.State.ToString() : "None")} | Ammo: {(current != null ? current.CurrentAmmo.ToString("0.#") : "0")}");
+
+        GUILayout.Label("Upgrade Path Test");
+        GUILayout.BeginHorizontal();
+        for (int i = 0; i < WeaponTestingSandboxManager.WeaponSlots; i++)
+        {
+            if (GUILayout.Toggle(_immediateUpgradeSlot == i, $"Slot {i + 1}", GUI.skin.button))
+                _immediateUpgradeSlot = i;
+        }
+        GUILayout.EndHorizontal();
+
+        WeaponInstance selected = _sandbox.GetWeaponInSlot(_immediateUpgradeSlot);
+        int level = selected != null ? selected.Level : 1;
+        int newLevel = Mathf.RoundToInt(GUILayout.HorizontalSlider(level, 1f, 10f));
+        GUILayout.Label($"Level: {newLevel}");
+        GUILayout.BeginHorizontal();
+        DrawPathButton(newLevel, WeaponUpgradePath.None, "None");
+        DrawPathButton(newLevel, WeaponUpgradePath.PathA, "Path A");
+        DrawPathButton(newLevel, WeaponUpgradePath.PathB, "Path B");
+        GUILayout.EndHorizontal();
+
+        if (selected != null && selected.Level != newLevel)
+            _sandbox.ApplyWeaponLevelAndPath(_immediateUpgradeSlot, newLevel, selected.SelectedPath);
+    }
+
+    private void DrawImmediateStats()
+    {
+        WeaponStatOverride stats = _sandbox.StatOverride;
+        if (stats == null)
+            return;
+
+        GUILayout.Space(6f);
+        GUILayout.Label("Stat Override");
+        stats.DamageMultiplier = DrawImmediateSlider("Damage", stats.DamageMultiplier, 0f, 5f);
+        stats.EliteDamageMultiplier = DrawImmediateSlider("Elite Damage", stats.EliteDamageMultiplier, 0f, 5f);
+        stats.AttackSpeedMultiplier = DrawImmediateSlider("Attack Speed", stats.AttackSpeedMultiplier, 0.1f, 5f);
+        stats.ProjectileAreaSizeMultiplier = DrawImmediateSlider("Projectile / Area Size", stats.ProjectileAreaSizeMultiplier, 0.1f, 5f);
+        stats.CriticalChance = DrawImmediateSlider("Critical Chance", stats.CriticalChance, 0f, 1f);
+        stats.CriticalDamageMultiplier = DrawImmediateSlider("Critical Damage", stats.CriticalDamageMultiplier, 1f, 6f);
+        stats.KnockbackMultiplier = DrawImmediateSlider("Knockback", stats.KnockbackMultiplier, 0f, 5f);
+        stats.AmmoMultiplier = DrawImmediateSlider("Ammo", stats.AmmoMultiplier, 0f, 5f);
+        stats.ApplyOverrides();
+
+        if (GUILayout.Button("Reset Stats To Default"))
+            stats.ResetToDefaults();
+    }
+
+    private void DrawImmediateHeat()
+    {
+        if (_sandbox.HeatOverride == null)
+            return;
+
+        GUILayout.Space(6f);
+        GUILayout.Label($"Heat Control: {_sandbox.HeatOverride.NormalizedHeat * 100f:0.#}%");
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("0%")) _sandbox.HeatOverride.SetHeatPercent(0f);
+        if (GUILayout.Button("25%")) _sandbox.HeatOverride.SetHeatPercent(25f);
+        if (GUILayout.Button("50%")) _sandbox.HeatOverride.SetHeatPercent(50f);
+        if (GUILayout.Button("75%")) _sandbox.HeatOverride.SetHeatPercent(75f);
+        if (GUILayout.Button("100%")) _sandbox.HeatOverride.SetHeatPercent(100f);
+        GUILayout.EndHorizontal();
+
+        float heat = GUILayout.HorizontalSlider(_sandbox.HeatOverride.NormalizedHeat * 100f, 0f, 100f);
+        _sandbox.HeatOverride.SetHeatPercent(heat);
+    }
+
+    private void DrawImmediateRuntimeControls()
+    {
+        GUILayout.Space(6f);
+        GUILayout.Label("Weapon Runtime Controls");
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Auto")) _sandbox.ForceAutomaticMode();
+        if (GUILayout.Button("Manual")) _sandbox.ForceManualMode();
+        if (GUILayout.Button("Refill")) _sandbox.RefillAmmo();
+        if (GUILayout.Button("Empty")) _sandbox.EmptyAmmo();
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Cycle")) _sandbox.CycleToNextWeapon();
+        if (GUILayout.Button("Use Q Ability")) _sandbox.UseActiveAbility();
+        if (GUILayout.Button("Reset Cooldowns")) _sandbox.ResetWeaponCooldowns();
+        GUILayout.EndHorizontal();
+    }
+
+    private void DrawImmediateSpawner()
+    {
+        WeaponDummySpawner spawner = _sandbox.Spawner;
+        if (spawner == null)
+            return;
+
+        GUILayout.Space(6f);
+        GUILayout.Label("Enemy Spawn");
+        spawner.EnemyHealth = Mathf.RoundToInt(DrawImmediateSlider("Enemy Health", spawner.EnemyHealth, 1f, 10000f));
+        spawner.EnemyMovementSpeed = DrawImmediateSlider("Move Speed", spawner.EnemyMovementSpeed, 0f, 12f);
+        spawner.EnemyCount = Mathf.RoundToInt(DrawImmediateSlider("Enemy Count", spawner.EnemyCount, 1f, 64f));
+        spawner.EnemySpacing = DrawImmediateSlider("Enemy Spacing", spawner.EnemySpacing, 0.25f, 8f);
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Normal")) spawner.EnemyType = WeaponEnemyKind.Normal;
+        if (GUILayout.Button("Elite")) spawner.EnemyType = WeaponEnemyKind.Elite;
+        if (GUILayout.Button("Boss")) spawner.EnemyType = WeaponEnemyKind.Boss;
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Single")) spawner.SpawnSingleDummy();
+        if (GUILayout.Button("Group")) spawner.SpawnGroup();
+        if (GUILayout.Button("Moving")) spawner.SpawnMovingTargets();
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Elite Dummy")) spawner.SpawnEliteDummy();
+        if (GUILayout.Button("Boss Dummy")) spawner.SpawnBossDummy();
+        if (GUILayout.Button("Knockback Lane")) spawner.SpawnKnockbackLane();
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Clear")) spawner.ClearEnemies();
+        if (GUILayout.Button("Respawn")) spawner.RespawnCurrentTest();
+        GUILayout.EndHorizontal();
+    }
+
+    private void DrawImmediateMetrics()
+    {
+        WeaponTestMetrics metrics = _sandbox.Metrics;
+        if (metrics == null)
+            return;
+
+        GUILayout.Space(6f);
+        GUILayout.Label("Metrics");
+        GUILayout.Label($"Total Damage: {metrics.TotalDamage:0.#} | DPS: {metrics.DamagePerSecond:0.#} | Damage/Shot: {metrics.DamagePerShot:0.#}");
+        GUILayout.Label($"Crits: {metrics.CriticalHits} ({metrics.CriticalHitRate:P1}) | Kills: {metrics.EnemiesKilled} | Avg TTK: {metrics.AverageTimeToKill:0.###}s");
+        GUILayout.Label($"Ammo: {metrics.AmmoConsumed} | Damage/Ammo: {metrics.DamagePerAmmo:0.###} | Avg Knockback: {metrics.AverageKnockbackDistance:0.###}m");
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Reset Metrics")) metrics.ResetMetrics();
+        if (GUILayout.Button("Export Metrics To Console")) metrics.ExportToConsole();
+        GUILayout.EndHorizontal();
+    }
+
+    private void DrawImmediateGizmos()
+    {
+        WeaponDebugGizmos gizmos = _sandbox.DebugGizmos;
+        if (gizmos == null)
+            return;
+
+        GUILayout.Space(6f);
+        GUILayout.Label("Debug Visualization");
+        gizmos.ShowTargetingCone = GUILayout.Toggle(gizmos.ShowTargetingCone, "Show Targeting Cone");
+        gizmos.ShowProjectilePaths = GUILayout.Toggle(gizmos.ShowProjectilePaths, "Show Projectile Paths");
+        gizmos.ShowExplosionRadius = GUILayout.Toggle(gizmos.ShowExplosionRadius, "Show Explosion Radius");
+        gizmos.ShowDamageNumbers = GUILayout.Toggle(gizmos.ShowDamageNumbers, "Show Damage Numbers");
+        gizmos.ShowKnockbackVectors = GUILayout.Toggle(gizmos.ShowKnockbackVectors, "Show Knockback Vectors");
+        gizmos.ShowWeaponHitboxes = GUILayout.Toggle(gizmos.ShowWeaponHitboxes, "Show Weapon Hitboxes");
+        gizmos.ShowStatusEffectIcons = GUILayout.Toggle(gizmos.ShowStatusEffectIcons, "Show Status Effect Icons");
+        gizmos.ShowDpsWindow = GUILayout.Toggle(gizmos.ShowDpsWindow, "Show DPS Window");
+    }
+
+    private void DrawWeaponButton(int slot, string label, WeaponType? weaponType)
+    {
+        if (GUILayout.Button(label))
+            _sandbox.SetWeaponSlot(slot, weaponType);
+    }
+
+    private void DrawPathButton(int level, WeaponUpgradePath path, string label)
+    {
+        if (GUILayout.Button(label))
+            _sandbox.ApplyWeaponLevelAndPath(_immediateUpgradeSlot, level, path);
+    }
+
+    private static float DrawImmediateSlider(string label, float value, float min, float max)
+    {
+        GUILayout.Label($"{label}: {value:0.##}");
+        return GUILayout.HorizontalSlider(value, min, max);
+    }
+
+    private static bool IsAnyMouseButtonPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Mouse mouse = Mouse.current;
+        return mouse != null
+            && (mouse.leftButton.isPressed
+                || mouse.rightButton.isPressed
+                || mouse.middleButton.isPressed);
+#else
+        return Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2);
+#endif
+    }
+
+    private void ApplyUiMouseMode()
+    {
+        ThirdPersonCamera cameraController = Camera.main != null ? Camera.main.GetComponent<ThirdPersonCamera>() : null;
+        if (cameraController != null)
+        {
+            cameraController.SetLookBlockedByUi(_uiMouseMode);
+            return;
+        }
+
+        Cursor.lockState = _uiMouseMode ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = _uiMouseMode;
     }
 
     private void BuildUi()
