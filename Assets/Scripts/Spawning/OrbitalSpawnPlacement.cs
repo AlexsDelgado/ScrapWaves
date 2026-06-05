@@ -57,49 +57,99 @@ public static class OrbitalSpawnPlacement
             Mathf.Cos(angleRad) * radius);
 
         Vector3 ringPos = player.position + offset;
-        instance = Object.Instantiate(prefab);
-        Transform root = instance.transform;
 
-        CharacterController cc = instance.GetComponent<CharacterController>();
-        if (cc == null)
+        if (!TrySpawnGrounded(
+                prefab,
+                ringPos,
+                groundRaycastMask,
+                fallbackGroundRaycastMask,
+                overlapSolidMask,
+                raycastStartHeight,
+                raycastMaxDistance,
+                maxAbsSpawnSurfaceDeltaY,
+                surfaceSeparation,
+                maxProjectionIterations,
+                resolveStepUp,
+                resolveStepOut,
+                out instance,
+                out spawnPosition))
         {
-            root.SetPositionAndRotation(ringPos, Quaternion.identity);
-            spawnPosition = ringPos;
-        }
-        else if (!SpawnGroundUtility.TryResolveFootPosition(
-                     new Vector3(ringPos.x, 0f, ringPos.z),
-                     root,
-                     cc,
-                     ringPos.y,
-                     maxAbsSpawnSurfaceDeltaY,
-                     groundRaycastMask,
-                     fallbackGroundRaycastMask,
-                     overlapSolidMask,
-                     raycastStartHeight,
-                     raycastMaxDistance,
-                     surfaceSeparation,
-                     maxProjectionIterations,
-                     resolveStepUp,
-                     resolveStepOut,
-                     out Vector3 foot))
-        {
-            Object.Destroy(instance);
-            instance = null;
             placementLog = "ground resolve failed";
             return false;
         }
-        else
-        {
-            root.SetPositionAndRotation(foot, Quaternion.identity);
-            spawnPosition = foot;
-        }
 
+        Transform root = instance.transform;
         Vector3 toPlayer = player.position - root.position;
         toPlayer.y = 0f;
         if (toPlayer.sqrMagnitude > 0.0001f)
             root.rotation = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
 
         placementLog = $"dir={GetDirectionLabel(directionIndex)} angle={GetDirectionAngleDegrees(directionIndex):0}° pos={spawnPosition}";
+        return true;
+    }
+
+    /// <summary>
+    /// Instancia <paramref name="prefab"/> en <paramref name="desiredPosition"/> resolviendo
+    /// el apoyo en el suelo si el prefab tiene <see cref="CharacterController"/>. No orienta el
+    /// objeto. Reutilizado por el spawner orbital y el de zona.
+    /// </summary>
+    public static bool TrySpawnGrounded(
+        GameObject prefab,
+        Vector3 desiredPosition,
+        LayerMask groundRaycastMask,
+        LayerMask fallbackGroundRaycastMask,
+        LayerMask overlapSolidMask,
+        float raycastStartHeight,
+        float raycastMaxDistance,
+        float maxAbsSpawnSurfaceDeltaY,
+        float surfaceSeparation,
+        int maxProjectionIterations,
+        float resolveStepUp,
+        float resolveStepOut,
+        out GameObject instance,
+        out Vector3 spawnPosition)
+    {
+        instance = null;
+        spawnPosition = desiredPosition;
+
+        if (prefab == null)
+            return false;
+
+        instance = Object.Instantiate(prefab);
+        Transform root = instance.transform;
+
+        CharacterController cc = instance.GetComponent<CharacterController>();
+        if (cc == null)
+        {
+            root.SetPositionAndRotation(desiredPosition, Quaternion.identity);
+            spawnPosition = desiredPosition;
+            return true;
+        }
+
+        if (!SpawnGroundUtility.TryResolveFootPosition(
+                new Vector3(desiredPosition.x, 0f, desiredPosition.z),
+                root,
+                cc,
+                desiredPosition.y,
+                maxAbsSpawnSurfaceDeltaY,
+                groundRaycastMask,
+                fallbackGroundRaycastMask,
+                overlapSolidMask,
+                raycastStartHeight,
+                raycastMaxDistance,
+                surfaceSeparation,
+                maxProjectionIterations,
+                resolveStepUp,
+                resolveStepOut,
+                out Vector3 foot))
+        {
+            Object.Destroy(instance);
+            instance = null;
+            return false;
+        }
+
+        root.SetPositionAndRotation(foot, Quaternion.identity);
+        spawnPosition = foot;
         return true;
     }
 }

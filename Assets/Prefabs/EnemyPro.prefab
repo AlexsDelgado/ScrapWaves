@@ -219,7 +219,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
-  _speed: 3.5
+  _speed: 2.2
 --- !u!1 &123065451151014424
 GameObject:
   m_ObjectHideFlags: 0
