@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [Serializable]
 public abstract class WeaponSpecificTuning
@@ -60,6 +61,12 @@ public sealed class FlamethrowerTuning : WeaponSpecificTuning
     [Range(1f, 180f)] public float FlameManualConeAngle = 38f;
     [Min(1)] public int FlameMaxTargetsPerTick = 64;
 
+    [Min(0.05f)] public float FlameHoseRadius = 0.75f;
+    [Min(2)] public int FlameHoseSegmentCount = 12;
+    [Min(0.01f)] public float FlameHoseNearFollow = 28f;
+    [Min(0.01f)] public float FlameHoseFarFollow = 2.25f;
+    [Min(0f)] public float FlameHoseTurbulence = 0.08f;
+
     [Min(0.01f)] public float FlameAutoTickInterval = 1f;
     [Min(0.01f)] public float FlameOverheatAutoTickInterval = 0.5f;
     [Range(0f, 100f)] public float FlameOverheatTickThresholdPercent = 75f;
@@ -110,20 +117,26 @@ public sealed class RotatingBladeTuning : WeaponSpecificTuning
     public static readonly RotatingBladeTuning Defaults = new();
 
     [Min(0f)] public float BladeOrbitRadius = 2.2f;
-    [Min(0f)] public float BladeContactRadius = 0.85f;
-    [Min(0.01f)] public float BladeContactTickInterval = 0.35f;
-    [Range(1f, 180f)] public float BladeManualSlashAngle = 80f;
-    [Min(0f)] public float BladeManualSlashRange = 4.25f;
-    [Min(0f)] public float BladeManualAmmoCost = 4f;
-    [Min(0f)] public float BladeActiveThrustRange = 8f;
-    [Min(0f)] public float BladeActiveThrustWidth = 1.25f;
-    [Min(0f)] public float BladeActiveDamageScale = 2.2f;
-    [Min(0f)] public float BladeActiveDashDistance = 4f;
-    [Min(0f)] public float BladeInvincibilityDuration = 0.45f;
-    [Min(0f)] public float BladeHeatDamageBonus = 0.75f;
-    [Min(0f)] public float BladeHeatKnockbackBonus = 1.5f;
-    [Min(0f)] public float BladeHeatThrustRangeBonus = 0.8f;
-    [Min(0f)] public float BladeSpinDegreesPerSecond = 540f;
+    [FormerlySerializedAs("BladeContactRadius"), Min(0f)] public float BladeHitRadius = 0.6f;
+    [FormerlySerializedAs("BladeContactTickInterval"), Min(0.01f)] public float BladeAutoDamageInterval = 0.25f;
+    [FormerlySerializedAs("BladeSpinDegreesPerSecond"), Min(0f)] public float BladeBaseSpinDegreesPerSecond = 240f;
+
+    [FormerlySerializedAs("BladeManualSlashAngle"), Range(1f, 180f)] public float BladeManualConeAngle = 85f;
+    [FormerlySerializedAs("BladeManualSlashRange"), Min(0f)] public float BladeManualRange = 2.4f;
+    [Min(0.01f)] public float BladeManualCooldown = 0.18f;
+    [Min(0f)] public float BladeManualMaxHeatDamageBonus = 1f;
+
+    [Min(0f)] public float BladeAutoKnockbackScale = 1.5f;
+    [Min(0f)] public float BladeAutoMaxHeatKnockbackBonus = 0.5f;
+    [Min(0f)] public float BladeManualKnockbackScale = 1f;
+    [Min(0f)] public float BladeActiveKnockbackScale = 1.25f;
+
+    [Min(1f)] public float BladeActiveBaseRangeMultiplier = 5f;
+    [Min(1f)] public float BladeActiveMaxRangeMultiplier = 10f;
+    [Min(0.01f)] public float BladeActiveHeatStepPercent = 20f;
+    [FormerlySerializedAs("BladeActiveThrustWidth"), Min(0f)] public float BladeActiveLineWidth = 0.8f;
+    [FormerlySerializedAs("BladeActiveDamageScale"), Min(0f)] public float BladeActiveDamageScale = 1.5f;
+    [Min(0.01f)] public float BladeVisualDuration = 0.16f;
 }
 
 [CreateAssetMenu(fileName = "WeaponData", menuName = "ScrapWaves/Weapon Data")]

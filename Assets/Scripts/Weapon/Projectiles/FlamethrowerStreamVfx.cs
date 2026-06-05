@@ -49,26 +49,61 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
 
         _visibleDuration = Mathf.Max(0.01f, duration);
         _visibleTimer = _visibleDuration;
-        transform.SetPositionAndRotation(origin, Quaternion.LookRotation(direction, GetStableUp(direction)));
+        Quaternion rotation = Quaternion.LookRotation(direction, GetStableUp(direction));
 
         for (int i = 0; i < BeamCount; i++)
         {
             float t = BeamCount == 1 ? 0.5f : i / (float)(BeamCount - 1);
             float yaw = Mathf.Lerp(-halfAngle, halfAngle, t);
-            Vector3 beamDirection = Quaternion.AngleAxis(yaw, Vector3.up) * Vector3.forward;
+            Vector3 beamDirection = rotation * (Quaternion.AngleAxis(yaw, Vector3.up) * Vector3.forward);
             float beamRange = range * Mathf.Lerp(0.92f, 1f, Mathf.Sin(t * Mathf.PI));
 
             _beams[i].enabled = true;
-            _beams[i].SetPosition(0, Vector3.zero);
-            _beams[i].SetPosition(1, beamDirection * beamRange);
+            _beams[i].positionCount = 2;
+            _beams[i].SetPosition(0, origin);
+            _beams[i].SetPosition(1, origin + beamDirection * beamRange);
         }
+
+        SetConeColor(1f);
+    }
+
+    // Updates the stream to match the simulated hose path used by damage.
+    public void ShowHose(Vector3[] points, int pointCount, float radius, float duration)
+    {
+        if (points == null || pointCount <= 1)
+            return;
+
+        if (_beams[0] == null)
+            InitializeCone();
+
+        pointCount = Mathf.Min(pointCount, points.Length);
+        if (pointCount <= 1)
+            return;
+
+        radius = Mathf.Max(0.03f, radius);
+        _visibleDuration = Mathf.Max(0.01f, duration);
+        _visibleTimer = _visibleDuration;
+
+        for (int i = 0; i < BeamCount; i++)
+        {
+            LineRenderer beam = _beams[i];
+            beam.enabled = true;
+            beam.useWorldSpace = true;
+            beam.positionCount = pointCount;
+            beam.widthMultiplier = radius * (i == BeamCount / 2 ? 0.42f : 0.18f);
+
+            for (int pointIndex = 0; pointIndex < pointCount; pointIndex++)
+                beam.SetPosition(pointIndex, points[pointIndex] + GetHoseOffset(points, pointIndex, pointCount, i, radius));
+        }
+
+        SetConeColor(1f);
     }
 
     private void InitializeCone()
     {
         for (int i = 0; i < BeamCount; i++)
         {
-            _beams[i] = CreateLine($"Flame Beam {i}", i == BeamCount / 2 ? 0.22f : 0.13f, useWorldSpace: false);
+            _beams[i] = CreateLine($"Flame Beam {i}", i == BeamCount / 2 ? 0.22f : 0.13f, useWorldSpace: true);
             _beams[i].positionCount = 2;
             _beams[i].enabled = false;
         }
@@ -79,6 +114,7 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         _visibleDuration = Mathf.Max(0.01f, duration);
         _visibleTimer = _visibleDuration;
         _ring = CreateLine("Flame Ring", 0.2f, useWorldSpace: true);
+        _ring.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 1f));
         _ring.loop = true;
         _ring.positionCount = RingSegmentCount;
         DrawRing(radius, 0f);
@@ -93,6 +129,10 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         line.useWorldSpace = useWorldSpace;
         line.material = GetLineMaterial();
         line.widthMultiplier = width;
+        line.widthCurve = new AnimationCurve(
+            new Keyframe(0f, 1f),
+            new Keyframe(0.72f, 0.72f),
+            new Keyframe(1f, 0.15f));
         line.numCornerVertices = 2;
         line.numCapVertices = 2;
         line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -165,6 +205,49 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
     }
 
     private float GetCurrentRingRadius() => Mathf.Max(0.01f, _ringRadius);
+
+    private static Vector3 GetHoseOffset(Vector3[] points, int pointIndex, int pointCount, int beamIndex, float radius)
+    {
+        if (beamIndex == BeamCount / 2)
+            return Vector3.zero;
+
+        Vector3 direction = GetHoseDirection(points, pointIndex, pointCount);
+        Vector3 side = Vector3.Cross(Vector3.up, direction);
+        if (side.sqrMagnitude <= 0.0001f)
+            side = Vector3.Cross(Vector3.forward, direction);
+        side.Normalize();
+
+        Vector3 vertical = Vector3.Cross(direction, side).normalized;
+        float angle = GetBeamOffsetAngle(beamIndex);
+        float t = pointCount == 1 ? 0f : pointIndex / (float)(pointCount - 1);
+        float offsetRadius = radius * 0.32f * Mathf.Lerp(1f, 0.4f, t);
+        return (side * Mathf.Cos(angle) + vertical * Mathf.Sin(angle)) * offsetRadius;
+    }
+
+    private static Vector3 GetHoseDirection(Vector3[] points, int pointIndex, int pointCount)
+    {
+        Vector3 direction;
+        if (pointIndex <= 0)
+            direction = points[1] - points[0];
+        else if (pointIndex >= pointCount - 1)
+            direction = points[pointCount - 1] - points[pointCount - 2];
+        else
+            direction = points[pointIndex + 1] - points[pointIndex - 1];
+
+        return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
+    }
+
+    private static float GetBeamOffsetAngle(int beamIndex)
+    {
+        return beamIndex switch
+        {
+            0 => 0f,
+            1 => Mathf.PI * 0.5f,
+            3 => Mathf.PI,
+            4 => Mathf.PI * 1.5f,
+            _ => 0f
+        };
+    }
 
     private static Vector3 GetStableUp(Vector3 direction)
     {

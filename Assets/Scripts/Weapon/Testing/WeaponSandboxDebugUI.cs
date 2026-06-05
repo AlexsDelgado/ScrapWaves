@@ -346,6 +346,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
         GUILayout.Space(6f);
         GUILayout.Label("Debug Visualization");
+        gizmos.ShowRuntimeVisuals = GUILayout.Toggle(gizmos.ShowRuntimeVisuals, "Show Runtime Visuals");
         gizmos.ShowTargetingCone = GUILayout.Toggle(gizmos.ShowTargetingCone, "Show Targeting Cone");
         gizmos.ShowProjectilePaths = GUILayout.Toggle(gizmos.ShowProjectilePaths, "Show Projectile Paths");
         gizmos.ShowExplosionRadius = GUILayout.Toggle(gizmos.ShowExplosionRadius, "Show Explosion Radius");
@@ -598,6 +599,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     {
         Transform section = CreateSection(parent, "Debug Visualization");
         WeaponDebugGizmos gizmos = _sandbox.DebugGizmos;
+        CreateToggle(section, "Show Runtime Visuals", gizmos.ShowRuntimeVisuals, value => gizmos.ShowRuntimeVisuals = value);
         CreateToggle(section, "Show Targeting Cone", gizmos.ShowTargetingCone, value => gizmos.ShowTargetingCone = value);
         CreateToggle(section, "Show Projectile Paths", gizmos.ShowProjectilePaths, value => gizmos.ShowProjectilePaths = value);
         CreateToggle(section, "Show Explosion Radius", gizmos.ShowExplosionRadius, value => gizmos.ShowExplosionRadius = value);

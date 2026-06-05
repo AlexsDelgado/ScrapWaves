@@ -5,6 +5,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 {
     private readonly PlayerMovement _movement;
     private readonly List<Transform> _targets = new();
+    private readonly List<Vector3> _hitOrigins = new();
+    private readonly FlamethrowerHoseStream _hoseStream = new();
 
     private FlamethrowerStreamVfx _streamVfx;
     private float _autoTickTimer;
@@ -16,7 +18,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         _movement = movement;
     }
 
-    // Ticks off-hand cone damage in movement direction, with camera pitch controlling vertical aim.
+    // Ticks off-hand hose damage in movement direction, with camera pitch controlling vertical aim.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
@@ -25,16 +27,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
         Vector3 flameDirection = GetAutomaticFlameDirection(aimDirection);
         float range = GetScaledRange(Runtime.Data.BaseRange);
-        ShowStream(flameDirection, range, tuning.FlameAutoConeAngle, tuning.FlameVisualDuration);
+        ShowStream(flameDirection, range, tuning, deltaTime);
 
         _autoTickTimer -= deltaTime;
         if (_autoTickTimer > 0f)
             return;
 
-        ApplyConeDamage(
-            flameDirection,
-            range,
-            tuning.FlameAutoConeAngle,
+        ApplyHoseDamage(
             1f,
             applyBurn: false,
             knockbackScale: 0f,
@@ -58,16 +57,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return;
 
         float range = GetManualRange(tuning);
-        ShowStream(aimDirection, range, tuning.FlameManualConeAngle, tuning.FlameVisualDuration);
+        ShowStream(aimDirection, range, tuning, deltaTime);
 
         _manualTickTimer -= deltaTime;
         if (_manualTickTimer > 0f)
             return;
 
-        ApplyConeDamage(
-            aimDirection,
-            range,
-            tuning.FlameManualConeAngle,
+        ApplyHoseDamage(
             1f,
             applyBurn: true,
             knockbackScale: tuning.FlameManualKnockbackScale,
@@ -146,25 +142,25 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         return GetScaledRange(Runtime.Data.BaseRange) * (1f + Mathf.Max(0f, tuning.FlameManualRangeHeatMultiplier) * heat);
     }
 
-    // Damages enemies inside a cone and optionally refreshes burn on them.
-    private int ApplyConeDamage(Vector3 direction, float range, float coneAngle, float damageScale, bool applyBurn, float knockbackScale, FlamethrowerTuning tuning)
+    // Damages enemies near the simulated hose path and optionally refreshes burn on them.
+    private int ApplyHoseDamage(float damageScale, bool applyBurn, float knockbackScale, FlamethrowerTuning tuning)
     {
-        if (Owner == null)
+        if (Owner == null || _hoseStream.Points == null || _hoseStream.PointCount <= 0)
             return 0;
 
-        Vector3 origin = Spawn != null ? Spawn.position : Owner.position;
-        int hitCount = EnemyRegistry.CollectClosestInCone(
-            origin,
-            direction,
-            range,
-            coneAngle,
+        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+            _hoseStream.Points,
+            _hoseStream.PointCount,
+            GetScaledHoseRadius(tuning),
             Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
-            _targets);
+            _targets,
+            _hitOrigins);
 
         for (int i = 0; i < hitCount; i++)
         {
+            Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : (Spawn != null ? Spawn.position : Owner.position);
             int damage = CalculateDirectDamage(damageScale, _targets[i]);
-            ApplyDamageToTarget(_targets[i], damage, origin, knockbackScale);
+            ApplyDamageToTarget(_targets[i], damage, impactOrigin, knockbackScale);
             if (applyBurn)
             {
                 int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
@@ -230,8 +226,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         }
     }
 
-    // Keeps one reusable stream visual alive while the weapon fires.
-    private void ShowStream(Vector3 direction, float range, float coneAngle, float duration)
+    // Keeps one reusable stream simulation and visual alive while the weapon fires.
+    private void ShowStream(Vector3 direction, float range, FlamethrowerTuning tuning, float deltaTime)
     {
         if (Spawn == null)
             return;
@@ -239,12 +235,18 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (_streamVfx == null)
             _streamVfx = FlamethrowerStreamVfx.Create();
 
-        _streamVfx.ShowCone(Spawn.position, direction, range, coneAngle, duration);
+        _hoseStream.Update(Spawn.position, direction, range, tuning, deltaTime);
+        _streamVfx.ShowHose(_hoseStream.Points, _hoseStream.PointCount, GetScaledHoseRadius(tuning), tuning.FlameVisualDuration);
     }
 
     private float GetScaledRange(float range)
     {
         return Mathf.Max(0f, range) * GetAreaSizeMultiplier();
+    }
+
+    private float GetScaledHoseRadius(FlamethrowerTuning tuning)
+    {
+        return Mathf.Max(0.05f, tuning.FlameHoseRadius) * GetAreaSizeMultiplier();
     }
 
     private float GetPathAdjustedBurnDuration(FlamethrowerTuning tuning)
@@ -263,5 +265,92 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
             radius *= 0.9f;
         return radius;
+    }
+}
+
+internal sealed class FlamethrowerHoseStream
+{
+    private const int MaxSegmentCount = 48;
+
+    private Vector3[] _points;
+    private bool _initialized;
+    private float _lastUpdateTime;
+    private int _lastPointCount;
+
+    public Vector3[] Points => _points;
+    public int PointCount { get; private set; }
+
+    public void Update(Vector3 origin, Vector3 direction, float range, FlamethrowerTuning tuning, float deltaTime)
+    {
+        int pointCount = Mathf.Clamp(tuning.FlameHoseSegmentCount, 2, MaxSegmentCount);
+        EnsureCapacity(pointCount);
+
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Vector3.forward;
+
+        direction.Normalize();
+        range = Mathf.Max(0.01f, range);
+        deltaTime = Mathf.Clamp(deltaTime, 0.001f, 0.05f);
+
+        bool shouldReset = !_initialized
+            || _lastPointCount != pointCount
+            || Time.time - _lastUpdateTime > Mathf.Max(0.05f, tuning.FlameVisualDuration * 1.25f);
+
+        if (shouldReset)
+            Initialize(origin, direction, range, pointCount);
+        else
+            Simulate(origin, direction, range, tuning, deltaTime, pointCount);
+
+        PointCount = pointCount;
+        _lastPointCount = pointCount;
+        _lastUpdateTime = Time.time;
+        _initialized = true;
+    }
+
+    private void EnsureCapacity(int pointCount)
+    {
+        if (_points == null || _points.Length < pointCount)
+            _points = new Vector3[pointCount];
+    }
+
+    private void Initialize(Vector3 origin, Vector3 direction, float range, int pointCount)
+    {
+        for (int i = 0; i < pointCount; i++)
+        {
+            float t = pointCount == 1 ? 0f : i / (float)(pointCount - 1);
+            _points[i] = origin + direction * (range * t);
+        }
+    }
+
+    private void Simulate(Vector3 origin, Vector3 direction, float range, FlamethrowerTuning tuning, float deltaTime, int pointCount)
+    {
+        _points[0] = origin;
+
+        float nearFollow = Mathf.Max(0.01f, tuning.FlameHoseNearFollow);
+        float farFollow = Mathf.Max(0.01f, tuning.FlameHoseFarFollow);
+        float turbulence = Mathf.Max(0f, tuning.FlameHoseTurbulence);
+        Vector3 side = Vector3.Cross(Vector3.up, direction);
+        if (side.sqrMagnitude <= 0.0001f)
+            side = Vector3.Cross(Vector3.forward, direction);
+        side.Normalize();
+
+        Vector3 vertical = Vector3.Cross(direction, side).normalized;
+
+        for (int i = 1; i < pointCount; i++)
+        {
+            float t = i / (float)(pointCount - 1);
+            Vector3 desired = origin + direction * (range * t);
+            float response = Mathf.Lerp(nearFollow, farFollow, Mathf.Pow(t, 1.35f));
+            float follow = 1f - Mathf.Exp(-response * deltaTime);
+            _points[i] = Vector3.Lerp(_points[i], desired, follow);
+
+            if (turbulence <= 0f)
+                continue;
+
+            float wave = Mathf.Sin(Time.time * 9.5f + i * 1.73f);
+            float ripple = Mathf.Sin(Time.time * 6.2f + i * 2.19f);
+            float weight = Mathf.Sin(t * Mathf.PI);
+            _points[i] += (side * wave + vertical * ripple) * (turbulence * weight * deltaTime);
+        }
     }
 }

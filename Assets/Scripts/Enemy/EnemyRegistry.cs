@@ -263,6 +263,51 @@ public static class EnemyRegistry
         return results.Count;
     }
 
+    // Fills results with the closest active enemies inside a horizontal radius.
+    public static int CollectClosestOnPlane(Vector3 from, float range, int maxCount, List<Transform> results)
+    {
+        results.Clear();
+        if (range <= 0f || maxCount <= 0)
+            return 0;
+
+        float rangeSqr = range * range;
+
+        while (results.Count < maxCount)
+        {
+            Transform best = null;
+            float bestSqr = float.MaxValue;
+
+            for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+            {
+                Transform candidate = _activeEnemies[i];
+                if (candidate == null)
+                {
+                    _activeEnemies.RemoveAt(i);
+                    continue;
+                }
+
+                if (results.Contains(candidate))
+                    continue;
+
+                Vector3 delta = candidate.position - from;
+                delta.y = 0f;
+                float sqr = delta.sqrMagnitude;
+                if (sqr > rangeSqr || sqr >= bestSqr)
+                    continue;
+
+                best = candidate;
+                bestSqr = sqr;
+            }
+
+            if (best == null)
+                break;
+
+            results.Add(best);
+        }
+
+        return results.Count;
+    }
+
     // Fills results with the closest active enemies inside a full 3D cone.
     public static int CollectClosestInCone(Vector3 from, Vector3 forward, float range, float coneAngle, int maxCount, List<Transform> results)
     {
@@ -316,6 +361,58 @@ public static class EnemyRegistry
         return results.Count;
     }
 
+    // Fills results with active enemies within a radius of a world-space polyline.
+    public static int CollectClosestNearPolyline(Vector3[] points, int pointCount, float radius, int maxCount, List<Transform> results, List<Vector3> closestPoints)
+    {
+        results.Clear();
+        closestPoints?.Clear();
+
+        if (points == null || pointCount <= 0 || radius <= 0f || maxCount <= 0)
+            return 0;
+
+        pointCount = Mathf.Min(pointCount, points.Length);
+        if (pointCount <= 0)
+            return 0;
+
+        float radiusSqr = radius * radius;
+
+        while (results.Count < maxCount)
+        {
+            Transform best = null;
+            Vector3 bestClosestPoint = Vector3.zero;
+            float bestDistanceSqr = float.MaxValue;
+
+            for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+            {
+                Transform candidate = _activeEnemies[i];
+                if (candidate == null)
+                {
+                    _activeEnemies.RemoveAt(i);
+                    continue;
+                }
+
+                if (results.Contains(candidate))
+                    continue;
+
+                float distanceSqr = DistanceSqrToPolyline(candidate.position, points, pointCount, out Vector3 closestPoint);
+                if (distanceSqr > radiusSqr || distanceSqr >= bestDistanceSqr)
+                    continue;
+
+                best = candidate;
+                bestClosestPoint = closestPoint;
+                bestDistanceSqr = distanceSqr;
+            }
+
+            if (best == null)
+                break;
+
+            results.Add(best);
+            closestPoints?.Add(bestClosestPoint);
+        }
+
+        return results.Count;
+    }
+
     private static bool IsInsideHorizontalCone(Vector3 delta, Vector3 forward, float coneAngle)
     {
         if (coneAngle >= 359.9f)
@@ -331,5 +428,35 @@ public static class EnemyRegistry
 
         float cosHalfAngle = Mathf.Cos(Mathf.Clamp(coneAngle, 0f, 360f) * 0.5f * Mathf.Deg2Rad);
         return Vector3.Dot(forward, delta.normalized) >= cosHalfAngle;
+    }
+
+    private static float DistanceSqrToPolyline(Vector3 point, Vector3[] points, int pointCount, out Vector3 closestPoint)
+    {
+        closestPoint = points[0];
+        float bestSqr = (point - closestPoint).sqrMagnitude;
+
+        for (int i = 1; i < pointCount; i++)
+        {
+            Vector3 segmentClosest = ClosestPointOnSegment(point, points[i - 1], points[i]);
+            float sqr = (point - segmentClosest).sqrMagnitude;
+            if (sqr >= bestSqr)
+                continue;
+
+            bestSqr = sqr;
+            closestPoint = segmentClosest;
+        }
+
+        return bestSqr;
+    }
+
+    private static Vector3 ClosestPointOnSegment(Vector3 point, Vector3 a, Vector3 b)
+    {
+        Vector3 ab = b - a;
+        float denominator = ab.sqrMagnitude;
+        if (denominator <= 0.0001f)
+            return a;
+
+        float t = Mathf.Clamp01(Vector3.Dot(point - a, ab) / denominator);
+        return a + ab * t;
     }
 }

@@ -64,6 +64,12 @@ public sealed class WeaponDataEditor : Editor
             case WeaponType.RocketLauncher:
                 DrawRocketLauncherFields();
                 break;
+            case WeaponType.Mortar:
+                DrawMortarFields();
+                break;
+            case WeaponType.RotatingBlade:
+                DrawRotatingBladeFields();
+                break;
             default:
                 EditorGUILayout.LabelField("Weapon Specific", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox("No weapon-specific tuning fields for this weapon type yet.", MessageType.Info);
@@ -95,9 +101,14 @@ public sealed class WeaponDataEditor : Editor
     private void DrawFlamethrowerFields()
     {
         EditorGUILayout.LabelField("Flamethrower", EditorStyles.boldLabel);
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoConeAngle), "Auto Cone Angle");
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualConeAngle), "Manual Cone Angle");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameMaxTargetsPerTick), "Max Targets Per Tick");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseRadius), "Hose Radius");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseSegmentCount), "Hose Segment Count");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseNearFollow), "Hose Near Follow");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseFarFollow), "Hose Far Follow");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseTurbulence), "Hose Turbulence");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoTickInterval), "Auto Tick Interval");
@@ -143,6 +154,61 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketManualSpeedMultiplier), "Manual Speed Multiplier");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveSpeedMultiplier), "Active Speed Multiplier");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveDamageScale), "Active Damage Scale");
+    }
+
+    private void DrawMortarFields()
+    {
+        EditorGUILayout.LabelField("Mortar", EditorStyles.boldLabel);
+        DrawSpecificProperty(nameof(MortarTuning.MortarAutoExplosionRadius), "Auto Explosion Radius");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualExplosionRadius), "Manual Explosion Radius");
+        DrawSpecificProperty(nameof(MortarTuning.MortarActiveExplosionRadius), "Active Explosion Radius");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(MortarTuning.MortarAutoAccuracyRadius), "Auto Accuracy Radius");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualAccuracyRadius), "Manual Accuracy Radius");
+        DrawSpecificProperty(nameof(MortarTuning.MortarBarrageRadius), "Barrage Radius");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(MortarTuning.MortarShellTravelTime), "Shell Travel Time");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualTravelTime), "Manual Travel Time");
+        DrawSpecificProperty(nameof(MortarTuning.MortarActiveTravelTime), "Active Travel Time");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(MortarTuning.MortarExplosionFalloff), "Explosion Falloff");
+        DrawSpecificProperty(nameof(MortarTuning.MortarArcHeight), "Arc Height");
+        DrawSpecificProperty(nameof(MortarTuning.MortarActiveShellCount), "Active Shell Count");
+        DrawSpecificProperty(nameof(MortarTuning.MortarActiveDamageScale), "Active Damage Scale");
+        DrawSpecificProperty(nameof(MortarTuning.MortarHeatFireRateBonusAbove50), "Heat Fire Rate Bonus Above 50");
+        DrawSpecificProperty(nameof(MortarTuning.MortarHeatManualSpeedBonus), "Heat Manual Speed Bonus");
+    }
+
+    private void DrawRotatingBladeFields()
+    {
+        EditorGUILayout.LabelField("Rotating Blade", EditorStyles.boldLabel);
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeOrbitRadius), "Orbit Radius");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeHitRadius), "Hit Radius");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeAutoDamageInterval), "Auto Damage Interval");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeBaseSpinDegreesPerSecond), "Base Spin Degrees Per Second");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeManualConeAngle), "Manual Cone Angle");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeManualRange), "Manual Range");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeManualCooldown), "Manual Cooldown");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeManualMaxHeatDamageBonus), "Manual Max Heat Damage Bonus");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeAutoKnockbackScale), "Auto Knockback Scale");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeAutoMaxHeatKnockbackBonus), "Auto Max Heat Knockback Bonus");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeManualKnockbackScale), "Manual Knockback Scale");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveKnockbackScale), "Active Knockback Scale");
+
+        EditorGUILayout.Space();
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveBaseRangeMultiplier), "Active Base Range Multiplier");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveMaxRangeMultiplier), "Active Max Range Multiplier");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveHeatStepPercent), "Active Heat Step Percent");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveLineWidth), "Active Line Width");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveDamageScale), "Active Damage Scale");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.BladeVisualDuration), "Visual Duration");
     }
 
     private void DrawUpgradeFields()
