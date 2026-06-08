@@ -79,6 +79,53 @@ public sealed class FlamethrowerTuning : WeaponSpecificTuning
     [Min(0f)] public float FlameActiveVisualDuration = 0.45f;
 }
 
+[Serializable]
+public sealed class MortarTuning : WeaponSpecificTuning
+{
+    public static readonly MortarTuning Defaults = new();
+
+    [Min(0f)] public float MortarAutoExplosionRadius = 2.6f;
+    [Min(0f)] public float MortarManualExplosionRadius = 2.9f;
+    [Min(0f)] public float MortarActiveExplosionRadius = 3.2f;
+
+    [Min(0f)] public float MortarAutoAccuracyRadius = 3.8f;
+    [Min(0f)] public float MortarManualAccuracyRadius = 0.75f;
+    [Min(0f)] public float MortarBarrageRadius = 6f;
+
+    [Min(0.05f)] public float MortarShellTravelTime = 0.9f;
+    [Min(0.05f)] public float MortarManualTravelTime = 0.55f;
+    [Min(0.05f)] public float MortarActiveTravelTime = 0.7f;
+
+    [Min(0f)] public float MortarExplosionFalloff = 0.75f;
+    [Min(0f)] public float MortarArcHeight = 7f;
+    [Min(1)] public int MortarActiveShellCount = 8;
+    [Min(0f)] public float MortarActiveDamageScale = 1.4f;
+    [Min(0f)] public float MortarHeatFireRateBonusAbove50 = 0.75f;
+    [Min(0f)] public float MortarHeatManualSpeedBonus = 0.75f;
+}
+
+[Serializable]
+public sealed class RotatingBladeTuning : WeaponSpecificTuning
+{
+    public static readonly RotatingBladeTuning Defaults = new();
+
+    [Min(0f)] public float BladeOrbitRadius = 2.2f;
+    [Min(0f)] public float BladeContactRadius = 0.85f;
+    [Min(0.01f)] public float BladeContactTickInterval = 0.35f;
+    [Range(1f, 180f)] public float BladeManualSlashAngle = 80f;
+    [Min(0f)] public float BladeManualSlashRange = 4.25f;
+    [Min(0f)] public float BladeManualAmmoCost = 4f;
+    [Min(0f)] public float BladeActiveThrustRange = 8f;
+    [Min(0f)] public float BladeActiveThrustWidth = 1.25f;
+    [Min(0f)] public float BladeActiveDamageScale = 2.2f;
+    [Min(0f)] public float BladeActiveDashDistance = 4f;
+    [Min(0f)] public float BladeInvincibilityDuration = 0.45f;
+    [Min(0f)] public float BladeHeatDamageBonus = 0.75f;
+    [Min(0f)] public float BladeHeatKnockbackBonus = 1.5f;
+    [Min(0f)] public float BladeHeatThrustRangeBonus = 0.8f;
+    [Min(0f)] public float BladeSpinDegreesPerSecond = 540f;
+}
+
 [CreateAssetMenu(fileName = "WeaponData", menuName = "ScrapWaves/Weapon Data")]
 public class WeaponData : ScriptableObject
 {
@@ -104,6 +151,8 @@ public class WeaponData : ScriptableObject
     public AutomaticCannonTuning AutomaticCannon => _specificTuning as AutomaticCannonTuning ?? AutomaticCannonTuning.Defaults;
     public RocketLauncherTuning RocketLauncher => _specificTuning as RocketLauncherTuning ?? RocketLauncherTuning.Defaults;
     public FlamethrowerTuning Flamethrower => _specificTuning as FlamethrowerTuning ?? FlamethrowerTuning.Defaults;
+    public MortarTuning Mortar => _specificTuning as MortarTuning ?? MortarTuning.Defaults;
+    public RotatingBladeTuning RotatingBlade => _specificTuning as RotatingBladeTuning ?? RotatingBladeTuning.Defaults;
 
     public static WeaponSpecificTuning CreateSpecificTuning(WeaponType weaponType)
     {
@@ -112,6 +161,8 @@ public class WeaponData : ScriptableObject
             WeaponType.AutomaticCannon => new AutomaticCannonTuning(),
             WeaponType.Flamethrower => new FlamethrowerTuning(),
             WeaponType.RocketLauncher => new RocketLauncherTuning(),
+            WeaponType.Mortar => new MortarTuning(),
+            WeaponType.RotatingBlade => new RotatingBladeTuning(),
             _ => null
         };
     }

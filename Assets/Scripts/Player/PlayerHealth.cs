@@ -42,6 +42,25 @@ public class PlayerHealth : MonoBehaviour
         OnHealthChanged?.Invoke();
     }
 
+    /// <summary>Cura al jugador hasta un maximo de <see cref="MaxHealth"/>.</summary>
+    public void Heal(int amount)
+    {
+        if (amount <= 0 || _isDead)
+            return;
+
+        _currentHealth = Mathf.Min(_maxHealth, _currentHealth + amount);
+        OnHealthChanged?.Invoke();
+    }
+
+    /// <summary>Restaura la vida al maximo (revive si estaba muerto). Util para QA.</summary>
+    public void FullHeal()
+    {
+        _isDead = false;
+        _currentHealth = _maxHealth;
+        _invulnerableUntil = 0f;
+        OnHealthChanged?.Invoke();
+    }
+
     public void TakeDamage(int amount)
     {
         if (amount <= 0 || _currentHealth <= 0 || _isDead)

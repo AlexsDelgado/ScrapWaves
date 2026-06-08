@@ -1,0 +1,99 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d3345717866f074fb25344c4b15f13a, type: 3}
+  m_Name: Sandbox_Mortar
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponData
+  WeaponId: Sandbox_Mortar
+  DisplayName: Mortar
+  WeaponType: 3
+  AutoTargetingMode: 1
+  ManualMode: 0
+  BaseDamage: 18
+  BaseAttackRate: 0.75
+  BaseRange: 22
+  BaseKnockback: 4
+  BaseManualAmmo: 36
+  ActiveAbilityAmmoCost: 12
+  _specificTuning:
+    rid: 5516199936037486596
+  LevelData:
+  - Level: 1
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 2
+    DamageMultiplier: 1.12
+    AttackRateMultiplier: 1.045
+    ManualAmmoMultiplier: 1.055
+  - Level: 3
+    DamageMultiplier: 1.24
+    AttackRateMultiplier: 1.09
+    ManualAmmoMultiplier: 1.11
+  - Level: 4
+    DamageMultiplier: 1.36
+    AttackRateMultiplier: 1.135
+    ManualAmmoMultiplier: 1.165
+  - Level: 5
+    DamageMultiplier: 1.48
+    AttackRateMultiplier: 1.1800001
+    ManualAmmoMultiplier: 1.22
+  - Level: 6
+    DamageMultiplier: 1.6
+    AttackRateMultiplier: 1.225
+    ManualAmmoMultiplier: 1.275
+  - Level: 7
+    DamageMultiplier: 1.72
+    AttackRateMultiplier: 1.27
+    ManualAmmoMultiplier: 1.33
+  - Level: 8
+    DamageMultiplier: 1.84
+    AttackRateMultiplier: 1.315
+    ManualAmmoMultiplier: 1.385
+  - Level: 9
+    DamageMultiplier: 1.96
+    AttackRateMultiplier: 1.36
+    ManualAmmoMultiplier: 1.44
+  - Level: 10
+    DamageMultiplier: 2.08
+    AttackRateMultiplier: 1.405
+    ManualAmmoMultiplier: 1.495
+  PathA:
+    PathName: Grapeshot
+    DamageMultiplier: 1.22
+    AttackRateMultiplier: 1.12
+    ManualAmmoOverride: -1
+  PathB:
+    PathName: Multi-Charged Shells
+    DamageMultiplier: 1.36
+    AttackRateMultiplier: 0.92
+    ManualAmmoOverride: -1
+  references:
+    version: 2
+    RefIds:
+    - rid: 5516199936037486596
+      type: {class: MortarTuning, ns: , asm: Assembly-CSharp}
+      data:
+        MortarAutoExplosionRadius: 2.6
+        MortarManualExplosionRadius: 2.9
+        MortarActiveExplosionRadius: 3.2
+        MortarAutoAccuracyRadius: 3.8
+        MortarManualAccuracyRadius: 0.75
+        MortarBarrageRadius: 6
+        MortarShellTravelTime: 0.9
+        MortarManualTravelTime: 0.55
+        MortarActiveTravelTime: 0.7
+        MortarExplosionFalloff: 0.75
+        MortarArcHeight: 7
+        MortarActiveShellCount: 8
+        MortarActiveDamageScale: 1.4
+        MortarHeatFireRateBonusAbove50: 0.75
+        MortarHeatManualSpeedBonus: 0.75

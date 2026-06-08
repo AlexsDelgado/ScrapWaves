@@ -53,7 +53,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
             return;
 
-        FireAt(target.position, 1f, false);
+        FireAt(target.position, 1f, WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
     // Fires manually toward aim direction and consumes one ammo.

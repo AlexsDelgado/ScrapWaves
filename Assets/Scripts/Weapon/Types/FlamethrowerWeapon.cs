@@ -85,7 +85,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
             return;
 
-        float activeRadius = GetScaledRange(tuning.FlameActiveRadius);
+        float activeRadius = GetScaledRange(GetPathAdjustedActiveRadius(tuning));
         int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
             Owner.position,
             Owner.forward,
@@ -94,12 +94,12 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
             _targets);
 
-        int damage = CalculateDirectDamage(tuning.FlameActiveDamageScale);
-        int burnDamage = CalculateBurnDamage(tuning);
         for (int i = 0; i < hitCount; i++)
         {
+            int damage = CalculateDirectDamage(tuning.FlameActiveDamageScale, _targets[i]);
+            int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
             ApplyDamageToTarget(_targets[i], damage, Owner.position, tuning.FlameActiveKnockbackScale);
-            ApplyBurnToTarget(_targets[i], burnDamage, tuning);
+            ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: true);
         }
 
         FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration);
@@ -161,29 +161,34 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
             _targets);
 
-        int damage = CalculateDirectDamage(damageScale);
-        int burnDamage = CalculateBurnDamage(tuning);
         for (int i = 0; i < hitCount; i++)
         {
+            int damage = CalculateDirectDamage(damageScale, _targets[i]);
             ApplyDamageToTarget(_targets[i], damage, origin, knockbackScale);
             if (applyBurn)
-                ApplyBurnToTarget(_targets[i], burnDamage, tuning);
+            {
+                int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
+                ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: false);
+            }
         }
 
         return hitCount;
     }
 
     // Calculates one direct flamethrower damage tick from shared weapon rules.
-    private int CalculateDirectDamage(float damageScale)
+    private int CalculateDirectDamage(float damageScale, Transform target)
     {
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, false, CanCrit()) * Mathf.Max(0f, damageScale);
+        bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale);
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
     // Calculates burn damage separately so damage-over-time does not roll critical hits.
-    private int CalculateBurnDamage(FlamethrowerTuning tuning)
+    private int CalculateBurnDamage(FlamethrowerTuning tuning, Transform target)
     {
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, false, canCrit: false) * Mathf.Max(0f, tuning.FlameBurnDamageScale);
+        bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
+        float pathScale = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA ? 1.35f : 1f;
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
@@ -199,7 +204,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     }
 
     // Refreshes a simple burn component on the target's damage receiver.
-    private void ApplyBurnToTarget(Transform target, int damagePerTick, FlamethrowerTuning tuning)
+    private void ApplyBurnToTarget(Transform target, int damagePerTick, FlamethrowerTuning tuning, bool activeAbility)
     {
         if (target == null || tuning.FlameBurnDuration <= 0f)
             return;
@@ -212,7 +217,17 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (burn == null)
             burn = damageComponent.gameObject.AddComponent<FlamethrowerBurnStatus>();
 
-        burn.Refresh(damageable, damagePerTick, tuning.FlameBurnDuration, tuning.FlameBurnTickInterval);
+        float duration = GetPathAdjustedBurnDuration(tuning);
+        burn.Refresh(damageable, damagePerTick, duration, tuning.FlameBurnTickInterval);
+
+        WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
+        if (dummy != null)
+        {
+            if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+                dummy.ApplyStatus("Jellified Fuel", duration);
+            if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
+                dummy.ApplyStatus(activeAbility ? "Freeze" : "Liquid Nitrogen", activeAbility ? 1.2f : 2.5f);
+        }
     }
 
     // Keeps one reusable stream visual alive while the weapon fires.
@@ -230,5 +245,23 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private float GetScaledRange(float range)
     {
         return Mathf.Max(0f, range) * GetAreaSizeMultiplier();
+    }
+
+    private float GetPathAdjustedBurnDuration(FlamethrowerTuning tuning)
+    {
+        float duration = tuning.FlameBurnDuration;
+        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+            duration *= 1.5f;
+        return duration;
+    }
+
+    private float GetPathAdjustedActiveRadius(FlamethrowerTuning tuning)
+    {
+        float radius = tuning.FlameActiveRadius;
+        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+            radius *= 1.2f;
+        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
+            radius *= 0.9f;
+        return radius;
     }
 }
