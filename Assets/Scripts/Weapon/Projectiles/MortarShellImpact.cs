@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -16,6 +17,7 @@ public sealed class MortarShellImpact : MonoBehaviour
     private float _knockback;
     private LineRenderer _line;
     private readonly Vector3[] _arcPoints = new Vector3[ArcSegments + 1];
+    private readonly List<IDamageable> _damagedThisExplosion = new();
 
     public static MortarShellImpact Launch(
         Vector3 start,
@@ -99,6 +101,7 @@ public sealed class MortarShellImpact : MonoBehaviour
     {
         ExplosionRadiusVfx.Spawn(_target, _explosionRadius);
 
+        _damagedThisExplosion.Clear();
         Collider[] hits = Physics.OverlapSphere(_target, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
         {
@@ -106,6 +109,10 @@ public sealed class MortarShellImpact : MonoBehaviour
             if (damageable == null)
                 continue;
 
+            if (_damagedThisExplosion.Contains(damageable))
+                continue;
+
+            _damagedThisExplosion.Add(damageable);
             float distance = Vector3.Distance(_target, hits[i].transform.position);
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);

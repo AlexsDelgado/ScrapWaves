@@ -1,10 +1,7 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class MortarWeapon : BasicProjectileWeapon
 {
-    private readonly List<Transform> _targets = new();
-
     public MortarWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
     {
@@ -20,6 +17,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon
             return;
 
         MortarTuning tuning = Runtime.Data.Mortar;
+        if (Owner == null)
+            return;
+
         if (!EnemyRegistry.TryGetRandomOnPlane(Owner.position, Runtime.Data.BaseRange, out Transform target))
             return;
 
@@ -41,6 +41,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon
 
         FireTimer -= deltaTime;
         if (FireTimer > 0f)
+            return;
+
+        if (Spawn == null)
             return;
 
         if (aimDirection.sqrMagnitude <= 0.0001f)
@@ -67,6 +70,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon
         if (Runtime.State != WeaponState.Manual)
             return;
 
+        if (Spawn == null)
+            return;
+
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
@@ -76,9 +82,10 @@ public sealed class MortarWeapon : BasicProjectileWeapon
         MortarTuning tuning = Runtime.Data.Mortar;
         Vector3 center = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;
         int shellCount = GetActiveShellCount(tuning);
+        float barrageRadius = tuning.MortarBarrageRadius * GetAreaSizeMultiplier();
         for (int i = 0; i < shellCount; i++)
         {
-            Vector3 impact = center + RandomPlanarOffset(tuning.MortarBarrageRadius);
+            Vector3 impact = center + RandomPlanarOffset(barrageRadius);
             FireShell(
                 impact,
                 tuning.MortarActiveDamageScale,
@@ -119,15 +126,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon
 
     private int GetActiveShellCount(MortarTuning tuning)
     {
-        int count = Mathf.Max(1, tuning.MortarActiveShellCount);
-        WeaponUpgradePath path = Runtime.SelectedPath;
-        if (Runtime.HasAdvancedPath && path == WeaponUpgradePath.PathA)
-            count += 4;
-        if (Runtime.HasAdvancedPath && path == WeaponUpgradePath.PathB)
-            count += 2;
-        if (Runtime.Level >= 10)
-            count += 3;
-        return count;
+        return Mathf.Max(1, tuning.MortarActiveShellCount);
     }
 
     private void FireShell(Vector3 impactPosition, float damageScale, float explosionRadius, float falloff, float travelTime, bool eliteOrBoss)

@@ -67,7 +67,7 @@ public static class WeaponTestingSandboxSceneBuilder
             CreateWeaponAsset(WeaponType.RocketLauncher, "Sandbox_RocketLauncher", "Rocket Launcher", WeaponTargetingMode.ClosestInRange, WeaponManualMode.AimAtReticle, 20f, 1f, 20f, 5f, 40f, 10f, "Kinetic Explosion", "Fragmentation Cap"),
             CreateWeaponAsset(WeaponType.Mortar, "Sandbox_Mortar", "Mortar", WeaponTargetingMode.RandomInRange, WeaponManualMode.AimAtReticle, 18f, 0.75f, 22f, 4f, 36f, 12f, "Grapeshot", "Multi-Charged Shells"),
             CreateWeaponAsset(WeaponType.AutomaticCannon, "Sandbox_AutomaticCannon", "Automatic Cannon", WeaponTargetingMode.ClosestInRange, WeaponManualMode.AimAtReticle, 10f, 5f, 12f, 1f, 200f, 20f, "Continuous Fire", "Head Hunter"),
-            CreateWeaponAsset(WeaponType.RotatingBlade, "Sandbox_RotatingBlade", "Rotating Blade", WeaponTargetingMode.IgnoreCameraClosest, WeaponManualMode.Cone, 12f, 2.5f, 5f, 2.5f, 90f, 25f, "Multi-Blade", "Atomic Sharpness")
+            CreateWeaponAsset(WeaponType.RotatingBlade, "Sandbox_RotatingBlade", "Rotating Blade", WeaponTargetingMode.IgnoreCameraClosest, WeaponManualMode.Cone, 12f, 1f, 2.4f, 2.5f, 50f, 8f, "Multi-Blade", "Atomic Sharpness")
         };
     }
 
@@ -158,8 +158,11 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.RocketLauncher.RocketManualExplosionRadius = 2.4f;
                 break;
             case WeaponType.Flamethrower:
-                data.Flamethrower.FlameAutoConeAngle = 45f;
-                data.Flamethrower.FlameManualConeAngle = 38f;
+                data.Flamethrower.FlameHoseRadius = 0.75f;
+                data.Flamethrower.FlameHoseSegmentCount = 12;
+                data.Flamethrower.FlameHoseNearFollow = 28f;
+                data.Flamethrower.FlameHoseFarFollow = 2.25f;
+                data.Flamethrower.FlameHoseTurbulence = 0.08f;
                 data.Flamethrower.FlameActiveRadius = 6f;
                 break;
             case WeaponType.Mortar:
@@ -169,8 +172,10 @@ public static class WeaponTestingSandboxSceneBuilder
                 break;
             case WeaponType.RotatingBlade:
                 data.RotatingBlade.BladeOrbitRadius = 2.2f;
-                data.RotatingBlade.BladeManualSlashRange = 4.25f;
-                data.RotatingBlade.BladeActiveThrustRange = 8f;
+                data.RotatingBlade.BladeHitRadius = 0.6f;
+                data.RotatingBlade.BladeManualRange = 2.4f;
+                data.RotatingBlade.BladeActiveBaseRangeMultiplier = 5f;
+                data.RotatingBlade.BladeActiveMaxRangeMultiplier = 10f;
                 break;
         }
     }

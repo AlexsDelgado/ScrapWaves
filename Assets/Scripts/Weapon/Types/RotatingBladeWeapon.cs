@@ -3,157 +3,227 @@ using UnityEngine;
 
 public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 {
+    private const int MaxContactTargets = 64;
+    private const int MaxManualTargets = 64;
+    private const int MaxActiveTargets = 128;
+
     private readonly List<Transform> _targets = new();
+    private readonly List<Vector3> _hitOrigins = new();
+    private readonly Vector3[] _activeLinePoints = new Vector3[2];
+
+    private RotatingBladeVfx _vfx;
     private float _spinAngle;
-    private float _invincibilityTimer;
+    private float _autoDamageTimer;
 
     public float SpinAngle => _spinAngle;
-    public float InvincibilityTimer => _invincibilityTimer;
 
     public RotatingBladeWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
     {
     }
 
+    // Spins one blade around the owner and damages enemies only when the blade itself contacts them.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Automatic)
+        if (Runtime.State != WeaponState.Automatic || Owner == null)
             return;
 
-        TickSpin(deltaTime);
-        TickInvincibility(deltaTime);
-
-        FireTimer -= deltaTime;
-        if (FireTimer > 0f)
-            return;
-
-        FireTimer = GetContactInterval();
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
-        float radius = GetBladeRadius(tuning);
-        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
-            Owner.position,
-            Owner.forward,
-            radius,
-            360f,
-            GetMaxContactTargets(),
-            _targets);
+        TickSpin(deltaTime, tuning);
+
+        Vector3 bladeCenter = GetBladeCenter(tuning);
+        float hitRadius = GetScaledHitRadius(tuning);
+        ShowOrbit(bladeCenter, hitRadius, tuning);
+
+        _autoDamageTimer -= deltaTime;
+        if (_autoDamageTimer > 0f)
+            return;
+
+        _autoDamageTimer = GetAutoDamageInterval(tuning);
+        int hitCount = EnemyRegistry.CollectClosestOnPlane(bladeCenter, hitRadius, MaxContactTargets, _targets);
+        float knockbackScale = GetAutomaticKnockbackScale(tuning);
 
         for (int i = 0; i < hitCount; i++)
-            ApplyBladeDamage(_targets[i], 1f, Owner.position, GetHeatKnockbackScale(tuning));
+            ApplyBladeDamage(_targets[i], 1f, bladeCenter, knockbackScale);
     }
 
+    // Performs repeated cone slashes while fire is held, spending one manual ammo per slash.
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
         if (Runtime.State != WeaponState.Manual)
             return;
 
-        TickSpin(deltaTime);
-        TickInvincibility(deltaTime);
-
-        if (!isFiring)
+        FireTimer = Mathf.Max(0f, FireTimer - deltaTime);
+        if (!isFiring || FireTimer > 0f)
             return;
 
-        FireTimer -= deltaTime;
-        if (FireTimer > 0f)
+        Vector3 slashDirection = GetHorizontalAimDirection(aimDirection);
+        if (slashDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (aimDirection.sqrMagnitude <= 0.0001f)
+        if (!TrySpendManualAmmo(1f, requireFullAmount: false))
             return;
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
-        if (!TrySpendManualAmmo(tuning.BladeManualAmmoCost, requireFullAmount: false))
-            return;
+        FireTimer = GetManualSwingInterval(tuning);
 
-        FireTimer = GetFireInterval();
-        float range = tuning.BladeManualSlashRange * GetAreaSizeMultiplier();
-        int hitCount = EnemyRegistry.CollectClosestInCone(
-            Spawn.position,
-            aimDirection,
+        Vector3 origin = GetOwnerOrigin();
+        float range = GetScaledManualRange(tuning);
+        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
+            origin,
+            slashDirection,
             range,
-            tuning.BladeManualSlashAngle,
-            64,
+            tuning.BladeManualConeAngle,
+            MaxManualTargets,
             _targets);
 
-        float damageScale = 1f + (Heat != null ? Heat.NormalizedHeat * tuning.BladeHeatDamageBonus : 0f);
+        float damageScale = GetManualDamageScale(tuning);
         for (int i = 0; i < hitCount; i++)
-            ApplyBladeDamage(_targets[i], damageScale, Spawn.position, GetHeatKnockbackScale(tuning));
+            ApplyBladeDamage(_targets[i], damageScale, origin, tuning.BladeManualKnockbackScale);
+
+        ShowSlash(origin, slashDirection, range, tuning);
     }
 
+    // Thrusts forward in a thick line. Heat adds range in discrete 20% steps, capped by tuning.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Manual)
             return;
 
-        if (aimDirection.sqrMagnitude <= 0.0001f)
+        Vector3 thrustDirection = GetHorizontalAimDirection(aimDirection);
+        if (thrustDirection.sqrMagnitude <= 0.0001f)
             return;
 
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
             return;
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
-        Vector3 thrustDirection = aimDirection.normalized;
-        float heat = Heat != null ? Heat.NormalizedHeat : 0f;
-        float range = tuning.BladeActiveThrustRange * (1f + heat * tuning.BladeHeatThrustRangeBonus) * GetAreaSizeMultiplier();
-        float widthAngle = Mathf.Clamp(tuning.BladeActiveThrustWidth * 12f, 1f, 90f);
+        Vector3 origin = GetOwnerOrigin();
+        float range = GetScaledActiveRange(tuning);
+        float lineWidth = GetScaledActiveLineWidth(tuning);
 
-        int hitCount = EnemyRegistry.CollectClosestInCone(
-            Spawn.position,
-            thrustDirection,
-            range,
-            widthAngle,
-            128,
-            _targets);
+        _activeLinePoints[0] = origin;
+        _activeLinePoints[1] = origin + thrustDirection * range;
+
+        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+            _activeLinePoints,
+            _activeLinePoints.Length,
+            lineWidth * 0.5f,
+            MaxActiveTargets,
+            _targets,
+            _hitOrigins);
 
         for (int i = 0; i < hitCount; i++)
-            ApplyBladeDamage(_targets[i], tuning.BladeActiveDamageScale, Spawn.position, GetHeatKnockbackScale(tuning));
+        {
+            Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : origin;
+            ApplyBladeDamage(_targets[i], tuning.BladeActiveDamageScale, impactOrigin, tuning.BladeActiveKnockbackScale);
+        }
 
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
-            DashOwner(thrustDirection, tuning);
-
-        _invincibilityTimer = Mathf.Max(_invincibilityTimer, tuning.BladeInvincibilityDuration);
+        ShowThrust(origin, thrustDirection, range, lineWidth, tuning);
     }
 
     public override bool CanCrit() => true;
 
-    private void TickSpin(float deltaTime)
+    private void TickSpin(float deltaTime, RotatingBladeTuning tuning)
     {
-        RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
-        float attackSpeed = Stats != null ? WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier) : 1f;
-        _spinAngle = Mathf.Repeat(_spinAngle + tuning.BladeSpinDegreesPerSecond * attackSpeed * deltaTime, 360f);
+        float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float weaponRate = WeaponMath.GetAttackRateMultiplier(Runtime);
+        float spinRate = tuning.BladeBaseSpinDegreesPerSecond * attackSpeed * weaponRate;
+        _spinAngle = Mathf.Repeat(_spinAngle + spinRate * deltaTime, 360f);
     }
 
-    private void TickInvincibility(float deltaTime)
+    private float GetAutoDamageInterval(RotatingBladeTuning tuning)
     {
-        if (_invincibilityTimer > 0f)
-            _invincibilityTimer = Mathf.Max(0f, _invincibilityTimer - deltaTime);
+        float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float weaponRate = WeaponMath.GetAttackRateMultiplier(Runtime);
+        float interval = Mathf.Max(0.01f, tuning.BladeAutoDamageInterval);
+        return interval / Mathf.Max(0.05f, attackSpeed * weaponRate);
     }
 
-    private float GetContactInterval()
+    private float GetManualSwingInterval(RotatingBladeTuning tuning)
     {
-        float attackSpeed = Stats != null ? WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier) : 1f;
-        return Mathf.Max(0.03f, Runtime.Data.RotatingBlade.BladeContactTickInterval / attackSpeed / WeaponMath.GetAttackRateMultiplier(Runtime));
+        float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float weaponRate = WeaponMath.GetAttackRateMultiplier(Runtime);
+        float interval = Mathf.Max(0.01f, tuning.BladeManualCooldown);
+        return interval / Mathf.Max(0.05f, attackSpeed * weaponRate);
     }
 
-    private int GetMaxContactTargets()
+    private Vector3 GetBladeCenter(RotatingBladeTuning tuning)
     {
-        int count = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA ? 12 : 6;
-        if (Runtime.Level >= 10)
-            count += 6;
-        return count;
+        Vector3 baseDirection = Owner != null ? Owner.forward : Vector3.forward;
+        baseDirection.y = 0f;
+        if (baseDirection.sqrMagnitude <= 0.0001f)
+            baseDirection = Vector3.forward;
+
+        baseDirection.Normalize();
+        Vector3 orbitDirection = Quaternion.AngleAxis(_spinAngle, Vector3.up) * baseDirection;
+        return GetOwnerOrigin() + orbitDirection * GetScaledOrbitRadius(tuning);
     }
 
-    private float GetBladeRadius(RotatingBladeTuning tuning)
+    private Vector3 GetHorizontalAimDirection(Vector3 aimDirection)
     {
-        float radius = tuning.BladeOrbitRadius + tuning.BladeContactRadius;
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
-            radius += tuning.BladeContactRadius;
-        return radius * GetAreaSizeMultiplier();
+        Vector3 direction = aimDirection;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude <= 0.0001f && Owner != null)
+        {
+            direction = Owner.forward;
+            direction.y = 0f;
+        }
+
+        return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.zero;
     }
 
-    private float GetHeatKnockbackScale(RotatingBladeTuning tuning)
+    private Vector3 GetOwnerOrigin()
+    {
+        if (Owner != null)
+            return Owner.position;
+
+        return Spawn != null ? Spawn.position : Vector3.zero;
+    }
+
+    private float GetManualDamageScale(RotatingBladeTuning tuning)
     {
         float heat = Heat != null ? Heat.NormalizedHeat : 0f;
-        return 1f + heat * Mathf.Max(0f, tuning.BladeHeatKnockbackBonus);
+        return 1f + heat * Mathf.Max(0f, tuning.BladeManualMaxHeatDamageBonus);
+    }
+
+    private float GetAutomaticKnockbackScale(RotatingBladeTuning tuning)
+    {
+        float heat = Heat != null ? Heat.NormalizedHeat : 0f;
+        return Mathf.Max(0f, tuning.BladeAutoKnockbackScale) + heat * Mathf.Max(0f, tuning.BladeAutoMaxHeatKnockbackBonus);
+    }
+
+    private float GetScaledOrbitRadius(RotatingBladeTuning tuning)
+    {
+        return Mathf.Max(0f, tuning.BladeOrbitRadius) * GetAreaSizeMultiplier();
+    }
+
+    private float GetScaledHitRadius(RotatingBladeTuning tuning)
+    {
+        return Mathf.Max(0.05f, tuning.BladeHitRadius) * GetAreaSizeMultiplier();
+    }
+
+    private float GetScaledManualRange(RotatingBladeTuning tuning)
+    {
+        return Mathf.Max(0f, tuning.BladeManualRange) * GetAreaSizeMultiplier();
+    }
+
+    private float GetScaledActiveRange(RotatingBladeTuning tuning)
+    {
+        float stepPercent = Mathf.Max(0.01f, tuning.BladeActiveHeatStepPercent);
+        float heatPercent = Heat != null ? Heat.NormalizedHeat * 100f : 0f;
+        float bonusSteps = Mathf.Floor(heatPercent / stepPercent);
+        float multiplier = Mathf.Min(
+            Mathf.Max(1f, tuning.BladeActiveBaseRangeMultiplier) + bonusSteps,
+            Mathf.Max(tuning.BladeActiveBaseRangeMultiplier, tuning.BladeActiveMaxRangeMultiplier));
+
+        return GetScaledManualRange(tuning) * multiplier;
+    }
+
+    private float GetScaledActiveLineWidth(RotatingBladeTuning tuning)
+    {
+        return Mathf.Max(0.05f, tuning.BladeActiveLineWidth) * GetAreaSizeMultiplier();
     }
 
     private void ApplyBladeDamage(Transform target, float damageScale, Vector3 impactOrigin, float knockbackScale)
@@ -166,30 +236,37 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
 
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float pathScale = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1.25f : 1f;
-        int damage = Mathf.Max(1, Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * damageScale * pathScale));
-        if (!damageable.ApplyDamage(damage))
-            return;
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale);
+        int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
-        ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);
-
-        if (damageable is Component component)
-        {
-            WeaponDummyEnemy dummy = component.GetComponent<WeaponDummyEnemy>();
-            dummy?.ApplyStatus(Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? "Atomic Sharpness" : "Bleed", 2f);
-        }
+        if (damageable.ApplyDamage(finalDamage))
+            ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);
     }
 
-    private void DashOwner(Vector3 direction, RotatingBladeTuning tuning)
+    private void ShowOrbit(Vector3 bladeCenter, float hitRadius, RotatingBladeTuning tuning)
     {
         if (Owner == null)
             return;
 
-        CharacterController controller = Owner.GetComponent<CharacterController>();
-        Vector3 displacement = direction.normalized * Mathf.Max(0f, tuning.BladeActiveDashDistance);
-        if (controller != null)
-            controller.Move(displacement);
-        else
-            Owner.position += displacement;
+        EnsureVfx();
+        _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration);
+    }
+
+    private void ShowSlash(Vector3 origin, Vector3 direction, float range, RotatingBladeTuning tuning)
+    {
+        EnsureVfx();
+        _vfx.ShowSlash(origin, direction, range, tuning.BladeManualConeAngle, tuning.BladeVisualDuration);
+    }
+
+    private void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, RotatingBladeTuning tuning)
+    {
+        EnsureVfx();
+        _vfx.ShowThrust(origin, direction, range, lineWidth, tuning.BladeVisualDuration);
+    }
+
+    private void EnsureVfx()
+    {
+        if (_vfx == null)
+            _vfx = RotatingBladeVfx.Create();
     }
 }
