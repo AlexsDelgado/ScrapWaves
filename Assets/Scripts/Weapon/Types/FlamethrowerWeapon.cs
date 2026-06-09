@@ -18,27 +18,22 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         _movement = movement;
     }
 
-    // Ticks off-hand hose damage in movement direction, with camera pitch controlling vertical aim.
+    // Emits an automatic cone in the player's movement direction.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
             return;
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
-        Vector3 flameDirection = GetAutomaticFlameDirection(aimDirection);
+        Vector3 flameDirection = GetAutomaticFlameDirection();
         float range = GetScaledRange(Runtime.Data.BaseRange);
-        ShowStream(flameDirection, range, tuning, deltaTime);
+        ShowAutomaticCone(flameDirection, range, tuning);
 
         _autoTickTimer -= deltaTime;
         if (_autoTickTimer > 0f)
             return;
 
-        ApplyHoseDamage(
-            1f,
-            applyBurn: false,
-            knockbackScale: 0f,
-            tuning: tuning);
-
+        ApplyAutomaticConeDamage(flameDirection, range, tuning);
         _autoTickTimer = GetAutomaticTickInterval(tuning);
     }
 
@@ -104,24 +99,21 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     // Flamethrower direct ticks can crit; burn ticks do not.
     public override bool CanCrit() => true;
 
-    // Uses movement for horizontal aim, while preserving reticle pitch so the stream can climb upward.
-    private Vector3 GetAutomaticFlameDirection(Vector3 aimDirection)
+    // Uses current movement as the automatic aim, falling back to the player's facing while idle.
+    private Vector3 GetAutomaticFlameDirection()
     {
-        Vector3 horizontal = _movement != null ? _movement.CurrentMoveDirectionWorld : Vector3.zero;
-        horizontal.y = 0f;
+        Vector3 direction = _movement != null ? _movement.CurrentMoveDirectionWorld : Vector3.zero;
+        direction.y = 0f;
 
-        if (horizontal.sqrMagnitude <= 0.0001f && Owner != null)
+        if (direction.sqrMagnitude <= 0.0001f && Owner != null)
         {
-            horizontal = Owner.forward;
-            horizontal.y = 0f;
+            direction = Owner.forward;
+            direction.y = 0f;
         }
 
-        if (horizontal.sqrMagnitude <= 0.0001f)
-            horizontal = Vector3.forward;
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Vector3.forward;
 
-        float pitch = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized.y : 0f;
-        Vector3 direction = horizontal.normalized;
-        direction.y = pitch;
         return direction.normalized;
     }
 
@@ -140,6 +132,30 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         float heat = Heat != null ? Heat.NormalizedHeat : 0f;
         return GetScaledRange(Runtime.Data.BaseRange) * (1f + Mathf.Max(0f, tuning.FlameManualRangeHeatMultiplier) * heat);
+    }
+
+    // Damages every enemy inside the horizontal automatic flame cone.
+    private int ApplyAutomaticConeDamage(Vector3 direction, float range, FlamethrowerTuning tuning)
+    {
+        if (Owner == null)
+            return 0;
+
+        Vector3 origin = Spawn != null ? Spawn.position : Owner.position;
+        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
+            origin,
+            direction,
+            range,
+            tuning.FlameAutoConeAngle,
+            Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
+            _targets);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            int damage = CalculateDirectDamage(1f, _targets[i]);
+            ApplyDamageToTarget(_targets[i], damage, origin, knockbackScale: 0f);
+        }
+
+        return hitCount;
     }
 
     // Damages enemies near the simulated hose path and optionally refreshes burn on them.
@@ -237,6 +253,18 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         _hoseStream.Update(Spawn.position, direction, range, tuning, deltaTime);
         _streamVfx.ShowHose(_hoseStream.Points, _hoseStream.PointCount, GetScaledHoseRadius(tuning), tuning.FlameVisualDuration);
+    }
+
+    // Keeps the automatic visual aligned with the same cone used for damage.
+    private void ShowAutomaticCone(Vector3 direction, float range, FlamethrowerTuning tuning)
+    {
+        if (Spawn == null)
+            return;
+
+        if (_streamVfx == null)
+            _streamVfx = FlamethrowerStreamVfx.Create();
+
+        _streamVfx.ShowCone(Spawn.position, direction, range, tuning.FlameAutoConeAngle, tuning.FlameVisualDuration);
     }
 
     private float GetScaledRange(float range)

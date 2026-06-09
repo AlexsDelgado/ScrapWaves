@@ -26,11 +26,13 @@ public sealed class MortarWeapon : BasicProjectileWeapon
         FireTimer = GetFireInterval();
         Vector3 impact = target.position + RandomPlanarOffset(tuning.MortarAutoAccuracyRadius);
         FireShell(
+            Spawn != null ? Spawn.position : Owner.position,
             impact,
             1f,
             tuning.MortarAutoExplosionRadius,
             tuning.MortarExplosionFalloff,
             tuning.MortarShellTravelTime,
+            tuning.MortarArcHeight,
             WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
@@ -57,11 +59,13 @@ public sealed class MortarWeapon : BasicProjectileWeapon
         Vector3 impact = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;
         impact += RandomPlanarOffset(tuning.MortarManualAccuracyRadius);
         FireShell(
+            Spawn.position,
             impact,
             1f,
             tuning.MortarManualExplosionRadius,
             tuning.MortarExplosionFalloff,
             GetManualTravelTime(tuning),
+            tuning.MortarArcHeight,
             false);
     }
 
@@ -86,12 +90,15 @@ public sealed class MortarWeapon : BasicProjectileWeapon
         for (int i = 0; i < shellCount; i++)
         {
             Vector3 impact = center + RandomPlanarOffset(barrageRadius);
+            Vector3 dropStart = impact + Vector3.up * Mathf.Max(0f, tuning.MortarActiveDropHeight);
             FireShell(
+                dropStart,
                 impact,
                 tuning.MortarActiveDamageScale,
                 tuning.MortarActiveExplosionRadius,
                 tuning.MortarExplosionFalloff,
                 tuning.MortarActiveTravelTime + i * 0.08f,
+                0f,
                 false);
         }
     }
@@ -129,23 +136,31 @@ public sealed class MortarWeapon : BasicProjectileWeapon
         return Mathf.Max(1, tuning.MortarActiveShellCount);
     }
 
-    private void FireShell(Vector3 impactPosition, float damageScale, float explosionRadius, float falloff, float travelTime, bool eliteOrBoss)
+    private void FireShell(
+        Vector3 launchPosition,
+        Vector3 impactPosition,
+        float damageScale,
+        float explosionRadius,
+        float falloff,
+        float travelTime,
+        float arcHeight,
+        bool eliteOrBoss)
     {
-        if (Spawn == null)
-            return;
-
+        MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
         int damage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale));
         float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, damageScale);
         MortarShellImpact.Launch(
-            Spawn.position,
+            launchPosition,
             impactPosition,
             travelTime,
-            Runtime.Data.Mortar.MortarArcHeight,
+            arcHeight,
             Mathf.Max(1, damage),
             explosionRadius * area,
             falloff,
-            knockback);
+            knockback,
+            tuning.MortarShellCollisionRadius * area,
+            Owner);
     }
 
     private static Vector3 RandomPlanarOffset(float radius)

@@ -5,6 +5,7 @@ using UnityEngine;
 public sealed class MortarShellImpact : MonoBehaviour
 {
     private const int ArcSegments = 18;
+    private const int CollisionBufferSize = 16;
 
     private Vector3 _start;
     private Vector3 _target;
@@ -15,8 +16,11 @@ public sealed class MortarShellImpact : MonoBehaviour
     private float _falloff;
     private int _damage;
     private float _knockback;
+    private float _collisionRadius;
+    private Transform _ignoredRoot;
     private LineRenderer _line;
     private readonly Vector3[] _arcPoints = new Vector3[ArcSegments + 1];
+    private readonly RaycastHit[] _collisionHits = new RaycastHit[CollisionBufferSize];
     private readonly List<IDamageable> _damagedThisExplosion = new();
 
     public static MortarShellImpact Launch(
@@ -27,11 +31,13 @@ public sealed class MortarShellImpact : MonoBehaviour
         int damage,
         float explosionRadius,
         float falloff,
-        float knockback)
+        float knockback,
+        float collisionRadius,
+        Transform ignoredRoot)
     {
         GameObject go = new GameObject("MortarShellImpact");
         MortarShellImpact shell = go.AddComponent<MortarShellImpact>();
-        shell.Configure(start, target, travelTime, arcHeight, damage, explosionRadius, falloff, knockback);
+        shell.Configure(start, target, travelTime, arcHeight, damage, explosionRadius, falloff, knockback, collisionRadius, ignoredRoot);
         return shell;
     }
 
@@ -43,7 +49,9 @@ public sealed class MortarShellImpact : MonoBehaviour
         int damage,
         float explosionRadius,
         float falloff,
-        float knockback)
+        float knockback,
+        float collisionRadius,
+        Transform ignoredRoot)
     {
         _start = start;
         _target = target;
@@ -53,6 +61,8 @@ public sealed class MortarShellImpact : MonoBehaviour
         _explosionRadius = Mathf.Max(0f, explosionRadius);
         _falloff = Mathf.Clamp01(falloff);
         _knockback = Mathf.Max(0f, knockback);
+        _collisionRadius = Mathf.Max(0.01f, collisionRadius);
+        _ignoredRoot = ignoredRoot;
         transform.position = _start;
         BuildLineRenderer();
         UpdateArcVisual();
@@ -62,10 +72,82 @@ public sealed class MortarShellImpact : MonoBehaviour
     {
         _elapsed += Time.deltaTime;
         float t = Mathf.Clamp01(_elapsed / _travelTime);
-        transform.position = GetArcPoint(t);
+        Vector3 previousPosition = transform.position;
+        Vector3 nextPosition = GetArcPoint(t);
 
+        if (TryGetCollision(previousPosition, nextPosition, out Vector3 collisionPoint))
+        {
+            transform.position = collisionPoint;
+            Detonate(collisionPoint);
+            return;
+        }
+
+        transform.position = nextPosition;
         if (t >= 1f)
             Detonate();
+    }
+
+    // Sweeps the shell between frames so fast projectiles cannot tunnel through map geometry.
+    private bool TryGetCollision(Vector3 start, Vector3 end, out Vector3 collisionPoint)
+    {
+        collisionPoint = end;
+        Vector3 displacement = end - start;
+        float distance = displacement.magnitude;
+        if (distance <= 0.0001f)
+            return false;
+
+        Vector3 direction = displacement / distance;
+        int hitCount = Physics.SphereCastNonAlloc(
+            start,
+            _collisionRadius,
+            direction,
+            _collisionHits,
+            distance,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+
+        RaycastHit closestHit = default;
+        float closestDistance = float.MaxValue;
+        bool found = false;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = _collisionHits[i];
+            if (ShouldIgnoreCollision(hit))
+                continue;
+
+            if (hit.distance >= closestDistance)
+                continue;
+
+            closestHit = hit;
+            closestDistance = hit.distance;
+            found = true;
+        }
+
+        if (!found)
+            return false;
+
+        collisionPoint = closestHit.point;
+        return true;
+    }
+
+    private bool ShouldIgnoreCollision(RaycastHit hit)
+    {
+        Transform hitTransform = hit.transform;
+        if (hitTransform == null)
+            return true;
+
+        if (hitTransform == transform || hitTransform.IsChildOf(transform))
+            return true;
+
+        if (_ignoredRoot == null)
+            return false;
+
+        if (hitTransform == _ignoredRoot || hitTransform.IsChildOf(_ignoredRoot))
+            return true;
+
+        Rigidbody body = hit.rigidbody;
+        return body != null && (body.transform == _ignoredRoot || body.transform.IsChildOf(_ignoredRoot));
     }
 
     private void BuildLineRenderer()
@@ -99,10 +181,16 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void Detonate()
     {
-        ExplosionRadiusVfx.Spawn(_target, _explosionRadius);
+        Detonate(_target);
+    }
+
+    private void Detonate(Vector3 explosionCenter)
+    {
+        _target = explosionCenter;
+        ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius);
 
         _damagedThisExplosion.Clear();
-        Collider[] hits = Physics.OverlapSphere(_target, _explosionRadius);
+        Collider[] hits = Physics.OverlapSphere(explosionCenter, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
         {
             IDamageable damageable = hits[i].GetComponentInParent<IDamageable>();
@@ -113,12 +201,12 @@ public sealed class MortarShellImpact : MonoBehaviour
                 continue;
 
             _damagedThisExplosion.Add(damageable);
-            float distance = Vector3.Distance(_target, hits[i].transform.position);
+            float distance = Vector3.Distance(explosionCenter, hits[i].transform.position);
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
             if (damageable.ApplyDamage(finalDamage))
-                EnemyKnockbackReceiver.TryApply(damageable, _target, _knockback * falloffScale);
+                EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, _knockback * falloffScale);
         }
 
         Destroy(gameObject);

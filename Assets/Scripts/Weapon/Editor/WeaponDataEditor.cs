@@ -172,6 +172,8 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(MortarTuning.MortarShellTravelTime), "Shell Travel Time");
         DrawSpecificProperty(nameof(MortarTuning.MortarManualTravelTime), "Manual Travel Time");
         DrawSpecificProperty(nameof(MortarTuning.MortarActiveTravelTime), "Active Travel Time");
+        DrawSpecificProperty(nameof(MortarTuning.MortarShellCollisionRadius), "Shell Collision Radius");
+        DrawSpecificProperty(nameof(MortarTuning.MortarActiveDropHeight), "Active Drop Height");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(MortarTuning.MortarExplosionFalloff), "Explosion Falloff");
