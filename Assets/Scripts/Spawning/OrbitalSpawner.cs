@@ -22,6 +22,9 @@ public class OrbitalSpawner : MonoBehaviour
     [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Escala intervalo y cantidad.")]
     private DifficultyManager _difficultyManager;
 
+    [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Al terminar el Overheat limpia los enemigos del orbital (reset del ciclo).")]
+    private OverheatManager _overheatManager;
+
     [Header("Cadencia (SpawnCooldown * dificultad * overheat)")]
     [SerializeField, Min(0.05f)] private float _spawnInterval = 1.5f;
 
@@ -92,6 +95,22 @@ public class OrbitalSpawner : MonoBehaviour
     {
         _runStartTime = Time.timeSinceLevelLoad;
         _nextSpawnTime = _spawnOnStart ? 0f : Time.time + EffectiveSpawnInterval();
+
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
+        if (_overheatManager != null)
+            _overheatManager.OnOverheatFinished += OnOverheatFinished;
+    }
+
+    private void OnDisable()
+    {
+        if (_overheatManager != null)
+            _overheatManager.OnOverheatFinished -= OnOverheatFinished;
+    }
+
+    private void OnOverheatFinished(OverheatEndReason reason)
+    {
+        ClearSpawned();
     }
 
     private void OnValidate()

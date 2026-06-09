@@ -21,6 +21,7 @@ public class PlayerMovement : MonoBehaviour
     public event Action OnDashStarted;
     public event Action OnDashEnded;
     public event Action<int, int> OnDashChargesChanged;
+    public event Action OnStunned;
 
     [SerializeField] private Transform _cameraTransform;
     [SerializeField] private float _rotationSpeed = 540f;
@@ -41,6 +42,12 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField, Min(0f)] private float _minSlideSpeed = 2f;
     [SerializeField, Min(0f)] private float _postDashFrictionMultiplier = 0.15f;
     [SerializeField, Min(0f)] private float _postDashFrictionDuration = 0.18f;
+
+    [Header("External effects (enemy hooks)")]
+    [SerializeField, Min(0f), Tooltip("Tras un empuje, ventana sin speed-cap y con fricción reducida para que el impulso no se anule al instante.")]
+    private float _knockbackWindow = 0.3f;
+    [SerializeField, Range(0f, 1f), Tooltip("Multiplicador de fricción durante la ventana de empuje (0 = sin fricción).")]
+    private float _knockbackFrictionMultiplier = 0.1f;
 
     [SerializeField, Tooltip("Applies a zero-friction physics material to the movement collider so wall contacts do not grip the player.")]
     private bool _useFrictionlessMovementMaterial = true;
@@ -68,6 +75,8 @@ public class PlayerMovement : MonoBehaviour
     private float _dashTimer;
     private float _dashRegenTimer;
     private float _postDashFrictionTimer;
+    private float _knockbackTimer;
+    private float _stunTimer;
     private float _aimFacingTimer;
     private int _remainingAirJumps;
     private int _currentDashCharges;
@@ -75,6 +84,40 @@ public class PlayerMovement : MonoBehaviour
 
     // Exposes camera-relative movement direction for weapons that aim from movement input.
     public Vector3 CurrentMoveDirectionWorld => _moveDirectionWorld;
+
+    /// <summary>El jugador está aturdido (input de movimiento/salto/dash bloqueado).</summary>
+    public bool IsStunned => _stunTimer > 0f;
+
+    /// <summary>
+    /// Empuje horizontal desde <paramref name="fromPoint"/> con la fuerza dada (Chaser/Shocker).
+    /// Abre una ventana sin speed-cap y con fricción reducida para que el impulso se note.
+    /// </summary>
+    public void ApplyKnockback(Vector3 fromPoint, float force)
+    {
+        if (force <= 0f || _rb == null)
+            return;
+
+        Vector3 dir = transform.position - fromPoint;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f)
+            dir = -transform.forward;
+        dir.Normalize();
+
+        _rb.AddForce(dir * (force * _rb.mass), ForceMode.Impulse);
+        _knockbackTimer = Mathf.Max(_knockbackTimer, _knockbackWindow);
+    }
+
+    /// <summary>Aturde al jugador durante <paramref name="seconds"/> (Shocker). Refresca, no apila.</summary>
+    public void ApplyStun(float seconds)
+    {
+        if (seconds <= 0f)
+            return;
+
+        bool wasStunned = _stunTimer > 0f;
+        _stunTimer = Mathf.Max(_stunTimer, seconds);
+        if (!wasStunned)
+            OnStunned?.Invoke();
+    }
 
     // Cache movement components and initialize singleton and physics defaults.
     private void Awake()
@@ -129,10 +172,13 @@ public class PlayerMovement : MonoBehaviour
 
         ReadInput();
 
-        if (_jumpPressed) TryJump();
-        if (_crouchPressed) TryStartCrouchOrSlide();
-        if (_crouchReleased) StopCrouchOrSlide();
-        if (_dashPressed) TryDash();
+        if (!IsStunned)
+        {
+            if (_jumpPressed) TryJump();
+            if (_crouchPressed) TryStartCrouchOrSlide();
+            if (_crouchReleased) StopCrouchOrSlide();
+            if (_dashPressed) TryDash();
+        }
 
         _jumpPressed = false;
         _crouchPressed = false;
@@ -159,6 +205,8 @@ public class PlayerMovement : MonoBehaviour
         }
 
         TickPostDashFrictionWindow();
+        TickKnockbackWindow();
+        TickStun();
         TickAimFacingTimer();
         HandleDashRegeneration();
     }
@@ -203,6 +251,10 @@ public class PlayerMovement : MonoBehaviour
     // Apply acceleration force and rotate player while respecting movement state priorities.
     private void HandleMovement()
     {
+        // Aturdido: sin rotación ni aceleración por input (la fricción sigue para frenar).
+        if (IsStunned)
+            return;
+
         Vector3 aimFacingDirection = Vector3.zero;
         bool useAimFacing = !_isSliding && TryGetAimFacingDirection(out aimFacingDirection);
         Vector3 facingDirection = _isSliding ? _slideDirectionWorld : useAimFacing ? aimFacingDirection : _moveDirectionWorld;
@@ -237,6 +289,7 @@ public class PlayerMovement : MonoBehaviour
         if (!_isGrounded) friction *= _airFrictionMultiplier;
         if (_isSliding && _isGrounded) friction *= _slideFrictionMultiplier;
         if (_postDashFrictionTimer > 0f) friction *= _postDashFrictionMultiplier;
+        if (_knockbackTimer > 0f) friction *= _knockbackFrictionMultiplier;
 
         Vector3 frictionDir = -planarV.normalized;
         _rb.AddForce(frictionDir * friction, ForceMode.Acceleration);
@@ -246,7 +299,7 @@ public class PlayerMovement : MonoBehaviour
     // Clamp normal horizontal velocity without crushing slide or dash momentum.
     private void ApplyPlanarSpeedCap()
     {
-        if (_isSliding || _postDashFrictionTimer > 0f) return;
+        if (_isSliding || _postDashFrictionTimer > 0f || _knockbackTimer > 0f) return;
 
         float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed());
         Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
@@ -262,6 +315,20 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_postDashFrictionTimer <= 0f) return;
         _postDashFrictionTimer = Mathf.Max(0f, _postDashFrictionTimer - Time.fixedDeltaTime);
+    }
+
+    // Decrease the knockback grace window used to let an external impulse register.
+    private void TickKnockbackWindow()
+    {
+        if (_knockbackTimer <= 0f) return;
+        _knockbackTimer = Mathf.Max(0f, _knockbackTimer - Time.fixedDeltaTime);
+    }
+
+    // Decrease the stun timer that blocks movement/jump/dash input.
+    private void TickStun()
+    {
+        if (_stunTimer <= 0f) return;
+        _stunTimer = Mathf.Max(0f, _stunTimer - Time.fixedDeltaTime);
     }
 
     private void TickAimFacingTimer()

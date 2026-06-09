@@ -276,7 +276,7 @@ public class QaRuntimeTweaker : MonoBehaviour
     private void DrawControls()
     {
         GUILayout.Label("Cambios en vivo.");
-        GUILayout.Label("No afecta prefabs.");
+        GUILayout.Label("Temporales salvo APLICAR.");
         GUILayout.Space(6f);
 
         if (GUILayout.Button("Aplicar a vivos"))
@@ -288,6 +288,15 @@ public class QaRuntimeTweaker : MonoBehaviour
         if (GUILayout.Button("Resetear a defaults"))
             ResetAll();
 
+#if UNITY_EDITOR
+        GUI.color = new Color(0.7f, 1f, 0.7f);
+        if (GUILayout.Button("APLICAR CAMBIOS\n(persistir a prefabs)"))
+            ApplyOverridesToPrefabs();
+        GUI.color = Color.white;
+#else
+        GUILayout.Label("(APLICAR solo en Editor)");
+#endif
+
         if (GUILayout.Button("Copiar reporte QA"))
             QaPanels.Copy(BuildBalanceReport());
 
@@ -297,6 +306,58 @@ public class QaRuntimeTweaker : MonoBehaviour
             overrideCount += kv.Value.Count;
         GUILayout.Label($"Overrides activos: {overrideCount}");
     }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Escribe los overrides actuales sobre los prefabs de la ruleta y guarda los
+    /// assets. A partir de aquí los cambios persisten en otras escenas (p. ej.
+    /// SampleScene), porque los spawners instancian estos mismos prefabs.
+    /// </summary>
+    private void ApplyOverridesToPrefabs()
+    {
+        if (_config == null || _config.Entries == null)
+        {
+            Debug.LogWarning("[QA Balance] Sin EnemySpawnRouletteConfig; no se puede persistir.");
+            return;
+        }
+
+        int written = 0;
+        foreach (EnemySpawnRouletteConfig.Entry entry in _config.Entries)
+        {
+            if (entry == null || entry.Prefab == null)
+                continue;
+
+            if (!_overrides.TryGetValue(entry.Kind, out Dictionary<string, object> kindOverrides) || kindOverrides.Count == 0)
+                continue;
+
+            foreach (MonoBehaviour component in entry.Prefab.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (component == null)
+                    continue;
+
+                string typeName = component.GetType().Name;
+                foreach (FieldInfo field in GetTweakableFields(component.GetType()))
+                {
+                    string key = typeName + "." + field.Name;
+                    if (!kindOverrides.TryGetValue(key, out object value))
+                        continue;
+
+                    field.SetValue(component, value);
+                    UnityEditor.EditorUtility.SetDirty(component);
+                    written++;
+                }
+            }
+        }
+
+        UnityEditor.AssetDatabase.SaveAssets();
+
+        // Los prefabs ahora contienen los nuevos valores: refrescamos los defaults
+        // para que "Resetear" use esta nueva línea base.
+        BuildCatalog();
+
+        Debug.Log($"[QA Balance] {written} valores persistidos a los prefabs (afecta a todas las escenas).");
+    }
+#endif
 
     private string BuildBalanceReport()
     {

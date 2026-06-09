@@ -16,6 +16,12 @@ public class BossManager : MonoBehaviour
     [SerializeField, Tooltip("Prefab raíz del boss: EnemyHealth + EnemyFollow; sin SwarmPooledEnemy.")]
     private GameObject _bossPrefab;
 
+    [SerializeField, Tooltip("Segundo boss (Boss_2). Se alterna con el primero en cada Overheat par. Vacío = usar siempre el primero.")]
+    private GameObject _secondBossPrefab;
+
+    [SerializeField, Tooltip("Los bosses solo aparecen en los Overheat pares (2.º, 4.º…). En los impares spawnea la oleada de elites.")]
+    private bool _spawnOnlyOnEvenCycles = true;
+
     [SerializeField, Min(1), Tooltip("Vida máxima aplicada al spawn (sustituye la del prefab).")]
     private int _bossMaxHealth = 400;
 
@@ -111,10 +117,20 @@ public class BossManager : MonoBehaviour
         _overheatCycleIndex++;
         DespawnAllBossesImmediate();
 
-        if (_bossPrefab == null)
+        // Los bosses solo en ciclos pares; los impares los cubre la oleada de elites.
+        if (_spawnOnlyOnEvenCycles && (_overheatCycleIndex % 2 != 0))
+        {
+            if (_logState)
+                Debug.Log($"BossManager: Overheat impar #{_overheatCycleIndex}; sin boss (turno de elites).", this);
+            return;
+        }
+
+        GameObject bossPrefab = SelectBossPrefabForCurrentCycle();
+        if (bossPrefab == null)
         {
             if (_logState)
                 Debug.LogWarning("BossManager: asigna prefab de boss.", this);
+            EndOverheatIfNoObjective();
             return;
         }
 
@@ -123,6 +139,7 @@ public class BossManager : MonoBehaviour
         {
             if (_logState)
                 Debug.LogWarning("BossManager: no hay jugador; no se spawnea boss.", this);
+            EndOverheatIfNoObjective();
             return;
         }
 
@@ -135,7 +152,7 @@ public class BossManager : MonoBehaviour
             Vector3 offset = new Vector3(Mathf.Cos(angle) * _spawnDistance, 0f, Mathf.Sin(angle) * _spawnDistance);
             Vector3 ringPos = player.position + offset;
 
-            GameObject go = Instantiate(_bossPrefab, ringPos, Quaternion.identity);
+            GameObject go = Instantiate(bossPrefab, ringPos, Quaternion.identity);
             EnemyHealth health = go.GetComponent<EnemyHealth>();
             if (health == null)
             {
@@ -203,6 +220,20 @@ public class BossManager : MonoBehaviour
 
         if (_logState && _activeBosses.Count > 0)
             Debug.Log($"Boss spawn x{_activeBosses.Count} (ciclo Overheat #{_overheatCycleIndex})", this);
+
+        // Sin temporizador: si no se pudo spawnear ningún boss, no dejar el Overheat colgado.
+        if (_activeBosses.Count == 0)
+            EndOverheatIfNoObjective();
+    }
+
+    /// <summary>
+    /// Anti-softlock: como el Overheat ya no termina por tiempo, si este ciclo no logró
+    /// generar objetivo (sin boss), lo cierra para no bloquear el loop.
+    /// </summary>
+    private void EndOverheatIfNoObjective()
+    {
+        if (_overheatManager != null && _overheatManager.IsOverheating)
+            _overheatManager.NotifyOverheatObjectiveCleared();
     }
 
     private int GetBossSpawnCountForCurrentCycle()
@@ -210,6 +241,25 @@ public class BossManager : MonoBehaviour
         if (_overheatCycleIndex == _multiBossOverheatCycle && _bossCountOnMultiCycle > 1)
             return _bossCountOnMultiCycle;
         return 1;
+    }
+
+    /// <summary>
+    /// Elige el boss del ciclo actual. Si hay segundo prefab, alterna entre ambos en
+    /// cada aparición par: 2.º Overheat -> boss 1, 4.º -> boss 2, 6.º -> boss 1…
+    /// </summary>
+    private GameObject SelectBossPrefabForCurrentCycle()
+    {
+        if (_secondBossPrefab == null)
+            return _bossPrefab;
+        if (_bossPrefab == null)
+            return _secondBossPrefab;
+
+        // appearanceIndex 1-based para los ciclos pares (2->1, 4->2, 6->3…).
+        int appearanceIndex = _spawnOnlyOnEvenCycles
+            ? _overheatCycleIndex / 2
+            : _overheatCycleIndex;
+
+        return (appearanceIndex % 2 == 1) ? _bossPrefab : _secondBossPrefab;
     }
 
     private void OnBossInstanceDied(EnemyHealth health)

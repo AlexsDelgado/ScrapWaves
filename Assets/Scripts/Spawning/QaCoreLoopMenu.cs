@@ -184,13 +184,46 @@ public class QaCoreLoopMenu : MonoBehaviour
         }
 
         GUILayout.Space(6f);
+
+#if UNITY_EDITOR
+        GUI.color = new Color(0.7f, 1f, 0.7f);
+        if (GUILayout.Button("APLICAR CAMBIOS\n(persistir ruleta)"))
+            ApplyConfigToAsset();
+        GUI.color = Color.white;
+#else
+        GUILayout.Label("(APLICAR solo en Editor)");
+#endif
+
         if (GUILayout.Button("Copiar reporte QA"))
             QaPanels.Copy(BuildCoreLoopReport());
 
         GUILayout.Space(4f);
-        GUILayout.Label("Cambios en vivo; el asset de");
-        GUILayout.Label("ruleta se restaura al salir.");
+        GUILayout.Label("Ruleta: temporal salvo APLICAR");
+        GUILayout.Label("(persiste a otras escenas).");
+        GUILayout.Label("Orbital: solo esta escena.");
     }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Persiste los valores actuales de la ruleta al asset y guarda. Reajusta el
+    /// snapshot para que <see cref="RestoreConfig"/> (OnDisable) no los revierta.
+    /// Los campos del OrbitalSpawner son de un componente de escena, no se persisten
+    /// desde aquí (se editan en la escena destino).
+    /// </summary>
+    private void ApplyConfigToAsset()
+    {
+        if (_config == null)
+        {
+            Debug.LogWarning("[QA Core Loop] Sin EnemySpawnRouletteConfig; no se puede persistir.");
+            return;
+        }
+
+        UnityEditor.EditorUtility.SetDirty(_config);
+        UnityEditor.AssetDatabase.SaveAssets();
+        SnapshotConfig();
+        Debug.Log("[QA Core Loop] Ruleta persistida al asset (afecta a todas las escenas).");
+    }
+#endif
 
     private string BuildCoreLoopReport()
     {

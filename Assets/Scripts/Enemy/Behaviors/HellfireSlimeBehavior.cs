@@ -24,6 +24,10 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
     [Header("Explosion")]
     [SerializeField, Min(0.5f)] private float _explosionRadius = 3.5f;
     [SerializeField, Min(1)] private int _explosionDamage = 25;
+    [SerializeField, Min(0f), Tooltip("Duración de la quemadura aplicada al jugador al impactar (doc: 3 s).")]
+    private float _burnSeconds = 3f;
+    [SerializeField, Min(0), Tooltip("Daño por segundo de la quemadura (doc: bajo).")]
+    private int _burnDps = 2;
     [SerializeField] private GameObject _fireAreaPrefab;
     [SerializeField, Tooltip("Capas de suelo para colocar el area de fuego.")]
     private LayerMask _groundMask;
@@ -119,6 +123,7 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
             if (player != null)
             {
                 player.TakeDamage(_explosionDamage);
+                PlayerCombatHooks.TryBurn(_burnSeconds, _burnDps);
                 break;
             }
         }

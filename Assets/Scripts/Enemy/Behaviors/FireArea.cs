@@ -3,7 +3,9 @@ using UnityEngine;
 /// <summary>
 /// Area de fuego que deja el Hellfire Slime al explotar. Vive un tiempo fijo y
 /// hace dano por tick al jugador que este dentro del trigger (via
-/// <see cref="PlayerHealth.TakeDamage"/>), ademas de invocar el hook de quemadura.
+/// <see cref="PlayerHealth.TakeDamage"/>). La quemadura (DoT) de 3 s se aplica en el
+/// impacto de la explosion (ver <see cref="HellfireSlimeBehavior"/>), no aqui, para
+/// evitar daño doble.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class FireArea : MonoBehaviour
@@ -14,11 +16,6 @@ public class FireArea : MonoBehaviour
     private float _tickInterval = 0.5f;
 
     [SerializeField, Min(1)] private int _damagePerTick = 4;
-
-    [Header("Hook de quemadura (TODO en PlayerCombatHooks)")]
-    [SerializeField, Min(0f)] private float _burnSeconds = 3f;
-
-    [SerializeField, Min(0)] private int _burnDps = 2;
 
     private float _tickTimer;
     private bool _playerInside;
@@ -53,7 +50,6 @@ public class FireArea : MonoBehaviour
 
         _tickTimer = _tickInterval;
         _player.TakeDamage(_damagePerTick);
-        PlayerCombatHooks.TryBurn(_burnSeconds, _burnDps);
     }
 
     private void OnTriggerEnter(Collider other)

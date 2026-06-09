@@ -13,8 +13,11 @@ public enum OverheatEndReason
 
 /// <summary>
 /// Al llenar el Heat (<see cref="HeatManager.OnOverheat"/>), entra en Overheat: aplica un multiplicador de cadencia al <see cref="PlayerStats"/>
-/// durante <see cref="_overheatDuration"/> y luego resetea el Heat a <see cref="_heatAfterOverheat"/>.
-/// <see cref="BossManager"/> puede escuchar <see cref="OnOverheatStarted"/> / <see cref="OnOverheatFinished"/> y llamar <see cref="NotifyBossDefeatedEarly"/>.
+/// y luego resetea el Heat a <see cref="_heatAfterOverheat"/>.
+/// NO hay temporizador: el Overheat se mantiene hasta que el jugador completa el objetivo
+/// (derrotar al/los boss en ciclos pares, o todos los elites en impares), momento en el que
+/// <see cref="BossManager"/> / <see cref="OverheatEliteWaveSpawner"/> llaman a
+/// <see cref="NotifyOverheatObjectiveCleared"/>.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-32)]
@@ -26,7 +29,7 @@ public class OverheatManager : MonoBehaviour
     [SerializeField, Tooltip("Stats del jugador (mismo GameObject o referencia explícita).")]
     private PlayerStats _playerStats;
 
-    [SerializeField, Min(0.1f), Tooltip("Segundos que dura el estado Overheat.")]
+    [SerializeField, Min(0.1f), Tooltip("EN DESUSO: el Overheat ya no termina por tiempo, dura hasta limpiar el objetivo. Se conserva por compatibilidad.")]
     private float _overheatDuration = 5f;
 
     [SerializeField, Min(0.01f), Tooltip("Multiplicador de cadencia de disparo durante Overheat (2 = el doble de rápido, intervalo ~mitad).")]
@@ -41,19 +44,17 @@ public class OverheatManager : MonoBehaviour
     [SerializeField, Tooltip("Pool de enemigos comunes; vacío = FindAnyObjectByType al terminar Overheat.")]
     private SwarmEnemyPool _swarmEnemyPool;
 
-    private float _remaining;
     private bool _isOverheating;
 
     public bool IsOverheating => _isOverheating;
 
-    /// <summary>Tiempo restante de Overheat en segundos.</summary>
-    public float OverheatTimeRemaining => _isOverheating ? Mathf.Max(0f, _remaining) : 0f;
+    /// <summary>Sin temporizador: 0 mientras el Overheat depende del objetivo.</summary>
+    public float OverheatTimeRemaining => 0f;
 
-    /// <summary>Progreso 0–1 del Overheat (1 = recién empezado, 0 = a punto de acabar).</summary>
-    public float NormalizedOverheatTimeRemaining =>
-        _isOverheating && _overheatDuration > 0f ? Mathf.Clamp01(_remaining / _overheatDuration) : 0f;
+    /// <summary>Sin temporizador: 1 mientras está activo el Overheat, 0 si no.</summary>
+    public float NormalizedOverheatTimeRemaining => _isOverheating ? 1f : 0f;
 
-    /// <summary>Duración configurada de la fase (misma que usa el temporizador).</summary>
+    /// <summary>Duración configurada (en desuso: ya no hay temporizador).</summary>
     public float ConfiguredOverheatDuration => _overheatDuration;
 
     /// <summary>Al entrar en Overheat (buff activo y temporizador iniciado).</summary>
@@ -87,19 +88,17 @@ public class OverheatManager : MonoBehaviour
             EndOverheat(OverheatEndReason.Interrupted);
     }
 
-    private void Update()
+    /// <summary>Si el boss muere, termina Overheat como éxito.</summary>
+    public void NotifyBossDefeatedEarly()
     {
-        if (!_isOverheating)
-            return;
-
-        _remaining -= Time.deltaTime;
-
-        if (_remaining <= 0f)
-            EndOverheat(OverheatEndReason.TimeExpired);
+        NotifyOverheatObjectiveCleared();
     }
 
-    /// <summary>Si el boss muere a tiempo, termina Overheat como éxito (sin esperar al temporizador).</summary>
-    public void NotifyBossDefeatedEarly()
+    /// <summary>
+    /// El objetivo de la fase de Overheat se completó (boss derrotado en ciclos pares,
+    /// o todos los elites derrotados en ciclos impares): termina el Overheat como éxito.
+    /// </summary>
+    public void NotifyOverheatObjectiveCleared()
     {
         if (!_isOverheating)
             return;
@@ -113,7 +112,6 @@ public class OverheatManager : MonoBehaviour
             return;
 
         _isOverheating = true;
-        _remaining = _overheatDuration;
         OverheatSwarmBoost.SetIntensity(false);
 
         if (_playerStats != null)
@@ -122,7 +120,7 @@ public class OverheatManager : MonoBehaviour
             Debug.LogWarning("OverheatManager: no hay PlayerStats; no se aplica buff de cadencia.", this);
 
         if (_logState)
-            Debug.Log($"Overheat iniciado ({_overheatDuration:0.#} s, x{_fireRateMultiplier:0.##} fire rate)", this);
+            Debug.Log($"Overheat iniciado (sin timer, x{_fireRateMultiplier:0.##} fire rate; dura hasta limpiar el objetivo)", this);
 
         OnOverheatStarted?.Invoke();
     }
@@ -130,7 +128,6 @@ public class OverheatManager : MonoBehaviour
     private void EndOverheat(OverheatEndReason reason)
     {
         _isOverheating = false;
-        _remaining = 0f;
         OverheatSwarmBoost.SetIntensity(false);
 
         if (_swarmEnemyPool == null)
