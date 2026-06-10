@@ -5,12 +5,20 @@ public class ThirdPersonCamera : MonoBehaviour
 {
     [SerializeField] private Transform _followTarget;
 
-    [SerializeField, Tooltip("Camera position relative to the pivot in orbit space. Y is height, negative Z is behind.")]
-    private Vector3 _followOffset = new Vector3(0f, 1.7f, -4.2f);
+    [Header("Over-the-shoulder framing")]
+    [SerializeField, Tooltip("Pivot height above the target's feet (shoulder/head height).")]
+    private float _pivotHeight = 1.6f;
 
-    [SerializeField, Tooltip("Point the camera looks at, relative to the target.")]
-    private Vector3 _lookAtOffset = new Vector3(0f, 1.2f, 0f);
+    [SerializeField, Tooltip("Lateral offset of the camera from the pivot. Positive = right shoulder, negative = left shoulder.")]
+    private float _shoulderOffset = 0.6f;
 
+    [SerializeField, Tooltip("Vertical offset of the camera from the pivot.")]
+    private float _cameraHeightOffset = 0f;
+
+    [SerializeField, Tooltip("Distance the camera sits behind the pivot.")]
+    private float _cameraDistance = 3.5f;
+
+    [Header("Look input")]
     [SerializeField, Tooltip("Horizontal mouse look scale.")]
     private float _horizontalSensitivity = 0.12f;
 
@@ -21,11 +29,12 @@ public class ThirdPersonCamera : MonoBehaviour
     private bool _invertVertical;
 
     [SerializeField, Tooltip("Lower pitch limit.")]
-    private float _minPitch = -70f;
+    private float _minPitch = -55f;
 
     [SerializeField, Tooltip("Upper pitch limit.")]
-    private float _maxPitch = 70f;
+    private float _maxPitch = 65f;
 
+    [Header("Collision")]
     [SerializeField, Tooltip("Pull the camera closer when terrain or level geometry blocks the desired orbit position.")]
     private bool _avoidCameraClipping = true;
 
@@ -83,13 +92,15 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public void ApplyMainGameOrbitDefaults()
     {
-        _followOffset = new Vector3(0f, 1.9f, -4.2f);
-        _lookAtOffset = new Vector3(0f, 1.2f, 0f);
+        _pivotHeight = 1.6f;
+        _shoulderOffset = 0.6f;
+        _cameraHeightOffset = 0f;
+        _cameraDistance = 3.5f;
         _horizontalSensitivity = 0.12f;
         _verticalSensitivity = 0.12f;
-        _invertVertical = true;
-        _minPitch = -70f;
-        _maxPitch = 70f;
+        _invertVertical = false;
+        _minPitch = -55f;
+        _maxPitch = 65f;
         _avoidCameraClipping = true;
         _cameraCollisionRadius = 0.25f;
         _cameraCollisionPadding = 0.12f;
@@ -108,45 +119,49 @@ public class ThirdPersonCamera : MonoBehaviour
             Vector2 delta = mouse.delta.ReadValue();
             _yaw += delta.x * _horizontalSensitivity;
 
-            float verticalSign = _invertVertical ? -1f : 1f;
+            float verticalSign = _invertVertical ? 1f : -1f;
             _pitch += verticalSign * delta.y * _verticalSensitivity;
             _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
         }
 
-        Quaternion yawRot = Quaternion.AngleAxis(_yaw, Vector3.up);
-        Quaternion pitchRot = Quaternion.AngleAxis(_pitch, Vector3.right);
-        Quaternion orbit = yawRot * pitchRot;
+        // Orientación de la cámara basada en el look input.
+        Quaternion orbit = Quaternion.Euler(_pitch, _yaw, 0f);
 
-        Vector3 pivot = _followTarget.position;
-        Vector3 lookPoint = pivot + _lookAtOffset;
-        Vector3 desiredPosition = pivot + orbit * _followOffset;
+        // Pivote anclado al personaje, a la altura del hombro.
+        Vector3 pivot = _followTarget.position + Vector3.up * _pivotHeight;
 
-        transform.position = ResolveCameraPosition(lookPoint, desiredPosition);
-        transform.rotation = Quaternion.LookRotation(lookPoint - transform.position, Vector3.up);
+        // Desplazamiento lateral (over-the-shoulder) y vertical en el espacio del orbit.
+        Vector3 shoulder = orbit * new Vector3(_shoulderOffset, _cameraHeightOffset, 0f);
+        Vector3 anchor = pivot + shoulder;
+
+        // La cámara se ubica detrás del ancla, en la dirección del orbit.
+        Vector3 back = orbit * Vector3.back;
+        Vector3 desiredPosition = anchor + back * _cameraDistance;
+
+        transform.position = ResolveCameraPosition(anchor, desiredPosition);
+
+        // Mirar hacia adelante (en la dirección del orbit), no hacia el personaje.
+        transform.rotation = Quaternion.LookRotation(orbit * Vector3.forward, Vector3.up);
     }
 
-    private Vector3 ResolveCameraPosition(Vector3 lookPoint, Vector3 desiredPosition)
+    private Vector3 ResolveCameraPosition(Vector3 anchor, Vector3 desiredPosition)
     {
         if (!_avoidCameraClipping)
             return desiredPosition;
 
-        Vector3 toDesired = desiredPosition - lookPoint;
+        Vector3 toDesired = desiredPosition - anchor;
         float desiredDistance = toDesired.magnitude;
         if (desiredDistance <= 0.0001f)
             return desiredPosition;
 
         Vector3 direction = toDesired / desiredDistance;
-        if (!TryGetCameraCollision(lookPoint, direction, desiredDistance, out RaycastHit closestHit))
+        if (!TryGetCameraCollision(anchor, direction, desiredDistance, out RaycastHit closestHit))
             return desiredPosition;
 
         float resolvedDistance = closestHit.distance - _cameraCollisionPadding;
-        if (resolvedDistance > _minimumDistanceFromLookPoint)
-            resolvedDistance = Mathf.Max(_minimumDistanceFromLookPoint, resolvedDistance);
-        else
-            resolvedDistance = Mathf.Max(0.05f, resolvedDistance);
-
+        resolvedDistance = Mathf.Max(0.05f, resolvedDistance);
         resolvedDistance = Mathf.Min(resolvedDistance, desiredDistance);
-        return lookPoint + direction * resolvedDistance;
+        return anchor + direction * resolvedDistance;
     }
 
     private bool TryGetCameraCollision(Vector3 origin, Vector3 direction, float distance, out RaycastHit closestHit)
