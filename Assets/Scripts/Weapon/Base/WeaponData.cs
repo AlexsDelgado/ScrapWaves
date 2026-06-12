@@ -102,6 +102,8 @@ public sealed class MortarTuning : WeaponSpecificTuning
     [Min(0.05f)] public float MortarShellTravelTime = 0.9f;
     [Min(0.05f)] public float MortarManualTravelTime = 0.55f;
     [Min(0.05f)] public float MortarActiveTravelTime = 0.7f;
+    [Min(0f)] public float MortarShellCollisionRadius = 0.18f;
+    [Min(0f)] public float MortarActiveDropHeight = 14f;
 
     [Min(0f)] public float MortarExplosionFalloff = 0.75f;
     [Min(0f)] public float MortarArcHeight = 7f;

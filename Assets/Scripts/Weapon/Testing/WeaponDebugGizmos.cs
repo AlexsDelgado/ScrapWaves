@@ -144,7 +144,12 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         Vector3 target = origin + forward.normalized * weapon.Data.BaseRange;
 
         if (ShowProjectilePaths)
+        {
             DrawRuntimeArc(origin, target, tuning.MortarArcHeight, new Color(1f, 0.86f, 0.05f, 0.95f));
+            Vector3 dropStart = target + Vector3.up * tuning.MortarActiveDropHeight;
+            DrawRuntimeLine(dropStart, target, new Color(1f, 0.25f, 0.04f, 0.95f), RuntimeLineWidth * 1.5f);
+            DrawRuntimeSphere(dropStart, Mathf.Max(0.08f, tuning.MortarShellCollisionRadius * size), new Color(1f, 0.55f, 0.08f, 0.9f));
+        }
 
         if (ShowExplosionRadius)
         {
@@ -289,6 +294,11 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         {
             Gizmos.color = new Color(1f, 0.85f, 0.05f, 0.8f);
             DrawArc(origin, target, tuning.MortarArcHeight);
+
+            Gizmos.color = new Color(1f, 0.25f, 0.05f, 0.9f);
+            Vector3 dropStart = target + Vector3.up * tuning.MortarActiveDropHeight;
+            Gizmos.DrawLine(dropStart, target);
+            Gizmos.DrawWireSphere(dropStart, Mathf.Max(0.08f, tuning.MortarShellCollisionRadius * size));
         }
 
         if (ShowExplosionRadius)

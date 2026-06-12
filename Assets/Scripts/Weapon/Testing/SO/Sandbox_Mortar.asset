@@ -91,6 +91,8 @@ MonoBehaviour:
         MortarShellTravelTime: 0.9
         MortarManualTravelTime: 0.55
         MortarActiveTravelTime: 0.7
+        MortarShellCollisionRadius: 0.18
+        MortarActiveDropHeight: 14
         MortarExplosionFalloff: 0.75
         MortarArcHeight: 7
         MortarActiveShellCount: 8

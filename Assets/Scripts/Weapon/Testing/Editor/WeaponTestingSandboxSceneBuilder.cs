@@ -169,6 +169,8 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.Mortar.MortarAutoAccuracyRadius = 3.8f;
                 data.Mortar.MortarManualAccuracyRadius = 0.75f;
                 data.Mortar.MortarBarrageRadius = 6f;
+                data.Mortar.MortarShellCollisionRadius = 0.18f;
+                data.Mortar.MortarActiveDropHeight = 14f;
                 break;
             case WeaponType.RotatingBlade:
                 data.RotatingBlade.BladeOrbitRadius = 2.2f;
