@@ -88,6 +88,10 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>El jugador está aturdido (input de movimiento/salto/dash bloqueado).</summary>
     public bool IsStunned => _stunTimer > 0f;
 
+    public int CurrentDashCharges => _currentDashCharges;
+
+    public int MaxDashCharges => _stats != null ? Mathf.Max(0, _stats.GetStatInt(StatType.DashCharges)) : 0;
+
     /// <summary>
     /// Empuje horizontal desde <paramref name="fromPoint"/> con la fuerza dada (Chaser/Shocker).
     /// Abre una ventana sin speed-cap y con fricción reducida para que el impulso se note.

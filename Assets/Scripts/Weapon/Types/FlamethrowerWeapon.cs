@@ -69,7 +69,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     // Emits a circular flame burst around the player.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Manual)
+        if (!CanBeginActiveAbility())
             return;
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
@@ -94,6 +94,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         }
 
         FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration);
+        CompleteActiveAbility();
     }
 
     // Flamethrower direct ticks can crit; burn ticks do not.

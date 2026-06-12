@@ -61,10 +61,17 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     [SerializeField, Min(0f)] private float _resolveStepOut = 0.06f;
 
     private readonly List<GameObject> _spawned = new(32);
+    private readonly List<Transform> _aliveEliteTransformBuffer = new(32);
     private readonly Dictionary<EnemyHealth, Action> _onEliteDiedHandlers = new(32);
     private int _aliveEliteCount;
     private bool _waveActive;
     private int _cycleIndex;
+
+    public int EliteWaveTotal { get; private set; }
+    public int ElitesRemaining => _aliveEliteCount;
+    public bool IsEliteWaveActive => _waveActive;
+
+    public event Action OnEliteWaveProgressChanged;
 
     private void Awake()
     {
@@ -138,6 +145,16 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
             return;
         }
 
+        int totalPlanned = 0;
+        foreach (EliteEntry entry in _elites)
+        {
+            if (entry == null || entry.Prefab == null || entry.Count <= 0)
+                continue;
+            totalPlanned += entry.Count;
+        }
+
+        EliteWaveTotal = totalPlanned;
+
         int spawned = 0;
         foreach (EliteEntry entry in _elites)
         {
@@ -157,9 +174,30 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         if (_logState)
             Debug.Log($"[EliteWave] Overheat impar #{_cycleIndex}: spawneados {spawned} elites (vivos rastreados: {_aliveEliteCount}).", this);
 
+        NotifyEliteWaveProgressChanged();
+
         // Sin temporizador: si no quedó ningún elite rastreable, no dejar el Overheat colgado.
         if (!_waveActive)
             EndOverheatIfNoObjective();
+    }
+
+    public IReadOnlyList<Transform> GetAliveEliteTransforms()
+    {
+        _aliveEliteTransformBuffer.Clear();
+        for (int i = 0; i < _spawned.Count; i++)
+        {
+            GameObject go = _spawned[i];
+            if (go == null)
+                continue;
+
+            EnemyHealth health = go.GetComponent<EnemyHealth>();
+            if (health != null && health.CurrentHealth <= 0)
+                continue;
+
+            _aliveEliteTransformBuffer.Add(go.transform);
+        }
+
+        return _aliveEliteTransformBuffer;
     }
 
     /// <summary>
@@ -263,6 +301,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         }
 
         _aliveEliteCount = Mathf.Max(0, _aliveEliteCount - 1);
+        NotifyEliteWaveProgressChanged();
 
         if (!_waveActive || _aliveEliteCount > 0)
             return;
@@ -295,5 +334,9 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         }
 
         _spawned.Clear();
+        EliteWaveTotal = 0;
+        NotifyEliteWaveProgressChanged();
     }
+
+    private void NotifyEliteWaveProgressChanged() => OnEliteWaveProgressChanged?.Invoke();
 }

@@ -76,6 +76,30 @@ public class BossManager : MonoBehaviour
     /// <summary>Cada vez que un boss es derrotado (para victoria global en <see cref="GameManager"/>).</summary>
     public event Action OnBossDefeated;
 
+    /// <summary>Spawn o muerte de bosses activos (HUD de barra y objetivo).</summary>
+    public event Action OnActiveBossesChanged;
+
+    /// <summary>Bosses vivos en la fase actual de Overheat.</summary>
+    public IReadOnlyList<EnemyHealth> ActiveBosses => _activeBosses;
+
+    public bool HasActiveBosses => _activeBosses.Count > 0;
+
+    /// <summary>Primer boss vivo (barra de vida y flecha offscreen).</summary>
+    public EnemyHealth PrimaryBoss
+    {
+        get
+        {
+            for (int i = 0; i < _activeBosses.Count; i++)
+            {
+                EnemyHealth h = _activeBosses[i];
+                if (h != null && h.CurrentHealth > 0)
+                    return h;
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>Ciclos de Overheat iniciados (1-based durante la fase actual tras incrementar).</summary>
     public int CurrentOverheatCycle => _overheatCycleIndex;
 
@@ -221,6 +245,8 @@ public class BossManager : MonoBehaviour
         if (_logState && _activeBosses.Count > 0)
             Debug.Log($"Boss spawn x{_activeBosses.Count} (ciclo Overheat #{_overheatCycleIndex})", this);
 
+        NotifyActiveBossesChanged();
+
         // Sin temporizador: si no se pudo spawnear ningún boss, no dejar el Overheat colgado.
         if (_activeBosses.Count == 0)
             EndOverheatIfNoObjective();
@@ -275,6 +301,7 @@ public class BossManager : MonoBehaviour
 
         _activeBosses.Remove(health);
         OnBossDefeated?.Invoke();
+        NotifyActiveBossesChanged();
 
         if (health.gameObject != null)
             Destroy(health.gameObject, 0.05f);
@@ -313,7 +340,10 @@ public class BossManager : MonoBehaviour
         }
 
         _activeBosses.Clear();
+        NotifyActiveBossesChanged();
     }
+
+    private void NotifyActiveBossesChanged() => OnActiveBossesChanged?.Invoke();
 
 #if UNITY_EDITOR
     private void OnValidate()

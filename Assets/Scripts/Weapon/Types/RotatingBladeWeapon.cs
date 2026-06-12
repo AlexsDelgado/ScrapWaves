@@ -87,7 +87,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     // Thrusts forward in a thick line. Heat adds range in discrete 20% steps, capped by tuning.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Manual)
+        if (!CanBeginActiveAbility())
             return;
 
         Vector3 thrustDirection = GetHorizontalAimDirection(aimDirection);
@@ -120,6 +120,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         }
 
         ShowThrust(origin, thrustDirection, range, lineWidth, tuning);
+        CompleteActiveAbility();
     }
 
     public override bool CanCrit() => true;

@@ -612,9 +612,9 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         if (autoAttack != null)
             autoAttack.enabled = false;
 
-        UpgradeManager upgradeManager = playerGo.GetComponent<UpgradeManager>();
-        if (upgradeManager != null)
-            upgradeManager.enabled = false;
+        LevelUpOrchestrator levelUpOrchestrator = playerGo.GetComponent<LevelUpOrchestrator>();
+        if (levelUpOrchestrator != null)
+            levelUpOrchestrator.enabled = false;
 
         OverheatManager overheatManager = playerGo.GetComponent<OverheatManager>();
         if (overheatManager != null)

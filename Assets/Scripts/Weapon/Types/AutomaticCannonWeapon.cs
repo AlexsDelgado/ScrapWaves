@@ -66,7 +66,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     // Fires spread burst active ability, scaled by heat.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Manual)
+        if (!CanBeginActiveAbility())
             return;
 
         if (aimDirection.sqrMagnitude <= 0.0001f)
@@ -82,6 +82,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             Mathf.Max(1, tuning.CannonActiveBaseBulletCount) + extra,
             Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1.25f : 1f,
             tuning.CannonAbilityScatterRadius);
+        CompleteActiveAbility();
     }
 
     // Automatic cannon can critically strike, with a custom multiplier override below.

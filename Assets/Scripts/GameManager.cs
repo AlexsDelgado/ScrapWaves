@@ -39,6 +39,7 @@ public class GameManager : MonoBehaviour
 
     public GameState State => _state;
     public bool IsPlaying => _state == GameState.Playing;
+    public int BossKills => _bossKills;
 
     private void Awake()
     {
@@ -46,6 +47,8 @@ public class GameManager : MonoBehaviour
             _playerHealth = FindAnyObjectByType<PlayerHealth>();
         if (_bossManager == null)
             _bossManager = FindAnyObjectByType<BossManager>();
+
+        RunSessionStats.Reset();
     }
 
     private void OnEnable()
@@ -85,6 +88,7 @@ public class GameManager : MonoBehaviour
             return;
 
         _bossKills++;
+        RunSessionStats.RegisterBossKill();
         if (_bossKills >= _bossKillsRequiredForVictory)
             EnterEndState(GameState.Victory, "¡VICTORIA!");
     }
@@ -93,6 +97,13 @@ public class GameManager : MonoBehaviour
     {
         _state = endState;
         Time.timeScale = 0f;
+
+        if (RunEndScreenUI.Instance != null)
+        {
+            RunEndScreenUI.Instance.Show(endState, message);
+            return;
+        }
+
         BuildEndScreenIfNeeded();
         if (_statusText != null)
         {

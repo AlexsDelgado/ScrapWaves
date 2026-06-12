@@ -92,6 +92,41 @@ public class WeaponManager : MonoBehaviour
         weapon.Level = Mathf.Clamp(weapon.Level + 1, 1, 10);
     }
 
+    // Returns equipped instance matching weapon data, if any.
+    public bool TryGetEquippedWeapon(WeaponData data, out WeaponInstance instance)
+    {
+        instance = null;
+        if (data == null)
+            return false;
+
+        for (int i = 0; i < _equipped.Count; i++)
+        {
+            WeaponInstance runtime = _equipped[i].Runtime;
+            if (runtime?.Data == data)
+            {
+                instance = runtime;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Adds a new weapon or upgrades an existing copy.
+    public bool TryAddOrUpgradeWeapon(WeaponData data)
+    {
+        if (data == null)
+            return false;
+
+        if (TryGetEquippedWeapon(data, out WeaponInstance existing))
+        {
+            UpgradeWeapon(existing);
+            return true;
+        }
+
+        return AddWeapon(data);
+    }
+
     // Applies selected advanced path when level requirement is met.
     public void ApplyUpgradePath(WeaponInstance weapon, WeaponUpgradePath path)
     {
@@ -103,8 +138,66 @@ public class WeaponManager : MonoBehaviour
     // Returns current manual index for debug and UI usage.
     public int GetCurrentManualWeaponIndex() => _currentManualIndex;
 
+    /// <summary>
+    /// Maps a HUD rotation slot to equipped list index: 0 = current manual, 1 = next in cycle, etc.
+    /// Returns -1 when the slot has no weapon (rotation offset beyond equipped count).
+    /// </summary>
+    public int GetEquippedIndexForRotationSlot(int rotationSlot)
+    {
+        if (_equipped.Count == 0 || rotationSlot < 0)
+            return -1;
+        if (rotationSlot >= _equipped.Count)
+            return -1;
+        return (_currentManualIndex + rotationSlot) % _equipped.Count;
+    }
+
     // Returns manual cycle cooldown remaining for debug and UI usage.
     public float GetManualCooldownRemaining() => Mathf.Max(0f, _manualCooldownTimer);
+
+    public float GetManualCycleCooldownDuration()
+    {
+        if (_equipped.Count <= 1)
+            return _singleWeaponCycleCooldown;
+        return _manualCycleCooldown;
+    }
+
+    public float GetManualCooldownNormalized()
+    {
+        float duration = GetManualCycleCooldownDuration();
+        if (duration <= 0f || _manualCooldownTimer <= 0f)
+            return 1f;
+        return 1f - Mathf.Clamp01(_manualCooldownTimer / duration);
+    }
+
+    public float GetAbilityCooldownNormalized()
+    {
+        WeaponInstance weapon = GetCurrentManualWeapon();
+        if (weapon?.Data == null)
+            return 1f;
+
+        float duration = Mathf.Max(0.01f, weapon.Data.SkillCooldown);
+        if (weapon.AbilityCooldownTimer <= 0f)
+            return 1f;
+
+        return 1f - Mathf.Clamp01(weapon.AbilityCooldownTimer / duration);
+    }
+
+    public bool CanUseAbility()
+    {
+        WeaponInstance weapon = GetCurrentManualWeapon();
+        if (weapon?.Data == null || weapon.State != WeaponState.Manual)
+            return false;
+        if (weapon.AbilityCooldownTimer > 0f)
+            return false;
+        return weapon.CurrentAmmo >= weapon.Data.ActiveAbilityAmmoCost;
+    }
+
+    private static void TickAbilityCooldown(WeaponInstance weapon, float deltaTime)
+    {
+        if (weapon == null || weapon.AbilityCooldownTimer <= 0f)
+            return;
+        weapon.AbilityCooldownTimer = Mathf.Max(0f, weapon.AbilityCooldownTimer - deltaTime);
+    }
 
     // Creates starter inventory from configured weapon assets.
     private void AddStartingWeapons()
@@ -155,9 +248,10 @@ public class WeaponManager : MonoBehaviour
         if (manual.Runtime.State == WeaponState.Manual && (firePressed || abilityPressed))
             _movement?.RequestAimFacing(aimDirection, _aimFacingHoldTime);
 
+        TickAbilityCooldown(manual.Runtime, deltaTime);
         manual.TickManual(deltaTime, aimDirection, fireHeld);
 
-        if (abilityPressed)
+        if (abilityPressed && CanUseAbility())
             manual.UseActiveAbility(aimDirection);
 
         if (manual.Runtime.State == WeaponState.Manual && manual.Runtime.CurrentAmmo <= 0f)

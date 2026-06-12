@@ -34,6 +34,11 @@ public sealed class WeaponDataEditor : Editor
         DrawProperty(nameof(WeaponData.WeaponType));
         DrawProperty(nameof(WeaponData.AutoTargetingMode));
         DrawProperty(nameof(WeaponData.ManualMode));
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("UI", EditorStyles.boldLabel);
+        DrawProperty(nameof(WeaponData.Icon));
+        DrawProperty(nameof(WeaponData.SkillCooldown));
     }
 
     private void DrawBaseCombatFields()

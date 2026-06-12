@@ -418,9 +418,9 @@ public static class WeaponTestingSandboxSceneBuilder
         if (autoAttack != null)
             autoAttack.enabled = false;
 
-        UpgradeManager upgradeManager = player.GetComponent<UpgradeManager>();
-        if (upgradeManager != null)
-            upgradeManager.enabled = false;
+        LevelUpOrchestrator levelUpOrchestrator = player.GetComponent<LevelUpOrchestrator>();
+        if (levelUpOrchestrator != null)
+            levelUpOrchestrator.enabled = false;
 
         OverheatManager overheatManager = player.GetComponent<OverheatManager>();
         if (overheatManager != null)

@@ -32,8 +32,6 @@ public class PlayerBarsHud : MonoBehaviour
     [Header("Overheat activo")]
     [SerializeField] private Color _overheatActiveColor = new Color(1f, 0.22f, 0.1f, 1f);
 
-    private static Sprite s_whiteFillSprite;
-
     private void Reset()
     {
         AutoWireUiReferences();
@@ -90,40 +88,9 @@ public class PlayerBarsHud : MonoBehaviour
 
     private void EnsureFillImagesReady()
     {
-        if (_hpFill != null)
-            ApplyHorizontalFillSettings(_hpFill, HpFillColor);
-
-        if (_xpFill != null)
-            ApplyHorizontalFillSettings(_xpFill, XpFillColor);
-
-        if (_overheatFill != null)
-            ApplyRadialFillSettings(_overheatFill, OverheatFillColor);
-    }
-
-    private static void ApplyHorizontalFillSettings(Image img, Color color)
-    {
-        if (img.sprite == null)
-            img.sprite = GetWhiteFillSprite();
-
-        img.type = Image.Type.Filled;
-        img.fillMethod = Image.FillMethod.Horizontal;
-        img.fillOrigin = (int)Image.OriginHorizontal.Left;
-        img.fillClockwise = true;
-        img.color = color;
-        img.raycastTarget = false;
-    }
-
-    private static void ApplyRadialFillSettings(Image img, Color color)
-    {
-        if (img.sprite == null)
-            img.sprite = GetWhiteFillSprite();
-
-        img.type = Image.Type.Filled;
-        img.fillMethod = Image.FillMethod.Vertical;
-        img.fillOrigin = (int)Image.Origin360.Bottom;
-        img.fillClockwise = true;
-        img.color = color;
-        img.raycastTarget = false;
+        HudUiFactory.EnsureHorizontalFill(_hpFill, HpFillColor);
+        HudUiFactory.EnsureHorizontalFill(_xpFill, XpFillColor);
+        HudUiFactory.EnsureVerticalFill(_overheatFill, OverheatFillColor);
     }
 
     private void ResolveGameplayRefs()
@@ -232,19 +199,5 @@ public class PlayerBarsHud : MonoBehaviour
             n = 1f;
 
         _overheatFill.fillAmount = Mathf.Clamp01(n);
-    }
-
-    private static Sprite GetWhiteFillSprite()
-    {
-        if (s_whiteFillSprite != null)
-            return s_whiteFillSprite;
-
-        Texture2D tex = Texture2D.whiteTexture;
-        s_whiteFillSprite = Sprite.Create(
-            tex,
-            new Rect(0f, 0f, tex.width, tex.height),
-            new Vector2(0.5f, 0.5f),
-            100f);
-        return s_whiteFillSprite;
     }
 }

@@ -156,6 +156,8 @@ public class WeaponData : ScriptableObject
     public float BaseKnockback = 1f;
     public float BaseManualAmmo = 100f;
     public float ActiveAbilityAmmoCost = 20f;
+    [Min(0f)] public float SkillCooldown = 1f;
+    public Sprite Icon;
 
     [SerializeReference] private WeaponSpecificTuning _specificTuning;
 

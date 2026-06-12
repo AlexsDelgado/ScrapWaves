@@ -76,13 +76,26 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     // Executes baseline active ability projectile and ammo spending.
     public virtual void UseActiveAbility(Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Manual)
+        if (!CanBeginActiveAbility())
             return;
 
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
             return;
 
         FireAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1.75f, false);
+        CompleteActiveAbility();
+    }
+
+    protected bool CanBeginActiveAbility() =>
+        Runtime != null
+        && Runtime.State == WeaponState.Manual
+        && Runtime.AbilityCooldownTimer <= 0f;
+
+    protected void CompleteActiveAbility()
+    {
+        if (Runtime?.Data == null)
+            return;
+        Runtime.AbilityCooldownTimer = Mathf.Max(0f, Runtime.Data.SkillCooldown);
     }
 
     // Enables critical hits by default for generic projectile weapons.

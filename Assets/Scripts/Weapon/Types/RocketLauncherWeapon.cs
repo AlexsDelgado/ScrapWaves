@@ -69,7 +69,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
     // Fires overloaded multi-target volley scaled by current heat amount.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Manual)
+        if (!CanBeginActiveAbility())
             return;
 
         if (Spawn == null || aimDirection.sqrMagnitude <= 0.0001f)
@@ -96,6 +96,8 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
                 tuning.RocketActiveSpeedMultiplier,
                 WeaponEnemyClassifier.CountsAsEliteOrBoss(_abilityTargets[i]));
         }
+
+        CompleteActiveAbility();
     }
 
     // Rocket launcher heat adds rockets or manual fire rate, not passive automatic fire rate.

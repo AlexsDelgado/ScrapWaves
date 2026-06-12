@@ -162,6 +162,25 @@ public class AudioManager : MonoBehaviour
 
     public void PlayPlayerHurt() => PlaySfx(_playerHurt);
 
+    public float SfxVolume
+    {
+        get => _sfxVolumeScale;
+        set => _sfxVolumeScale = Mathf.Clamp01(value);
+    }
+
+    public float MusicVolume
+    {
+        get => _musicMainVolume;
+        set
+        {
+            _musicMainVolume = Mathf.Clamp01(value);
+            if (_musicNormal != null)
+                _musicNormal.volume = _musicMainVolume;
+            if (_musicOverheatLayer != null && _musicOverheatLayer.volume > 0f)
+                _musicOverheatLayer.volume = _musicOverheatVolume;
+        }
+    }
+
     private void PlaySfx(AudioClip clip)
     {
         if (clip == null || _sfx == null)

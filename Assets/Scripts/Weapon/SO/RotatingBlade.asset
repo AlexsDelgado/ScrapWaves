@@ -23,6 +23,8 @@ MonoBehaviour:
   BaseKnockback: 2.5
   BaseManualAmmo: 50
   ActiveAbilityAmmoCost: 8
+  SkillCooldown: 2
+  Icon: {fileID: 21300000, guid: b57ac793b58ee074bbd65cc6159ef3ab, type: 3}
   _specificTuning:
     rid: 7343729927190366209
   LevelData: []

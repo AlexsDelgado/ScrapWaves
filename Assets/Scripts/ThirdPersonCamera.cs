@@ -90,6 +90,24 @@ public class ThirdPersonCamera : MonoBehaviour
         _followTarget = followTarget;
     }
 
+    public float HorizontalSensitivity
+    {
+        get => _horizontalSensitivity;
+        set => _horizontalSensitivity = Mathf.Max(0.01f, value);
+    }
+
+    public float VerticalSensitivity
+    {
+        get => _verticalSensitivity;
+        set => _verticalSensitivity = Mathf.Max(0.01f, value);
+    }
+
+    public bool InvertVertical
+    {
+        get => _invertVertical;
+        set => _invertVertical = value;
+    }
+
     public void ApplyMainGameOrbitDefaults()
     {
         _pivotHeight = 1.6f;

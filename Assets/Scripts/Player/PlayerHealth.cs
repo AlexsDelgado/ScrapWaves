@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class PlayerHealth : MonoBehaviour
@@ -25,8 +26,13 @@ public class PlayerHealth : MonoBehaviour
 
     public bool IsInvulnerable => Time.time < _invulnerableUntil;
 
+    public bool IsBurning => _burnRemaining > 0f;
+
     /// <summary>Cambios de vida actuales/máxima (daño, subida de max, etc.).</summary>
-    public event System.Action OnHealthChanged;
+    public event Action OnHealthChanged;
+
+    /// <summary>Daño directo (no burn); para flash de impacto en HUD.</summary>
+    public event Action OnHitDamageTaken;
 
     /// <summary>Suma a vida máxima y cura la misma cantidad (mejoras de MaxHealth).</summary>
     public void ApplyMaxHealthIncrease(int delta)
@@ -144,6 +150,7 @@ public class PlayerHealth : MonoBehaviour
         _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
 
         AudioManager.TryPlayPlayerHurt();
+        OnHitDamageTaken?.Invoke();
         OnHealthChanged?.Invoke();
 
         if (_currentHealth <= 0 && !_isDead)

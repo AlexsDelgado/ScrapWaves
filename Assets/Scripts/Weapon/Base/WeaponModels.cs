@@ -27,6 +27,7 @@ public class WeaponInstance
     public WeaponState State = WeaponState.Automatic;
     public float CurrentAmmo;
     public float ManualCooldownTimer;
+    public float AbilityCooldownTimer;
 
     public bool HasAdvancedPath => Level >= 6;
 }

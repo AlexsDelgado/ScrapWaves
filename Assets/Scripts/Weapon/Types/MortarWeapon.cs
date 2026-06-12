@@ -71,7 +71,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon
 
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (Runtime.State != WeaponState.Manual)
+        if (!CanBeginActiveAbility())
             return;
 
         if (Spawn == null)
@@ -101,6 +101,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon
                 0f,
                 false);
         }
+
+        CompleteActiveAbility();
     }
 
     public override bool CanCrit() => false;

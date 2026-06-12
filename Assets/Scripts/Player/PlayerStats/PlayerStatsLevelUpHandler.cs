@@ -5,38 +5,22 @@ using UnityEngine;
 public class PlayerStatsLevelUpHandler : MonoBehaviour
 {
     [SerializeField] private PlayerStats _playerStats;
-    [SerializeField] private PlayerXP _playerXp;
     [SerializeField] private int _levelCap = 36;
 
     private readonly Dictionary<StatType, int> _rouletteWeights = new();
 
-    // Resolves dependencies and initializes roulette weights at startup.
     private void Awake()
     {
-        if (_playerStats == null) _playerStats = GetComponent<PlayerStats>();
-        if (_playerXp == null) _playerXp = GetComponent<PlayerXP>();
+        if (_playerStats == null)
+            _playerStats = GetComponent<PlayerStats>();
         InitializeRouletteWeights();
     }
 
-    // Subscribes to player level-up events to apply stat upgrades automatically.
-    private void OnEnable()
-    {
-        if (_playerXp != null)
-            _playerXp.OnLevelUp += ApplyLevelUpStats;
-    }
-
-    // Unsubscribes from player level-up events to avoid dangling handlers.
-    private void OnDisable()
-    {
-        if (_playerXp != null)
-            _playerXp.OnLevelUp -= ApplyLevelUpStats;
-    }
-
-    // Seeds roulette weights for stats allowed to level up.
     private void InitializeRouletteWeights()
     {
         _rouletteWeights.Clear();
-        if (_playerStats == null) return;
+        if (_playerStats == null)
+            return;
 
         foreach (StatDefinition definition in _playerStats.GetAllDefinitions())
         {
@@ -45,10 +29,11 @@ public class PlayerStatsLevelUpHandler : MonoBehaviour
         }
     }
 
-    // Applies multiple weighted stat upgrades when a new level is reached.
-    public void ApplyLevelUpStats(int newLevel)
+    public List<StatUpgradeResult> ApplyLevelUpStats(int newLevel)
     {
-        if (_rouletteWeights.Count == 0) return;
+        var results = new List<StatUpgradeResult>();
+        if (_rouletteWeights.Count == 0)
+            return results;
 
         int upgradeCount = GetUpgradeCountForLevel(newLevel);
         HashSet<StatType> selectedThisLevel = new();
@@ -57,18 +42,21 @@ public class PlayerStatsLevelUpHandler : MonoBehaviour
         {
             StatType selectedStat = RollStat();
             selectedThisLevel.Add(selectedStat);
-            ApplyUpgradeToStat(selectedStat, newLevel);
+            float amount = ApplyUpgradeToStat(selectedStat, newLevel);
+            if (amount > 0f)
+                results.Add(new StatUpgradeResult(selectedStat, amount));
             _rouletteWeights[selectedStat] = Mathf.Max(1, _rouletteWeights[selectedStat] - 1);
         }
 
         IncreaseWeightsForUnselectedStats(selectedThisLevel);
+        return results;
     }
 
-    // Selects one stat using weighted random roulette selection.
     private StatType RollStat()
     {
         int totalWeight = 0;
-        foreach (int weight in _rouletteWeights.Values) totalWeight += weight;
+        foreach (int weight in _rouletteWeights.Values)
+            totalWeight += weight;
 
         int roll = Random.Range(0, totalWeight);
         int current = 0;
@@ -76,32 +64,41 @@ public class PlayerStatsLevelUpHandler : MonoBehaviour
         foreach (KeyValuePair<StatType, int> pair in _rouletteWeights)
         {
             current += pair.Value;
-            if (roll < current) return pair.Key;
+            if (roll < current)
+                return pair.Key;
         }
 
-        foreach (StatType type in _rouletteWeights.Keys) return type;
+        foreach (StatType type in _rouletteWeights.Keys)
+            return type;
+
         return StatType.MaxHealth;
     }
 
-    // Computes and applies one level-up modifier to selected stat.
-    private void ApplyUpgradeToStat(StatType statType, int newLevel)
+    private float ApplyUpgradeToStat(StatType statType, int newLevel)
     {
         StatDefinition definition = _playerStats.GetDefinition(statType);
-        if (definition == null) return;
+        if (definition == null || definition.LevelUpgradeBaseAmount <= 0f)
+            return 0f;
 
         float amount = StatMath.CalculateStatUpgradeAmount(definition.LevelUpgradeBaseAmount, newLevel, _levelCap);
         _playerStats.AddModifier(new StatModifier(statType, amount, StatUpgradeSource.LevelUp));
+
+        if (statType == StatType.MaxHealth && TryGetComponent(out PlayerHealth health))
+            health.ApplyMaxHealthIncrease(Mathf.RoundToInt(amount));
+
+        return amount;
     }
 
-    // Increases weights for stats not selected this level-up cycle.
     private void IncreaseWeightsForUnselectedStats(HashSet<StatType> selectedThisLevel)
     {
         List<StatType> allStats = new(_rouletteWeights.Keys);
         foreach (StatType statType in allStats)
-            if (!selectedThisLevel.Contains(statType)) _rouletteWeights[statType] += 1;
+        {
+            if (!selectedThisLevel.Contains(statType))
+                _rouletteWeights[statType] += 1;
+        }
     }
 
-    // Returns how many stat upgrades to grant for a level.
     private static int GetUpgradeCountForLevel(int level)
     {
         if (level >= 36) return 20;
@@ -117,10 +114,9 @@ public class PlayerStatsLevelUpHandler : MonoBehaviour
 
 public static class StatMath
 {
-    // Calculates upgrade scaling factor based on current level and cap.
-    public static float CalculateLevelScale(int currentLevel, int levelCap) => 1f + (currentLevel / (levelCap / 2f));
+    public static float CalculateLevelScale(int currentLevel, int levelCap) =>
+        1f + (currentLevel / (levelCap / 2f));
 
-    // Calculates final upgrade amount including scaling and random variation.
     public static float CalculateStatUpgradeAmount(float baseUpgradeAmount, int currentLevel, int levelCap)
     {
         float levelScale = CalculateLevelScale(currentLevel, levelCap);
