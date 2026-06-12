@@ -465,15 +465,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonCamera
   _followTarget: {fileID: 1000081}
-  _pivotHeight: 2
-  _shoulderOffset: 1.5
+  _pivotHeight: 1.5
+  _shoulderOffset: 1
   _cameraHeightOffset: 0
-  _cameraDistance: 3.5
+  _cameraDistance: 4
   _horizontalSensitivity: 0.12
   _verticalSensitivity: 0.12
-  _invertVertical: 1
-  _minPitch: -70
-  _maxPitch: 70
+  _invertVertical: 0
+  _minPitch: -40
+  _maxPitch: 40
   _avoidCameraClipping: 1
   _cameraCollisionMask:
     serializedVersion: 2
