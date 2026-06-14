@@ -31,6 +31,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             GetHeatDamageMultiplier() * GetHeadHunterScale(target),
             tuning.CannonAutoLineSpacing,
             tuning.CannonAutoAccuracySpreadDegrees,
+            tuning.CannonBurstProjectileScatterDegrees,
             WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
@@ -53,13 +54,17 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (!TrySpendManualAmmo(bulletsToFire, requireFullAmount: false))
             return;
 
-        FireTimer = GetFireInterval();
+        FireTimer = AutomaticCannonFireLogic.GetManualBurstInterval(
+            tuning.CannonManualBurstsPerSecond,
+            WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier),
+            WeaponMath.GetAttackRateMultiplier(Runtime));
         FireLineBurst(
             aimDirection,
             bulletsToFire,
             1f,
             tuning.CannonManualLineSpacing,
             0f,
+            tuning.CannonBurstProjectileScatterDegrees,
             false);
     }
 
@@ -141,7 +146,14 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     }
 
     // Spawns normal cannon bursts as a straight line of projectiles.
-    private void FireLineBurst(Vector3 aimDirection, int count, float damageScale, float lineSpacing, float accuracySpreadDegrees, bool eliteOrBoss)
+    private void FireLineBurst(
+        Vector3 aimDirection,
+        int count,
+        float damageScale,
+        float lineSpacing,
+        float accuracySpreadDegrees,
+        float projectileScatterDegrees,
+        bool eliteOrBoss)
     {
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
         baseDirection = ApplyAccuracySpread(baseDirection, accuracySpreadDegrees);
@@ -150,7 +162,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         for (int i = 0; i < count; i++)
         {
             Vector3 position = Spawn.position + baseDirection * (spacing * i);
-            FireFromPositionInDirection(position, baseDirection, damageScale, eliteOrBoss);
+            Vector3 shotDirection = AutomaticCannonFireLogic.ApplyProjectileScatter(
+                baseDirection,
+                projectileScatterDegrees,
+                UnityEngine.Random.insideUnitCircle);
+            FireFromPositionInDirection(position, shotDirection, damageScale, eliteOrBoss);
         }
     }
 

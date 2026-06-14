@@ -1,10 +1,36 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public sealed class RocketLauncherWeapon : BasicProjectileWeapon
+public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbilityBehaviour, IRocketReticleStatus
 {
     private readonly List<Transform> _abilityTargets = new();
     private readonly List<Transform> _abilityCandidates = new();
+    private readonly List<Transform> _markedTargets = new();
+    private readonly List<RocketTargetMarkerVfx> _targetMarkers = new();
+
+    private bool _isActiveAbilityCharging;
+    private int _requestedActiveTargetCount;
+    private float _activeTargetLockTimer;
+
+    public bool IsActiveAbilityCharging => _isActiveAbilityCharging;
+    public bool IsTargetingActive => _isActiveAbilityCharging;
+    public int CurrentRocketLocks => _abilityTargets.Count;
+    public int InitialRocketLocks
+    {
+        get
+        {
+            if (Runtime?.Data == null)
+                return 0;
+
+            int maximum = GetMaximumActiveRocketCount(Runtime.Data.RocketLauncher);
+            return Mathf.Min(
+                maximum,
+                Mathf.Max(1, Runtime.Data.RocketLauncher.RocketActiveInitialTargetCount));
+        }
+    }
+    public int MaximumRocketLocks => Runtime?.Data == null
+        ? 0
+        : GetMaximumActiveRocketCount(Runtime.Data.RocketLauncher);
 
     public RocketLauncherWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
@@ -66,38 +92,109 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
             tuning.RocketManualSpeedMultiplier);
     }
 
-    // Fires overloaded multi-target volley scaled by current heat amount.
+    // Provides immediate behavior for debug/UI callers that do not use the hold lifecycle.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (!CanBeginActiveAbility())
+        BeginActiveAbility(aimDirection);
+        ReleaseActiveAbility(aimDirection);
+    }
+
+    // Starts target acquisition with five locks immediately, capped by the current heat-scaled maximum.
+    public void BeginActiveAbility(Vector3 aimDirection)
+    {
+        if (Runtime.State != WeaponState.Manual || Spawn == null)
             return;
 
-        if (Spawn == null || aimDirection.sqrMagnitude <= 0.0001f)
+        if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
+        if (Runtime.CurrentAmmo < Mathf.Max(0f, Runtime.Data.ActiveAbilityAmmoCost))
+            return;
+
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
-        int rocketCount = tuning.RocketActiveBaseRocketCount + heatBonus + GetFragmentationActiveBonus();
-        int targetsFound = BuildActiveRocketTargets(aimDirection, rocketCount, tuning);
+        _isActiveAbilityCharging = true;
+        _requestedActiveTargetCount = Mathf.Min(
+            GetMaximumActiveRocketCount(tuning),
+            Mathf.Max(1, tuning.RocketActiveInitialTargetCount));
+        _activeTargetLockTimer = Mathf.Max(0.01f, tuning.RocketActiveTargetLockInterval);
+        RefreshActiveTargets(aimDirection, tuning);
+    }
 
-        if (targetsFound <= 0)
+    // Adds one target slot at each interval while Q remains held and refreshes locks with current aim.
+    public void TickActiveAbility(float deltaTime, Vector3 aimDirection)
+    {
+        if (!_isActiveAbilityCharging)
             return;
+
+        if (Runtime.State != WeaponState.Manual || Spawn == null)
+        {
+            CancelActiveAbility();
+            return;
+        }
+
+        RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        int maximum = GetMaximumActiveRocketCount(tuning);
+        _requestedActiveTargetCount = Mathf.Min(_requestedActiveTargetCount, maximum);
+        _activeTargetLockTimer -= deltaTime;
+
+        float interval = Mathf.Max(0.01f, tuning.RocketActiveTargetLockInterval);
+        while (_activeTargetLockTimer <= 0f && _requestedActiveTargetCount < maximum)
+        {
+            _requestedActiveTargetCount++;
+            _activeTargetLockTimer += interval;
+        }
+
+        RefreshActiveTargets(aimDirection, tuning);
+    }
+
+    // Fires the currently marked volley when Q is released.
+    public void ReleaseActiveAbility(Vector3 aimDirection)
+    {
+        if (!_isActiveAbilityCharging)
+            return;
+
+        RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        RefreshActiveTargets(aimDirection, tuning);
+        _isActiveAbilityCharging = false;
+
+        if (_abilityTargets.Count <= 0)
+        {
+            ClearTargetMarkers();
+            return;
+        }
 
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-            return;
-
-        for (int i = 0; i < targetsFound; i++)
         {
+            ClearTargetMarkers();
+            return;
+        }
+
+        for (int i = 0; i < _abilityTargets.Count; i++)
+        {
+            Transform target = _abilityTargets[i];
+            if (target == null)
+                continue;
+
             FireRocketAt(
-                _abilityTargets[i].position,
+                target.position,
                 tuning.RocketActiveDamageScale,
                 GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius),
                 GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
                 tuning.RocketActiveSpeedMultiplier,
-                WeaponEnemyClassifier.CountsAsEliteOrBoss(_abilityTargets[i]));
+                WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
         }
 
-        CompleteActiveAbility();
+        ClearTargetMarkers();
+        _abilityTargets.Clear();
+    }
+
+    public void CancelActiveAbility()
+    {
+        _isActiveAbilityCharging = false;
+        _requestedActiveTargetCount = 0;
+        _abilityTargets.Clear();
+        _abilityCandidates.Clear();
+        ClearTargetMarkers();
     }
 
     // Rocket launcher heat adds rockets or manual fire rate, not passive automatic fire rate.
@@ -130,14 +227,6 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
         return Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1 : 0;
     }
 
-    private int GetFragmentationActiveBonus()
-    {
-        int bonus = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 4 : 0;
-        if (Runtime.Level >= 10)
-            bonus += 2;
-        return bonus;
-    }
-
     private float GetPathAdjustedExplosionRadius(float radius)
     {
         if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
@@ -161,30 +250,99 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon
             FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier, eliteOrBoss);
     }
 
-    // Builds active volley targets in proximity order, allowing extra rockets for elites/bosses.
-    private int BuildActiveRocketTargets(Vector3 aimDirection, int rocketCount, RocketLauncherTuning tuning)
+    private int GetMaximumActiveRocketCount(RocketLauncherTuning tuning)
+    {
+        int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
+        return Mathf.Max(1, tuning.RocketActiveBaseRocketCount + heatBonus);
+    }
+
+    // Builds the current lock plan, assigning one rocket per enemy before elite/boss repeats.
+    private void RefreshActiveTargets(Vector3 aimDirection, RocketLauncherTuning tuning)
     {
         _abilityTargets.Clear();
-        if (rocketCount <= 0)
-            return 0;
+        if (_requestedActiveTargetCount <= 0 || Spawn == null)
+        {
+            SyncTargetMarkers(tuning);
+            return;
+        }
 
         EnemyRegistry.CollectClosestOnPlaneInCone(
             Spawn.position,
             aimDirection,
             Runtime.Data.BaseRange,
             tuning.RocketActiveConeAngle,
-            Mathf.Max(rocketCount, 64),
+            Mathf.Max(_requestedActiveTargetCount, 64),
             _abilityCandidates);
 
-        for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < rocketCount; i++)
+        for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < _requestedActiveTargetCount; i++)
+            _abilityTargets.Add(_abilityCandidates[i]);
+
+        for (int repeatIndex = 1; repeatIndex < 5 && _abilityTargets.Count < _requestedActiveTargetCount; repeatIndex++)
         {
-            Transform candidate = _abilityCandidates[i];
-            int rocketsForTarget = GetMaxActiveRocketsForTarget(candidate);
-            for (int j = 0; j < rocketsForTarget && _abilityTargets.Count < rocketCount; j++)
-                _abilityTargets.Add(candidate);
+            for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < _requestedActiveTargetCount; i++)
+            {
+                Transform candidate = _abilityCandidates[i];
+                if (GetMaxActiveRocketsForTarget(candidate) > repeatIndex)
+                    _abilityTargets.Add(candidate);
+            }
         }
 
-        return _abilityTargets.Count;
+        SyncTargetMarkers(tuning);
+    }
+
+    private void SyncTargetMarkers(RocketLauncherTuning tuning)
+    {
+        _markedTargets.Clear();
+        for (int i = 0; i < _abilityTargets.Count; i++)
+        {
+            Transform target = _abilityTargets[i];
+            if (target != null && !_markedTargets.Contains(target))
+                _markedTargets.Add(target);
+        }
+
+        for (int i = _targetMarkers.Count - 1; i >= 0; i--)
+        {
+            RocketTargetMarkerVfx marker = _targetMarkers[i];
+            if (marker != null && marker.Target != null && _markedTargets.Contains(marker.Target))
+                continue;
+
+            if (marker != null)
+                Object.Destroy(marker.gameObject);
+            _targetMarkers.RemoveAt(i);
+        }
+
+        for (int i = 0; i < _markedTargets.Count; i++)
+        {
+            Transform target = _markedTargets[i];
+            bool alreadyMarked = false;
+            for (int j = 0; j < _targetMarkers.Count; j++)
+            {
+                if (_targetMarkers[j] != null && _targetMarkers[j].Target == target)
+                {
+                    alreadyMarked = true;
+                    break;
+                }
+            }
+
+            if (alreadyMarked)
+                continue;
+
+            RocketTargetMarkerVfx marker = RocketTargetMarkerVfx.Create(target, tuning.RocketActiveTargetMarkerRadius);
+            if (marker != null)
+                _targetMarkers.Add(marker);
+        }
+    }
+
+    private void ClearTargetMarkers()
+    {
+        for (int i = 0; i < _targetMarkers.Count; i++)
+        {
+            if (_targetMarkers[i] != null)
+                Object.Destroy(_targetMarkers[i].gameObject);
+        }
+
+        _targetMarkers.Clear();
+        _markedTargets.Clear();
     }
 
     // Uses current prefab naming until a dedicated elite/boss metadata component exists.
