@@ -56,7 +56,6 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     public Vector3 CurrentAimDirection => _currentAimDirection;
     public int CurrentManualSlot => _manualSlot;
     public WeaponInstance CurrentManualWeapon => IsValidSlot(_manualSlot) ? _instances[_manualSlot] : null;
-    public IWeaponBehaviour CurrentManualBehaviour => IsValidSlot(_manualSlot) ? _behaviours[_manualSlot] : null;
     public IReadOnlyList<WeaponData> WeaponData => _weaponData;
 
     private void Awake()
@@ -214,17 +213,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             return;
 
         float before = weapon.CurrentAmmo;
-        IWeaponBehaviour behaviour = _behaviours[_manualSlot];
-        if (behaviour is IHoldActiveAbilityBehaviour holdAbility)
-        {
-            holdAbility.BeginActiveAbility(_currentAimDirection);
-            holdAbility.ReleaseActiveAbility(_currentAimDirection);
-        }
-        else
-        {
-            behaviour?.UseActiveAbility(_currentAimDirection);
-        }
-
+        _behaviours[_manualSlot]?.UseActiveAbility(_currentAimDirection);
         float spent = Mathf.Max(0f, before - weapon.CurrentAmmo);
         if (spent > 0f)
         {
@@ -301,7 +290,8 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         if (manual != null && manual.State == WeaponState.Manual && manual.CurrentAmmo <= 0f)
             CycleToNextWeapon();
 
-        TickActiveAbilityInput(manual, deltaTime);
+        if (IsAbilityPressed())
+            UseActiveAbility();
     }
 
     private void SpawnInitialLoadout()
@@ -331,7 +321,6 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         if (!IsValidSlot(slot) || _instances[slot] == null)
             return;
 
-        CancelHeldAbilities();
         for (int i = 0; i < WeaponSlots; i++)
         {
             if (_instances[i] != null)
@@ -668,62 +657,5 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
 #else
         return Input.GetKeyDown(KeyCode.Q);
 #endif
-    }
-
-    private static bool IsAbilityHeld()
-    {
-#if ENABLE_INPUT_SYSTEM
-        return Keyboard.current != null && Keyboard.current.qKey.isPressed;
-#else
-        return Input.GetKey(KeyCode.Q);
-#endif
-    }
-
-    private static bool IsAbilityReleased()
-    {
-#if ENABLE_INPUT_SYSTEM
-        return Keyboard.current != null && Keyboard.current.qKey.wasReleasedThisFrame;
-#else
-        return Input.GetKeyUp(KeyCode.Q);
-#endif
-    }
-
-    private void TickActiveAbilityInput(WeaponInstance manual, float deltaTime)
-    {
-        if (manual == null || manual.State != WeaponState.Manual)
-            return;
-
-        IWeaponBehaviour behaviour = _behaviours[_manualSlot];
-        if (behaviour is not IHoldActiveAbilityBehaviour holdAbility)
-        {
-            if (IsAbilityPressed())
-                UseActiveAbility();
-            return;
-        }
-
-        if (IsAbilityPressed())
-            holdAbility.BeginActiveAbility(_currentAimDirection);
-        if (IsAbilityHeld() && holdAbility.IsActiveAbilityCharging)
-            holdAbility.TickActiveAbility(deltaTime, _currentAimDirection);
-        if (!IsAbilityReleased() || !holdAbility.IsActiveAbilityCharging)
-            return;
-
-        float before = manual.CurrentAmmo;
-        holdAbility.ReleaseActiveAbility(_currentAimDirection);
-        float spent = Mathf.Max(0f, before - manual.CurrentAmmo);
-        if (spent > 0f)
-        {
-            Metrics.RecordAmmoConsumed(spent);
-            Metrics.RecordActiveAbilityUse();
-        }
-    }
-
-    private void CancelHeldAbilities()
-    {
-        for (int i = 0; i < _behaviours.Length; i++)
-        {
-            if (_behaviours[i] is IHoldActiveAbilityBehaviour holdAbility)
-                holdAbility.CancelActiveAbility();
-        }
     }
 }

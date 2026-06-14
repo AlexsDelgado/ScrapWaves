@@ -151,14 +151,9 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.AutomaticCannon.CannonAbilityScatterRadius = 11f;
                 data.AutomaticCannon.CannonManualLineSpacing = 1f;
                 data.AutomaticCannon.CannonAutoLineSpacing = 1f;
-                data.AutomaticCannon.CannonBurstProjectileScatterDegrees = 1.5f;
-                data.AutomaticCannon.CannonManualBurstsPerSecond = 2f;
                 break;
             case WeaponType.RocketLauncher:
                 data.RocketLauncher.RocketActiveConeAngle = 90f;
-                data.RocketLauncher.RocketActiveInitialTargetCount = 5;
-                data.RocketLauncher.RocketActiveTargetLockInterval = 0.15f;
-                data.RocketLauncher.RocketActiveTargetMarkerRadius = 0.7f;
                 data.RocketLauncher.RocketAutoExplosionRadius = 1.8f;
                 data.RocketLauncher.RocketManualExplosionRadius = 2.4f;
                 break;

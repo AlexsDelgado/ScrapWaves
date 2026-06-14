@@ -520,7 +520,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         {
             float t = i / (float)ArcSegments;
             Vector3 point = Vector3.Lerp(start, end, t);
-            point.y += 4f * height * t * (1f - t);
+            point.y += Mathf.Sin(t * Mathf.PI) * height;
             points[i] = point;
         }
 
@@ -640,7 +640,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         {
             float t = i / 24f;
             Vector3 point = Vector3.Lerp(start, end, t);
-            point.y += 4f * height * t * (1f - t);
+            point.y += Mathf.Sin(t * Mathf.PI) * height;
             Gizmos.DrawLine(previous, point);
             previous = point;
         }

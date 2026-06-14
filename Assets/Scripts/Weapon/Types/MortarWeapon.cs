@@ -1,20 +1,7 @@
 using UnityEngine;
 
-public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
+public sealed class MortarWeapon : BasicProjectileWeapon
 {
-    public float ManualExplosionRadius => Runtime?.Data == null
-        ? 0f
-        : Runtime.Data.Mortar.MortarManualExplosionRadius * GetAreaSizeMultiplier();
-    public float ShellCollisionRadius => Runtime?.Data == null
-        ? 0.01f
-        : Runtime.Data.Mortar.MortarShellCollisionRadius * GetAreaSizeMultiplier();
-    public float ManualTravelTime => Runtime?.Data == null
-        ? 0.05f
-        : GetManualTravelTime(Runtime.Data.Mortar);
-    public float ArcHeight => Runtime?.Data == null
-        ? 0f
-        : Runtime.Data.Mortar.MortarArcHeight;
-
     public MortarWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
     {

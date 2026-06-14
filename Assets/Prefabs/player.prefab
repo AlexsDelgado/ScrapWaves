@@ -263,13 +263,19 @@ GameObject:
   - component: {fileID: 5967817489407917960}
   - component: {fileID: 116508483859614468}
   - component: {fileID: 2245531612050121699}
-  - component: {fileID: 2722271539961839194}
   - component: {fileID: 6550663601649283624}
   - component: {fileID: 5549646721490838355}
   - component: {fileID: 8802695284123346318}
   - component: {fileID: 766184711586426333}
   - component: {fileID: 3355374661182279101}
   - component: {fileID: 3355374661182279102}
+  - component: {fileID: 901000001}
+  - component: {fileID: 901000002}
+  - component: {fileID: 901000003}
+  - component: {fileID: 901000004}
+  - component: {fileID: 901000005}
+  - component: {fileID: 901000006}
+  - component: {fileID: 901000007}
   m_Layer: 6
   m_Name: player
   m_TagString: Untagged
@@ -586,30 +592,6 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 58321283aef974443818fb14a2f06a8a, type: 2}
   - {fileID: 11400000, guid: c17a22a8a64e4804aab1c764a41cc27c, type: 2}
   - {fileID: 11400000, guid: 1b46d750f574e004286981598dfffe29, type: 2}
---- !u!114 &2722271539961839194
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7499600762926182951}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ba8bd836edfd9324cb2838d1f6e8976c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UpgradeManager
-  _choicesOffered: 3
-  _upgradePool:
-  - {fileID: 11400000, guid: 2ee43455a305c964589f66cf4795768f, type: 2}
-  - {fileID: 11400000, guid: b764e22b357ca1c43bd76d0b93f91508, type: 2}
-  - {fileID: 11400000, guid: 4920aed927bd3ac4fb9eb249b104abc9, type: 2}
-  - {fileID: 11400000, guid: 18aec8b628ce27d4685d9ce813b891e0, type: 2}
-  - {fileID: 11400000, guid: 0634485da3965e640b1fee024376e778, type: 2}
-  _pauseWhileChoosing: 1
-  _buttonWidth: 220
-  _buttonHeight: 40
-  _canvasOverride: {fileID: 0}
-  _thirdPersonCamera: {fileID: 0}
 --- !u!114 &6550663601649283624
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -670,8 +652,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponManager
   _startingWeapons:
   - {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
-  - {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
-  - {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
   _projectileSpawn: {fileID: 123637993059655878}
   _projectilePool: {fileID: 0}
   _reticleAimProvider: {fileID: 3355374661182279101}
@@ -691,7 +671,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDebugMonitor
   _weaponManager: {fileID: 8802695284123346318}
-  _showOverlay: 1
+  _showOverlay: 0
   _logStateChanges: 1
 --- !u!114 &3355374661182279101
 MonoBehaviour:
@@ -723,29 +703,128 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6d5b458e2c84b248ba6ccaf3ad941c7, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::ReticleHud
-  _weaponManager: {fileID: 8802695284123346318}
-  _aimProvider: {fileID: 3355374661182279101}
   _visibleOnStart: 1
-  _lineThickness: 3
-  _lineColor: {r: 1, g: 1, b: 1, a: 0.95}
-  _shadowColor: {r: 0, g: 0, b: 0, a: 0.65}
-  _shadowOffset: {x: 2, y: -2}
+  _reticleSize: 34
+  _lineLength: 9
+  _lineThickness: 2
+  _centerGap: 5
+  _lineColor: {r: 1, g: 1, b: 1, a: 0.92}
+  _shadowColor: {r: 0, g: 0, b: 0, a: 0.55}
+  _shadowOffset: {x: 1, y: -1}
   _sortingOrder: 650
-  _wideBracketFrameSize: {x: 250, y: 70}
-  _wideBracketArmLength: 54
-  _circleDiameter: 34
-  _circleLineThickness: 3
-  _centerDotDiameter: 5
-  _mortarVSize: {x: 30, y: 18}
-  _mortarVArmLength: 20
-  _mortarLandingRingRadius: 0.38
-  _mortarInnerRingWidth: 0.07
-  _mortarOuterRingWidth: 0.05
-  _mortarSurfaceOffset: 0.04
-  _mortarPredictionInterval: 0.04
-  _mortarLandingColor: {r: 1, g: 1, b: 1, a: 0.95}
-  _mortarBlastColor: {r: 1, g: 0.45, b: 0.05, a: 0.7}
-  _rocketMinimumFrameSize: {x: 180, y: 100}
-  _rocketMaximumFrameSize: {x: 1344, y: 756}
-  _rocketCornerArmLength: 96
-  _rocketFrameEaseSpeed: 9
+--- !u!114 &901000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000001000001000001000001000001, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelUpOrchestrator
+  _passiveHandler: {fileID: 901000004}
+  _weaponHandler: {fileID: 901000007}
+  _statsHandler: {fileID: 901000005}
+  _statFeedback: {fileID: 901000006}
+--- !u!114 &901000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000002000002000002000002000002, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelUpChoiceUI
+  _pauseWhileChoosing: 1
+  _buttonWidth: 260
+  _buttonHeight: 48
+  _canvasOverride: {fileID: 0}
+  _thirdPersonCamera: {fileID: 0}
+--- !u!114 &901000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000003000003000003000003000003, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PassiveItemManager
+  _playerStats: {fileID: 2245531612050121699}
+--- !u!114 &901000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000004000004000004000004000004, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PassiveItemLevelUpHandler
+  _choicesOffered: 3
+  _itemPool:
+  - {fileID: 11400000, guid: d1000001000001000001000001000001, type: 2}
+  - {fileID: 11400000, guid: d1000002000002000002000002000002, type: 2}
+  - {fileID: 11400000, guid: d1000003000003000003000003000003, type: 2}
+  - {fileID: 11400000, guid: d1000004000004000004000004000004, type: 2}
+  - {fileID: 11400000, guid: d1000005000005000005000005000005, type: 2}
+  - {fileID: 11400000, guid: d1000006000006000006000006000006, type: 2}
+  - {fileID: 11400000, guid: d1000007000007000007000007000007, type: 2}
+  _passiveItemManager: {fileID: 901000003}
+  _choiceUi: {fileID: 901000002}
+--- !u!114 &901000005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 107c56c96e02a3f4c91d16158d421239, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStatsLevelUpHandler
+  _playerStats: {fileID: 2245531612050121699}
+  _levelCap: 36
+--- !u!114 &901000006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000005000005000005000005000005, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelUpStatFeedback
+--- !u!114 &901000007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000006000006000006000006000006, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponLevelUpHandler
+  _choicesOffered: 3
+  _weaponPool:
+  - {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
+  - {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
+  - {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
+  - {fileID: 11400000, guid: 95e4ff2de6a64faba44ee0ca803ef37b, type: 2}
+  - {fileID: 11400000, guid: 125e543fc3a34c17bca6d9436a372ad3, type: 2}
+  _weaponManager: {fileID: 8802695284123346318}
+  _choiceUi: {fileID: 901000002}

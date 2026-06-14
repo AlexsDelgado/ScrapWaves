@@ -10,31 +10,6 @@ public interface IWeaponBehaviour
     bool CanCrit();
 }
 
-public interface IHoldActiveAbilityBehaviour
-{
-    bool IsActiveAbilityCharging { get; }
-    void BeginActiveAbility(Vector3 aimDirection);
-    void TickActiveAbility(float deltaTime, Vector3 aimDirection);
-    void ReleaseActiveAbility(Vector3 aimDirection);
-    void CancelActiveAbility();
-}
-
-public interface IRocketReticleStatus
-{
-    bool IsTargetingActive { get; }
-    int CurrentRocketLocks { get; }
-    int InitialRocketLocks { get; }
-    int MaximumRocketLocks { get; }
-}
-
-public interface IMortarReticleStatus
-{
-    float ManualExplosionRadius { get; }
-    float ShellCollisionRadius { get; }
-    float ManualTravelTime { get; }
-    float ArcHeight { get; }
-}
-
 public class BasicProjectileWeapon : IWeaponBehaviour
 {
     protected readonly IWeaponTargeting Targeting;
