@@ -4,29 +4,174 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class ReticleHud : MonoBehaviour
 {
+    private const int CircleTextureSize = 128;
+    private const int MortarRingSegments = 64;
+
+    [Header("Sources")]
+    [SerializeField] private WeaponManager _weaponManager;
+    [SerializeField] private ReticleAimProvider _aimProvider;
+
+    [Header("Shared")]
     [SerializeField] private bool _visibleOnStart = true;
-    [SerializeField, Min(8f)] private float _reticleSize = 34f;
-    [SerializeField, Min(1f)] private float _lineLength = 9f;
-    [SerializeField, Min(1f)] private float _lineThickness = 2f;
-    [SerializeField, Min(0f)] private float _centerGap = 5f;
-    [SerializeField] private Color _lineColor = new Color(1f, 1f, 1f, 0.92f);
-    [SerializeField] private Color _shadowColor = new Color(0f, 0f, 0f, 0.55f);
-    [SerializeField] private Vector2 _shadowOffset = new Vector2(1f, -1f);
+    [SerializeField, Min(1f)] private float _lineThickness = 3f;
+    [SerializeField] private Color _lineColor = new Color(1f, 1f, 1f, 0.95f);
+    [SerializeField] private Color _shadowColor = new Color(0f, 0f, 0f, 0.65f);
+    [SerializeField] private Vector2 _shadowOffset = new Vector2(2f, -2f);
     [SerializeField] private int _sortingOrder = 650;
 
+    [Header("Blade / Flamethrower")]
+    [SerializeField] private Vector2 _wideBracketFrameSize = new Vector2(250f, 70f);
+    [SerializeField, Min(1f)] private float _wideBracketArmLength = 54f;
+
+    [Header("Cannon / Launcher")]
+    [SerializeField, Min(8f)] private float _circleDiameter = 34f;
+    [SerializeField, Min(1f)] private float _circleLineThickness = 3f;
+    [SerializeField, Min(1f)] private float _centerDotDiameter = 5f;
+
+    [Header("Mortar")]
+    [SerializeField] private Vector2 _mortarVSize = new Vector2(30f, 18f);
+    [SerializeField, Min(1f)] private float _mortarVArmLength = 20f;
+    [SerializeField, Min(0.01f)] private float _mortarLandingRingRadius = 0.38f;
+    [SerializeField, Min(0.005f)] private float _mortarInnerRingWidth = 0.07f;
+    [SerializeField, Min(0.005f)] private float _mortarOuterRingWidth = 0.05f;
+    [SerializeField, Min(0f)] private float _mortarSurfaceOffset = 0.04f;
+    [SerializeField, Min(0.01f)] private float _mortarPredictionInterval = 0.04f;
+    [SerializeField] private Color _mortarLandingColor = new Color(1f, 1f, 1f, 0.95f);
+    [SerializeField] private Color _mortarBlastColor = new Color(1f, 0.45f, 0.05f, 0.7f);
+
+    [Header("Rocket Active")]
+    [SerializeField] private Vector2 _rocketMinimumFrameSize = new Vector2(180f, 100f);
+    [SerializeField] private Vector2 _rocketMaximumFrameSize = new Vector2(1344f, 756f);
+    [SerializeField, Min(1f)] private float _rocketCornerArmLength = 96f;
+    [SerializeField, Min(0.1f)] private float _rocketFrameEaseSpeed = 9f;
+
     private GameObject _canvasRoot;
+    private RectTransform _wideBracketRoot;
+    private RectTransform _circleDotRoot;
+    private RectTransform _mortarVRoot;
+    private RectTransform _rocketFrame;
+
+    private WeaponTestingSandboxManager _sandbox;
+    private GameObject _mortarMarkerRoot;
+    private LineRenderer _mortarLandingRing;
+    private LineRenderer _mortarBlastRing;
+    private Transform _mortarCenterDot;
+    private Material _mortarLineMaterial;
+    private Material _mortarDotMaterial;
+    private float _mortarPredictionTimer;
+
+    private Texture2D _circleRingTexture;
+    private Sprite _circleRingSprite;
+    private bool _isVisible;
+    private bool _sandboxLookupComplete;
     private static Sprite s_whiteSprite;
 
     private void Awake()
     {
+        ResolveDependencies();
         BuildUi();
+        BuildMortarMarker();
         SetVisible(_visibleOnStart);
+    }
+
+    private void Update()
+    {
+        if (!_isVisible)
+            return;
+
+        ResolveDependencies();
+        WeaponInstance runtime = ResolveManualWeapon();
+        IWeaponBehaviour behaviour = ResolveManualBehaviour();
+        if (runtime?.Data == null || behaviour == null)
+        {
+            ApplyMode(ReticleMode.Hidden);
+            SetMortarMarkerVisible(false);
+            return;
+        }
+
+        // Weapon behavior stays authoritative; the HUD only reads presentation status.
+        bool rocketCharging = behaviour is IRocketReticleStatus rocketStatus
+            && rocketStatus.IsTargetingActive;
+        ReticleMode mode = ReticlePresentationLogic.ResolveMode(
+            runtime.Data.WeaponType,
+            rocketCharging);
+
+        ApplyMode(mode);
+        if (mode == ReticleMode.RocketLock && behaviour is IRocketReticleStatus rocket)
+            UpdateRocketFrame(rocket);
+        else
+            ResetRocketFrame();
+
+        if (mode == ReticleMode.Mortar && behaviour is IMortarReticleStatus mortar)
+            UpdateMortarMarker(runtime, mortar);
+        else
+        {
+            _mortarPredictionTimer = 0f;
+            SetMortarMarkerVisible(false);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        DestroyOwnedObject(_mortarMarkerRoot);
+        DestroyOwnedObject(_mortarLineMaterial);
+        DestroyOwnedObject(_mortarDotMaterial);
+        DestroyOwnedObject(_circleRingSprite);
+        DestroyOwnedObject(_circleRingTexture);
     }
 
     public void SetVisible(bool visible)
     {
+        _isVisible = visible;
         if (_canvasRoot != null)
             _canvasRoot.SetActive(visible);
+        if (!visible)
+            SetMortarMarkerVisible(false);
+    }
+
+    private void ResolveDependencies()
+    {
+        if (_weaponManager == null)
+            _weaponManager = GetComponent<WeaponManager>();
+        if (_aimProvider == null)
+            _aimProvider = GetComponent<ReticleAimProvider>();
+        if (!_sandboxLookupComplete)
+        {
+            _sandbox = FindAnyObjectByType<WeaponTestingSandboxManager>();
+            _sandboxLookupComplete = true;
+        }
+    }
+
+    private bool UsesSandbox()
+    {
+        return _sandbox != null
+            && _sandbox.PlayerTransform == transform
+            && _sandbox.CurrentManualWeapon != null;
+    }
+
+    private WeaponInstance ResolveManualWeapon()
+    {
+        return UsesSandbox()
+            ? _sandbox.CurrentManualWeapon
+            : _weaponManager != null
+                ? _weaponManager.GetCurrentManualWeapon()
+                : null;
+    }
+
+    private IWeaponBehaviour ResolveManualBehaviour()
+    {
+        return UsesSandbox()
+            ? _sandbox.CurrentManualBehaviour
+            : _weaponManager != null
+                ? _weaponManager.GetCurrentManualBehaviour()
+                : null;
+    }
+
+    private Transform ResolveProjectileSpawn()
+    {
+        if (UsesSandbox())
+            return _sandbox.ProjectileSpawn != null ? _sandbox.ProjectileSpawn : transform;
+        return _weaponManager != null ? _weaponManager.GetProjectileSpawn() : transform;
     }
 
     private void BuildUi()
@@ -53,44 +198,437 @@ public class ReticleHud : MonoBehaviour
         canvasRt.offsetMin = Vector2.zero;
         canvasRt.offsetMax = Vector2.zero;
 
-        GameObject reticle = new GameObject("Reticle");
-        reticle.transform.SetParent(_canvasRoot.transform, false);
-
-        RectTransform reticleRt = reticle.AddComponent<RectTransform>();
-        reticleRt.anchorMin = new Vector2(0.5f, 0.5f);
-        reticleRt.anchorMax = new Vector2(0.5f, 0.5f);
-        reticleRt.pivot = new Vector2(0.5f, 0.5f);
-        reticleRt.anchoredPosition = Vector2.zero;
-        reticleRt.sizeDelta = new Vector2(_reticleSize, _reticleSize);
-
-        CreateArm(reticle.transform, "Left", new Vector2(-(_centerGap + _lineLength * 0.5f), 0f), new Vector2(_lineLength, _lineThickness));
-        CreateArm(reticle.transform, "Right", new Vector2(_centerGap + _lineLength * 0.5f, 0f), new Vector2(_lineLength, _lineThickness));
-        CreateArm(reticle.transform, "Top", new Vector2(0f, _centerGap + _lineLength * 0.5f), new Vector2(_lineThickness, _lineLength));
-        CreateArm(reticle.transform, "Bottom", new Vector2(0f, -(_centerGap + _lineLength * 0.5f)), new Vector2(_lineThickness, _lineLength));
+        BuildWideBracketReticle();
+        BuildCircleDotReticle();
+        BuildMortarVReticle();
+        BuildRocketLockReticle();
     }
 
-    private void CreateArm(Transform parent, string name, Vector2 anchoredPosition, Vector2 size)
+    private void BuildWideBracketReticle()
     {
-        CreateImage(parent, name + "_Shadow", anchoredPosition + _shadowOffset, size, _shadowColor);
-        CreateImage(parent, name, anchoredPosition, size, _lineColor);
+        _wideBracketRoot = CreateCenteredRoot("WideBracketReticle", _wideBracketFrameSize);
+        float halfWidth = _wideBracketFrameSize.x * 0.5f;
+        float halfHeight = _wideBracketFrameSize.y * 0.5f;
+        float arm = Mathf.Min(_wideBracketArmLength, _wideBracketFrameSize.x * 0.45f);
+
+        CreateStyledLine(_wideBracketRoot, "LeftVertical", new Vector2(-halfWidth, 0f), new Vector2(_lineThickness, _wideBracketFrameSize.y));
+        CreateStyledLine(_wideBracketRoot, "LeftTop", new Vector2(-halfWidth + arm * 0.5f, halfHeight), new Vector2(arm, _lineThickness));
+        CreateStyledLine(_wideBracketRoot, "LeftBottom", new Vector2(-halfWidth + arm * 0.5f, -halfHeight), new Vector2(arm, _lineThickness));
+
+        CreateStyledLine(_wideBracketRoot, "RightVertical", new Vector2(halfWidth, 0f), new Vector2(_lineThickness, _wideBracketFrameSize.y));
+        CreateStyledLine(_wideBracketRoot, "RightTop", new Vector2(halfWidth - arm * 0.5f, halfHeight), new Vector2(arm, _lineThickness));
+        CreateStyledLine(_wideBracketRoot, "RightBottom", new Vector2(halfWidth - arm * 0.5f, -halfHeight), new Vector2(arm, _lineThickness));
     }
 
-    private void CreateImage(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, Color color)
+    private void BuildCircleDotReticle()
+    {
+        _circleDotRoot = CreateCenteredRoot(
+            "CircleDotReticle",
+            new Vector2(_circleDiameter, _circleDiameter));
+
+        _circleRingSprite = CreateRingSprite();
+        CreateImage(
+            _circleDotRoot,
+            "CircleShadow",
+            _shadowOffset,
+            new Vector2(_circleDiameter, _circleDiameter),
+            _shadowColor,
+            _circleRingSprite);
+        CreateImage(
+            _circleDotRoot,
+            "Circle",
+            Vector2.zero,
+            new Vector2(_circleDiameter, _circleDiameter),
+            _lineColor,
+            _circleRingSprite);
+
+        CreateImage(
+            _circleDotRoot,
+            "DotShadow",
+            _shadowOffset,
+            Vector2.one * _centerDotDiameter,
+            _shadowColor,
+            GetWhiteSprite());
+        CreateImage(
+            _circleDotRoot,
+            "Dot",
+            Vector2.zero,
+            Vector2.one * _centerDotDiameter,
+            _lineColor,
+            GetWhiteSprite());
+    }
+
+    private void BuildMortarVReticle()
+    {
+        _mortarVRoot = CreateCenteredRoot("MortarVReticle", _mortarVSize);
+        float horizontalOffset = _mortarVSize.x * 0.22f;
+        float verticalOffset = _mortarVSize.y * 0.1f;
+
+        CreateStyledLine(
+            _mortarVRoot,
+            "MortarVLeft",
+            new Vector2(-horizontalOffset, verticalOffset),
+            new Vector2(_mortarVArmLength, _lineThickness),
+            -42f);
+        CreateStyledLine(
+            _mortarVRoot,
+            "MortarVRight",
+            new Vector2(horizontalOffset, verticalOffset),
+            new Vector2(_mortarVArmLength, _lineThickness),
+            42f);
+    }
+
+    private void BuildRocketLockReticle()
+    {
+        _rocketFrame = CreateCenteredRoot("RocketLockReticle", _rocketMinimumFrameSize);
+        CreateRocketCorner("TopLeft", new Vector2(0f, 1f), 1f, -1f);
+        CreateRocketCorner("TopRight", new Vector2(1f, 1f), -1f, -1f);
+        CreateRocketCorner("BottomLeft", new Vector2(0f, 0f), 1f, 1f);
+        CreateRocketCorner("BottomRight", new Vector2(1f, 0f), -1f, 1f);
+    }
+
+    private void CreateRocketCorner(string name, Vector2 anchor, float horizontalDirection, float verticalDirection)
+    {
+        float halfArm = _rocketCornerArmLength * 0.5f;
+        Vector2 horizontalPosition = new Vector2(horizontalDirection * halfArm, 0f);
+        Vector2 verticalPosition = new Vector2(0f, verticalDirection * halfArm);
+
+        CreateStyledAnchoredLine(
+            _rocketFrame,
+            name + "Horizontal",
+            anchor,
+            horizontalPosition,
+            new Vector2(_rocketCornerArmLength, _lineThickness));
+        CreateStyledAnchoredLine(
+            _rocketFrame,
+            name + "Vertical",
+            anchor,
+            verticalPosition,
+            new Vector2(_lineThickness, _rocketCornerArmLength));
+    }
+
+    private void ApplyMode(ReticleMode mode)
+    {
+        SetRootActive(_wideBracketRoot, mode == ReticleMode.WideBrackets);
+        SetRootActive(_circleDotRoot, mode == ReticleMode.CircleDot);
+        SetRootActive(_mortarVRoot, mode == ReticleMode.Mortar);
+        SetRootActive(_rocketFrame, mode == ReticleMode.RocketLock);
+    }
+
+    private void UpdateRocketFrame(IRocketReticleStatus rocket)
+    {
+        float progress = ReticlePresentationLogic.GetRocketLockProgress(
+            rocket.CurrentRocketLocks,
+            rocket.InitialRocketLocks,
+            rocket.MaximumRocketLocks);
+        Vector2 targetSize = Vector2.Lerp(
+            _rocketMinimumFrameSize,
+            _rocketMaximumFrameSize,
+            progress);
+        float interpolation = 1f - Mathf.Exp(
+            -Mathf.Max(0.1f, _rocketFrameEaseSpeed) * Time.unscaledDeltaTime);
+        _rocketFrame.sizeDelta = Vector2.Lerp(
+            _rocketFrame.sizeDelta,
+            targetSize,
+            interpolation);
+    }
+
+    private void ResetRocketFrame()
+    {
+        if (_rocketFrame != null)
+            _rocketFrame.sizeDelta = _rocketMinimumFrameSize;
+    }
+
+    private void BuildMortarMarker()
+    {
+        _mortarMarkerRoot = new GameObject("MortarLandingMarker");
+        _mortarLineMaterial = CreateLineMaterial();
+        _mortarDotMaterial = CreateUnlitMaterial(_mortarLandingColor);
+
+        _mortarLandingRing = CreateWorldRing(
+            _mortarMarkerRoot.transform,
+            "LandingRing",
+            _mortarInnerRingWidth,
+            _mortarLandingColor);
+        _mortarBlastRing = CreateWorldRing(
+            _mortarMarkerRoot.transform,
+            "BlastRing",
+            _mortarOuterRingWidth,
+            _mortarBlastColor);
+
+        GameObject centerDot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        centerDot.name = "LandingPoint";
+        centerDot.transform.SetParent(_mortarMarkerRoot.transform, false);
+        centerDot.transform.localScale = Vector3.one * 0.13f;
+        Collider dotCollider = centerDot.GetComponent<Collider>();
+        if (dotCollider != null)
+            Destroy(dotCollider);
+        Renderer renderer = centerDot.GetComponent<Renderer>();
+        if (renderer != null)
+            renderer.sharedMaterial = _mortarDotMaterial;
+        _mortarCenterDot = centerDot.transform;
+
+        SetMortarMarkerVisible(false);
+    }
+
+    private void UpdateMortarMarker(WeaponInstance runtime, IMortarReticleStatus mortar)
+    {
+        if (_aimProvider == null)
+        {
+            SetMortarMarkerVisible(false);
+            return;
+        }
+
+        // Physics prediction is intentionally throttled while the screen-space V stays responsive.
+        _mortarPredictionTimer -= Time.unscaledDeltaTime;
+        if (_mortarPredictionTimer > 0f)
+            return;
+        _mortarPredictionTimer = Mathf.Max(0.01f, _mortarPredictionInterval);
+
+        Transform spawn = ResolveProjectileSpawn();
+        if (spawn == null
+            || !_aimProvider.TryGetAimDirection(spawn.position, out Vector3 aimDirection)
+            || !_aimProvider.TryGetMortarTerrainImpact(
+                spawn.position,
+                aimDirection,
+                runtime.Data.BaseRange,
+                mortar.ArcHeight,
+                mortar.ShellCollisionRadius,
+                mortar.ManualTravelTime,
+                out RaycastHit terrainHit))
+        {
+            SetMortarMarkerVisible(false);
+            return;
+        }
+
+        Vector3 normal = terrainHit.normal.sqrMagnitude > 0.0001f
+            ? terrainHit.normal.normalized
+            : Vector3.up;
+        Vector3 markerPosition = terrainHit.point + normal * _mortarSurfaceOffset;
+        _mortarMarkerRoot.transform.position = markerPosition;
+        _mortarCenterDot.position = markerPosition;
+
+        UpdateWorldRing(_mortarLandingRing, markerPosition, normal, _mortarLandingRingRadius);
+        UpdateWorldRing(
+            _mortarBlastRing,
+            markerPosition,
+            normal,
+            Mathf.Max(_mortarLandingRingRadius, mortar.ManualExplosionRadius));
+        SetMortarMarkerVisible(true);
+    }
+
+    private LineRenderer CreateWorldRing(
+        Transform parent,
+        string name,
+        float width,
+        Color color)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
 
-        RectTransform rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = anchoredPosition;
-        rt.sizeDelta = size;
+        LineRenderer line = go.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.loop = true;
+        line.positionCount = MortarRingSegments;
+        line.widthMultiplier = width;
+        line.numCapVertices = 2;
+        line.numCornerVertices = 2;
+        line.sharedMaterial = _mortarLineMaterial;
+        line.startColor = color;
+        line.endColor = color;
+        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        line.receiveShadows = false;
+        return line;
+    }
+
+    private static void UpdateWorldRing(
+        LineRenderer line,
+        Vector3 center,
+        Vector3 normal,
+        float radius)
+    {
+        // Build an orthonormal basis so the rings lie flat on sloped terrain.
+        Vector3 tangent = Vector3.Cross(normal, Vector3.forward);
+        if (tangent.sqrMagnitude <= 0.0001f)
+            tangent = Vector3.Cross(normal, Vector3.right);
+        tangent.Normalize();
+        Vector3 bitangent = Vector3.Cross(normal, tangent).normalized;
+
+        float safeRadius = Mathf.Max(0.01f, radius);
+        for (int i = 0; i < MortarRingSegments; i++)
+        {
+            float angle = i / (float)MortarRingSegments * Mathf.PI * 2f;
+            Vector3 offset = tangent * Mathf.Cos(angle) * safeRadius
+                + bitangent * Mathf.Sin(angle) * safeRadius;
+            line.SetPosition(i, center + offset);
+        }
+    }
+
+    private void SetMortarMarkerVisible(bool visible)
+    {
+        if (_mortarMarkerRoot != null && _mortarMarkerRoot.activeSelf != visible)
+            _mortarMarkerRoot.SetActive(visible);
+    }
+
+    private RectTransform CreateCenteredRoot(string name, Vector2 size)
+    {
+        GameObject root = new GameObject(name);
+        root.transform.SetParent(_canvasRoot.transform, false);
+
+        RectTransform rect = root.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        return rect;
+    }
+
+    private void CreateStyledLine(
+        Transform parent,
+        string name,
+        Vector2 anchoredPosition,
+        Vector2 size,
+        float rotation = 0f)
+    {
+        CreateImage(
+            parent,
+            name + "_Shadow",
+            anchoredPosition + _shadowOffset,
+            size,
+            _shadowColor,
+            GetWhiteSprite(),
+            rotation);
+        CreateImage(
+            parent,
+            name,
+            anchoredPosition,
+            size,
+            _lineColor,
+            GetWhiteSprite(),
+            rotation);
+    }
+
+    private void CreateStyledAnchoredLine(
+        Transform parent,
+        string name,
+        Vector2 anchor,
+        Vector2 anchoredPosition,
+        Vector2 size)
+    {
+        CreateAnchoredImage(
+            parent,
+            name + "_Shadow",
+            anchor,
+            anchoredPosition + _shadowOffset,
+            size,
+            _shadowColor);
+        CreateAnchoredImage(
+            parent,
+            name,
+            anchor,
+            anchoredPosition,
+            size,
+            _lineColor);
+    }
+
+    private static void SetRootActive(RectTransform root, bool active)
+    {
+        if (root != null && root.gameObject.activeSelf != active)
+            root.gameObject.SetActive(active);
+    }
+
+    private static Image CreateImage(
+        Transform parent,
+        string name,
+        Vector2 anchoredPosition,
+        Vector2 size,
+        Color color,
+        Sprite sprite,
+        float rotation = 0f)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+
+        RectTransform rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = size;
+        rect.localRotation = Quaternion.Euler(0f, 0f, rotation);
+
+        Image image = go.AddComponent<Image>();
+        image.sprite = sprite;
+        image.color = color;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    private static Image CreateAnchoredImage(
+        Transform parent,
+        string name,
+        Vector2 anchor,
+        Vector2 anchoredPosition,
+        Vector2 size,
+        Color color)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+
+        RectTransform rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = size;
 
         Image image = go.AddComponent<Image>();
         image.sprite = GetWhiteSprite();
         image.color = color;
         image.raycastTarget = false;
+        return image;
+    }
+
+    private Sprite CreateRingSprite()
+    {
+        // Generate a crisp circular outline without requiring a project texture asset.
+        _circleRingTexture = new Texture2D(
+            CircleTextureSize,
+            CircleTextureSize,
+            TextureFormat.RGBA32,
+            false)
+        {
+            name = "ReticleCircleRing",
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+            hideFlags = HideFlags.HideAndDontSave
+        };
+
+        Color[] pixels = new Color[CircleTextureSize * CircleTextureSize];
+        float outerRadius = CircleTextureSize * 0.48f;
+        float thicknessRatio = _circleLineThickness / Mathf.Max(1f, _circleDiameter);
+        float innerRadius = outerRadius - CircleTextureSize * Mathf.Clamp(thicknessRatio, 0.02f, 0.3f);
+        Vector2 center = Vector2.one * ((CircleTextureSize - 1) * 0.5f);
+
+        for (int y = 0; y < CircleTextureSize; y++)
+        {
+            for (int x = 0; x < CircleTextureSize; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center);
+                float outerAlpha = 1f - Mathf.Clamp01(distance - outerRadius + 1f);
+                float innerAlpha = Mathf.Clamp01(distance - innerRadius + 1f);
+                pixels[y * CircleTextureSize + x] = new Color(1f, 1f, 1f, outerAlpha * innerAlpha);
+            }
+        }
+
+        _circleRingTexture.SetPixels(pixels);
+        _circleRingTexture.Apply(false, true);
+        return Sprite.Create(
+            _circleRingTexture,
+            new Rect(0f, 0f, CircleTextureSize, CircleTextureSize),
+            new Vector2(0.5f, 0.5f),
+            CircleTextureSize);
     }
 
     private static Sprite GetWhiteSprite()
@@ -98,12 +636,54 @@ public class ReticleHud : MonoBehaviour
         if (s_whiteSprite != null)
             return s_whiteSprite;
 
-        Texture2D tex = Texture2D.whiteTexture;
+        Texture2D texture = Texture2D.whiteTexture;
         s_whiteSprite = Sprite.Create(
-            tex,
-            new Rect(0f, 0f, tex.width, tex.height),
+            texture,
+            new Rect(0f, 0f, texture.width, texture.height),
             new Vector2(0.5f, 0.5f),
             100f);
         return s_whiteSprite;
+    }
+
+    private static Material CreateUnlitMaterial(Color color)
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null)
+            shader = Shader.Find("Sprites/Default");
+        if (shader == null)
+            shader = Shader.Find("Unlit/Color");
+
+        Material material = new Material(shader)
+        {
+            color = color,
+            hideFlags = HideFlags.HideAndDontSave
+        };
+        return material;
+    }
+
+    private static Material CreateLineMaterial()
+    {
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null)
+            shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null)
+            shader = Shader.Find("Unlit/Color");
+
+        return new Material(shader)
+        {
+            color = Color.white,
+            hideFlags = HideFlags.HideAndDontSave
+        };
+    }
+
+    private static void DestroyOwnedObject(Object ownedObject)
+    {
+        if (ownedObject == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(ownedObject);
+        else
+            DestroyImmediate(ownedObject);
     }
 }

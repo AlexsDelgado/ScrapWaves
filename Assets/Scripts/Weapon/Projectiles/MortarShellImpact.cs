@@ -6,6 +6,7 @@ public sealed class MortarShellImpact : MonoBehaviour
 {
     private const int ArcSegments = 18;
     private const int CollisionBufferSize = 16;
+    private static Material s_shellMaterial;
 
     private Vector3 _start;
     private Vector3 _target;
@@ -65,13 +66,14 @@ public sealed class MortarShellImpact : MonoBehaviour
         _ignoredRoot = ignoredRoot;
         transform.position = _start;
         BuildLineRenderer();
+        BuildShellVisual();
         UpdateArcVisual();
     }
 
     private void Update()
     {
         _elapsed += Time.deltaTime;
-        float t = Mathf.Clamp01(_elapsed / _travelTime);
+        float t = _elapsed / _travelTime;
         Vector3 previousPosition = transform.position;
         Vector3 nextPosition = GetArcPoint(t);
 
@@ -83,8 +85,8 @@ public sealed class MortarShellImpact : MonoBehaviour
         }
 
         transform.position = nextPosition;
-        if (t >= 1f)
-            Detonate();
+        if (t >= MortarTrajectory.GetMaximumNormalizedTime(_travelTime))
+            Destroy(gameObject);
     }
 
     // Sweeps the shell between frames so fast projectiles cannot tunnel through map geometry.
@@ -161,6 +163,22 @@ public sealed class MortarShellImpact : MonoBehaviour
         _line.endColor = new Color(1f, 0.35f, 0.05f, 0.25f);
     }
 
+    private void BuildShellVisual()
+    {
+        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        visual.name = "Mortar Shell Visual";
+        visual.transform.SetParent(transform, false);
+        visual.transform.localScale = Vector3.one * Mathf.Max(0.12f, _collisionRadius * 2f);
+
+        Collider visualCollider = visual.GetComponent<Collider>();
+        if (visualCollider != null)
+            Destroy(visualCollider);
+
+        Renderer renderer = visual.GetComponent<Renderer>();
+        if (renderer != null)
+            renderer.sharedMaterial = GetShellMaterial();
+    }
+
     private void UpdateArcVisual()
     {
         for (int i = 0; i < _arcPoints.Length; i++)
@@ -174,9 +192,23 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private Vector3 GetArcPoint(float t)
     {
-        Vector3 point = Vector3.Lerp(_start, _target, t);
-        point.y += Mathf.Sin(t * Mathf.PI) * _arcHeight;
-        return point;
+        return MortarTrajectory.Evaluate(_start, _target, _arcHeight, t);
+    }
+
+    private static Material GetShellMaterial()
+    {
+        if (s_shellMaterial != null)
+            return s_shellMaterial;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null)
+            shader = Shader.Find("Unlit/Color");
+        if (shader == null)
+            shader = Shader.Find("Sprites/Default");
+
+        s_shellMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+        s_shellMaterial.color = new Color(1f, 0.42f, 0.04f, 1f);
+        return s_shellMaterial;
     }
 
     private void Detonate()

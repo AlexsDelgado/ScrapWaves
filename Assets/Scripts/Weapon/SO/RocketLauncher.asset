@@ -44,7 +44,10 @@ MonoBehaviour:
       data:
         RocketAutoBaseRocketCount: 2
         RocketActiveBaseRocketCount: 10
+        RocketActiveInitialTargetCount: 5
+        RocketActiveTargetLockInterval: 0.15
         RocketActiveConeAngle: 90
+        RocketActiveTargetMarkerRadius: 0.7
         RocketAutoExplosionRadius: 1.8
         RocketManualExplosionRadius: 2.4
         RocketActiveExplosionRadius: 2.9
