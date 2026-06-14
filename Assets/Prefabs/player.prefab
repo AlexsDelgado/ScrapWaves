@@ -703,15 +703,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6d5b458e2c84b248ba6ccaf3ad941c7, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::ReticleHud
+  _weaponManager: {fileID: 8802695284123346318}
+  _aimProvider: {fileID: 3355374661182279101}
   _visibleOnStart: 1
-  _reticleSize: 34
-  _lineLength: 9
-  _lineThickness: 2
-  _centerGap: 5
-  _lineColor: {r: 1, g: 1, b: 1, a: 0.92}
-  _shadowColor: {r: 0, g: 0, b: 0, a: 0.55}
-  _shadowOffset: {x: 1, y: -1}
+  _lineThickness: 3
+  _lineColor: {r: 1, g: 1, b: 1, a: 0.95}
+  _shadowColor: {r: 0, g: 0, b: 0, a: 0.65}
+  _shadowOffset: {x: 2, y: -2}
   _sortingOrder: 650
+  _wideBracketFrameSize: {x: 250, y: 70}
+  _wideBracketArmLength: 54
+  _circleDiameter: 34
+  _circleLineThickness: 3
+  _centerDotDiameter: 5
+  _mortarVSize: {x: 30, y: 18}
+  _mortarVArmLength: 20
+  _mortarLandingRingRadius: 0.38
+  _mortarInnerRingWidth: 0.07
+  _mortarOuterRingWidth: 0.05
+  _mortarSurfaceOffset: 0.04
+  _mortarPredictionInterval: 0.04
+  _mortarLandingColor: {r: 1, g: 1, b: 1, a: 0.95}
+  _mortarBlastColor: {r: 1, g: 0.45, b: 0.05, a: 0.7}
+  _rocketMinimumFrameSize: {x: 180, y: 100}
+  _rocketMaximumFrameSize: {x: 1344, y: 756}
+  _rocketCornerArmLength: 96
+  _rocketFrameEaseSpeed: 9
 --- !u!114 &901000001
 MonoBehaviour:
   m_ObjectHideFlags: 0

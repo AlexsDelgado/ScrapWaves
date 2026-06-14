@@ -21,6 +21,8 @@ public sealed class AutomaticCannonTuning : WeaponSpecificTuning
     [Min(0f)] public float CannonManualLineSpacing = 0.45f;
     [Min(0f)] public float CannonAutoLineSpacing = 0.45f;
     [Min(0f)] public float CannonAutoAccuracySpreadDegrees = 6f;
+    [Min(0f)] public float CannonBurstProjectileScatterDegrees = 1.5f;
+    [Min(0.01f)] public float CannonManualBurstsPerSecond = 2f;
 
     [Min(0.01f)] public float CannonActiveHeatBulletStepPercent = 5f;
     [Min(0.01f)] public float CannonHeatDamageThresholdStepPercent = 25f;
@@ -36,7 +38,10 @@ public sealed class RocketLauncherTuning : WeaponSpecificTuning
 
     [Min(1)] public int RocketAutoBaseRocketCount = 2;
     [Min(1)] public int RocketActiveBaseRocketCount = 10;
+    [Min(1)] public int RocketActiveInitialTargetCount = 5;
+    [Min(0.01f)] public float RocketActiveTargetLockInterval = 0.15f;
     [Range(0f, 360f)] public float RocketActiveConeAngle = 90f;
+    [Min(0.05f)] public float RocketActiveTargetMarkerRadius = 0.7f;
 
     [Min(0f)] public float RocketAutoExplosionRadius = 1.8f;
     [Min(0f)] public float RocketManualExplosionRadius = 2.4f;

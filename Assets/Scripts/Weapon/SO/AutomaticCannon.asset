@@ -48,9 +48,11 @@ MonoBehaviour:
         CannonManualBurstCount: 5
         CannonActiveBaseBulletCount: 20
         CannonAbilityScatterRadius: 11
-        CannonManualLineSpacing: 1
-        CannonAutoLineSpacing: 1
-        CannonAutoAccuracySpreadDegrees: 6
+        CannonManualLineSpacing: 6
+        CannonAutoLineSpacing: 6
+        CannonAutoAccuracySpreadDegrees: 25
+        CannonBurstProjectileScatterDegrees: 1.5
+        CannonManualBurstsPerSecond: 2
         CannonActiveHeatBulletStepPercent: 5
         CannonHeatDamageThresholdStepPercent: 25
         CannonHeatDamageThresholdCount: 3

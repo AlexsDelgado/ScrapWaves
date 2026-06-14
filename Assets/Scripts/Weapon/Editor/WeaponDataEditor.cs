@@ -94,6 +94,8 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonManualLineSpacing), "Manual Line Spacing");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoLineSpacing), "Auto Line Spacing");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoAccuracySpreadDegrees), "Auto Accuracy Spread Degrees");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonBurstProjectileScatterDegrees), "Burst Projectile Scatter Degrees");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonManualBurstsPerSecond), "Manual Bursts Per Second");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonActiveHeatBulletStepPercent), "Active Heat Bullet Step Percent");
@@ -142,7 +144,10 @@ public sealed class WeaponDataEditor : Editor
         EditorGUILayout.LabelField("Rocket Launcher", EditorStyles.boldLabel);
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketAutoBaseRocketCount), "Auto Base Rocket Count");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveBaseRocketCount), "Active Base Rocket Count");
+        DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveInitialTargetCount), "Active Initial Target Count");
+        DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveTargetLockInterval), "Active Target Lock Interval");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveConeAngle), "Active Cone Angle");
+        DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveTargetMarkerRadius), "Active Target Marker Radius");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketAutoExplosionRadius), "Auto Explosion Radius");

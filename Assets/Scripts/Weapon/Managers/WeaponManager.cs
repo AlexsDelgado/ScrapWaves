@@ -64,6 +64,19 @@ public class WeaponManager : MonoBehaviour
         return _equipped[_currentManualIndex].Runtime;
     }
 
+    // Returns the active manual behavior so presentation can read weapon-specific status.
+    public IWeaponBehaviour GetCurrentManualBehaviour()
+    {
+        if (_equipped.Count == 0)
+            return null;
+        return _equipped[_currentManualIndex];
+    }
+
+    public Transform GetProjectileSpawn()
+    {
+        return _projectileSpawn != null ? _projectileSpawn : transform;
+    }
+
     // Adds weapon instance and creates behavior via factory method.
     public bool AddWeapon(WeaponData data)
     {
@@ -243,6 +256,8 @@ public class WeaponManager : MonoBehaviour
         bool fireHeld = IsFireHeld();
         bool firePressed = IsFirePressed();
         bool abilityPressed = IsAbilityPressed();
+        bool abilityHeld = IsAbilityHeld();
+        bool abilityReleased = IsAbilityReleased();
 
         IWeaponBehaviour manual = _equipped[_currentManualIndex];
         if (manual.Runtime.State == WeaponState.Manual && (firePressed || abilityPressed))
@@ -251,8 +266,19 @@ public class WeaponManager : MonoBehaviour
         TickAbilityCooldown(manual.Runtime, deltaTime);
         manual.TickManual(deltaTime, aimDirection, fireHeld);
 
-        if (abilityPressed && CanUseAbility())
+        if (manual is IHoldActiveAbilityBehaviour holdAbility)
+        {
+            if (abilityPressed && CanUseAbility())
+                holdAbility.BeginActiveAbility(aimDirection);
+            if (abilityHeld && holdAbility.IsActiveAbilityCharging)
+                holdAbility.TickActiveAbility(deltaTime, aimDirection);
+            if (abilityReleased && holdAbility.IsActiveAbilityCharging)
+                holdAbility.ReleaseActiveAbility(aimDirection);
+        }
+        else if (abilityPressed && CanUseAbility())
+        {
             manual.UseActiveAbility(aimDirection);
+        }
 
         if (manual.Runtime.State == WeaponState.Manual && manual.Runtime.CurrentAmmo <= 0f)
             EndManualMode();
@@ -301,6 +327,24 @@ public class WeaponManager : MonoBehaviour
 #endif
     }
 
+    private bool IsAbilityHeld()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Keyboard.current != null && Keyboard.current.qKey.isPressed;
+#else
+        return Input.GetKey(KeyCode.Q);
+#endif
+    }
+
+    private bool IsAbilityReleased()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Keyboard.current != null && Keyboard.current.qKey.wasReleasedThisFrame;
+#else
+        return Input.GetKeyUp(KeyCode.Q);
+#endif
+    }
+
     // Moves manual index after cooldown expires.
     private void UpdateManualCycle(float deltaTime)
     {
@@ -321,6 +365,7 @@ public class WeaponManager : MonoBehaviour
         if (_equipped.Count == 0)
             return;
 
+        CancelHeldAbilities();
         _currentManualIndex = Mathf.Clamp(index, 0, _equipped.Count - 1);
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
         runtime.State = WeaponState.Manual;
@@ -333,11 +378,21 @@ public class WeaponManager : MonoBehaviour
         if (_equipped.Count == 0)
             return;
 
+        CancelHeldAbilities();
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
         if (runtime.State != WeaponState.Manual)
             return;
 
         runtime.State = WeaponState.Automatic;
         _manualCooldownTimer = _equipped.Count == 1 ? _singleWeaponCycleCooldown : _manualCycleCooldown;
+    }
+
+    private void CancelHeldAbilities()
+    {
+        for (int i = 0; i < _equipped.Count; i++)
+        {
+            if (_equipped[i] is IHoldActiveAbilityBehaviour holdAbility)
+                holdAbility.CancelActiveAbility();
+        }
     }
 }
