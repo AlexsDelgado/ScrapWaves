@@ -157,7 +157,11 @@ public class Projectile : MonoBehaviour
             if (damageable.ApplyDamage(_damage))
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback);
             DespawnOrDestroy();
+            return;
         }
+
+        if (IsSolidWorldCollider(other))
+            DespawnOrDestroy();
     }
 
     // Keeps projectiles from detonating on the player or non-target trigger volumes.
