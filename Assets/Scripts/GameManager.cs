@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Estados de partida: juego activo, victoria (bosses requeridos derrotados) o game over (vida 0).
+/// Estados de partida: juego activo, victoria (puerta de salida) o game over (vida 0).
 /// Pausa con <see cref="Time.timeScale"/> y muestra un panel simple en runtime.
 /// </summary>
 [DisallowMultipleComponent]
@@ -25,7 +25,7 @@ public class GameManager : MonoBehaviour
     [SerializeField, Tooltip("Cuenta bajas de boss vía evento del BossManager.")]
     private BossManager _bossManager;
 
-    [SerializeField, Min(1), Tooltip("Cuántos bosses hay que derrotar (en total, en cualquier Overheat) para ganar.")]
+    [SerializeField, Min(1), Tooltip("Obsoleto: la victoria es por puerta de salida. Se conserva solo para referencia.")]
     private int _bossKillsRequiredForVictory = 2;
 
     [SerializeField] private Color _overlayColor = new Color(0f, 0f, 0f, 0.72f);
@@ -89,8 +89,15 @@ public class GameManager : MonoBehaviour
 
         _bossKills++;
         RunSessionStats.RegisterBossKill();
-        if (_bossKills >= _bossKillsRequiredForVictory)
-            EnterEndState(GameState.Victory, "¡VICTORIA!");
+    }
+
+    /// <summary>Victoria al interactuar con la puerta de salida.</summary>
+    public void TriggerVictory()
+    {
+        if (_state != GameState.Playing)
+            return;
+
+        EnterEndState(GameState.Victory, "¡VICTORIA!");
     }
 
     private void EnterEndState(GameState endState, string message)

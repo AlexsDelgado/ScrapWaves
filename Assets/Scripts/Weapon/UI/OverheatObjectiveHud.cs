@@ -105,6 +105,13 @@ public class OverheatObjectiveHud : MonoBehaviour
         if (_objectiveText == null)
             return;
 
+        LevelExitPressure exitPressure = FindAnyObjectByType<LevelExitPressure>();
+        if (exitPressure != null && exitPressure.IsActive)
+        {
+            _root.SetActive(false);
+            return;
+        }
+
         bool show = _overheatManager != null && _overheatManager.IsOverheating;
         _root.SetActive(show);
         if (!show)

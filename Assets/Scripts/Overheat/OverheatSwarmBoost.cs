@@ -1,25 +1,38 @@
+using UnityEngine;
+
 /// <summary>
-/// Multiplicadores globales durante la fase intensa del Overheat (último tramo del temporizador).
+/// Multiplicadores globales durante la fase intensa del Overheat (último tramo del temporizador)
+/// y durante la presión de salida (llaves completas).
 /// Solo afecta a enemigos del <see cref="SwarmEnemyPool"/> (no al boss).
 /// </summary>
 public static class OverheatSwarmBoost
 {
-    public static float SpeedMultiplier { get; private set; } = 1f;
-    public static int SpawnWaveMultiplier { get; private set; } = 1;
+    private static bool s_intensityActive;
+    private static float s_exitPressureMultiplier = 1f;
 
-    public static bool IsIntensityActive => SpeedMultiplier > 1.01f;
-
-    public static void SetIntensity(bool active)
+    public static float SpeedMultiplier
     {
-        if (active)
+        get
         {
-            SpeedMultiplier = 2f;
-            SpawnWaveMultiplier = 2;
-        }
-        else
-        {
-            SpeedMultiplier = 1f;
-            SpawnWaveMultiplier = 1;
+            float mult = 1f;
+            if (s_intensityActive)
+                mult = Mathf.Max(mult, 2f);
+            if (s_exitPressureMultiplier > 1f)
+                mult = Mathf.Max(mult, s_exitPressureMultiplier);
+            return mult;
         }
     }
+
+    public static int SpawnWaveMultiplier => Mathf.Max(1, Mathf.RoundToInt(SpeedMultiplier));
+
+    public static bool IsIntensityActive => s_intensityActive;
+
+    public static void SetIntensity(bool active) => s_intensityActive = active;
+
+    public static void SetExitPressureMultiplier(float multiplier)
+    {
+        s_exitPressureMultiplier = multiplier < 1f ? 1f : multiplier;
+    }
+
+    public static void ClearExitPressure() => s_exitPressureMultiplier = 1f;
 }

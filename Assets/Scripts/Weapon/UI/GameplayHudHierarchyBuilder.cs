@@ -210,8 +210,18 @@ public static class GameplayHudHierarchyBuilder
 
     public static void BuildRunEndHierarchy(Transform runEndRoot)
     {
-        if (runEndRoot == null || runEndRoot.Find("RunEndRoot") != null)
+        if (runEndRoot == null)
             return;
+
+        // Si ya existe RunEndRoot con el Panel completo no hay nada que hacer.
+        // Si existe pero sin Panel (jerarquía incompleta del prefab), lo eliminamos y lo reconstruimos.
+        Transform existingRoot = runEndRoot.Find("RunEndRoot");
+        if (existingRoot != null)
+        {
+            if (existingRoot.Find("Panel") != null)
+                return;
+            Object.DestroyImmediate(existingRoot.gameObject);
+        }
 
         var rootGo = new GameObject("RunEndRoot", typeof(RectTransform));
         rootGo.transform.SetParent(runEndRoot, false);

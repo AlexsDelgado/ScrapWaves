@@ -66,12 +66,15 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     private int _aliveEliteCount;
     private bool _waveActive;
     private int _cycleIndex;
+    private bool _exitPhaseDisabled;
 
     public int EliteWaveTotal { get; private set; }
     public int ElitesRemaining => _aliveEliteCount;
     public bool IsEliteWaveActive => _waveActive;
 
     public event Action OnEliteWaveProgressChanged;
+
+    public void SetExitPhaseDisabled(bool disabled) => _exitPhaseDisabled = disabled;
 
     private void Awake()
     {
@@ -113,6 +116,13 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     private void OnOverheatStarted()
     {
         _cycleIndex++;
+
+        if (_exitPhaseDisabled)
+        {
+            if (_logState)
+                Debug.Log("[EliteWave] Fase de salida activa; sin oleada de elites.", this);
+            return;
+        }
 
         // Pares -> bosses (BossManager). Impares -> oleada de elites.
         if (_cycleIndex % 2 == 0)

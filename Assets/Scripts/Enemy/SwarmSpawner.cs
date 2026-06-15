@@ -109,7 +109,10 @@ public class SwarmSpawner : MonoBehaviour
     private float EffectiveSpawnInterval()
     {
         float scale = _difficultyManager != null ? _difficultyManager.GetSpawnIntervalScale() : 1f;
-        return Mathf.Max(0.05f, _spawnInterval * scale);
+        float interval = Mathf.Max(0.05f, _spawnInterval * scale);
+        if (ExitSpawnPressure.IsActive && ExitSpawnPressure.SpawnRateMultiplier > 1f)
+            interval /= ExitSpawnPressure.SpawnRateMultiplier;
+        return interval;
     }
 
     private void SpawnWave()

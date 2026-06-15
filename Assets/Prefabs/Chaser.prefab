@@ -242,7 +242,7 @@ MonoBehaviour:
   _contactRadius: 1.5
   _hitDamage: 12
   _pushForce: 12
-  _maxEngageSeconds: 5
+  _maxEngageSeconds: 2
   _overheatSeconds: 2.5
   _overheatSpeed: 1
   _overcharged: 0

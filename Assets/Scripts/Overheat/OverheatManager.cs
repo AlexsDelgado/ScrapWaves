@@ -45,8 +45,10 @@ public class OverheatManager : MonoBehaviour
     private SwarmEnemyPool _swarmEnemyPool;
 
     private bool _isOverheating;
+    private bool _permanentOverheat;
 
     public bool IsOverheating => _isOverheating;
+    public bool IsPermanentOverheat => _permanentOverheat;
 
     /// <summary>Sin temporizador: 0 mientras el Overheat depende del objetivo.</summary>
     public float OverheatTimeRemaining => 0f;
@@ -100,10 +102,32 @@ public class OverheatManager : MonoBehaviour
     /// </summary>
     public void NotifyOverheatObjectiveCleared()
     {
-        if (!_isOverheating)
+        if (!_isOverheating || _permanentOverheat)
             return;
 
         EndOverheat(OverheatEndReason.BossDefeated);
+    }
+
+    /// <summary>Tras reunir todas las llaves: overheat que no termina hasta victoria o game over.</summary>
+    public void EnterPermanentOverheat()
+    {
+        _permanentOverheat = true;
+
+        if (_isOverheating)
+            return;
+
+        _isOverheating = true;
+        OverheatSwarmBoost.SetIntensity(false);
+
+        if (_playerStats != null)
+            _playerStats.SetRuntimeFireRateMultiplier(_fireRateMultiplier);
+        else if (_logState)
+            Debug.LogWarning("OverheatManager: no hay PlayerStats; no se aplica buff de cadencia.", this);
+
+        if (_logState)
+            Debug.Log($"Overheat permanente (salida) x{_fireRateMultiplier:0.##} fire rate.", this);
+
+        OnOverheatStarted?.Invoke();
     }
 
     private void OnMaxHeatReached()
@@ -127,7 +151,11 @@ public class OverheatManager : MonoBehaviour
 
     private void EndOverheat(OverheatEndReason reason)
     {
+        if (_permanentOverheat && reason != OverheatEndReason.Interrupted)
+            return;
+
         _isOverheating = false;
+        _permanentOverheat = false;
         OverheatSwarmBoost.SetIntensity(false);
 
         if (_swarmEnemyPool == null)

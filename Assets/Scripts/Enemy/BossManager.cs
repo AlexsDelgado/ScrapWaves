@@ -72,6 +72,7 @@ public class BossManager : MonoBehaviour
     private readonly Dictionary<EnemyHealth, Action> _onBossDiedHandlers = new Dictionary<EnemyHealth, Action>();
 
     private int _overheatCycleIndex;
+    private bool _exitPhaseActive;
 
     /// <summary>Cada vez que un boss es derrotado (para victoria global en <see cref="GameManager"/>).</summary>
     public event Action OnBossDefeated;
@@ -102,6 +103,8 @@ public class BossManager : MonoBehaviour
 
     /// <summary>Ciclos de Overheat iniciados (1-based durante la fase actual tras incrementar).</summary>
     public int CurrentOverheatCycle => _overheatCycleIndex;
+
+    public void SetExitPhaseActive(bool active) => _exitPhaseActive = active;
 
     private void Awake()
     {
@@ -140,6 +143,13 @@ public class BossManager : MonoBehaviour
     {
         _overheatCycleIndex++;
         DespawnAllBossesImmediate();
+
+        if (_exitPhaseActive)
+        {
+            if (_logState)
+                Debug.Log("BossManager: fase de salida activa; sin spawn de boss.", this);
+            return;
+        }
 
         // Los bosses solo en ciclos pares; los impares los cubre la oleada de elites.
         if (_spawnOnlyOnEvenCycles && (_overheatCycleIndex % 2 != 0))
