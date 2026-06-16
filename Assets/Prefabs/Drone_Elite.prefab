@@ -37,7 +37,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 3, y: 3, z: 3}
+  m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7155562742256500581}
@@ -106,7 +106,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 100
+  _maxHealth: 125
 --- !u!114 &7140168115193157315
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -146,7 +146,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDropExperience
   _xpPoolOverride: {fileID: 0}
-  _experienceAmount: 2
+  _experienceAmount: 10
 --- !u!114 &5937622460345102039
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -221,7 +221,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
-  _speed: 3.5
+  _speed: 5
 --- !u!114 &8800000000000000004
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -242,8 +242,8 @@ MonoBehaviour:
     m_Bits: 0
   _hoverRaycastUp: 40
   _bombRunStartDistance: 10
-  _dashCount: 3
-  _dashSpeed: 18
+  _dashCount: 2
+  _dashSpeed: 14
   _dashDistance: 8
   _bombsPerDash: 2
   _c4Prefab: {fileID: 7200000000000000000, guid: a1b2c3d4e5f6071829aabbccddeeff03, type: 3}
@@ -251,7 +251,7 @@ MonoBehaviour:
   _rechargeSeconds: 5
   _bulletPrefab: {fileID: 7000000000000000000, guid: a1b2c3d4e5f6071829aabbccddeeff01, type: 3}
   _bulletDamage: 10
-  _bulletSpeed: 16
+  _bulletSpeed: 12
   _shootInterval: 1.5
   _droneStandoffDistance: 8
 --- !u!1 &6469779007441651627

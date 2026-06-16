@@ -106,7 +106,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 10
+  _maxHealth: 15
 --- !u!114 &7140168115193157315
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -146,7 +146,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDropExperience
   _xpPoolOverride: {fileID: 0}
-  _experienceAmount: 2
+  _experienceAmount: 3
 --- !u!114 &5937622460345102039
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -221,7 +221,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
-  _speed: 3.5
+  _speed: 5
 --- !u!114 &8800000000000000001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -244,10 +244,10 @@ MonoBehaviour:
   _approachUntilDistance: 9
   _retreatBelowDistance: 4
   _bulletPrefab: {fileID: 7000000000000000000, guid: a1b2c3d4e5f6071829aabbccddeeff01, type: 3}
-  _lockSeconds: 2
+  _lockSeconds: 3
   _cooldownSeconds: 1.5
   _bulletDamage: 8
-  _bulletSpeed: 16
+  _bulletSpeed: 12
   _muzzleHeight: 0.2
 --- !u!1 &5616991293731240567
 GameObject:

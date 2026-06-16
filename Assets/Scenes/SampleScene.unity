@@ -232,6 +232,75 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 45962023}
   m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1001 &81395914
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 100000, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_Name
+      value: Enemy (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -117.337524
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -3.44
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -64.096214
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: e5a3c7d2f1b9048a9e6d0c4b8a7f3e21, type: 3}
 --- !u!28 &144313065
 Texture2D:
   m_ObjectHideFlags: 0
@@ -4655,7 +4724,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 5
-      value: 0.35
+      value: 0.23095092
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -4663,8 +4732,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 15
-      value: 0.7
+      time: 10.125
+      value: 0.5023834
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -4672,8 +4741,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 30
-      value: 1
+      time: 19.460941
+      value: 0.99999857
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -4683,12 +4752,12 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _maxSpawnCountMultiplier: 2.5
+  _maxSpawnCountMultiplier: 3
   _spawnIntervalScaleAtMaxIntensity: 0.45
   _scaleEnemyHealth: 1
-  _maxEnemyHealthMultiplier: 2
+  _maxEnemyHealthMultiplier: 2.5
   _scaleEnemyMoveSpeed: 1
-  _maxEnemySpeedMultiplier: 1.35
+  _maxEnemySpeedMultiplier: 4
 --- !u!4 &1443009584
 Transform:
   m_ObjectHideFlags: 0
@@ -5491,8 +5560,8 @@ MonoBehaviour:
   _spawnInterval: 1.5
   _spawnOnStart: 1
   _maxActiveEnemies: 300
-  _minSpawnRadius: 10
-  _maxSpawnRadius: 20
+  _minSpawnRadius: 25
+  _maxSpawnRadius: 35
   _spawnHeightOffset: 0
   _groundRaycastMask:
     serializedVersion: 2
@@ -5662,8 +5731,8 @@ MonoBehaviour:
   _overheatManager: {fileID: 0}
   _difficultyManager: {fileID: 1443009583}
   _logState: 1
-  _minSpawnRadius: 8
-  _maxSpawnRadius: 16
+  _minSpawnRadius: 25
+  _maxSpawnRadius: 35
   _spawnHeightOffset: 0
   _placementAttemptsPerElite: 8
   _guaranteeSpawn: 1
@@ -6678,8 +6747,8 @@ MonoBehaviour:
   _bossPrefab: {fileID: 100000, guid: 2cbd193263909404393a1501027af521, type: 3}
   _secondBossPrefab: {fileID: 100000, guid: 0c7fe1cbcc1b00845bbd9f0f7939dae7, type: 3}
   _spawnOnlyOnEvenCycles: 1
-  _bossMaxHealth: 400
-  _spawnDistance: 12
+  _bossMaxHealth: 1500
+  _spawnDistance: 35
   _multiBossOverheatCycle: 3
   _bossCountOnMultiCycle: 2
   _logState: 1
@@ -6903,11 +6972,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 200001, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: m_LocalScale.x
-      value: 20
+      value: 55.331665
       objectReference: {fileID: 0}
     - target: {fileID: 200001, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: m_LocalScale.y
-      value: 30
+      value: 82.083
       objectReference: {fileID: 0}
     - target: {fileID: 200001, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: m_LocalScale.z
@@ -6915,15 +6984,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 200001, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -220
+      value: -169.8
       objectReference: {fileID: 0}
     - target: {fileID: 200001, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 137.34
+      value: 36.5
       objectReference: {fileID: 0}
     - target: {fileID: 200001, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 125.77
+      value: -243.4
       objectReference: {fileID: 0}
     - target: {fileID: 200005, guid: 6b3360811393a4b5c6d7e8f9a0b1c2d4, type: 3}
       propertyPath: _exitObjective
@@ -7333,15 +7402,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4876252261270809814, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -4
+      value: -113.2
       objectReference: {fileID: 0}
     - target: {fileID: 4876252261270809814, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.44
+      value: -3.01
       objectReference: {fileID: 0}
     - target: {fileID: 4876252261270809814, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 8.6
+      value: -68.2
       objectReference: {fileID: 0}
     - target: {fileID: 4876252261270809814, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
       propertyPath: m_LocalRotation.w
@@ -7456,3 +7525,4 @@ SceneRoots:
   - {fileID: 8810040012}
   - {fileID: 8810040020}
   - {fileID: 566983339}
+  - {fileID: 81395914}

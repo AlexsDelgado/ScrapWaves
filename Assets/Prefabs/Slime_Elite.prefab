@@ -37,7 +37,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 3, y: 3, z: 3}
+  m_LocalScale: {x: 2.2, y: 2.2, z: 2.2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4801915618637577528}
@@ -220,7 +220,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
-  _speed: 3.5
+  _speed: 5
 --- !u!114 &8800000000000000003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -233,14 +233,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0c1a2b3c4d5e6f7081122334455667d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HellfireSlimeBehavior
-  _triggerRange: 3
+  _triggerRange: 4
   _rotationSpeed: 540
-  _launchSpeed: 18
+  _launchSpeed: 12
   _launchDuration: 0.5
   _launchMaxDistance: 6
   _contactRadius: 1.3
   _explosionRadius: 3.5
   _explosionDamage: 25
+  _burnSeconds: 3
+  _burnDps: 2
   _fireAreaPrefab: {fileID: 7100000000000000000, guid: a1b2c3d4e5f6071829aabbccddeeff02, type: 3}
   _groundMask:
     serializedVersion: 2

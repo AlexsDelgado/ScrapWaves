@@ -123,7 +123,7 @@ Transform:
   m_GameObject: {fileID: 3424122027814110194}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.2, z: 0}
+  m_LocalPosition: {x: 0.013, y: 1.161, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -437,6 +437,8 @@ MonoBehaviour:
   _minSlideSpeed: 2
   _postDashFrictionMultiplier: 0.3
   _postDashFrictionDuration: 0.18
+  _knockbackWindow: 0.3
+  _knockbackFrictionMultiplier: 0.1
   _useFrictionlessMovementMaterial: 1
 --- !u!114 &6535847504202732059
 MonoBehaviour:
@@ -683,7 +685,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7fcd5d4d0d8b4a269c433d155d81475d, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ReticleAimProvider
   _aimCamera: {fileID: 0}
   _ignoredRoot: {fileID: 0}
@@ -701,7 +703,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b6d5b458e2c84b248ba6ccaf3ad941c7, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ReticleHud
   _weaponManager: {fileID: 8802695284123346318}
   _aimProvider: {fileID: 3355374661182279101}
@@ -758,8 +760,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelUpChoiceUI
   _pauseWhileChoosing: 1
-  _buttonWidth: 260
-  _buttonHeight: 48
+  _cardWidth: 240
+  _cardHeight: 160
   _canvasOverride: {fileID: 0}
   _thirdPersonCamera: {fileID: 0}
 --- !u!114 &901000003
@@ -824,6 +826,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1000005000005000005000005000005, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelUpStatFeedback
+  _fontSize: 22
+  _textColor: {r: 0.4, g: 1, b: 0.55, a: 1}
+  _anchorPosition: {x: 0.78, y: 0.55}
+  _messageDuration: 1.4
+  _messageSpacing: 0.08
+  _floatDistance: 36
 --- !u!114 &901000007
 MonoBehaviour:
   m_ObjectHideFlags: 0
