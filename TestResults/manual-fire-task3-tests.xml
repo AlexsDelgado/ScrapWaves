@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="2" result="Passed" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-06-16 17:45:40Z" end-time="2026-06-16 17:45:40Z" duration="0.0275174">
+  <test-suite type="TestSuite" id="1000" name="Scrap Waves" fullname="Scrap Waves" runstate="Runnable" testcasecount="22" result="Passed" start-time="2026-06-16 17:45:40Z" end-time="2026-06-16 17:45:40Z" duration="0.027517" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1030" name="Assembly-CSharp-Editor.dll" fullname="C:/Users/franc/OneDrive/Documentos/GitHub/ScrapWaves/Library/ScriptAssemblies/Assembly-CSharp-Editor.dll" runstate="Runnable" testcasecount="22" result="Passed" start-time="2026-06-16 17:45:40Z" end-time="2026-06-16 17:45:40Z" duration="0.022697" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="35328" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestFixture" id="1007" name="ManualWeaponFireCooldownTests" fullname="ManualWeaponFireCooldownTests" classname="ManualWeaponFireCooldownTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-06-16 17:45:40Z" end-time="2026-06-16 17:45:40Z" duration="0.021687" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1009" name="TickManual_ClickAfterIdleCooldown_SpendsAmmoAndResetsTimer" fullname="ManualWeaponFireCooldownTests.TickManual_ClickAfterIdleCooldown_SpendsAmmoAndResetsTimer" methodname="TickManual_ClickAfterIdleCooldown_SpendsAmmoAndResetsTimer" classname="ManualWeaponFireCooldownTests" runstate="Runnable" seed="127281760" result="Passed" start-time="2026-06-16 17:45:40Z" end-time="2026-06-16 17:45:40Z" duration="0.013137" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1008" name="TickManual_DecrementsFireTimer_WhenNotFiring" fullname="ManualWeaponFireCooldownTests.TickManual_DecrementsFireTimer_WhenNotFiring" methodname="TickManual_DecrementsFireTimer_WhenNotFiring" classname="ManualWeaponFireCooldownTests" runstate="Runnable" seed="386603039" result="Passed" start-time="2026-06-16 17:45:40Z" end-time="2026-06-16 17:45:40Z" duration="0.000510" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+          <output><![CDATA[Saving results to: C:/Users/franc/AppData/LocalLow/DefaultCompany/Scrap Waves\TestResults.xml
+]]></output>
+        </test-case>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

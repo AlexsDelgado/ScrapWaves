@@ -51,11 +51,11 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
-        if (Runtime.State != WeaponState.Manual || !isFiring)
+        if (Runtime.State != WeaponState.Manual)
             return;
 
-        FireTimer -= deltaTime;
-        if (FireTimer > 0f)
+        FireTimer = Mathf.Max(0f, FireTimer - deltaTime);
+        if (!isFiring || FireTimer > 0f)
             return;
 
         if (Spawn == null)
