@@ -23,4 +23,14 @@ public class SandboxWeaponUpgradeDataTests
         Assert.That(data.PathA.DamageMultiplier, Is.GreaterThan(1f));
         Assert.That(data.PathB.DamageMultiplier, Is.GreaterThan(1f));
     }
+
+    [Test]
+    public void AutomaticCannon_HasPathSpecificManualAmmoOverrides()
+    {
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/Scripts/Weapon/Testing/SO/Sandbox_AutomaticCannon.asset");
+
+        Assert.That(data, Is.Not.Null);
+        Assert.That(data.PathA.ManualAmmoOverride, Is.EqualTo(400f).Within(0.0001f));
+        Assert.That(data.PathB.ManualAmmoOverride, Is.EqualTo(40f).Within(0.0001f));
+    }
 }

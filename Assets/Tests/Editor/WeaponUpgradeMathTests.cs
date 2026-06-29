@@ -83,6 +83,28 @@ public class WeaponUpgradeMathTests
         Assert.That(damage, Is.EqualTo(10f * 1.5f * 1.4f).Within(0.0001f));
     }
 
+    [Test]
+    public void AutomaticCannon_ContinuousFireMultiplier_AppliesBasePathBonus()
+    {
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
+
+        float multiplier = InvokePrivate<float>(weapon, "GetContinuousFireAttackSpeedMultiplier");
+
+        Assert.That(multiplier, Is.EqualTo(1.25f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_HeadHunterWeakPointScale_ReachesCapAtFullHeat()
+    {
+        HeatManager heat = CreateHeatManager();
+        heat.SetHeat(heat.MaxHeat);
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 10, WeaponUpgradePath.PathB, heat);
+
+        float multiplier = InvokePrivate<float>(weapon, "GetHeadHunterWeakPointScale");
+
+        Assert.That(multiplier, Is.EqualTo(10f).Within(0.0001f));
+    }
+
     private WeaponInstance CreateWeaponInstance(int level, WeaponUpgradePath path)
     {
         WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
@@ -132,6 +154,23 @@ public class WeaponUpgradeMathTests
         return stats;
     }
 
+    private AutomaticCannonWeapon CreateAutomaticCannonWeapon(int level, WeaponUpgradePath path, HeatManager heat = null)
+    {
+        WeaponInstance instance = CreateWeaponInstance(level, path);
+        instance.Data.WeaponType = WeaponType.AutomaticCannon;
+        AutomaticCannonWeapon weapon = new(null, null, null);
+        weapon.Setup(instance, null, null, heat);
+        return weapon;
+    }
+
+    private HeatManager CreateHeatManager()
+    {
+        GameObject owner = new("HeatOwner");
+        _cleanup.Add(owner);
+        HeatManager heat = owner.AddComponent<HeatManager>();
+        return heat;
+    }
+
     private List<StatDefinition> CreateStatDefinitions()
     {
         return new List<StatDefinition>
@@ -174,5 +213,12 @@ public class WeaponUpgradeMathTests
         MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         method.Invoke(target, null);
+    }
+
+    private static T InvokePrivate<T>(object target, string methodName)
+    {
+        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
+        return (T)method.Invoke(target, null);
     }
 }

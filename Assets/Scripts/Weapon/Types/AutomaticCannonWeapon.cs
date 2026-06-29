@@ -1,7 +1,12 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 {
+    private readonly List<Transform> _piercingTargets = new();
+    private readonly List<Vector3> _piercingHitOrigins = new();
+    private readonly Vector3[] _piercingLine = new Vector3[2];
+
     public AutomaticCannonWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
     {
@@ -57,7 +62,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         FireTimer = AutomaticCannonFireLogic.GetManualBurstInterval(
             tuning.CannonManualBurstsPerSecond,
             WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier),
-            WeaponMath.GetAttackRateMultiplier(Runtime));
+            WeaponMath.GetAttackRateMultiplier(Runtime) * GetContinuousFireAttackSpeedMultiplier());
         FireLineBurst(
             aimDirection,
             bulletsToFire,
@@ -79,6 +84,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
             return;
+
+        if (IsHeadHunterPath())
+        {
+            FirePiercingHeadHunterShot(aimDirection);
+            CompleteActiveAbility();
+            return;
+        }
 
         AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
         int extra = GetActiveHeatBonusBulletCount(tuning);
@@ -129,20 +141,82 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return Mathf.FloorToInt((Heat.NormalizedHeat * 100f) / stepPercent);
     }
 
+    private bool IsContinuousFirePath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
+
+    private bool IsHeadHunterPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
+
+    private float GetContinuousFireAttackSpeedMultiplier()
+    {
+        if (!IsContinuousFirePath())
+            return 1f;
+
+        float heatPercent = Heat != null ? Heat.NormalizedHeat * 100f : 0f;
+        float heatBonus = Mathf.Floor(heatPercent / 2f) * 0.01f;
+        return 1.25f + heatBonus;
+    }
+
+    private float GetHeadHunterWeakPointScale()
+    {
+        if (!IsHeadHunterPath())
+            return 1f;
+
+        float heat = Heat != null ? Heat.NormalizedHeat : 0f;
+        int extraSteps = Mathf.FloorToInt(heat / 0.2f);
+        return Mathf.Clamp(5f + extraSteps, 5f, 10f);
+    }
+
     private int GetContinuousFireBonus()
     {
-        int bonus = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA ? 2 : 0;
-        if (Runtime.Level >= 10 && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+        int bonus = IsContinuousFirePath() ? 2 : 0;
+        if (IsContinuousFirePath() && Runtime.Level >= 10)
             bonus += 2;
         return bonus;
     }
 
     private float GetHeadHunterScale(Transform target)
     {
-        if (!Runtime.HasAdvancedPath || Runtime.SelectedPath != WeaponUpgradePath.PathB)
+        if (!IsHeadHunterPath())
             return 1f;
 
-        return WeaponEnemyClassifier.CountsAsEliteOrBoss(target) ? 1.35f : 1.15f;
+        return WeaponEnemyClassifier.GetKind(target) switch
+        {
+            WeaponEnemyKind.Boss => 3f,
+            WeaponEnemyKind.Elite => 2f,
+            _ => 1.15f
+        };
+    }
+
+    private void FirePiercingHeadHunterShot(Vector3 aimDirection)
+    {
+        if (Spawn == null || aimDirection.sqrMagnitude <= 0.0001f)
+            return;
+
+        Vector3 origin = Spawn.position;
+        Vector3 direction = aimDirection.normalized;
+        _piercingLine[0] = origin;
+        _piercingLine[1] = origin + direction * Runtime.Data.BaseRange;
+
+        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+            _piercingLine,
+            _piercingLine.Length,
+            0.45f,
+            128,
+            _piercingTargets,
+            _piercingHitOrigins);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            IDamageable damageable = _piercingTargets[i].GetComponentInParent<IDamageable>();
+            if (damageable == null)
+                continue;
+
+            bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(_piercingTargets[i]);
+            float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride());
+            int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * GetHeadHunterWeakPointScale()));
+            WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
+        }
     }
 
     // Spawns normal cannon bursts as a straight line of projectiles.
