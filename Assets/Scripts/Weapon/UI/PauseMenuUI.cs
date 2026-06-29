@@ -83,21 +83,36 @@ public class PauseMenuUI : MonoBehaviour
     private void ShowPause()
     {
         ResolveRefs();
-        _isPaused = true;
         _savedTimeScale = Time.timeScale > 0.001f ? Time.timeScale : 1f;
-        Time.timeScale = 0f;
-        _camera?.SetLookBlockedByUi(true);
+        SetPauseState(true, 0f);
         SyncSettingsFromSources();
         RefreshStats();
-        _root.SetActive(true);
     }
 
     private void Resume()
     {
-        _isPaused = false;
-        _root.SetActive(false);
-        Time.timeScale = _savedTimeScale > 0.001f ? _savedTimeScale : 1f;
-        _camera?.SetLookBlockedByUi(false);
+        SetPauseState(false, _savedTimeScale > 0.001f ? _savedTimeScale : 1f);
+    }
+
+    private void ReturnToTitle()
+    {
+        SetPauseState(false, 1f);
+
+        if (SceneNavigation.LoadTitle())
+            return;
+
+        SetPauseState(true, 0f);
+        SyncSettingsFromSources();
+        RefreshStats();
+    }
+
+    private void SetPauseState(bool paused, float timeScale)
+    {
+        _isPaused = paused;
+        if (_root != null)
+            _root.SetActive(paused);
+        Time.timeScale = timeScale;
+        _camera?.SetLookBlockedByUi(paused);
     }
 
     private void SyncSettingsFromSources()
@@ -183,8 +198,16 @@ public class PauseMenuUI : MonoBehaviour
         resumeRt.anchorMin = new Vector2(0.5f, 0.5f);
         resumeRt.anchorMax = new Vector2(0.5f, 0.5f);
         resumeRt.pivot = new Vector2(0.5f, 0.5f);
-        resumeRt.anchoredPosition = new Vector2(0f, -40f);
+        resumeRt.anchoredPosition = new Vector2(0f, -12f);
         resumeBtn.onClick.AddListener(Resume);
+
+        var titleBtn = HudUiFactory.CreateButton(_root.transform, "Volver al titulo", new Vector2(220f, 48f));
+        var titleButtonRt = titleBtn.GetComponent<RectTransform>();
+        titleButtonRt.anchorMin = new Vector2(0.5f, 0.5f);
+        titleButtonRt.anchorMax = new Vector2(0.5f, 0.5f);
+        titleButtonRt.pivot = new Vector2(0.5f, 0.5f);
+        titleButtonRt.anchoredPosition = new Vector2(0f, -72f);
+        titleBtn.onClick.AddListener(ReturnToTitle);
 
         BuildSettingsPanel();
         BuildStatsPanel();
