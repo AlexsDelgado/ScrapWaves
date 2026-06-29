@@ -25,6 +25,13 @@ public class Projectile : MonoBehaviour
     private Vector3 _launchPosition;
     private float _maxTravelDistance;
     private bool _explodeOnMaxTravel;
+    private bool _applyDamageAmplifierOnExplosion;
+    private float _damageAmplifierMultiplier = 1f;
+    private float _damageAmplifierDuration;
+    private bool _useFragmentCone;
+    private float _fragmentConeAngle;
+    private float _fragmentConeRange;
+    private float _fragmentDamageScale;
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
 
     private void Awake()
@@ -76,6 +83,13 @@ public class Projectile : MonoBehaviour
         _explosionFalloff = 0f;
         _maxTravelDistance = 0f;
         _explodeOnMaxTravel = false;
+        _applyDamageAmplifierOnExplosion = false;
+        _damageAmplifierMultiplier = 1f;
+        _damageAmplifierDuration = 0f;
+        _useFragmentCone = false;
+        _fragmentConeAngle = 0f;
+        _fragmentConeRange = 0f;
+        _fragmentDamageScale = 0f;
     }
 
 
@@ -98,6 +112,23 @@ public class Projectile : MonoBehaviour
     {
         _maxTravelDistance = Mathf.Max(0f, maxDistance);
         _explodeOnMaxTravel = explodeOnMaxTravel;
+    }
+
+    // Applies a temporary damage vulnerability to targets caught in the explosion.
+    public void ConfigureDamageAmplifierOnExplosion(float multiplier, float duration)
+    {
+        _applyDamageAmplifierOnExplosion = duration > 0f && multiplier > 1f;
+        _damageAmplifierMultiplier = Mathf.Max(1f, multiplier);
+        _damageAmplifierDuration = Mathf.Max(0f, duration);
+    }
+
+    // Adds forward cone shrapnel damage after the main explosion resolves.
+    public void ConfigureFragmentCone(float angle, float range, float damageScale)
+    {
+        _useFragmentCone = angle > 0f && range > 0f && damageScale > 0f;
+        _fragmentConeAngle = Mathf.Clamp(angle, 1f, 180f);
+        _fragmentConeRange = Mathf.Max(0f, range);
+        _fragmentDamageScale = Mathf.Max(0f, damageScale);
     }
 
     private void FixedUpdate()
@@ -211,8 +242,43 @@ public class Projectile : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _explosionFalloff, t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
+            if (_applyDamageAmplifierOnExplosion)
+                WeaponDamageAmplifierStatus.Apply(damageable, _damageAmplifierMultiplier, _damageAmplifierDuration);
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback * falloffScale);
+        }
+
+        ApplyFragmentConeDamage();
+    }
+
+    private void ApplyFragmentConeDamage()
+    {
+        if (!_useFragmentCone)
+            return;
+
+        Collider[] hits = Physics.OverlapSphere(transform.position, _fragmentConeRange);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            IDamageable damageable = hits[i].GetComponentInParent<IDamageable>();
+            if (damageable == null)
+                continue;
+
+            Vector3 toTarget = hits[i].transform.position - transform.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude <= 0.0001f)
+                continue;
+
+            Vector3 forward = _direction;
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.0001f)
+                forward = transform.forward;
+
+            float angle = Vector3.Angle(forward.normalized, toTarget.normalized);
+            if (angle > _fragmentConeAngle * 0.5f)
+                continue;
+
+            int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * _fragmentDamageScale));
+            WeaponDamageApplier.TryApplyDamage(damageable, damage);
         }
     }
 

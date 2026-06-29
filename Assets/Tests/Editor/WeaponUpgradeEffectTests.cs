@@ -54,6 +54,57 @@ public class WeaponUpgradeEffectTests
         Object.DestroyImmediate(target);
     }
 
+    [Test]
+    public void ProjectileExplosionDamageAmplifier_AffectsExplosionHitDamage()
+    {
+        GameObject projectileGo = new("Projectile");
+        Projectile projectile = projectileGo.AddComponent<Projectile>();
+        projectile.ConfigurePooled(3f, 10, 0f);
+        projectile.ConfigureExplosion(2f, 0f);
+        InvokePrivate(projectile, "ConfigureDamageAmplifierOnExplosion", 1.5f, 3f);
+
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.transform.position = Vector3.forward;
+        var damageable = target.AddComponent<TestDamageable>();
+        Physics.SyncTransforms();
+
+        InvokePrivate(projectile, "ApplyExplosionDamage");
+
+        Assert.That(damageable.LastDamage, Is.EqualTo(15));
+        Assert.That(target.GetComponent<WeaponDamageAmplifierStatus>(), Is.Not.Null);
+        Object.DestroyImmediate(projectileGo);
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void ProjectileFragmentCone_DamagesTargetsOnlyInsideForwardCone()
+    {
+        GameObject projectileGo = new("Projectile");
+        Projectile projectile = projectileGo.AddComponent<Projectile>();
+        projectile.ConfigurePooled(3f, 10, 0f);
+        projectile.ConfigureExplosion(0.1f, 0f);
+        InvokePrivate(projectile, "ConfigureFragmentCone", 45f, 3f, 0.5f);
+
+        GameObject forwardTarget = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        forwardTarget.transform.position = Vector3.forward * 2f;
+        var forwardDamageable = forwardTarget.AddComponent<TestDamageable>();
+
+        GameObject sideTarget = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        sideTarget.transform.position = Vector3.right * 2f;
+        var sideDamageable = sideTarget.AddComponent<TestDamageable>();
+        Physics.SyncTransforms();
+
+        InvokePrivate(projectile, "ApplyExplosionDamage");
+
+        Assert.That(forwardDamageable.TotalDamage, Is.EqualTo(5));
+        Assert.That(sideDamageable.TotalDamage, Is.Zero);
+        Object.DestroyImmediate(projectileGo);
+        Object.DestroyImmediate(forwardTarget);
+        Object.DestroyImmediate(sideTarget);
+        DestroyGeneratedVfx();
+    }
+
     private sealed class TestDamageable : MonoBehaviour, IDamageable
     {
         public int LastDamage { get; private set; }
@@ -79,5 +130,20 @@ public class WeaponUpgradeEffectTests
         MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         method.Invoke(target, null);
+    }
+
+    private static void InvokePrivate(object target, string methodName, params object[] arguments)
+    {
+        MethodInfo method = target.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
+        method.Invoke(target, arguments);
+    }
+
+    private static void DestroyGeneratedVfx()
+    {
+        foreach (ExplosionRadiusVfx vfx in Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(vfx.gameObject);
     }
 }

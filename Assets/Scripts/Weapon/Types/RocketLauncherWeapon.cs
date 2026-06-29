@@ -225,24 +225,30 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
     private int GetFragmentationRocketBonus()
     {
-        return Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1 : 0;
+        return IsFragmentationCapPath() ? 1 : 0;
     }
 
     private float GetPathAdjustedExplosionRadius(float radius)
     {
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+        if (IsKineticExplosionPath())
             radius *= 1.3f;
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
+        if (IsFragmentationCapPath())
             radius *= 0.8f;
         return radius;
     }
 
     private float GetPathAdjustedFalloff(float falloff)
     {
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+        if (IsKineticExplosionPath())
             return Mathf.Clamp01(falloff * 0.65f);
         return falloff;
     }
+
+    private bool IsKineticExplosionPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
+
+    private bool IsFragmentationCapPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
 
     // Spawns explosive rocket volley at the same target point.
     private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
@@ -368,6 +374,43 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
     private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
     {
-        FireExplosiveAt(targetPosition, damageScale, eliteOrBoss, explosionRadius, falloff, speedMultiplier, Runtime.Data.BaseRange, true);
+        if (Pool == null || Spawn == null)
+            return;
+
+        Vector3 direction = targetPosition - Spawn.position;
+        if (direction.sqrMagnitude <= 0.0001f)
+            return;
+
+        direction.Normalize();
+        Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
+        float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
+        int finalDamage = Mathf.RoundToInt(
+            WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride())
+            * Mathf.Max(0f, damageScale));
+
+        float pathKnockback = IsKineticExplosionPath() ? 3f : 1f;
+        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale) * pathKnockback;
+        float amplifier = IsKineticExplosionPath() ? 1.2f : 1f;
+        float amplifierDuration = IsKineticExplosionPath() ? 5f : 0f;
+        float fragmentConeAngle = IsFragmentationCapPath() ? 45f : 0f;
+        float fragmentConeRange = IsFragmentationCapPath() ? scaledExplosionRadius * 2f : 0f;
+        float fragmentDamageScale = IsFragmentationCapPath() ? 0.5f : 0f;
+
+        Pool.TrySpawnExplosiveProjectileWithAmplifier(
+            Spawn.position,
+            rotation,
+            direction,
+            finalDamage,
+            scaledExplosionRadius,
+            falloff,
+            knockback,
+            speedMultiplier,
+            Runtime.Data.BaseRange,
+            true,
+            amplifier,
+            amplifierDuration,
+            fragmentConeAngle,
+            fragmentConeRange,
+            fragmentDamageScale);
     }
 }

@@ -223,6 +223,46 @@ public class ProjectilePool : MonoBehaviour
         return true;
     }
 
+    public bool TrySpawnExplosiveProjectileWithAmplifier(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel,
+        float amplifierMultiplier,
+        float amplifierDuration,
+        float fragmentConeAngle,
+        float fragmentConeRange,
+        float fragmentDamageScale)
+    {
+        GameObject go = TryGet();
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
+        projectile.Launch(fireDirection);
+        projectile.ConfigureExplosion(explosionRadius, falloff);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
+        projectile.ConfigureDamageAmplifierOnExplosion(amplifierMultiplier, amplifierDuration);
+        projectile.ConfigureFragmentCone(fragmentConeAngle, fragmentConeRange, fragmentDamageScale);
+        return true;
+    }
+
 
     private GameObject CreateInstance(bool enqueueInactive)
     {
