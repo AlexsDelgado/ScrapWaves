@@ -240,7 +240,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale);
         int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
-        if (damageable.ApplyDamage(finalDamage))
+        if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
             ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);
     }
 

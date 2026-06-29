@@ -212,7 +212,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
-        if (damageable != null && damageable.ApplyDamage(damage))
+        if (damageable != null && WeaponDamageApplier.TryApplyDamage(damageable, damage))
             ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);
     }
 

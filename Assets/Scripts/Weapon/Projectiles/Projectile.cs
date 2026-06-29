@@ -154,7 +154,7 @@ public class Projectile : MonoBehaviour
 
         if (damageable != null)
         {
-            if (damageable.ApplyDamage(_damage))
+            if (WeaponDamageApplier.TryApplyDamage(damageable, _damage))
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback);
             DespawnOrDestroy();
             return;
@@ -211,7 +211,7 @@ public class Projectile : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _explosionFalloff, t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
-            if (damageable.ApplyDamage(finalDamage))
+            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback * falloffScale);
         }
     }
