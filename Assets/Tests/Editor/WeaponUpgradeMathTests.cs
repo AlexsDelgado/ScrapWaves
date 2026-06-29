@@ -105,6 +105,47 @@ public class WeaponUpgradeMathTests
         Assert.That(multiplier, Is.EqualTo(10f).Within(0.0001f));
     }
 
+    [Test]
+    public void RotatingBlade_MultiBladeCount_ScalesWithPathLevel()
+    {
+        RotatingBladeWeapon levelSix = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA);
+        RotatingBladeWeapon levelTen = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathA);
+        RotatingBladeWeapon atomic = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathB);
+
+        Assert.That(InvokePrivate<int>(levelSix, "GetBladeCount"), Is.EqualTo(2));
+        Assert.That(InvokePrivate<int>(levelTen, "GetBladeCount"), Is.EqualTo(3));
+        Assert.That(InvokePrivate<int>(atomic, "GetBladeCount"), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void RotatingBlade_BladeCenterOffsetsMultipleBladesAroundOwner()
+    {
+        GameObject owner = new("BladeOwner");
+        _cleanup.Add(owner);
+        RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA, owner.transform);
+        SetPrivateField(weapon, "_spinAngle", 0f);
+
+        RotatingBladeTuning tuning = weapon.Runtime.Data.RotatingBlade;
+        Vector3 first = InvokePrivate<Vector3>(weapon, "GetBladeCenter", tuning, 0, 2);
+        Vector3 second = InvokePrivate<Vector3>(weapon, "GetBladeCenter", tuning, 1, 2);
+
+        Assert.That(first.z, Is.GreaterThan(0f));
+        Assert.That(second.z, Is.LessThan(0f));
+        Assert.That(Vector3.Distance(first, second), Is.EqualTo(tuning.BladeOrbitRadius * 2f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RotatingBlade_AtomicSharpness_DoublesDamageAndRemovesKnockback()
+    {
+        RotatingBladeWeapon atomic = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathB);
+        RotatingBladeWeapon baseline = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA);
+
+        Assert.That(InvokePrivate<float>(atomic, "GetAtomicSharpnessDamageScale"), Is.EqualTo(2f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(atomic, "GetAtomicSharpnessKnockbackScale", 1.25f), Is.Zero);
+        Assert.That(InvokePrivate<float>(baseline, "GetAtomicSharpnessDamageScale"), Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(baseline, "GetAtomicSharpnessKnockbackScale", 1.25f), Is.EqualTo(1.25f).Within(0.0001f));
+    }
+
     private WeaponInstance CreateWeaponInstance(int level, WeaponUpgradePath path)
     {
         WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
@@ -160,6 +201,16 @@ public class WeaponUpgradeMathTests
         instance.Data.WeaponType = WeaponType.AutomaticCannon;
         AutomaticCannonWeapon weapon = new(null, null, null);
         weapon.Setup(instance, null, null, heat);
+        return weapon;
+    }
+
+    private RotatingBladeWeapon CreateRotatingBladeWeapon(int level, WeaponUpgradePath path, Transform owner = null)
+    {
+        WeaponInstance instance = CreateWeaponInstance(level, path);
+        instance.Data.WeaponType = WeaponType.RotatingBlade;
+        instance.Data.EnsureSpecificTuningForCurrentType();
+        RotatingBladeWeapon weapon = new(null, null, null);
+        weapon.Setup(instance, owner, null, null);
         return weapon;
     }
 
@@ -220,5 +271,12 @@ public class WeaponUpgradeMathTests
         MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         return (T)method.Invoke(target, null);
+    }
+
+    private static T InvokePrivate<T>(object target, string methodName, params object[] arguments)
+    {
+        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
+        return (T)method.Invoke(target, arguments);
     }
 }
