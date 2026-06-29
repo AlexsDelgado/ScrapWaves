@@ -150,6 +150,84 @@ public class WeaponUpgradeEffectTests
         Object.DestroyImmediate(data);
     }
 
+    [Test]
+    public void MortarUpgradePayload_ReflectsSelectedPath()
+    {
+        MortarWeapon grapeshotWeapon = CreateMortarWeapon(WeaponUpgradePath.PathA, out WeaponData grapeshotData);
+        object grapeshotPayload = InvokePrivate<object>(grapeshotWeapon, "GetUpgradePayload", true);
+
+        Assert.That(ReadField<bool>(grapeshotPayload, "UseGrapeshot"), Is.True);
+        Assert.That(ReadField<int>(grapeshotPayload, "GrapeshotCount"), Is.EqualTo(10));
+        Assert.That(ReadField<int>(grapeshotPayload, "RepeatExplosionCount"), Is.EqualTo(1));
+
+        MortarWeapon repeatWeapon = CreateMortarWeapon(WeaponUpgradePath.PathB, out WeaponData repeatData);
+        object repeatPayload = InvokePrivate<object>(repeatWeapon, "GetUpgradePayload", false);
+
+        Assert.That(ReadField<bool>(repeatPayload, "UseGrapeshot"), Is.False);
+        Assert.That(ReadField<int>(repeatPayload, "RepeatExplosionCount"), Is.EqualTo(3));
+        Assert.That(ReadField<float>(repeatPayload, "RepeatExplosionDelay"), Is.EqualTo(2f).Within(0.0001f));
+
+        Object.DestroyImmediate(grapeshotData);
+        Object.DestroyImmediate(repeatData);
+    }
+
+    [Test]
+    public void MortarPayload_RepeatsExplosionDamage()
+    {
+        System.Type payloadType = typeof(MortarShellImpact).Assembly.GetType("MortarUpgradePayload");
+        Assert.That(payloadType, Is.Not.Null, "Missing MortarUpgradePayload type.");
+        object payload = System.Activator.CreateInstance(
+            payloadType,
+            false,
+            0,
+            0f,
+            0f,
+            2,
+            0.01f);
+
+        MethodInfo launch = typeof(MortarShellImpact).GetMethod(
+            "Launch",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[]
+            {
+                typeof(Vector3),
+                typeof(Vector3),
+                typeof(float),
+                typeof(float),
+                typeof(int),
+                typeof(float),
+                typeof(float),
+                typeof(float),
+                typeof(float),
+                typeof(Transform),
+                payloadType
+            },
+            null);
+        Assert.That(launch, Is.Not.Null, "Missing MortarShellImpact.Launch overload with payload.");
+
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.transform.position = Vector3.zero;
+        var damageable = target.AddComponent<TestDamageable>();
+        Physics.SyncTransforms();
+
+        object shell = launch.Invoke(
+            null,
+            new object[] { Vector3.back, Vector3.zero, 1f, 0f, 10, 2f, 0f, 0f, 0.1f, null, payload });
+
+        InvokePrivateWithSignature(shell, "Detonate", new[] { typeof(Vector3) }, Vector3.zero);
+        Assert.That(damageable.TotalDamage, Is.EqualTo(10));
+
+        SetPrivateField(shell, "_repeatExplosionTimer", 0f);
+        InvokePrivate(shell, "TickRepeatExplosions");
+
+        Assert.That(damageable.TotalDamage, Is.EqualTo(20));
+        if (shell is Component component)
+            Object.DestroyImmediate(component.gameObject);
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
     private sealed class TestDamageable : MonoBehaviour, IDamageable
     {
         public int LastDamage { get; private set; }
@@ -186,6 +264,34 @@ public class WeaponUpgradeEffectTests
         method.Invoke(target, arguments);
     }
 
+    private static T InvokePrivate<T>(object target, string methodName, params object[] arguments)
+    {
+        MethodInfo method = target.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
+        return (T)method.Invoke(target, arguments);
+    }
+
+    private static void InvokePrivateWithSignature(object target, string methodName, System.Type[] parameterTypes, params object[] arguments)
+    {
+        MethodInfo method = target.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+            null,
+            parameterTypes,
+            null);
+        Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
+        method.Invoke(target, arguments);
+    }
+
+    private static T ReadField<T>(object target, string fieldName)
+    {
+        FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, $"Missing field {fieldName} on {target.GetType().Name}");
+        return (T)field.GetValue(target);
+    }
+
     private static void DestroyGeneratedVfx()
     {
         foreach (ExplosionRadiusVfx vfx in Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None))
@@ -217,6 +323,35 @@ public class WeaponUpgradeEffectTests
         };
 
         FlamethrowerWeapon weapon = new(null, null, null, null);
+        weapon.Setup(instance, null, null, null);
+        return weapon;
+    }
+
+    private static MortarWeapon CreateMortarWeapon(WeaponUpgradePath path, out WeaponData data)
+    {
+        data = ScriptableObject.CreateInstance<WeaponData>();
+        data.WeaponId = "TestMortar";
+        data.DisplayName = "Test Mortar";
+        data.WeaponType = WeaponType.Mortar;
+        data.BaseDamage = 10f;
+        data.BaseAttackRate = 1f;
+        data.BaseManualAmmo = 100f;
+        data.EnsureSpecificTuningForCurrentType();
+        data.LevelData = new List<WeaponLevelData>
+        {
+            new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+            new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+        };
+
+        WeaponInstance instance = new()
+        {
+            Data = data,
+            Level = 6,
+            SelectedPath = path,
+            State = WeaponState.Manual
+        };
+
+        MortarWeapon weapon = new(null, null, null);
         weapon.Setup(instance, null, null, null);
         return weapon;
     }
