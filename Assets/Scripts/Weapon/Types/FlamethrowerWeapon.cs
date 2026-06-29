@@ -200,10 +200,16 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private int CalculateBurnDamage(FlamethrowerTuning tuning, Transform target)
     {
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float pathScale = Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA ? 1.35f : 1f;
+        float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
         float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
+
+    private bool IsJellifiedFuelPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
+
+    private bool IsLiquidNitrogenPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
 
     // Applies immediate damage to one enemy transform if it has a damage receiver.
     private void ApplyDamageToTarget(Transform target, int damage, Vector3 impactOrigin, float knockbackScale)
@@ -233,13 +239,25 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         float duration = GetPathAdjustedBurnDuration(tuning);
         burn.Refresh(damageable, damagePerTick, duration, tuning.FlameBurnTickInterval);
 
-        WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
-        if (dummy != null)
+        if (IsJellifiedFuelPath())
         {
-            if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
-                dummy.ApplyStatus("Jellified Fuel", duration);
-            if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
-                dummy.ApplyStatus(activeAbility ? "Freeze" : "Liquid Nitrogen", activeAbility ? 1.2f : 2.5f);
+            float levelScale = Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
+            float radius = GetScaledHoseRadius(tuning) * levelScale;
+            FlamethrowerFuelPuddle.Spawn(target.position, radius, damagePerTick, duration, tuning.FlameBurnTickInterval);
+        }
+
+        WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
+        if (IsLiquidNitrogenPath())
+        {
+            float statusDuration = activeAbility ? 2f : 3f;
+            if (dummy != null)
+                dummy.ApplyStatus(activeAbility ? "Freeze" : "Liquid Nitrogen", statusDuration);
+            if (activeAbility)
+                WeaponMovementFreezeStatus.Apply(target, statusDuration);
+        }
+        else if (dummy != null && IsJellifiedFuelPath())
+        {
+            dummy.ApplyStatus("Jellified Fuel", duration);
         }
     }
 
@@ -281,7 +299,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private float GetPathAdjustedBurnDuration(FlamethrowerTuning tuning)
     {
         float duration = tuning.FlameBurnDuration;
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+        if (IsJellifiedFuelPath())
             duration *= 1.5f;
         return duration;
     }
@@ -289,9 +307,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private float GetPathAdjustedActiveRadius(FlamethrowerTuning tuning)
     {
         float radius = tuning.FlameActiveRadius;
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA)
+        if (IsJellifiedFuelPath())
             radius *= 1.2f;
-        if (Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
+        if (IsLiquidNitrogenPath())
             radius *= 0.9f;
         return radius;
     }

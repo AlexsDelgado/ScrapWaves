@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
@@ -105,6 +106,50 @@ public class WeaponUpgradeEffectTests
         DestroyGeneratedVfx();
     }
 
+    [Test]
+    public void FlamethrowerFuelPuddle_TicksRadialDamage()
+    {
+        System.Type puddleType = typeof(Projectile).Assembly.GetType("FlamethrowerFuelPuddle");
+        Assert.That(puddleType, Is.Not.Null, "Missing FlamethrowerFuelPuddle type.");
+
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.transform.position = Vector3.zero;
+        var damageable = target.AddComponent<TestDamageable>();
+        Physics.SyncTransforms();
+
+        MethodInfo spawn = puddleType.GetMethod("Spawn", BindingFlags.Static | BindingFlags.Public);
+        Assert.That(spawn, Is.Not.Null, "Missing FlamethrowerFuelPuddle.Spawn.");
+        object puddle = spawn.Invoke(null, new object[] { Vector3.zero, 2f, 7, 1f, 0.1f });
+
+        InvokePrivate(puddle, "Update");
+
+        Assert.That(damageable.TotalDamage, Is.EqualTo(7));
+        if (puddle is Component component)
+            Object.DestroyImmediate(component.gameObject);
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void FlamethrowerLiquidNitrogenActiveBurn_AppliesMovementFreezeStatus()
+    {
+        FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathB, out WeaponData data);
+        GameObject target = new("Freeze Target");
+        target.AddComponent<TestDamageable>();
+
+        InvokePrivate(
+            weapon,
+            "ApplyBurnToTarget",
+            target.transform,
+            4,
+            data.Flamethrower,
+            true);
+
+        Assert.That(target.GetComponent<WeaponMovementFreezeStatus>(), Is.Not.Null);
+        Object.DestroyImmediate(target);
+        Object.DestroyImmediate(data);
+    }
+
     private sealed class TestDamageable : MonoBehaviour, IDamageable
     {
         public int LastDamage { get; private set; }
@@ -145,5 +190,34 @@ public class WeaponUpgradeEffectTests
     {
         foreach (ExplosionRadiusVfx vfx in Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
+    }
+
+    private static FlamethrowerWeapon CreateFlamethrowerWeapon(WeaponUpgradePath path, out WeaponData data)
+    {
+        data = ScriptableObject.CreateInstance<WeaponData>();
+        data.WeaponId = "TestFlamethrower";
+        data.DisplayName = "Test Flamethrower";
+        data.WeaponType = WeaponType.Flamethrower;
+        data.BaseDamage = 10f;
+        data.BaseAttackRate = 1f;
+        data.BaseManualAmmo = 100f;
+        data.EnsureSpecificTuningForCurrentType();
+        data.LevelData = new List<WeaponLevelData>
+        {
+            new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+            new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+        };
+
+        WeaponInstance instance = new()
+        {
+            Data = data,
+            Level = 6,
+            SelectedPath = path,
+            State = WeaponState.Manual
+        };
+
+        FlamethrowerWeapon weapon = new(null, null, null, null);
+        weapon.Setup(instance, null, null, null);
+        return weapon;
     }
 }
