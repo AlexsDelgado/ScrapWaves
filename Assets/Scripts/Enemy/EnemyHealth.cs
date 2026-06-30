@@ -51,6 +51,31 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         _currentHealth = newMax;
     }
 
+    /// <summary>
+    /// Daño por estado (DoT). Ignora invencibilidad pero no puede matar si ya está muerto.
+    /// </summary>
+    public bool ApplyDotDamage(int amount)
+    {
+        if (amount <= 0 || _currentHealth <= 0)
+            return false;
+
+        _currentHealth -= amount;
+        if (_currentHealth > 0)
+            return true;
+
+        _currentHealth = 0;
+        AudioManager.TryPlayEnemyDeath();
+        OnDied?.Invoke();
+        RunCombatStats.RegisterEnemyEliminated();
+
+        if (TryGetComponent(out SwarmPooledEnemy pooled))
+            pooled.Despawn();
+        else
+            gameObject.SetActive(false);
+
+        return true;
+    }
+
     public bool ApplyDamage(int amount)
     {
         if (amount <= 0 || _currentHealth <= 0 || _isInvincible)

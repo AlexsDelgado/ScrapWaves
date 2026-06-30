@@ -78,6 +78,8 @@ public class PlayerMovement : MonoBehaviour
     private float _knockbackTimer;
     private float _stunTimer;
     private float _aimFacingTimer;
+    private float _slowTimer;
+    private float _slowMultiplier = 1f;
     private int _remainingAirJumps;
     private int _currentDashCharges;
     private Vector3 _aimFacingDirection;
@@ -87,6 +89,9 @@ public class PlayerMovement : MonoBehaviour
 
     /// <summary>El jugador está aturdido (input de movimiento/salto/dash bloqueado).</summary>
     public bool IsStunned => _stunTimer > 0f;
+
+    /// <summary>El jugador está en contacto con el suelo (para detección de vibraciones enemigas).</summary>
+    public bool IsGroundedOnSurface => _isGrounded;
 
     public int CurrentDashCharges => _currentDashCharges;
 
@@ -121,6 +126,20 @@ public class PlayerMovement : MonoBehaviour
         _stunTimer = Mathf.Max(_stunTimer, seconds);
         if (!wasStunned)
             OnStunned?.Invoke();
+    }
+
+    /// <summary>
+    /// Ralentiza el movimiento durante <paramref name="seconds"/>. Refresca duración y conserva
+    /// el multiplicador más bajo (más lento).
+    /// </summary>
+    public void ApplySlow(float speedMultiplier, float seconds)
+    {
+        if (seconds <= 0f)
+            return;
+
+        speedMultiplier = Mathf.Clamp(speedMultiplier, 0.05f, 1f);
+        _slowMultiplier = Mathf.Min(_slowMultiplier, speedMultiplier);
+        _slowTimer = Mathf.Max(_slowTimer, seconds);
     }
 
     // Cache movement components and initialize singleton and physics defaults.
@@ -211,6 +230,7 @@ public class PlayerMovement : MonoBehaviour
         TickPostDashFrictionWindow();
         TickKnockbackWindow();
         TickStun();
+        TickSlow();
         TickAimFacingTimer();
         HandleDashRegeneration();
     }
@@ -276,7 +296,7 @@ public class PlayerMovement : MonoBehaviour
 
         if (_moveDirectionWorld.sqrMagnitude > 0.0001f)
         {
-            float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed());
+            float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * GetSlowMultiplier());
             float speedRatio = Mathf.Clamp01(CurrentPlanarSpeed() / maxSpeed);
             float speedScaledAcceleration = acceleration * Mathf.Lerp(1f, 0.35f, speedRatio);
             _rb.AddForce(_moveDirectionWorld * speedScaledAcceleration, ForceMode.Acceleration);
@@ -305,7 +325,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_isSliding || _postDashFrictionTimer > 0f || _knockbackTimer > 0f) return;
 
-        float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed());
+        float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * GetSlowMultiplier());
         Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float planarSpeed = planarV.magnitude;
         if (planarSpeed <= maxSpeed || planarSpeed <= 0.0001f) return;
@@ -334,6 +354,21 @@ public class PlayerMovement : MonoBehaviour
         if (_stunTimer <= 0f) return;
         _stunTimer = Mathf.Max(0f, _stunTimer - Time.fixedDeltaTime);
     }
+
+    private void TickSlow()
+    {
+        if (_slowTimer <= 0f)
+        {
+            _slowMultiplier = 1f;
+            return;
+        }
+
+        _slowTimer = Mathf.Max(0f, _slowTimer - Time.fixedDeltaTime);
+        if (_slowTimer <= 0f)
+            _slowMultiplier = 1f;
+    }
+
+    private float GetSlowMultiplier() => _slowTimer > 0f ? _slowMultiplier : 1f;
 
     private void TickAimFacingTimer()
     {

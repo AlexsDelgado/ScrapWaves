@@ -34,7 +34,11 @@ public sealed class FlamethrowerBurnStatus : MonoBehaviour
 
         while (_tickTimer <= 0f && _remainingDuration > 0f)
         {
-            _target.ApplyDamage(_damagePerTick);
+            if (_target is EnemyHealth enemyHealth)
+                enemyHealth.ApplyDotDamage(_damagePerTick);
+            else
+                _target.ApplyDamage(_damagePerTick);
+
             _tickTimer += _tickInterval;
         }
 

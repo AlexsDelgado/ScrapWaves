@@ -75,6 +75,19 @@ public static class PlayerCombatHooks
             Debug.LogWarning("[PlayerCombatHooks] TryStun: no se encontro PlayerMovement.");
     }
 
+    /// <summary>Ralentiza al jugador durante <paramref name="seconds"/> (charcos corrosivos). Refresca duración.</summary>
+    public static void TrySlow(float speedMultiplier, float seconds)
+    {
+        if (seconds <= 0f || speedMultiplier >= 1f)
+            return;
+
+        PlayerMovement movement = Movement;
+        if (movement != null)
+            movement.ApplySlow(speedMultiplier, seconds);
+        else if (LogMissingTargets)
+            Debug.LogWarning("[PlayerCombatHooks] TrySlow: no se encontro PlayerMovement.");
+    }
+
     /// <summary>Quemadura (dano por segundo) durante <paramref name="seconds"/> (Hellfire). Ignora i-frames.</summary>
     public static void TryBurn(float seconds, int damagePerSecond)
     {
