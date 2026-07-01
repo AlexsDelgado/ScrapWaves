@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-06-16 17:23:44Z" end-time="2026-06-16 17:23:44Z" duration="0.0269054">
+  <test-suite type="TestSuite" id="1000" name="Scrap Waves" fullname="Scrap Waves" runstate="Runnable" testcasecount="21" result="Failed" site="Child" start-time="2026-06-16 17:23:44Z" end-time="2026-06-16 17:23:44Z" duration="0.026905" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1029" name="Assembly-CSharp-Editor.dll" fullname="C:/Users/franc/OneDrive/Documentos/GitHub/ScrapWaves/Library/ScriptAssemblies/Assembly-CSharp-Editor.dll" runstate="Runnable" testcasecount="21" result="Failed" site="Child" start-time="2026-06-16 17:23:44Z" end-time="2026-06-16 17:23:44Z" duration="0.022327" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="30140" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestFixture" id="1007" name="ManualWeaponFireCooldownTests" fullname="ManualWeaponFireCooldownTests" classname="ManualWeaponFireCooldownTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-06-16 17:23:44Z" end-time="2026-06-16 17:23:44Z" duration="0.021424" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-case id="1008" name="TickManual_DecrementsFireTimer_WhenNotFiring" fullname="ManualWeaponFireCooldownTests.TickManual_DecrementsFireTimer_WhenNotFiring" methodname="TickManual_DecrementsFireTimer_WhenNotFiring" classname="ManualWeaponFireCooldownTests" runstate="Runnable" seed="815184440" result="Failed" start-time="2026-06-16 17:23:44Z" end-time="2026-06-16 17:23:44Z" duration="0.014101" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+          <failure>
+            <message><![CDATA[  Expected: 0.300000012f +/- 9.99999975E-05f
+  But was:  0.5f
+]]></message>
+            <stack-trace><![CDATA[at ManualWeaponFireCooldownTests.TickManual_DecrementsFireTimer_WhenNotFiring () [0x000be] in C:\Users\franc\OneDrive\Documentos\GitHub\ScrapWaves\Assets\Tests\Editor\ManualWeaponFireCooldownTests.cs:37
+]]></stack-trace>
+          </failure>
+          <output><![CDATA[Saving results to: C:/Users/franc/AppData/LocalLow/DefaultCompany/Scrap Waves\TestResults.xml
+]]></output>
+        </test-case>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

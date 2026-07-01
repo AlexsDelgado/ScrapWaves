@@ -70,12 +70,12 @@ MonoBehaviour:
     PathName: Continuous Fire
     DamageMultiplier: 1.22
     AttackRateMultiplier: 1.12
-    ManualAmmoOverride: -1
+    ManualAmmoOverride: 400
   PathB:
     PathName: Head Hunter
     DamageMultiplier: 1.36
     AttackRateMultiplier: 0.92
-    ManualAmmoOverride: -1
+    ManualAmmoOverride: 40
   references:
     version: 2
     RefIds:

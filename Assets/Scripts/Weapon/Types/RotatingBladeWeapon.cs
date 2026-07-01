@@ -31,20 +31,26 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         TickSpin(deltaTime, tuning);
 
-        Vector3 bladeCenter = GetBladeCenter(tuning);
         float hitRadius = GetScaledHitRadius(tuning);
-        ShowOrbit(bladeCenter, hitRadius, tuning);
-
         _autoDamageTimer -= deltaTime;
-        if (_autoDamageTimer > 0f)
-            return;
+        bool shouldDamage = _autoDamageTimer <= 0f;
+        if (shouldDamage)
+            _autoDamageTimer = GetAutoDamageInterval(tuning);
 
-        _autoDamageTimer = GetAutoDamageInterval(tuning);
-        int hitCount = EnemyRegistry.CollectClosestOnPlane(bladeCenter, hitRadius, MaxContactTargets, _targets);
-        float knockbackScale = GetAutomaticKnockbackScale(tuning);
+        int bladeCount = GetBladeCount();
+        for (int bladeIndex = 0; bladeIndex < bladeCount; bladeIndex++)
+        {
+            Vector3 bladeCenter = GetBladeCenter(tuning, bladeIndex, bladeCount);
+            ShowOrbit(bladeCenter, hitRadius, tuning);
 
-        for (int i = 0; i < hitCount; i++)
-            ApplyBladeDamage(_targets[i], 1f, bladeCenter, knockbackScale);
+            if (!shouldDamage)
+                continue;
+
+            int hitCount = EnemyRegistry.CollectClosestOnPlane(bladeCenter, hitRadius, MaxContactTargets, _targets);
+            float knockbackScale = GetAtomicSharpnessKnockbackScale(GetAutomaticKnockbackScale(tuning));
+            for (int i = 0; i < hitCount; i++)
+                ApplyBladeDamage(_targets[i], GetAtomicSharpnessDamageScale(), bladeCenter, knockbackScale);
+        }
     }
 
     // Performs repeated cone slashes while fire is held, spending one manual ammo per slash.
@@ -69,17 +75,26 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         Vector3 origin = GetOwnerOrigin();
         float range = GetScaledManualRange(tuning);
-        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
-            origin,
-            slashDirection,
-            range,
-            tuning.BladeManualConeAngle,
-            MaxManualTargets,
-            _targets);
-
         float damageScale = GetManualDamageScale(tuning);
-        for (int i = 0; i < hitCount; i++)
-            ApplyBladeDamage(_targets[i], damageScale, origin, tuning.BladeManualKnockbackScale);
+        int swingCount = GetBladeCount();
+        for (int swing = 0; swing < swingCount; swing++)
+        {
+            Vector3 swingDirection = Quaternion.AngleAxis((swing - (swingCount - 1) * 0.5f) * 8f, Vector3.up) * slashDirection;
+            int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
+                origin,
+                swingDirection,
+                range,
+                tuning.BladeManualConeAngle,
+                MaxManualTargets,
+                _targets);
+
+            for (int i = 0; i < hitCount; i++)
+                ApplyBladeDamage(
+                    _targets[i],
+                    damageScale * GetAtomicSharpnessDamageScale(),
+                    origin,
+                    GetAtomicSharpnessKnockbackScale(tuning.BladeManualKnockbackScale));
+        }
 
         ShowSlash(origin, slashDirection, range, tuning);
     }
@@ -101,22 +116,31 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         Vector3 origin = GetOwnerOrigin();
         float range = GetScaledActiveRange(tuning);
         float lineWidth = GetScaledActiveLineWidth(tuning);
+        int thrustCount = GetBladeCount();
 
-        _activeLinePoints[0] = origin;
-        _activeLinePoints[1] = origin + thrustDirection * range;
-
-        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
-            _activeLinePoints,
-            _activeLinePoints.Length,
-            lineWidth * 0.5f,
-            MaxActiveTargets,
-            _targets,
-            _hitOrigins);
-
-        for (int i = 0; i < hitCount; i++)
+        for (int thrust = 0; thrust < thrustCount; thrust++)
         {
-            Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : origin;
-            ApplyBladeDamage(_targets[i], tuning.BladeActiveDamageScale, impactOrigin, tuning.BladeActiveKnockbackScale);
+            Vector3 repeatedDirection = Quaternion.AngleAxis((thrust - (thrustCount - 1) * 0.5f) * 8f, Vector3.up) * thrustDirection;
+            _activeLinePoints[0] = origin;
+            _activeLinePoints[1] = origin + repeatedDirection * range;
+
+            int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+                _activeLinePoints,
+                _activeLinePoints.Length,
+                lineWidth * 0.5f,
+                MaxActiveTargets,
+                _targets,
+                _hitOrigins);
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : origin;
+                ApplyBladeDamage(
+                    _targets[i],
+                    tuning.BladeActiveDamageScale * GetAtomicSharpnessDamageScale(),
+                    impactOrigin,
+                    GetAtomicSharpnessKnockbackScale(tuning.BladeActiveKnockbackScale));
+            }
         }
 
         ShowThrust(origin, thrustDirection, range, lineWidth, tuning);
@@ -149,7 +173,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         return interval / Mathf.Max(0.05f, attackSpeed * weaponRate);
     }
 
-    private Vector3 GetBladeCenter(RotatingBladeTuning tuning)
+    private Vector3 GetBladeCenter(RotatingBladeTuning tuning, int bladeIndex = 0, int bladeCount = 1)
     {
         Vector3 baseDirection = Owner != null ? Owner.forward : Vector3.forward;
         baseDirection.y = 0f;
@@ -157,8 +181,23 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             baseDirection = Vector3.forward;
 
         baseDirection.Normalize();
-        Vector3 orbitDirection = Quaternion.AngleAxis(_spinAngle, Vector3.up) * baseDirection;
+        float offset = bladeCount <= 1 ? 0f : (360f / bladeCount) * bladeIndex;
+        Vector3 orbitDirection = Quaternion.AngleAxis(_spinAngle + offset, Vector3.up) * baseDirection;
         return GetOwnerOrigin() + orbitDirection * GetScaledOrbitRadius(tuning);
+    }
+
+    private bool IsMultiBladePath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
+
+    private bool IsAtomicSharpnessPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
+
+    private int GetBladeCount()
+    {
+        if (!IsMultiBladePath())
+            return 1;
+
+        return Mathf.Clamp(1 + Mathf.FloorToInt((Runtime.Level - 6) / 2f), 2, 4);
     }
 
     private Vector3 GetHorizontalAimDirection(Vector3 aimDirection)
@@ -188,6 +227,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float heat = Heat != null ? Heat.NormalizedHeat : 0f;
         return 1f + heat * Mathf.Max(0f, tuning.BladeManualMaxHeatDamageBonus);
     }
+
+    private float GetAtomicSharpnessDamageScale() => IsAtomicSharpnessPath() ? 2f : 1f;
+
+    private float GetAtomicSharpnessKnockbackScale(float original) => IsAtomicSharpnessPath() ? 0f : original;
 
     private float GetAutomaticKnockbackScale(RotatingBladeTuning tuning)
     {
@@ -240,7 +283,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale);
         int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
-        if (damageable.ApplyDamage(finalDamage))
+        if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
             ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);
     }
 

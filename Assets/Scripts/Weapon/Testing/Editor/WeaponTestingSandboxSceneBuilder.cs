@@ -141,6 +141,12 @@ public static class WeaponTestingSandboxSceneBuilder
         data.PathB.DamageMultiplier = 1.36f;
         data.PathB.AttackRateMultiplier = 0.92f;
         data.PathB.ManualAmmoOverride = -1f;
+
+        if (data.WeaponType == WeaponType.AutomaticCannon)
+        {
+            data.PathA.ManualAmmoOverride = 400f;
+            data.PathB.ManualAmmoOverride = 40f;
+        }
     }
 
     private static void ConfigureWeaponSpecificData(WeaponData data)

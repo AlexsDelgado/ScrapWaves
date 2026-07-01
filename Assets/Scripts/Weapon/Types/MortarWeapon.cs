@@ -51,11 +51,11 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
-        if (Runtime.State != WeaponState.Manual || !isFiring)
+        if (Runtime.State != WeaponState.Manual)
             return;
 
-        FireTimer -= deltaTime;
-        if (FireTimer > 0f)
+        FireTimer = Mathf.Max(0f, FireTimer - deltaTime);
+        if (!isFiring || FireTimer > 0f)
             return;
 
         if (Spawn == null)
@@ -112,7 +112,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
                 tuning.MortarExplosionFalloff,
                 tuning.MortarActiveTravelTime + i * 0.08f,
                 0f,
-                false);
+                false,
+                activeAbility: true);
         }
 
         CompleteActiveAbility();
@@ -151,6 +152,23 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         return Mathf.Max(1, tuning.MortarActiveShellCount);
     }
 
+    private MortarUpgradePayload GetUpgradePayload(bool activeAbility)
+    {
+        if (Runtime == null || !Runtime.HasAdvancedPath)
+            return MortarUpgradePayload.None;
+
+        if (Runtime.SelectedPath == WeaponUpgradePath.PathA)
+        {
+            int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
+            return new MortarUpgradePayload(true, activeAbility ? 10 + heatBonus : 15, 70f, 1f, 1, 0f);
+        }
+
+        if (Runtime.SelectedPath == WeaponUpgradePath.PathB)
+            return new MortarUpgradePayload(false, 0, 0f, 0f, 3, 2f);
+
+        return MortarUpgradePayload.None;
+    }
+
     private void FireShell(
         Vector3 launchPosition,
         Vector3 impactPosition,
@@ -159,7 +177,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         float falloff,
         float travelTime,
         float arcHeight,
-        bool eliteOrBoss)
+        bool eliteOrBoss,
+        bool activeAbility = false)
     {
         MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
@@ -175,7 +194,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             falloff,
             knockback,
             tuning.MortarShellCollisionRadius * area,
-            Owner);
+            Owner,
+            GetUpgradePayload(activeAbility));
     }
 
     private static Vector3 RandomPlanarOffset(float radius)

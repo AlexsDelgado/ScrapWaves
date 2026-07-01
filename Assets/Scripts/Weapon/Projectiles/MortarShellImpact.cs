@@ -1,6 +1,34 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public readonly struct MortarUpgradePayload
+{
+    public readonly bool UseGrapeshot;
+    public readonly int GrapeshotCount;
+    public readonly float GrapeshotConeAngle;
+    public readonly float GrapeshotDamageScale;
+    public readonly int RepeatExplosionCount;
+    public readonly float RepeatExplosionDelay;
+
+    public MortarUpgradePayload(
+        bool useGrapeshot,
+        int grapeshotCount,
+        float grapeshotConeAngle,
+        float grapeshotDamageScale,
+        int repeatExplosionCount,
+        float repeatExplosionDelay)
+    {
+        UseGrapeshot = useGrapeshot;
+        GrapeshotCount = grapeshotCount;
+        GrapeshotConeAngle = grapeshotConeAngle;
+        GrapeshotDamageScale = grapeshotDamageScale;
+        RepeatExplosionCount = repeatExplosionCount;
+        RepeatExplosionDelay = repeatExplosionDelay;
+    }
+
+    public static MortarUpgradePayload None => new(false, 0, 0f, 0f, 1, 0f);
+}
+
 [DisallowMultipleComponent]
 public sealed class MortarShellImpact : MonoBehaviour
 {
@@ -23,6 +51,10 @@ public sealed class MortarShellImpact : MonoBehaviour
     private readonly Vector3[] _arcPoints = new Vector3[ArcSegments + 1];
     private readonly RaycastHit[] _collisionHits = new RaycastHit[CollisionBufferSize];
     private readonly List<IDamageable> _damagedThisExplosion = new();
+    private MortarUpgradePayload _payload = MortarUpgradePayload.None;
+    private int _remainingRepeatExplosions;
+    private float _repeatExplosionTimer;
+    private bool _detonated;
 
     public static MortarShellImpact Launch(
         Vector3 start,
@@ -36,9 +68,37 @@ public sealed class MortarShellImpact : MonoBehaviour
         float collisionRadius,
         Transform ignoredRoot)
     {
+        return Launch(
+            start,
+            target,
+            travelTime,
+            arcHeight,
+            damage,
+            explosionRadius,
+            falloff,
+            knockback,
+            collisionRadius,
+            ignoredRoot,
+            MortarUpgradePayload.None);
+    }
+
+    public static MortarShellImpact Launch(
+        Vector3 start,
+        Vector3 target,
+        float travelTime,
+        float arcHeight,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float collisionRadius,
+        Transform ignoredRoot,
+        MortarUpgradePayload payload)
+    {
         GameObject go = new GameObject("MortarShellImpact");
         MortarShellImpact shell = go.AddComponent<MortarShellImpact>();
         shell.Configure(start, target, travelTime, arcHeight, damage, explosionRadius, falloff, knockback, collisionRadius, ignoredRoot);
+        shell._payload = payload;
         return shell;
     }
 
@@ -72,6 +132,12 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void Update()
     {
+        if (_detonated)
+        {
+            TickRepeatExplosions();
+            return;
+        }
+
         _elapsed += Time.deltaTime;
         float t = _elapsed / _travelTime;
         Vector3 previousPosition = transform.position;
@@ -86,7 +152,7 @@ public sealed class MortarShellImpact : MonoBehaviour
 
         transform.position = nextPosition;
         if (t >= MortarTrajectory.GetMaximumNormalizedTime(_travelTime))
-            Destroy(gameObject);
+            DestroyObject(gameObject);
     }
 
     // Sweeps the shell between frames so fast projectiles cannot tunnel through map geometry.
@@ -172,7 +238,7 @@ public sealed class MortarShellImpact : MonoBehaviour
 
         Collider visualCollider = visual.GetComponent<Collider>();
         if (visualCollider != null)
-            Destroy(visualCollider);
+            DestroyObject(visualCollider);
 
         Renderer renderer = visual.GetComponent<Renderer>();
         if (renderer != null)
@@ -219,8 +285,40 @@ public sealed class MortarShellImpact : MonoBehaviour
     private void Detonate(Vector3 explosionCenter)
     {
         _target = explosionCenter;
-        ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius);
+        ApplyExplosionDamageAt(explosionCenter);
 
+        if (!_detonated)
+        {
+            _detonated = true;
+            _remainingRepeatExplosions = Mathf.Max(1, _payload.RepeatExplosionCount) - 1;
+            _repeatExplosionTimer = Mathf.Max(0.01f, _payload.RepeatExplosionDelay);
+            SpawnGrapeshot(explosionCenter);
+        }
+
+        if (_remainingRepeatExplosions <= 0)
+            DestroyObject(gameObject);
+    }
+
+    private void TickRepeatExplosions()
+    {
+        if (_remainingRepeatExplosions <= 0)
+        {
+            DestroyObject(gameObject);
+            return;
+        }
+
+        _repeatExplosionTimer -= Time.deltaTime;
+        if (_repeatExplosionTimer > 0f)
+            return;
+
+        _remainingRepeatExplosions--;
+        _repeatExplosionTimer = Mathf.Max(0.01f, _payload.RepeatExplosionDelay);
+        ApplyExplosionDamageAt(_target);
+    }
+
+    private void ApplyExplosionDamageAt(Vector3 explosionCenter)
+    {
+        ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius);
         _damagedThisExplosion.Clear();
         Collider[] hits = Physics.OverlapSphere(explosionCenter, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
@@ -237,11 +335,37 @@ public sealed class MortarShellImpact : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
-            if (damageable.ApplyDamage(finalDamage))
+            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
                 EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, _knockback * falloffScale);
         }
+    }
 
-        Destroy(gameObject);
+    private void SpawnGrapeshot(Vector3 center)
+    {
+        if (!_payload.UseGrapeshot || _payload.GrapeshotCount <= 0)
+            return;
+
+        Vector3 forward = (_target - _start).sqrMagnitude > 0.0001f ? (_target - _start).normalized : Vector3.forward;
+        Quaternion baseRotation = Quaternion.LookRotation(forward, Vector3.up);
+        for (int i = 0; i < _payload.GrapeshotCount; i++)
+        {
+            float yaw = Random.Range(-_payload.GrapeshotConeAngle * 0.5f, _payload.GrapeshotConeAngle * 0.5f);
+            Vector3 direction = baseRotation * Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+            Vector3 hitCenter = center + direction.normalized * Mathf.Max(0.5f, _explosionRadius);
+            int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * Mathf.Max(0f, _payload.GrapeshotDamageScale)));
+            WeaponRadialDamage.Apply(hitCenter, Mathf.Max(0.25f, _explosionRadius * 0.35f), damage, 0.2f, _knockback * 0.35f, 16);
+        }
+    }
+
+    private static void DestroyObject(Object target)
+    {
+        if (target == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(target);
+        else
+            DestroyImmediate(target);
     }
 
     private void OnDrawGizmos()
