@@ -17,6 +17,8 @@ using UnityEngine.UI;
 public class TitleScreenControllerTests
 {
     private const string TitleScenePath = "Assets/Scenes/TitleScreen.unity";
+    private const string WeaponSandboxScenePath = "Assets/Scenes/WeaponTestingSandbox.unity";
+    private const string EnemiesTestingScenePath = "Assets/Scenes/enemiesTesting.unity";
 
     [SetUp]
     public void SetUp()
@@ -60,6 +62,19 @@ public class TitleScreenControllerTests
     }
 
     [Test]
+    public void Awake_UnlocksAndShowsCursorForMenu()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        GameObject root = new("TitleScreenRoot");
+        CreateController(root);
+
+        Assert.That(Cursor.lockState, Is.EqualTo(CursorLockMode.None));
+        Assert.That(Cursor.visible, Is.True);
+    }
+
+    [Test]
     public void Awake_WiresButtonsToSharedSceneNavigationMethods()
     {
         GameObject root = new("TitleScreenRoot");
@@ -90,7 +105,7 @@ public class TitleScreenControllerTests
     }
 
     [Test]
-    public void TitleScreenScene_IsMinimalBootSceneWithControllerRoot()
+    public void TitleScreenScene_HasEditableCanvasWithControllerAndButtons()
     {
         Assert.That(File.Exists(TitleScenePath), Is.True, $"Expected scene at '{TitleScenePath}'.");
 
@@ -101,6 +116,49 @@ public class TitleScreenControllerTests
         Assert.That(controllerType, Is.Not.Null, "TitleScreenController type was not found.");
         Assert.That(roots, Has.Length.EqualTo(1));
         Assert.That(roots[0].GetComponent(controllerType), Is.Not.Null);
+
+        Canvas canvas = roots[0].GetComponentInChildren<Canvas>(true);
+        Camera titleCamera = roots[0].GetComponentInChildren<Camera>(true);
+        EventSystem eventSystem = roots[0].GetComponentInChildren<EventSystem>(true);
+        Button[] buttons = roots[0].GetComponentsInChildren<Button>(true);
+        string[] labels = buttons.Select(GetButtonLabel).ToArray();
+
+        Assert.That(canvas, Is.Not.Null, "TitleScreen scene should contain an editable Canvas.");
+        Assert.That(titleCamera, Is.Not.Null, "TitleScreen scene should contain an editable Main Camera.");
+        Assert.That(titleCamera.CompareTag("MainCamera"), Is.True, "TitleScreen camera should be tagged MainCamera.");
+        Assert.That(eventSystem, Is.Not.Null, "TitleScreen scene should contain an editable EventSystem.");
+        Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
+        CollectionAssert.AreEqual(
+            new[] { "Play", "Weapon Sandbox", "Enemies Testing" },
+            labels);
+    }
+
+    [Test]
+    public void WeaponSandboxScene_HasPauseMenuUiForEscapeMenu()
+    {
+        AssertSceneHasPauseMenu(WeaponSandboxScenePath, "Weapon sandbox");
+    }
+
+    [Test]
+    public void EnemiesTestingScene_HasPauseMenuUiForEscapeMenu()
+    {
+        AssertSceneHasPauseMenu(EnemiesTestingScenePath, "Enemies testing");
+    }
+
+    private static void AssertSceneHasPauseMenu(string scenePath, string sceneLabel)
+    {
+        Assert.That(File.Exists(scenePath), Is.True, $"Expected scene at '{scenePath}'.");
+
+        EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+
+        PauseMenuUI[] pauseMenus = UnityEngine.Object.FindObjectsByType<PauseMenuUI>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        EventSystem eventSystem = UnityEngine.Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include);
+
+        Assert.That(pauseMenus, Has.Length.EqualTo(1), $"{sceneLabel} scene should include PauseMenuUI so Escape can open the pause menu.");
+        Assert.That(pauseMenus[0].GetComponentInParent<Canvas>(true), Is.Not.Null, $"{sceneLabel} PauseMenuUI should live under a Canvas.");
+        Assert.That(eventSystem, Is.Not.Null, $"{sceneLabel} scene should include an EventSystem for pause menu buttons.");
     }
 
     private static void AssertButtonInvokes(GameObject root, string expectedLabel, string expectedMethodName)

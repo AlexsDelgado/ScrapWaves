@@ -45,9 +45,9 @@ public class RunEndScreenUI : MonoBehaviour
         int level = xp != null ? xp.CurrentLevel : 1;
 
         _statsText.text =
-            $"Tiempo: {RunSessionStats.FormatElapsed()}\n" +
+            $"Time: {RunSessionStats.FormatElapsed()}\n" +
             $"Kills: {RunCombatStats.EnemiesEliminated}\n" +
-            $"Nivel: {level}\n" +
+            $"Level: {level}\n" +
             $"Bosses: {RunSessionStats.BossKills}";
 
         if (_camera == null)

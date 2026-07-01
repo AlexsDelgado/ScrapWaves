@@ -5,13 +5,13 @@ using UnityEngine.SceneManagement;
 [DefaultExecutionOrder(-35)]
 public class ProjectilePool : MonoBehaviour
 {
-    [SerializeField, Tooltip("Prefab raíz con Projectile + Rigidbody + SphereCollider (trigger).")]
+    [SerializeField, Tooltip("Root prefab with Projectile + Rigidbody + SphereCollider (trigger).")]
     private GameObject _projectilePrefab;
 
-    [SerializeField, Tooltip("Padre de los clones; si es null, se crea un contenedor en runtime en la escena (evita el aviso de parent persistente).")]
+    [SerializeField, Tooltip("Clone parent; if null, a runtime container is created in the scene (avoids the persistent parent warning).")]
     private Transform _container;
 
-    [SerializeField, Tooltip("Si está activo, registra en consola qué padre usa el pool al iniciar.")]
+    [SerializeField, Tooltip("If active, logs which parent the pool uses on startup.")]
     private bool _debugLogParent;
 
     [SerializeField, Min(1)] private int _initialPoolSize = 64;

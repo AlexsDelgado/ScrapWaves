@@ -1,31 +1,31 @@
 using UnityEngine;
 
 /// <summary>
-/// Heat en puntos: el primer tramo (base <see cref="_pointsToReachDisplay80"/>) llena el 0–80 % de la barra visual;
-/// el segundo tramo (base <see cref="_pointsFromDisplay80To100"/>) el 80–100 %. Misma cantidad base en cada tramo (p. ej. 50+50).
-/// Tras cada ciclo de Overheat, <see cref="ApplyEscalationAfterOverheat"/> aumenta el requisito total.
-/// La fase intermedia (barra ≥ 80 % y &lt; 100 %) activa <see cref="OverheatSwarmBoost"/> (no aplica al boss).
+/// Point-based Heat: the first segment (base <see cref="_pointsToReachDisplay80"/>) fills 0-80% of the visual bar;
+/// the second segment (base <see cref="_pointsFromDisplay80To100"/>) fills 80-100%. Each segment has the same base amount.
+/// After each Overheat cycle, <see cref="ApplyEscalationAfterOverheat"/> raises the total requirement.
+/// The intermediate phase (bar >= 80% and &lt; 100%) activates <see cref="OverheatSwarmBoost"/> (does not apply to the boss).
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-33)]
 public class HeatManager : MonoBehaviour
 {
-    [SerializeField, Min(0.01f), Tooltip("Puntos de heat (escalados) para llenar la barra del 0 % al 80 %.")]
+    [SerializeField, Min(0.01f), Tooltip("Scaled heat points required to fill the bar from 0% to 80%.")]
     private float _pointsToReachDisplay80 = 50f;
 
-    [SerializeField, Min(0.01f), Tooltip("Puntos de heat (escalados) para ir del 80 % al 100 % (Overheat). Igual que el anterior en base → mismo esfuerzo por tramo.")]
+    [SerializeField, Min(0.01f), Tooltip("Scaled heat points required to go from 80% to 100% (Overheat). Same base effort as the first segment.")]
     private float _pointsFromDisplay80To100 = 50f;
 
-    [SerializeField, Min(1.001f), Tooltip("Multiplicador aplicado al requisito total tras cada Overheat completado.")]
+    [SerializeField, Min(1.001f), Tooltip("Multiplier applied to the total requirement after each completed Overheat.")]
     private float _escalationPerOverheatCycle = 1.12f;
 
-    [SerializeField, Min(0f), Tooltip("Heat que aporta cada baja de enemigo (vía RegisterKill o AddHeat).")]
+    [SerializeField, Min(0f), Tooltip("Heat granted by each enemy kill (through RegisterKill or AddHeat).")]
     private float _heatPerKill = 5f;
 
-    [SerializeField, Tooltip("Loguear overheat en consola.")]
+    [SerializeField, Tooltip("Log Overheat events to the console.")]
     private bool _logOverheat;
 
-    [SerializeField, Tooltip("Escalado acumulado (sube al terminar Overheat).")]
+    [SerializeField, Tooltip("Accumulated scaling (increases when Overheat ends).")]
     private float _heatRequirementEscalation = 1f;
 
     [SerializeField] private float _currentHeat;

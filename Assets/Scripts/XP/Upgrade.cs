@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Definición data-driven de una mejora. Crea activos con: Create → Scrap Waves → Upgrade.
+/// Data-driven upgrade definition. Create assets with: Create > Scrap Waves > Upgrade.
 /// </summary>
 [CreateAssetMenu(fileName = "Upgrade", menuName = "Scrap Waves/Upgrade", order = 0)]
 public class Upgrade : ScriptableObject

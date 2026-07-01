@@ -35,7 +35,7 @@ public class PauseMenuUITests
         Button[] buttons = root.GetComponentsInChildren<Button>(true);
         string[] labels = buttons.Select(GetButtonLabel).ToArray();
 
-        CollectionAssert.AreEqual(new[] { "Continuar", "Volver al titulo" }, labels);
+        CollectionAssert.AreEqual(new[] { "Resume", "Main Menu" }, labels);
     }
 
     [Test]
@@ -45,8 +45,57 @@ public class PauseMenuUITests
 
         CreatePauseMenu(root);
 
-        AssertButtonInvokes(root, "Continuar", "Resume");
-        AssertButtonInvokes(root, "Volver al titulo", "ReturnToTitle");
+        AssertButtonInvokes(root, "Resume", "Resume");
+        AssertButtonInvokes(root, "Main Menu", "ReturnToTitle");
+    }
+
+    [Test]
+    public void Awake_CreatesTopInteractiveCanvasAboveDebugUi()
+    {
+        GameObject root = new("PauseMenuRoot");
+        root.AddComponent<Canvas>();
+
+        CreatePauseMenu(root);
+
+        Transform pauseRoot = root.transform.Find("PauseRoot");
+        Assert.That(pauseRoot, Is.Not.Null);
+
+        Canvas canvas = pauseRoot.GetComponent<Canvas>();
+        Assert.That(canvas, Is.Not.Null, "PauseRoot should have its own Canvas so sandbox debug UI cannot render above it.");
+        Assert.That(canvas.overrideSorting, Is.True);
+        Assert.That(canvas.sortingOrder, Is.GreaterThan(30000));
+        Assert.That(pauseRoot.GetComponent<GraphicRaycaster>(), Is.Not.Null);
+    }
+
+    [Test]
+    public void ShowPause_UnlocksAndShowsCursorWithoutCamera()
+    {
+        GameObject root = new("PauseMenuRoot");
+        Component pauseMenu = CreatePauseMenu(root);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        InvokePrivate(pauseMenu, "ShowPause");
+
+        Assert.That(Cursor.lockState, Is.EqualTo(CursorLockMode.None));
+        Assert.That(Cursor.visible, Is.True);
+    }
+
+    [Test]
+    public void ShowPause_ForcesSandboxDebugUiBackToUnlockedMouseMode()
+    {
+        WeaponSandboxDebugUI sandboxDebugUi = new GameObject("SandboxDebugUi").AddComponent<WeaponSandboxDebugUI>();
+        SetPrivateField(sandboxDebugUi, "_uiMouseMode", false);
+        SetPrivateField(sandboxDebugUi, "_autoCursorMode", false);
+        SetPrivateField(sandboxDebugUi, "_temporaryCameraAim", true);
+
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+
+        InvokePrivate(pauseMenu, "ShowPause");
+
+        Assert.That(GetPrivateField<bool>(sandboxDebugUi, "_uiMouseMode"), Is.True);
+        Assert.That(GetPrivateField<bool>(sandboxDebugUi, "_autoCursorMode"), Is.True);
+        Assert.That(GetPrivateField<bool>(sandboxDebugUi, "_temporaryCameraAim"), Is.False);
     }
 
     private static void AssertButtonInvokes(GameObject root, string expectedLabel, string expectedMethodName)
@@ -104,6 +153,27 @@ public class PauseMenuUITests
         Assert.That(awake, Is.Not.Null);
         awake.Invoke(pauseMenu, null);
         return pauseMenu;
+    }
+
+    private static void InvokePrivate(Component component, string methodName)
+    {
+        MethodInfo method = component.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null);
+        method.Invoke(component, null);
+    }
+
+    private static T GetPrivateField<T>(object instance, string fieldName)
+    {
+        FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null);
+        return (T)field.GetValue(instance);
+    }
+
+    private static void SetPrivateField(object instance, string fieldName, object value)
+    {
+        FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null);
+        field.SetValue(instance, value);
     }
 
     private static string GetButtonLabel(Button button)

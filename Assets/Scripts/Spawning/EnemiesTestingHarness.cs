@@ -13,7 +13,7 @@ using UnityEngine.InputSystem;
 [DisallowMultipleComponent]
 public class EnemiesTestingHarness : MonoBehaviour
 {
-    [Header("Ruleta")]
+    [Header("Roulette")]
     [SerializeField] private EnemySpawnRouletteConfig _config;
 
     [SerializeField, Tooltip("Vacío = PlayerMovement.PlayerTransform")]
@@ -172,7 +172,7 @@ public class EnemiesTestingHarness : MonoBehaviour
         EnemySpawnRouletteConfig.Entry entry = _config.GetEntry(kind);
         if (entry == null || entry.Prefab == null)
         {
-            Debug.LogWarning($"[EnemiesTesting] {kind}: prefab no asignado en la config.", this);
+            Debug.LogWarning($"[EnemiesTesting] {kind}: prefab is not assigned in the config.", this);
             return 0;
         }
 
@@ -241,7 +241,7 @@ public class EnemiesTestingHarness : MonoBehaviour
 
         if (result.Prefab == null)
         {
-            Debug.LogWarning($"[EnemiesTesting] Ruleta -> {result.SelectedKind}: prefab no asignado.", this);
+            Debug.LogWarning($"[EnemiesTesting] Roulette -> {result.SelectedKind}: prefab not assigned.", this);
             return;
         }
 
@@ -364,11 +364,11 @@ public class EnemiesTestingHarness : MonoBehaviour
         float x = 10f;
 
         x += DrawPanel(new Rect(x, top, 190f, height), "ENEMIES TESTING", DrawStatusSection) + gap;
-        x += DrawPanel(new Rect(x, top, 190f, height), "JUGADOR (HP)", DrawPlayerSection) + gap;
-        x += DrawPanel(new Rect(x, top, 230f, height), "SPAWN POR TIPO", DrawPerKindSection) + gap;
-        x += DrawPanel(new Rect(x, top, 360f, height), "RULETA DINAMICA", DrawRouletteSection) + gap;
-        x += DrawPanel(new Rect(x, top, 200f, height), "SPAWNER CONTINUO", DrawContinuousSection) + gap;
-        DrawPanel(new Rect(x, top, 210f, height), "UTILIDADES", DrawUtilitiesSection);
+        x += DrawPanel(new Rect(x, top, 190f, height), "PLAYER (HP)", DrawPlayerSection) + gap;
+        x += DrawPanel(new Rect(x, top, 230f, height), "SPAWN BY TYPE", DrawPerKindSection) + gap;
+        x += DrawPanel(new Rect(x, top, 360f, height), "DYNAMIC ROULETTE", DrawRouletteSection) + gap;
+        x += DrawPanel(new Rect(x, top, 200f, height), "CONTINUOUS SPAWNER", DrawContinuousSection) + gap;
+        DrawPanel(new Rect(x, top, 210f, height), "UTILITIES", DrawUtilitiesSection);
     }
 
     private void DrawPlayerSection()
@@ -477,7 +477,7 @@ public class EnemiesTestingHarness : MonoBehaviour
             GUILayout.EndHorizontal();
 
             if (!hasPrefab)
-                GUILayout.Label("  (prefab no asignado)");
+                GUILayout.Label("  (prefab not assigned)");
         }
     }
 
@@ -541,10 +541,10 @@ public class EnemiesTestingHarness : MonoBehaviour
             Time.timeScale = 2f;
         GUILayout.EndHorizontal();
 
-        if (GUILayout.Button("Stats a consola (Numpad 4)"))
+        if (GUILayout.Button("Stats to console (Numpad 4)"))
             LogAverageStats();
 
-        if (GUILayout.Button("Copiar reporte QA (portapapeles)"))
+        if (GUILayout.Button("Copy QA report (clipboard)"))
             CopyQaReport();
     }
 

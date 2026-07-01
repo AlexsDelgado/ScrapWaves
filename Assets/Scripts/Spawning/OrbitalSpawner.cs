@@ -2,18 +2,18 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Spawner orbital continuo del loop final. En cada tick TIRA LA RULETA
-/// (<see cref="EnemySpawnRoulette"/>) para decidir que tipo y cuantos enemigos
-/// aparecen, y los coloca en puntos orbitales aleatorios alrededor del jugador
-/// (<see cref="OrbitalSpawnPlacement"/>), siguiendolo siempre. La cadencia escala
-/// con <see cref="DifficultyManager"/> y el estado de Overheat.
+/// Continuous orbital spawner for the final loop. On each tick it rolls the roulette
+/// (<see cref="EnemySpawnRoulette"/>) to decide which enemy type and how many enemies
+/// appear, then places them on random orbital points around the player
+/// (<see cref="OrbitalSpawnPlacement"/>), always following the player. Cadence scales
+/// with <see cref="DifficultyManager"/> and Overheat state.
 ///
-/// Reemplaza al viejo <c>SwarmSpawner</c> (que solo sacaba slimes del pool) como
-/// spawner constante alrededor del jugador.
+/// Replaces the old <c>SwarmSpawner</c> (which only pulled slimes from the pool) as
+/// the constant spawner around the player.
 /// </summary>
 public class OrbitalSpawner : MonoBehaviour
 {
-    [Header("Ruleta")]
+    [Header("Roulette")]
     [SerializeField] private EnemySpawnRouletteConfig _config;
 
     [SerializeField, Tooltip("Vacío = PlayerMovement.PlayerTransform.")]

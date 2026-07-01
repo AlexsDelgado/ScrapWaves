@@ -4,7 +4,7 @@ public class EnemyContactDamage : MonoBehaviour
 {
     [SerializeField, Min(1)] private int _contactDamage = 5;
 
-    [SerializeField, Tooltip("Activa logs en consola para depurar daño por contacto.")]
+    [SerializeField, Tooltip("Enable console logs to debug contact damage.")]
     private bool _logDebug;
 
     public void TryApplyContactDamage(PlayerHealth player)

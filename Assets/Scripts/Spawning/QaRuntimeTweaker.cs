@@ -11,14 +11,14 @@ using UnityEngine.InputSystem;
 /// comportamiento) en vivo, SIN tocar los prefabs/assets.
 ///
 /// Cómo funciona:
-/// - Lee los campos serializados editables (float/int/bool/enum) de los prefabs
-///   referenciados por la ruleta (solo para mostrar los valores por defecto).
-/// - Los cambios se guardan como "overrides" en memoria por tipo de enemigo.
-/// - Un escáner aplica esos overrides a los enemigos vivos y a los que vayan
-///   naciendo (identifica el tipo por el nombre del prefab "<Nombre>(Clone)").
-/// - "Resetear" devuelve a los valores por defecto del prefab y limpia overrides.
+/// - Reads editable serialized fields (float/int/bool/enum) from prefabs
+///   referenced by the roulette (only to show default values).
+/// - Changes are stored as in-memory overrides by enemy type.
+/// - A scanner applies those overrides to living enemies and future spawns
+///   (identifies the type by the prefab name "<Name>(Clone)").
+/// - "Reset" returns to prefab default values and clears overrides.
 ///
-/// Toggle con F2.
+/// Toggle with F2.
 /// </summary>
 [DisallowMultipleComponent]
 public class QaRuntimeTweaker : MonoBehaviour
@@ -275,36 +275,36 @@ public class QaRuntimeTweaker : MonoBehaviour
 
     private void DrawControls()
     {
-        GUILayout.Label("Cambios en vivo.");
-        GUILayout.Label("Temporales salvo APLICAR.");
+        GUILayout.Label("Live changes.");
+        GUILayout.Label("Temporary unless applied.");
         GUILayout.Space(6f);
 
-        if (GUILayout.Button("Aplicar a vivos"))
+        if (GUILayout.Button("Apply to live"))
         {
             _appliedVersion.Clear();
             ApplyToLiveEnemies();
         }
 
-        if (GUILayout.Button("Resetear a defaults"))
+        if (GUILayout.Button("Reset to defaults"))
             ResetAll();
 
 #if UNITY_EDITOR
         GUI.color = new Color(0.7f, 1f, 0.7f);
-        if (GUILayout.Button("APLICAR CAMBIOS\n(persistir a prefabs)"))
+        if (GUILayout.Button("APPLY CHANGES\n(persist to prefabs)"))
             ApplyOverridesToPrefabs();
         GUI.color = Color.white;
 #else
-        GUILayout.Label("(APLICAR solo en Editor)");
+        GUILayout.Label("(APPLY only in Editor)");
 #endif
 
-        if (GUILayout.Button("Copiar reporte QA"))
+        if (GUILayout.Button("Copy QA report"))
             QaPanels.Copy(BuildBalanceReport());
 
         GUILayout.Space(6f);
         int overrideCount = 0;
         foreach (KeyValuePair<EnemySpawnKind, Dictionary<string, object>> kv in _overrides)
             overrideCount += kv.Value.Count;
-        GUILayout.Label($"Overrides activos: {overrideCount}");
+        GUILayout.Label($"Active overrides: {overrideCount}");
     }
 
 #if UNITY_EDITOR
@@ -351,11 +351,11 @@ public class QaRuntimeTweaker : MonoBehaviour
 
         UnityEditor.AssetDatabase.SaveAssets();
 
-        // Los prefabs ahora contienen los nuevos valores: refrescamos los defaults
-        // para que "Resetear" use esta nueva línea base.
+        // Prefabs now contain the new values, so refresh defaults
+        // so "Reset" uses this new baseline.
         BuildCatalog();
 
-        Debug.Log($"[QA Balance] {written} valores persistidos a los prefabs (afecta a todas las escenas).");
+        Debug.Log($"[QA Balance] {written} values persisted to prefabs (affects all scenes).");
     }
 #endif
 
@@ -363,9 +363,9 @@ public class QaRuntimeTweaker : MonoBehaviour
     {
         var sb = new StringBuilder(1024);
         sb.AppendLine("===== SCRAPWAVES QA — BALANCE (F2) =====");
-        sb.AppendLine($"Fecha: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"timeScale: {Time.timeScale:0.##}");
-        sb.AppendLine("(* = valor modificado en runtime)");
+        sb.AppendLine("(* = value modified at runtime)");
         sb.AppendLine();
 
         if (_config == null || _config.Entries == null)

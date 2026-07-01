@@ -1,3 +1,4 @@
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -8,19 +9,25 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class TitleScreenController : MonoBehaviour
 {
+    [SerializeField] private Button _playButton;
+    [SerializeField] private Button _weaponSandboxButton;
+    [SerializeField] private Button _enemiesTestingButton;
+
     private GameObject _canvasRoot;
-    private Button _firstButton;
 
     private void Awake()
     {
+        ShowCursorForMenu();
         EnsureEventSystemWithInputSystemUi();
+        CacheSceneButtonsIfNeeded();
         BuildUiIfNeeded();
+        WireButtons();
         FocusFirstButton();
     }
 
     private void BuildUiIfNeeded()
     {
-        if (_canvasRoot != null)
+        if (HasSceneButtons())
             return;
 
         _canvasRoot = new GameObject("Canvas", typeof(RectTransform));
@@ -81,16 +88,15 @@ public class TitleScreenController : MonoBehaviour
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
-        _firstButton = CreateMenuButton(menuRoot.transform, "Play", LoadPlay);
-        CreateMenuButton(menuRoot.transform, "Weapon Sandbox", LoadWeaponSandbox);
-        CreateMenuButton(menuRoot.transform, "Enemies Testing", LoadEnemiesTesting);
+        _playButton = CreateMenuButton(menuRoot.transform, "Play");
+        _weaponSandboxButton = CreateMenuButton(menuRoot.transform, "Weapon Sandbox");
+        _enemiesTestingButton = CreateMenuButton(menuRoot.transform, "Enemies Testing");
     }
 
-    private Button CreateMenuButton(Transform parent, string label, UnityAction onClick)
+    private Button CreateMenuButton(Transform parent, string label)
     {
         Button button = HudUiFactory.CreateButton(parent, label, new Vector2(360f, 56f));
         button.name = $"{label.Replace(" ", string.Empty)}Button";
-        button.onClick.AddListener(onClick);
 
         if (button.TryGetComponent(out Image background))
             background.color = new Color(1f, 1f, 1f, 0.12f);
@@ -105,14 +111,58 @@ public class TitleScreenController : MonoBehaviour
         return button;
     }
 
+    private void CacheSceneButtonsIfNeeded()
+    {
+        _playButton ??= FindSceneButton("PlayButton", "Play");
+        _weaponSandboxButton ??= FindSceneButton("WeaponSandboxButton", "Weapon Sandbox");
+        _enemiesTestingButton ??= FindSceneButton("EnemiesTestingButton", "Enemies Testing");
+    }
+
+    private Button FindSceneButton(string buttonName, string label)
+    {
+        Button[] buttons = GetComponentsInChildren<Button>(true);
+        Button namedButton = buttons.FirstOrDefault(button => button.name == buttonName);
+        if (namedButton != null)
+            return namedButton;
+
+        return buttons.FirstOrDefault(button => GetButtonLabel(button) == label);
+    }
+
+    private static string GetButtonLabel(Button button)
+    {
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+        return label != null ? label.text : string.Empty;
+    }
+
+    private bool HasSceneButtons()
+    {
+        return _playButton != null && _weaponSandboxButton != null && _enemiesTestingButton != null;
+    }
+
+    private void WireButtons()
+    {
+        WireButton(_playButton, LoadPlay);
+        WireButton(_weaponSandboxButton, LoadWeaponSandbox);
+        WireButton(_enemiesTestingButton, LoadEnemiesTesting);
+    }
+
+    private static void WireButton(Button button, UnityAction action)
+    {
+        if (button == null)
+            return;
+
+        button.onClick.RemoveListener(action);
+        button.onClick.AddListener(action);
+    }
+
     private void FocusFirstButton()
     {
-        if (_firstButton == null)
+        if (_playButton == null)
             return;
 
         EventSystem eventSystem = EventSystem.current ?? UnityEngine.Object.FindFirstObjectByType<EventSystem>();
         if (eventSystem != null)
-            eventSystem.SetSelectedGameObject(_firstButton.gameObject);
+            eventSystem.SetSelectedGameObject(_playButton.gameObject);
     }
 
     private void LoadPlay()
@@ -147,6 +197,12 @@ public class TitleScreenController : MonoBehaviour
         GameObject eventSystem = new("EventSystem");
         eventSystem.AddComponent<EventSystem>();
         eventSystem.AddComponent<InputSystemUIInputModule>();
+    }
+
+    private static void ShowCursorForMenu()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private static void DestroyComponent(Object component)

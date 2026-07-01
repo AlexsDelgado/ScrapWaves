@@ -155,7 +155,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     {
         if (_bulletPrefab == null)
         {
-            Debug.LogWarning("[FlyingRangedBehavior] _bulletPrefab no asignado.", this);
+            Debug.LogWarning("[FlyingRangedBehavior] _bulletPrefab is not assigned.", this);
             return;
         }
 

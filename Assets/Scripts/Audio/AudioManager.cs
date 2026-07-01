@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Audio global: SFX con <see cref="PlayOneShot"/> y dos capas de música (normal + opcional capa Overheat).
-/// Asigna <see cref="AudioSource"/> y clips en el Inspector; otros scripts llaman <see cref="Instance"/> o los métodos estáticos de conveniencia.
+/// Global audio: SFX through <see cref="PlayOneShot"/> and two music layers (normal + optional Overheat layer).
+/// Assign <see cref="AudioSource"/> and clips in the Inspector; other scripts call <see cref="Instance"/> or the static helpers.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-60)]

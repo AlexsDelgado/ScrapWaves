@@ -12,7 +12,7 @@ public class XPPickup : MonoBehaviour
     [SerializeField, Tooltip("Punto usado para distancia de recogida e imán (típicamente el mismo transform del jugador o un hijo al centro).")]
     private Transform _pickupPoint;
 
-    [SerializeField, Tooltip("Loguear en consola cada recogida.")]
+    [SerializeField, Tooltip("Log each pickup to the console.")]
     private bool _logGrants;
 
     private int _totalExperience;

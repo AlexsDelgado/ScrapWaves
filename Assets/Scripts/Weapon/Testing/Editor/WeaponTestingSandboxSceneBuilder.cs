@@ -34,6 +34,7 @@ public static class WeaponTestingSandboxSceneBuilder
         Transform player = CreateSandboxPlayer();
         CreateMainCamera(player);
         CreateEventSystem();
+        CreateGameplayHud();
         CreateSandboxManager(weapons, dummyPrefab, player, projectilePool, heatManager, arenaRoot, spawnedDummiesRoot);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -411,6 +412,12 @@ public static class WeaponTestingSandboxSceneBuilder
 #else
         eventSystem.AddComponent<StandaloneInputModule>();
 #endif
+    }
+
+    private static void CreateGameplayHud()
+    {
+        GameObject hudRoot = new GameObject("GameplayHud");
+        GameplayHudHierarchyBuilder.Build(hudRoot.transform);
     }
 
     private static void DisableProductionRuntimeComponents(GameObject player)
