@@ -29,6 +29,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private bool _uiMouseMode = true;
     private bool _autoCursorMode = true;
     private bool _temporaryCameraAim;
+    private bool _pauseMenuOpen;
 
     public void Bind(WeaponTestingSandboxManager sandbox)
     {
@@ -72,6 +73,11 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     {
         if (_sandbox == null)
             return;
+        if (_pauseMenuOpen)
+        {
+            ForceUnlockedMouseMode();
+            return;
+        }
 
         Rect rect = new Rect(10f, 10f, 500f, Screen.height - 20f);
         HandleAutoCursorMode(rect);
@@ -131,6 +137,12 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
     private void HandleAutoCursorMode(Rect panelRect)
     {
+        if (_pauseMenuOpen)
+        {
+            ForceUnlockedMouseMode();
+            return;
+        }
+
         if (!_autoCursorMode)
             return;
 
@@ -173,12 +185,33 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
     private void TickTemporaryCameraAim()
     {
+        if (_pauseMenuOpen)
+        {
+            ForceUnlockedMouseMode();
+            return;
+        }
+
         if (!_autoCursorMode || !_temporaryCameraAim || _uiMouseMode)
             return;
 
         if (IsAnyMouseButtonPressed())
             return;
 
+        _temporaryCameraAim = false;
+        _uiMouseMode = true;
+        ApplyUiMouseMode();
+    }
+
+    public void SetPauseMenuOpen(bool open)
+    {
+        _pauseMenuOpen = open;
+        if (open)
+            ForceUnlockedMouseMode();
+    }
+
+    private void ForceUnlockedMouseMode()
+    {
+        _autoCursorMode = true;
         _temporaryCameraAim = false;
         _uiMouseMode = true;
         ApplyUiMouseMode();

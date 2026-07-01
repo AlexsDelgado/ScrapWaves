@@ -29,12 +29,12 @@ public static class QaPanels
         Active = Active == kind ? QaPanelKind.None : kind;
     }
 
-    /// <summary>Copia el texto al portapapeles y lo escribe en consola.</summary>
+    /// <summary>Copies text to the clipboard and writes it to the console.</summary>
     public static void Copy(string report)
     {
         GUIUtility.systemCopyBuffer = report;
         Debug.Log(report);
-        Debug.Log("[QA] Reporte copiado al portapapeles.");
+        Debug.Log("[QA] Report copied to clipboard.");
     }
 
     private static GUIStyle s_richLabel;

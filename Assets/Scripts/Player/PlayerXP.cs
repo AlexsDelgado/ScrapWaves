@@ -1,22 +1,22 @@
 using UnityEngine;
 
 /// <summary>
-/// Progresión de nivel del jugador: acumula XP hacia el siguiente nivel, aplica curva de escalado y dispara eventos.
-/// Recibe XP vía <see cref="AddExperience"/> (típicamente desde <see cref="XPPickup.GrantExperience"/>).
+/// Player level progression: accumulates XP toward the next level, applies a scaling curve, and fires events.
+/// Receives XP through <see cref="AddExperience"/> (typically from <see cref="XPPickup.GrantExperience"/>).
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerXP : MonoBehaviour
 {
-    [SerializeField, Min(1), Tooltip("Nivel inicial (normalmente 1).")]
+    [SerializeField, Min(1), Tooltip("Starting level (normally 1).")]
     private int _startingLevel = 1;
 
-    [SerializeField, Min(0.01f), Tooltip("Referencia de XP necesaria para el primer tramo (nivel inicial → siguiente). La curva multiplica este valor.")]
+    [SerializeField, Min(0.01f), Tooltip("XP reference needed for the first segment (starting level to next). The curve multiplies this value.")]
     private float _baseXpToNextLevel = 80f;
 
-    [SerializeField, Tooltip("Eje X = nivel actual del jugador. Eje Y = multiplicador sobre Base XP para pasar al siguiente nivel (1 = sin extra, 2 = el doble de XP requerida).")]
+    [SerializeField, Tooltip("X axis = current player level. Y axis = multiplier over Base XP to reach the next level (1 = no extra, 2 = double required XP).")]
     private AnimationCurve _scalingMultiplierByLevel = DefaultScalingCurve();
 
-    [SerializeField, Tooltip("Loguear subidas de nivel en consola.")]
+    [SerializeField, Tooltip("Log level-ups to the console.")]
     private bool _logLevelUps;
 
     [SerializeField]private int _currentLevel;
@@ -74,7 +74,7 @@ public class PlayerXP : MonoBehaviour
             _currentLevel++;
 
             if (_logLevelUps)
-                Debug.Log($"Nivel {_currentLevel}", this);
+                Debug.Log($"Level {_currentLevel}", this);
 
             OnLevelUp?.Invoke(_currentLevel);
         }

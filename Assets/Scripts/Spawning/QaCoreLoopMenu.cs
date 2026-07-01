@@ -33,11 +33,11 @@ public class QaCoreLoopMenu : MonoBehaviour
 
     private static readonly (string field, string label)[] OrbitalFields =
     {
-        ("_spawnInterval", "Intervalo (s)"),
-        ("_maxActiveEnemies", "Tope activos"),
-        ("_minSpawnRadius", "Radio min"),
-        ("_maxSpawnRadius", "Radio max"),
-        ("_spawnHeightOffset", "Alto offset"),
+        ("_spawnInterval", "Interval (s)"),
+        ("_maxActiveEnemies", "Active cap"),
+        ("_minSpawnRadius", "Min radius"),
+        ("_maxSpawnRadius", "Max radius"),
+        ("_spawnHeightOffset", "Height offset"),
     };
 
     private readonly Dictionary<string, string> _buffers = new();
@@ -149,18 +149,18 @@ public class QaCoreLoopMenu : MonoBehaviour
 
         x += QaPanels.DrawPanel(new Rect(x, top, 210f, height), "CORE LOOP (F3)", DrawStatus) + gap;
         x += QaPanels.DrawPanel(new Rect(x, top, 230f, height), "SPAWNER ORBITAL", DrawOrbital) + gap;
-        QaPanels.DrawPanel(new Rect(x, top, 280f, height), "RULETA", DrawRoulette);
+        QaPanels.DrawPanel(new Rect(x, top, 280f, height), "ROULETTE", DrawRoulette);
     }
 
     private void DrawStatus()
     {
-        GUILayout.Label($"Enemigos activos: {EnemyRegistry.ActiveCount}");
+        GUILayout.Label($"Active enemies: {EnemyRegistry.ActiveCount}");
 
         if (_orbitalSpawner != null)
         {
-            GUILayout.Label($"Orbital activos: {_orbitalSpawner.ActiveSpawnedCount}");
+            GUILayout.Label($"Active orbitals: {_orbitalSpawner.ActiveSpawnedCount}");
             bool on = _orbitalSpawner.enabled && _orbitalSpawner.gameObject.activeInHierarchy;
-            bool next = GUILayout.Toggle(on, " Orbital encendido");
+            bool next = GUILayout.Toggle(on, " Orbital enabled");
             if (next != on)
             {
                 if (next && !_orbitalSpawner.gameObject.activeSelf)
@@ -187,20 +187,20 @@ public class QaCoreLoopMenu : MonoBehaviour
 
 #if UNITY_EDITOR
         GUI.color = new Color(0.7f, 1f, 0.7f);
-        if (GUILayout.Button("APLICAR CAMBIOS\n(persistir ruleta)"))
+        if (GUILayout.Button("APPLY CHANGES\n(persist roulette)"))
             ApplyConfigToAsset();
         GUI.color = Color.white;
 #else
-        GUILayout.Label("(APLICAR solo en Editor)");
+        GUILayout.Label("(APPLY only in Editor)");
 #endif
 
-        if (GUILayout.Button("Copiar reporte QA"))
+        if (GUILayout.Button("Copy QA report"))
             QaPanels.Copy(BuildCoreLoopReport());
 
         GUILayout.Space(4f);
-        GUILayout.Label("Ruleta: temporal salvo APLICAR");
-        GUILayout.Label("(persiste a otras escenas).");
-        GUILayout.Label("Orbital: solo esta escena.");
+        GUILayout.Label("Roulette: temporary unless applied");
+        GUILayout.Label("(persists to other scenes).");
+        GUILayout.Label("Orbital: this scene only.");
     }
 
 #if UNITY_EDITOR
@@ -221,7 +221,7 @@ public class QaCoreLoopMenu : MonoBehaviour
         UnityEditor.EditorUtility.SetDirty(_config);
         UnityEditor.AssetDatabase.SaveAssets();
         SnapshotConfig();
-        Debug.Log("[QA Core Loop] Ruleta persistida al asset (afecta a todas las escenas).");
+        Debug.Log("[QA Core Loop] Roulette persisted to asset (affects all scenes).");
     }
 #endif
 
@@ -229,15 +229,15 @@ public class QaCoreLoopMenu : MonoBehaviour
     {
         var sb = new StringBuilder(640);
         sb.AppendLine("===== SCRAPWAVES QA — CORE LOOP (F3) =====");
-        sb.AppendLine($"Fecha: {System.DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Date: {System.DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"timeScale: {Time.timeScale:0.##}");
         sb.AppendLine();
 
-        sb.AppendLine($"Enemigos activos: {EnemyRegistry.ActiveCount}");
+        sb.AppendLine($"Active enemies: {EnemyRegistry.ActiveCount}");
         if (_orbitalSpawner != null)
         {
             bool on = _orbitalSpawner.enabled && _orbitalSpawner.gameObject.activeInHierarchy;
-            sb.AppendLine($"Orbital activos: {_orbitalSpawner.ActiveSpawnedCount} | encendido: {on}");
+            sb.AppendLine($"Active orbitals: {_orbitalSpawner.ActiveSpawnedCount} | enabled: {on}");
         }
 
         sb.AppendLine($"Overheat wave x{OverheatSwarmBoost.SpawnWaveMultiplier}");
@@ -255,14 +255,14 @@ public class QaCoreLoopMenu : MonoBehaviour
         }
         else
         {
-            sb.AppendLine("  (sin OrbitalSpawner)");
+            sb.AppendLine("  (no OrbitalSpawner)");
         }
 
         sb.AppendLine();
-        sb.AppendLine("## RULETA");
+        sb.AppendLine("## ROULETTE");
         if (_config != null && _config.Entries != null)
         {
-            sb.AppendLine($"  Bonus variante: cada {_config.VariantWeightBonusEverySeconds}s +{_config.VariantWeightBonusPerStep}");
+            sb.AppendLine($"  Variant bonus: every {_config.VariantWeightBonusEverySeconds}s +{_config.VariantWeightBonusPerStep}");
             foreach (EnemySpawnRouletteConfig.Entry entry in _config.Entries)
             {
                 if (entry == null)
@@ -272,7 +272,7 @@ public class QaCoreLoopMenu : MonoBehaviour
         }
         else
         {
-            sb.AppendLine("  (sin config)");
+            sb.AppendLine("  (no config)");
         }
 
         if (_difficultyManager != null)

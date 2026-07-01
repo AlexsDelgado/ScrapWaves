@@ -154,11 +154,11 @@ public class UIManager : MonoBehaviour
 
         if (_playerXp == null)
         {
-            _levelLabel.text = "Nivel —";
+            _levelLabel.text = "Level —";
             return;
         }
 
-        _levelLabel.text = $"Nivel {_playerXp.CurrentLevel}";
+        _levelLabel.text = $"Level {_playerXp.CurrentLevel}";
     }
 
     private void RefreshHeat()

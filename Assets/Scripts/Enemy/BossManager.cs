@@ -3,69 +3,69 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// En cada Overheat spawnea uno o más bosses. A partir del ciclo configurado puede spawnear varios a la vez.
-/// Cuando el último boss de la fase muere, notifica a <see cref="OverheatManager"/>.
+/// Spawns one or more bosses on each Overheat. From the configured cycle onward it can spawn several at once.
+/// When the last boss in the phase dies, notifies <see cref="OverheatManager"/>.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-31)]
 public class BossManager : MonoBehaviour
 {
-    [SerializeField, Tooltip("Gestor de Overheat (misma duración de fase que el temporizador del jugador).")]
+    [SerializeField, Tooltip("Overheat manager (same phase duration as the player's timer).")]
     private OverheatManager _overheatManager;
 
-    [SerializeField, Tooltip("Prefab raíz del boss: EnemyHealth + EnemyFollow; sin SwarmPooledEnemy.")]
+    [SerializeField, Tooltip("Root boss prefab: EnemyHealth + EnemyFollow; no SwarmPooledEnemy.")]
     private GameObject _bossPrefab;
 
-    [SerializeField, Tooltip("Segundo boss (Boss_2). Se alterna con el primero en cada Overheat par. Vacío = usar siempre el primero.")]
+    [SerializeField, Tooltip("Second boss (Boss_2). Alternates with the first on each even Overheat. Empty = always use the first.")]
     private GameObject _secondBossPrefab;
 
-    [SerializeField, Tooltip("Los bosses solo aparecen en los Overheat pares (2.º, 4.º…). En los impares spawnea la oleada de elites.")]
+    [SerializeField, Tooltip("Bosses only appear on even Overheats (2nd, 4th...). Odd Overheats spawn the elite wave.")]
     private bool _spawnOnlyOnEvenCycles = true;
 
-    [SerializeField, Min(1), Tooltip("Vida máxima aplicada al spawn (sustituye la del prefab).")]
+    [SerializeField, Min(1), Tooltip("Max health applied on spawn (replaces the prefab value).")]
     private int _bossMaxHealth = 400;
 
-    [SerializeField, Min(2f), Tooltip("Distancia en XZ respecto al jugador donde aparece cada boss.")]
+    [SerializeField, Min(2f), Tooltip("XZ distance from the player where each boss appears.")]
     private float _spawnDistance = 12f;
 
-    [SerializeField, Min(1), Tooltip("Número de Overheat (1 = el primero, 2 = el segundo…). En este ciclo se spawnean varios bosses a la vez.")]
+    [SerializeField, Min(1), Tooltip("Overheat number (1 = first, 2 = second...). Several bosses spawn at once on this cycle.")]
     private int _multiBossOverheatCycle = 3;
 
-    [SerializeField, Min(2), Tooltip("Cuántos bosses spawnear en el ciclo multi (p. ej. 2 en el 3.er Overheat).")]
+    [SerializeField, Min(2), Tooltip("How many bosses to spawn on the multi-boss cycle (for example, 2 on the 3rd Overheat).")]
     private int _bossCountOnMultiCycle = 2;
 
-    [SerializeField, Tooltip("Loguear spawn, éxito y fallo.")]
+    [SerializeField, Tooltip("Log spawn, success, and failure.")]
     private bool _logState;
 
-    [Header("Spawn en suelo")]
-    [SerializeField, Tooltip("Raycast principal hacia abajo (0 en Awake = solo Terrain).")]
+    [Header("Ground Spawn")]
+    [SerializeField, Tooltip("Primary downward raycast (0 in Awake = Terrain only).")]
     private LayerMask _groundRaycastMask;
 
-    [SerializeField, Tooltip("Si el principal falla (0 en Awake = Terrain + Default).")]
+    [SerializeField, Tooltip("If the primary raycast fails (0 in Awake = Terrain + Default).")]
     private LayerMask _fallbackGroundRaycastMask;
 
-    [SerializeField, Tooltip("Colliders sólidos para overlap (0 en Awake = Terrain + Default).")]
+    [SerializeField, Tooltip("Solid colliders for overlap (0 in Awake = Terrain + Default).")]
     private LayerMask _overlapSolidMask;
 
-    [SerializeField, Min(1f), Tooltip("Altura sobre la referencia Y del raycast hacia abajo.")]
+    [SerializeField, Min(1f), Tooltip("Height above the reference Y for the downward raycast.")]
     private float _raycastStartHeight = 48f;
 
-    [SerializeField, Min(1f), Tooltip("Longitud máxima del raycast hacia abajo.")]
+    [SerializeField, Min(1f), Tooltip("Maximum length of the downward raycast.")]
     private float _raycastMaxDistance = 220f;
 
-    [SerializeField, Min(0f), Tooltip("Preferir superficies con |Y - referencia| <= este valor. 0 = sin preferencia.")]
+    [SerializeField, Min(0f), Tooltip("Prefer surfaces with |Y - reference| <= this value. 0 = no preference.")]
     private float _maxAbsSpawnSurfaceDeltaY = 3.5f;
 
-    [SerializeField, Min(0f), Tooltip("Separación del hit a lo largo de la normal.")]
+    [SerializeField, Min(0f), Tooltip("Separation from the hit along the normal.")]
     private float _surfaceSeparation = 0.02f;
 
-    [SerializeField, Min(0), Tooltip("Pasos máximos de proyección anti-interior.")]
+    [SerializeField, Min(0), Tooltip("Maximum anti-interior projection steps.")]
     private int _maxProjectionIterations = 14;
 
-    [SerializeField, Min(0f), Tooltip("Paso vertical por iteración.")]
+    [SerializeField, Min(0f), Tooltip("Vertical step per iteration.")]
     private float _resolveStepUp = 0.08f;
 
-    [SerializeField, Min(0f), Tooltip("Paso horizontal por iteración.")]
+    [SerializeField, Min(0f), Tooltip("Horizontal step per iteration.")]
     private float _resolveStepOut = 0.06f;
 
     private readonly List<EnemyHealth> _activeBosses = new List<EnemyHealth>(4);
@@ -74,18 +74,18 @@ public class BossManager : MonoBehaviour
     private int _overheatCycleIndex;
     private bool _exitPhaseActive;
 
-    /// <summary>Cada vez que un boss es derrotado (para victoria global en <see cref="GameManager"/>).</summary>
+    /// <summary>Every time a boss is defeated (for global victory in <see cref="GameManager"/>).</summary>
     public event Action OnBossDefeated;
 
-    /// <summary>Spawn o muerte de bosses activos (HUD de barra y objetivo).</summary>
+    /// <summary>Active boss spawn or death (bar and objective HUD).</summary>
     public event Action OnActiveBossesChanged;
 
-    /// <summary>Bosses vivos en la fase actual de Overheat.</summary>
+    /// <summary>Living bosses in the current Overheat phase.</summary>
     public IReadOnlyList<EnemyHealth> ActiveBosses => _activeBosses;
 
     public bool HasActiveBosses => _activeBosses.Count > 0;
 
-    /// <summary>Primer boss vivo (barra de vida y flecha offscreen).</summary>
+    /// <summary>First living boss (health bar and offscreen arrow).</summary>
     public EnemyHealth PrimaryBoss
     {
         get
@@ -101,7 +101,7 @@ public class BossManager : MonoBehaviour
         }
     }
 
-    /// <summary>Ciclos de Overheat iniciados (1-based durante la fase actual tras incrementar).</summary>
+    /// <summary>Started Overheat cycles (1-based during the current phase after incrementing).</summary>
     public int CurrentOverheatCycle => _overheatCycleIndex;
 
     public void SetExitPhaseActive(bool active) => _exitPhaseActive = active;

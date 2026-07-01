@@ -7,10 +7,13 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class PauseMenuUI : MonoBehaviour
 {
+    private const int PauseCanvasSortingOrder = 32760;
+
     [SerializeField] private PlayerStats _playerStats;
     [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
     [SerializeField] private ThirdPersonCamera _camera;
     [SerializeField] private AudioManager _audioManager;
+    [SerializeField] private WeaponSandboxDebugUI _sandboxDebugUi;
 
     private GameObject _root;
     private TextMeshProUGUI _statsText;
@@ -60,6 +63,8 @@ public class PauseMenuUI : MonoBehaviour
             _camera = FindAnyObjectByType<ThirdPersonCamera>();
         if (_audioManager == null)
             _audioManager = AudioManager.Instance ?? FindAnyObjectByType<AudioManager>();
+        if (_sandboxDebugUi == null)
+            _sandboxDebugUi = FindAnyObjectByType<WeaponSandboxDebugUI>(FindObjectsInactive.Include);
     }
 
     private bool WasEscapePressed()
@@ -83,21 +88,45 @@ public class PauseMenuUI : MonoBehaviour
     private void ShowPause()
     {
         ResolveRefs();
-        _isPaused = true;
         _savedTimeScale = Time.timeScale > 0.001f ? Time.timeScale : 1f;
-        Time.timeScale = 0f;
-        _camera?.SetLookBlockedByUi(true);
+        SetPauseState(true, 0f);
         SyncSettingsFromSources();
         RefreshStats();
-        _root.SetActive(true);
     }
 
     private void Resume()
     {
-        _isPaused = false;
-        _root.SetActive(false);
-        Time.timeScale = _savedTimeScale > 0.001f ? _savedTimeScale : 1f;
-        _camera?.SetLookBlockedByUi(false);
+        SetPauseState(false, _savedTimeScale > 0.001f ? _savedTimeScale : 1f);
+    }
+
+    private void ReturnToTitle()
+    {
+        SetPauseState(false, 1f);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        if (SceneNavigation.LoadTitle())
+            return;
+
+        SetPauseState(true, 0f);
+        SyncSettingsFromSources();
+        RefreshStats();
+    }
+
+    private void SetPauseState(bool paused, float timeScale)
+    {
+        _isPaused = paused;
+        if (_root != null)
+            _root.SetActive(paused);
+        Time.timeScale = timeScale;
+        if (paused)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
+        _camera?.SetLookBlockedByUi(paused);
+        _sandboxDebugUi?.SetPauseMenuOpen(paused);
     }
 
     private void SyncSettingsFromSources()
@@ -146,7 +175,7 @@ public class PauseMenuUI : MonoBehaviour
             return;
 
         _runStatsText.text =
-            $"Tiempo: {RunSessionStats.FormatElapsed()}\n" +
+            $"Time: {RunSessionStats.FormatElapsed()}\n" +
             $"Kills: {RunCombatStats.EnemiesEliminated}";
     }
 
@@ -154,6 +183,11 @@ public class PauseMenuUI : MonoBehaviour
     {
         _root = new GameObject("PauseRoot", typeof(RectTransform));
         _root.transform.SetParent(transform, false);
+        Canvas pauseCanvas = _root.AddComponent<Canvas>();
+        pauseCanvas.overrideSorting = true;
+        pauseCanvas.sortingOrder = PauseCanvasSortingOrder;
+        _root.AddComponent<GraphicRaycaster>();
+
         var rootRt = _root.GetComponent<RectTransform>();
         rootRt.anchorMin = Vector2.zero;
         rootRt.anchorMax = Vector2.one;
@@ -169,7 +203,7 @@ public class PauseMenuUI : MonoBehaviour
         overlay.color = new Color(0f, 0f, 0f, 0.72f);
         overlay.raycastTarget = true;
 
-        var title = HudUiFactory.CreateLabel(_root.transform, "Title", "PAUSA", 48f, TextAlignmentOptions.Center);
+        var title = HudUiFactory.CreateLabel(_root.transform, "Title", "PAUSED", 48f, TextAlignmentOptions.Center);
         var titleRt = title.GetComponent<RectTransform>();
         titleRt.anchorMin = new Vector2(0.5f, 1f);
         titleRt.anchorMax = new Vector2(0.5f, 1f);
@@ -178,13 +212,21 @@ public class PauseMenuUI : MonoBehaviour
         titleRt.sizeDelta = new Vector2(500f, 64f);
         title.fontStyle = FontStyles.Bold;
 
-        var resumeBtn = HudUiFactory.CreateButton(_root.transform, "Continuar", new Vector2(220f, 48f));
+        var resumeBtn = HudUiFactory.CreateButton(_root.transform, "Resume", new Vector2(220f, 48f));
         var resumeRt = resumeBtn.GetComponent<RectTransform>();
         resumeRt.anchorMin = new Vector2(0.5f, 0.5f);
         resumeRt.anchorMax = new Vector2(0.5f, 0.5f);
         resumeRt.pivot = new Vector2(0.5f, 0.5f);
-        resumeRt.anchoredPosition = new Vector2(0f, -40f);
+        resumeRt.anchoredPosition = new Vector2(0f, -12f);
         resumeBtn.onClick.AddListener(Resume);
+
+        var titleBtn = HudUiFactory.CreateButton(_root.transform, "Main Menu", new Vector2(220f, 48f));
+        var titleButtonRt = titleBtn.GetComponent<RectTransform>();
+        titleButtonRt.anchorMin = new Vector2(0.5f, 0.5f);
+        titleButtonRt.anchorMax = new Vector2(0.5f, 0.5f);
+        titleButtonRt.pivot = new Vector2(0.5f, 0.5f);
+        titleButtonRt.anchoredPosition = new Vector2(0f, -72f);
+        titleBtn.onClick.AddListener(ReturnToTitle);
 
         BuildSettingsPanel();
         BuildStatsPanel();
@@ -199,7 +241,7 @@ public class PauseMenuUI : MonoBehaviour
         panelRt.pivot = new Vector2(0f, 0.5f);
         panelRt.anchoredPosition = new Vector2(24f, 0f);
 
-        var header = HudUiFactory.CreateLabel(panel.transform, "Header", "Ajustes", 22f, TextAlignmentOptions.TopLeft);
+        var header = HudUiFactory.CreateLabel(panel.transform, "Header", "Settings", 22f, TextAlignmentOptions.TopLeft);
         var headerRt = header.GetComponent<RectTransform>();
         headerRt.anchorMin = new Vector2(0f, 1f);
         headerRt.anchorMax = new Vector2(1f, 1f);
@@ -209,29 +251,29 @@ public class PauseMenuUI : MonoBehaviour
         header.fontStyle = FontStyles.Bold;
 
         float y = -56f;
-        _hSensSlider = CreateSettingRow(panel.transform, "Sensibilidad H", ref y, 0.02f, 0.4f, 0.12f, v =>
+        _hSensSlider = CreateSettingRow(panel.transform, "Horizontal Sensitivity", ref y, 0.02f, 0.4f, 0.12f, v =>
         {
             if (_camera != null)
                 _camera.HorizontalSensitivity = v;
         });
-        _vSensSlider = CreateSettingRow(panel.transform, "Sensibilidad V", ref y, 0.02f, 0.4f, 0.12f, v =>
+        _vSensSlider = CreateSettingRow(panel.transform, "Vertical Sensitivity", ref y, 0.02f, 0.4f, 0.12f, v =>
         {
             if (_camera != null)
                 _camera.VerticalSensitivity = v;
         });
 
-        _invertYToggle = CreateToggleRow(panel.transform, "Invertir eje Y", ref y, on =>
+        _invertYToggle = CreateToggleRow(panel.transform, "Invert Y", ref y, on =>
         {
             if (_camera != null)
                 _camera.InvertVertical = on;
         });
 
-        _sfxSlider = CreateSettingRow(panel.transform, "Volumen SFX", ref y, 0f, 1f, 1f, v =>
+        _sfxSlider = CreateSettingRow(panel.transform, "SFX Volume", ref y, 0f, 1f, 1f, v =>
         {
             if (_audioManager != null)
                 _audioManager.SfxVolume = v;
         });
-        _musicSlider = CreateSettingRow(panel.transform, "Volumen música", ref y, 0f, 1f, 0.45f, v =>
+        _musicSlider = CreateSettingRow(panel.transform, "Music Volume", ref y, 0f, 1f, 0.45f, v =>
         {
             if (_audioManager != null)
                 _audioManager.MusicVolume = v;
@@ -247,7 +289,7 @@ public class PauseMenuUI : MonoBehaviour
         panelRt.pivot = new Vector2(1f, 0.5f);
         panelRt.anchoredPosition = new Vector2(-24f, 0f);
 
-        var runHeader = HudUiFactory.CreateLabel(panel.transform, "RunHeader", "Partida", 22f, TextAlignmentOptions.TopLeft);
+        var runHeader = HudUiFactory.CreateLabel(panel.transform, "RunHeader", "Run", 22f, TextAlignmentOptions.TopLeft);
         var runHeaderRt = runHeader.GetComponent<RectTransform>();
         runHeaderRt.anchorMin = new Vector2(0f, 1f);
         runHeaderRt.anchorMax = new Vector2(1f, 1f);
@@ -270,7 +312,7 @@ public class PauseMenuUI : MonoBehaviour
         _runStatsText.alignment = TextAlignmentOptions.TopLeft;
         _runStatsText.color = HudUiFactory.MutedTextColor;
 
-        var header = HudUiFactory.CreateLabel(panel.transform, "StatsHeader", "Stats del jugador", 22f, TextAlignmentOptions.TopLeft);
+        var header = HudUiFactory.CreateLabel(panel.transform, "StatsHeader", "Player Stats", 22f, TextAlignmentOptions.TopLeft);
         var headerRt = header.GetComponent<RectTransform>();
         headerRt.anchorMin = new Vector2(0f, 1f);
         headerRt.anchorMax = new Vector2(1f, 1f);

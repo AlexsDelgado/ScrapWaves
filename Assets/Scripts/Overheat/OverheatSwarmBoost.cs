@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Multiplicadores globales durante la fase intensa del Overheat (último tramo del temporizador)
-/// y durante la presión de salida (llaves completas).
-/// Solo afecta a enemigos del <see cref="SwarmEnemyPool"/> (no al boss).
+/// Global multipliers during the intense Overheat phase (last timer segment)
+/// and during exit pressure (completed keys).
+/// Only affects enemies from <see cref="SwarmEnemyPool"/> (not the boss).
 /// </summary>
 public static class OverheatSwarmBoost
 {

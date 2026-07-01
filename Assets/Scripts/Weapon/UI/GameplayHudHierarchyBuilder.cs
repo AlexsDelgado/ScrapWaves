@@ -256,7 +256,7 @@ public static class GameplayHudHierarchyBuilder
         var btn = HudUiFactory.CreateButton(panelGo.transform, "RetryButton", new Vector2(240f, 52f));
         var btnLabel = btn.GetComponentInChildren<TextMeshProUGUI>();
         if (btnLabel != null)
-            btnLabel.text = "Reintentar";
+            btnLabel.text = "Retry";
 
         rootGo.SetActive(false);
     }

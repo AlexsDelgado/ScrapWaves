@@ -198,14 +198,14 @@ public class DebugUI : MonoBehaviour
 
         string gm = "";
         if (GameManager.Instance != null)
-            gm = $" | Partida: {GameManager.Instance.State}";
+            gm = $" | Run: {GameManager.Instance.State}";
 
         _sb.Clear();
         _sb.Append("FPS: ").Append(_fpsSmoothed.ToString("0"));
-        _sb.Append("\nEnemigos (registry): ").Append(enemies);
-        _sb.Append("\nProyectiles (pool): ").Append(proj);
+        _sb.Append("\nEnemies (registry): ").Append(enemies);
+        _sb.Append("\nProjectiles (pool): ").Append(proj);
         _sb.Append("\nHeat: ").Append(heat.ToString("0.#")).Append(" / ").Append(heatMax.ToString("0.#"));
-        _sb.Append("\nNivel: ").Append(level);
+        _sb.Append("\nLevel: ").Append(level);
         _sb.Append("\nTimeScale: ").Append(Time.timeScale.ToString("0.##")).Append(gm);
         _statsText.text = _sb.ToString();
     }
@@ -267,11 +267,11 @@ public class DebugUI : MonoBehaviour
         }
     }
 
-    private void OnDbgOverheatStart() => LogEvent("Overheat iniciado");
+    private void OnDbgOverheatStart() => LogEvent("Overheat started");
 
-    private void OnDbgOverheatEnd(OverheatEndReason r) => LogEvent("Overheat fin: " + r);
+    private void OnDbgOverheatEnd(OverheatEndReason r) => LogEvent("Overheat ended: " + r);
 
-    private void OnDbgLevelUp(int lv) => LogEvent("Nivel " + lv);
+    private void OnDbgLevelUp(int lv) => LogEvent("Level " + lv);
 
     private void BuildUi()
     {

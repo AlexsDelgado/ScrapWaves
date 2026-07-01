@@ -7,15 +7,15 @@ using UnityEngine.InputSystem;
 
 public enum ExitDoorState
 {
-    /// <summary>Faltan llaves.</summary>
+    /// <summary>Keys are missing.</summary>
     Locked,
-    /// <summary>Todas las llaves recogidas; el jugador debe presionar [E] para iniciar la carga.</summary>
+    /// <summary>All keys collected; the player must press [E] to start charging.</summary>
     AwaitingActivation,
-    /// <summary>Cargando tras la primera interacción.</summary>
+    /// <summary>Charging after the first interaction.</summary>
     Charging,
-    /// <summary>Carga completa; el jugador presiona [E] para salir y ganar.</summary>
+    /// <summary>Charge complete; the player presses [E] to exit and win.</summary>
     Ready,
-    /// <summary>Nivel completado.</summary>
+    /// <summary>Level completed.</summary>
     Used
 }
 

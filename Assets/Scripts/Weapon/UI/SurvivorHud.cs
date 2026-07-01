@@ -202,12 +202,12 @@ public class SurvivorHud : MonoBehaviour
 
         if (_playerXp == null)
         {
-            _levelText.text = "Nivel: —";
+            _levelText.text = "Level: —";
             _expText.text = "EXP: — / —";
             return;
         }
 
-        _levelText.text = $"Nivel: {_playerXp.CurrentLevel}";
+        _levelText.text = $"Level: {_playerXp.CurrentLevel}";
         _expText.text = $"EXP: {_playerXp.XpTowardsNext} / {_playerXp.XpRequiredForCurrentLevel}";
     }
 
@@ -215,7 +215,7 @@ public class SurvivorHud : MonoBehaviour
     {
         if (_killsText == null)
             return;
-        _killsText.text = $"Enemigos eliminados: {RunCombatStats.EnemiesEliminated}";
+        _killsText.text = $"Enemies eliminated: {RunCombatStats.EnemiesEliminated}";
     }
 
     private void RefreshHeatBar()

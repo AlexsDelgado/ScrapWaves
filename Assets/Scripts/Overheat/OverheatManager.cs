@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Motivo por el que termina la fase de Overheat (buff + ventana de boss).
+/// Reason the Overheat phase ends (buff + boss window).
 /// </summary>
 public enum OverheatEndReason
 {
@@ -12,36 +12,36 @@ public enum OverheatEndReason
 }
 
 /// <summary>
-/// Al llenar el Heat (<see cref="HeatManager.OnOverheat"/>), entra en Overheat: aplica un multiplicador de cadencia al <see cref="PlayerStats"/>
-/// y luego resetea el Heat a <see cref="_heatAfterOverheat"/>.
-/// NO hay temporizador: el Overheat se mantiene hasta que el jugador completa el objetivo
-/// (derrotar al/los boss en ciclos pares, o todos los elites en impares), momento en el que
-/// <see cref="BossManager"/> / <see cref="OverheatEliteWaveSpawner"/> llaman a
+/// When Heat is filled (<see cref="HeatManager.OnOverheat"/>), enters Overheat: applies a fire-rate multiplier to <see cref="PlayerStats"/>
+/// and then resets Heat to <see cref="_heatAfterOverheat"/>.
+/// There is no timer: Overheat stays active until the player completes the objective
+/// (defeat the boss or bosses on even cycles, or all elites on odd cycles), then
+/// <see cref="BossManager"/> / <see cref="OverheatEliteWaveSpawner"/> call
 /// <see cref="NotifyOverheatObjectiveCleared"/>.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-32)]
 public class OverheatManager : MonoBehaviour
 {
-    [SerializeField, Tooltip("Si está vacío, se usa HeatManager.GetInstance().")]
+    [SerializeField, Tooltip("If empty, HeatManager.GetInstance() is used.")]
     private HeatManager _heatManager;
 
-    [SerializeField, Tooltip("Stats del jugador (mismo GameObject o referencia explícita).")]
+    [SerializeField, Tooltip("Player stats (same GameObject or explicit reference).")]
     private PlayerStats _playerStats;
 
-    [SerializeField, Min(0.1f), Tooltip("EN DESUSO: el Overheat ya no termina por tiempo, dura hasta limpiar el objetivo. Se conserva por compatibilidad.")]
+    [SerializeField, Min(0.1f), Tooltip("DEPRECATED: Overheat no longer ends by time; it lasts until the objective is cleared. Kept for compatibility.")]
     private float _overheatDuration = 5f;
 
-    [SerializeField, Min(0.01f), Tooltip("Multiplicador de cadencia de disparo durante Overheat (2 = el doble de rápido, intervalo ~mitad).")]
+    [SerializeField, Min(0.01f), Tooltip("Fire-rate multiplier during Overheat (2 = double speed, roughly half interval).")]
     private float _fireRateMultiplier = 1.5f;
 
-    [SerializeField, Min(0f), Tooltip("Heat tras terminar Overheat (0 = vacío; sube de nuevo con kills).")]
+    [SerializeField, Min(0f), Tooltip("Heat after Overheat ends (0 = empty; rises again with kills).")]
     private float _heatAfterOverheat = 0f;
 
-    [SerializeField, Tooltip("Loguear inicio y fin de Overheat.")]
+    [SerializeField, Tooltip("Log Overheat start and end.")]
     private bool _logState;
 
-    [SerializeField, Tooltip("Pool de enemigos comunes; vacío = FindAnyObjectByType al terminar Overheat.")]
+    [SerializeField, Tooltip("Common enemy pool; empty = FindAnyObjectByType when Overheat ends.")]
     private SwarmEnemyPool _swarmEnemyPool;
 
     private bool _isOverheating;
@@ -50,19 +50,19 @@ public class OverheatManager : MonoBehaviour
     public bool IsOverheating => _isOverheating;
     public bool IsPermanentOverheat => _permanentOverheat;
 
-    /// <summary>Sin temporizador: 0 mientras el Overheat depende del objetivo.</summary>
+    /// <summary>No timer: 0 while Overheat depends on the objective.</summary>
     public float OverheatTimeRemaining => 0f;
 
-    /// <summary>Sin temporizador: 1 mientras está activo el Overheat, 0 si no.</summary>
+    /// <summary>No timer: 1 while Overheat is active, otherwise 0.</summary>
     public float NormalizedOverheatTimeRemaining => _isOverheating ? 1f : 0f;
 
-    /// <summary>Duración configurada (en desuso: ya no hay temporizador).</summary>
+    /// <summary>Configured duration (deprecated: there is no timer anymore).</summary>
     public float ConfiguredOverheatDuration => _overheatDuration;
 
-    /// <summary>Al entrar en Overheat (buff activo y temporizador iniciado).</summary>
+    /// <summary>When entering Overheat (buff active and timer started).</summary>
     public event Action OnOverheatStarted;
 
-    /// <summary>Al salir de Overheat; incluye éxito por boss, tiempo agotado o interrupción.</summary>
+    /// <summary>When leaving Overheat; includes boss success, time expired, or interruption.</summary>
     public event Action<OverheatEndReason> OnOverheatFinished;
 
     private void Awake()
@@ -122,7 +122,7 @@ public class OverheatManager : MonoBehaviour
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(_fireRateMultiplier);
         else if (_logState)
-            Debug.LogWarning("OverheatManager: no hay PlayerStats; no se aplica buff de cadencia.", this);
+            Debug.LogWarning("OverheatManager: no PlayerStats found; fire-rate buff was not applied.", this);
 
         if (_logState)
             Debug.Log($"Overheat permanente (salida) x{_fireRateMultiplier:0.##} fire rate.", this);
@@ -144,7 +144,7 @@ public class OverheatManager : MonoBehaviour
             Debug.LogWarning("OverheatManager: no hay PlayerStats; no se aplica buff de cadencia.", this);
 
         if (_logState)
-            Debug.Log($"Overheat iniciado (sin timer, x{_fireRateMultiplier:0.##} fire rate; dura hasta limpiar el objetivo)", this);
+            Debug.Log($"Overheat started (no timer, x{_fireRateMultiplier:0.##} fire rate; lasts until the objective is cleared)", this);
 
         OnOverheatStarted?.Invoke();
     }

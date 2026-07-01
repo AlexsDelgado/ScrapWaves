@@ -31,7 +31,7 @@ public static class QaBalanceReport
         var sb = new StringBuilder(2048);
 
         sb.AppendLine("===== SCRAPWAVES QA BALANCE REPORT =====");
-        sb.AppendLine($"Fecha: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"timeScale: {Time.timeScale:0.##}");
         sb.AppendLine();
 
@@ -46,10 +46,10 @@ public static class QaBalanceReport
 
     private static void AppendPlayer(StringBuilder sb, PlayerHealth player)
     {
-        sb.AppendLine("## JUGADOR");
+        sb.AppendLine("## PLAYER");
         if (player == null)
         {
-            sb.AppendLine("  (sin PlayerHealth)");
+            sb.AppendLine("  (no PlayerHealth)");
         }
         else
         {
@@ -64,11 +64,11 @@ public static class QaBalanceReport
         sb.AppendLine("## SPAWNER ORBITAL (continuo, ruleta)");
         if (orbitalSpawner == null)
         {
-            sb.AppendLine("  (sin OrbitalSpawner)");
+            sb.AppendLine("  (no OrbitalSpawner)");
         }
         else
         {
-            sb.AppendLine($"  Activo: {orbitalSpawner.enabled} | activos: {orbitalSpawner.ActiveSpawnedCount}");
+            sb.AppendLine($"  Enabled: {orbitalSpawner.enabled} | active: {orbitalSpawner.ActiveSpawnedCount}");
             DumpComponentFields(sb, orbitalSpawner, "  ");
         }
 
@@ -77,10 +77,10 @@ public static class QaBalanceReport
 
     private static void AppendRoulette(StringBuilder sb, EnemySpawnRouletteConfig config)
     {
-        sb.AppendLine("## RULETA (pesos / batch)");
+        sb.AppendLine("## ROULETTE (weights / batch)");
         if (config == null || config.Entries == null)
         {
-            sb.AppendLine("  (sin config)");
+            sb.AppendLine("  (no config)");
             sb.AppendLine();
             return;
         }
@@ -99,10 +99,10 @@ public static class QaBalanceReport
 
     private static void AppendEnemyStats(StringBuilder sb, EnemySpawnRouletteConfig config)
     {
-        sb.AppendLine("## STATS POR ENEMIGO");
+        sb.AppendLine("## STATS BY ENEMY");
         if (config == null || config.Entries == null)
         {
-            sb.AppendLine("  (sin config)");
+            sb.AppendLine("  (no config)");
             return;
         }
 

@@ -108,7 +108,7 @@ public class ZoneSpawner : MonoBehaviour
     {
         if (_enemyPrefab == null)
         {
-            Debug.LogWarning("[ZoneSpawner] _enemyPrefab no asignado.", this);
+            Debug.LogWarning("[ZoneSpawner] _enemyPrefab is not assigned.", this);
             return;
         }
 
