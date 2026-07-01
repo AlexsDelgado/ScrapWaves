@@ -387,7 +387,7 @@ public class ReticleHud : MonoBehaviour
 
         Transform spawn = ResolveProjectileSpawn();
         if (spawn == null
-            || !_aimProvider.TryGetAimDirection(spawn.position, out Vector3 aimDirection)
+            || !_aimProvider.TryGetAimDirection(spawn.position, runtime.Data.BaseRange, out Vector3 aimDirection)
             || !_aimProvider.TryGetMortarTerrainImpact(
                 spawn.position,
                 aimDirection,

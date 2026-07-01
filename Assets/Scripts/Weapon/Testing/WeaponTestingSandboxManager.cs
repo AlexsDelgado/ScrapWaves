@@ -372,7 +372,8 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
 
     private Vector3 ResolveAimDirection()
     {
-        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, out Vector3 aim))
+        float fallbackDistance = CurrentManualWeapon?.Data != null ? CurrentManualWeapon.Data.BaseRange : 0f;
+        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, fallbackDistance, out Vector3 aim))
             return aim.normalized;
 
         if (Camera.main != null)

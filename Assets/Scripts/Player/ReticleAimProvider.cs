@@ -26,6 +26,11 @@ public class ReticleAimProvider : MonoBehaviour
 
     public bool TryGetAimDirection(Vector3 origin, out Vector3 direction)
     {
+        return TryGetAimDirection(origin, _maxAimDistance, out direction);
+    }
+
+    public bool TryGetAimDirection(Vector3 origin, float fallbackDistance, out Vector3 direction)
+    {
         direction = Vector3.zero;
 
         Camera camera = ResolveCamera();
@@ -33,7 +38,7 @@ public class ReticleAimProvider : MonoBehaviour
             return false;
 
         Ray ray = camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-        Vector3 targetPoint = GetTargetPoint(ray);
+        Vector3 targetPoint = GetTargetPoint(ray, origin, fallbackDistance);
         direction = targetPoint - origin;
         return direction.sqrMagnitude > 0.0001f;
     }
@@ -96,11 +101,11 @@ public class ReticleAimProvider : MonoBehaviour
         return _aimCamera;
     }
 
-    private Vector3 GetTargetPoint(Ray ray)
+    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance)
     {
         int hitCount = Physics.RaycastNonAlloc(ray, _hitBuffer, _maxAimDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
         float closestDistance = float.PositiveInfinity;
-        Vector3 closestPoint = ray.origin + ray.direction * _maxAimDistance;
+        Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance);
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -116,6 +121,29 @@ public class ReticleAimProvider : MonoBehaviour
         }
 
         return closestPoint;
+    }
+
+    private Vector3 GetNoHitTargetPoint(Ray ray, Vector3 origin, float fallbackDistance)
+    {
+        // Keep no-hit shots converged with the reticle at weapon reach, not at camera max distance.
+        float distance = Mathf.Clamp(fallbackDistance, 1f, _maxAimDistance);
+        Vector3 cameraToOrigin = ray.origin - origin;
+        float projection = Vector3.Dot(ray.direction, cameraToOrigin);
+        float c = cameraToOrigin.sqrMagnitude - distance * distance;
+        float discriminant = projection * projection - c;
+
+        if (discriminant >= 0f)
+        {
+            float root = Mathf.Sqrt(discriminant);
+            float near = -projection - root;
+            float far = -projection + root;
+            float rayDistance = near >= 0f ? near : far;
+            if (rayDistance >= 0f)
+                return ray.GetPoint(rayDistance);
+        }
+
+        float closestRayDistance = Mathf.Max(0f, -projection);
+        return ray.GetPoint(closestRayDistance);
     }
 
     private bool TryGetMortarSegmentHit(

@@ -287,7 +287,9 @@ public class WeaponManager : MonoBehaviour
     private Vector3 GetAimDirection()
     {
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
-        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, out Vector3 aimDirection))
+        WeaponInstance manualWeapon = GetCurrentManualWeapon();
+        float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
+        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, fallbackDistance, out Vector3 aimDirection))
             return aimDirection.normalized;
 
         Camera mainCamera = Camera.main;
