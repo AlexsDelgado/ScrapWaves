@@ -34,6 +34,8 @@ public sealed class MortarShellImpact : MonoBehaviour
 {
     private const int ArcSegments = 18;
     private const int CollisionBufferSize = 16;
+    private static readonly Color GrapeshotVfxColor = new(1f, 0.88f, 0.22f, 0.9f);
+    private static readonly Color RepeatExplosionVfxColor = new(0.68f, 0.35f, 1f, 0.9f);
     private static Material s_shellMaterial;
 
     private Vector3 _start;
@@ -293,6 +295,8 @@ public sealed class MortarShellImpact : MonoBehaviour
             _remainingRepeatExplosions = Mathf.Max(1, _payload.RepeatExplosionCount) - 1;
             _repeatExplosionTimer = Mathf.Max(0.01f, _payload.RepeatExplosionDelay);
             SpawnGrapeshot(explosionCenter);
+            if (_remainingRepeatExplosions > 0)
+                WeaponUpgradeVfx.SpawnRing(explosionCenter, _explosionRadius * 1.25f, RepeatExplosionVfxColor, _repeatExplosionTimer, 1.5f, "REPEAT");
         }
 
         if (_remainingRepeatExplosions <= 0)
@@ -319,6 +323,9 @@ public sealed class MortarShellImpact : MonoBehaviour
     private void ApplyExplosionDamageAt(Vector3 explosionCenter)
     {
         ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius);
+        if (_payload.RepeatExplosionCount > 1)
+            WeaponUpgradeVfx.SpawnRing(explosionCenter, _explosionRadius * 1.15f, RepeatExplosionVfxColor, 0.55f, 1.8f, "BOOM");
+
         _damagedThisExplosion.Clear();
         Collider[] hits = Physics.OverlapSphere(explosionCenter, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
@@ -353,6 +360,8 @@ public sealed class MortarShellImpact : MonoBehaviour
             Vector3 direction = baseRotation * Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
             Vector3 hitCenter = center + direction.normalized * Mathf.Max(0.5f, _explosionRadius);
             int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * Mathf.Max(0f, _payload.GrapeshotDamageScale)));
+            WeaponUpgradeVfx.SpawnBeam(center + Vector3.up * 0.1f, hitCenter + Vector3.up * 0.1f, GrapeshotVfxColor, 0.35f, 0.06f, i == 0 ? "SHOT" : null);
+            WeaponUpgradeVfx.SpawnRing(hitCenter, Mathf.Max(0.25f, _explosionRadius * 0.35f), GrapeshotVfxColor, 0.35f, 0.8f, null);
             WeaponRadialDamage.Apply(hitCenter, Mathf.Max(0.25f, _explosionRadius * 0.35f), damage, 0.2f, _knockback * 0.35f, 16);
         }
     }

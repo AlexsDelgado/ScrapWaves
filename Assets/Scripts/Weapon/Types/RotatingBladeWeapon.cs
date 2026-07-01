@@ -6,6 +6,8 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private const int MaxContactTargets = 64;
     private const int MaxManualTargets = 64;
     private const int MaxActiveTargets = 128;
+    private static readonly Color MultiBladeVfxColor = new(0.95f, 1f, 0.35f, 0.9f);
+    private static readonly Color AtomicSharpnessVfxColor = new(0.6f, 0.95f, 1f, 0.95f);
 
     private readonly List<Transform> _targets = new();
     private readonly List<Vector3> _hitOrigins = new();
@@ -42,6 +44,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         {
             Vector3 bladeCenter = GetBladeCenter(tuning, bladeIndex, bladeCount);
             ShowOrbit(bladeCenter, hitRadius, tuning);
+            if (shouldDamage && IsMultiBladePath())
+                WeaponUpgradeVfx.SpawnRing(bladeCenter, hitRadius * 1.25f, MultiBladeVfxColor, tuning.BladeVisualDuration, 0.9f, bladeIndex == 0 ? "MULTI" : null);
+            else if (shouldDamage && IsAtomicSharpnessPath())
+                WeaponUpgradeVfx.SpawnRing(bladeCenter, hitRadius * 1.35f, AtomicSharpnessVfxColor, tuning.BladeVisualDuration, 1.1f, "ATOM");
 
             if (!shouldDamage)
                 continue;
@@ -80,6 +86,11 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         for (int swing = 0; swing < swingCount; swing++)
         {
             Vector3 swingDirection = Quaternion.AngleAxis((swing - (swingCount - 1) * 0.5f) * 8f, Vector3.up) * slashDirection;
+            if (IsMultiBladePath())
+                WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle, MultiBladeVfxColor, tuning.BladeVisualDuration, 5, swing == 0 ? "MULTI" : null);
+            else if (IsAtomicSharpnessPath())
+                WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle * 0.75f, AtomicSharpnessVfxColor, tuning.BladeVisualDuration, 5, "ATOM");
+
             int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
                 origin,
                 swingDirection,
@@ -123,6 +134,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             Vector3 repeatedDirection = Quaternion.AngleAxis((thrust - (thrustCount - 1) * 0.5f) * 8f, Vector3.up) * thrustDirection;
             _activeLinePoints[0] = origin;
             _activeLinePoints[1] = origin + repeatedDirection * range;
+            if (IsMultiBladePath())
+                WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], MultiBladeVfxColor, tuning.BladeVisualDuration, lineWidth * 0.25f, thrust == 0 ? "MULTI" : null);
+            else if (IsAtomicSharpnessPath())
+                WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], AtomicSharpnessVfxColor, tuning.BladeVisualDuration, lineWidth * 0.35f, "ATOM");
 
             int hitCount = EnemyRegistry.CollectClosestNearPolyline(
                 _activeLinePoints,

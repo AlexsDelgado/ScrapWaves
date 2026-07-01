@@ -12,6 +12,8 @@ using UnityEngine.InputSystem.UI;
 public sealed class WeaponTestingSandboxManager : MonoBehaviour
 {
     public const int WeaponSlots = 3;
+    private static readonly Color PathAFeedbackColor = new(0.95f, 1f, 0.28f, 0.95f);
+    private static readonly Color PathBFeedbackColor = new(0.35f, 0.9f, 1f, 0.95f);
 
     [Header("Asset References")]
     [SerializeField] private GameObject _playerPrefab;
@@ -157,10 +159,23 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             return;
 
         WeaponInstance weapon = _instances[slot];
-        weapon.Level = Mathf.Clamp(level, 1, 10);
+        int requestedLevel = path == WeaponUpgradePath.None ? level : Mathf.Max(level, 6);
+        weapon.Level = Mathf.Clamp(requestedLevel, 1, 10);
         weapon.SelectedPath = weapon.Level >= 6 ? path : WeaponUpgradePath.None;
+        ShowUpgradePathFeedback(weapon);
         if (weapon.State == WeaponState.Manual)
             RefillAmmo(slot);
+    }
+
+    private void ShowUpgradePathFeedback(WeaponInstance weapon)
+    {
+        if (!Application.isPlaying || weapon == null || weapon.SelectedPath == WeaponUpgradePath.None || !weapon.HasAdvancedPath)
+            return;
+
+        Vector3 center = PlayerTransform != null ? PlayerTransform.position : transform.position;
+        Color color = weapon.SelectedPath == WeaponUpgradePath.PathA ? PathAFeedbackColor : PathBFeedbackColor;
+        string label = weapon.SelectedPath == WeaponUpgradePath.PathA ? "PATH A" : "PATH B";
+        WeaponUpgradeVfx.SpawnRing(center, 2.2f, color, 1.2f, 2.25f, label);
     }
 
     public WeaponInstance GetWeaponInSlot(int slot)

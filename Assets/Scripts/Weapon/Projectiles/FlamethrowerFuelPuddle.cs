@@ -2,6 +2,9 @@ using UnityEngine;
 
 public sealed class FlamethrowerFuelPuddle : MonoBehaviour
 {
+    private static readonly Color FuelSpawnColor = new(1f, 0.42f, 0.05f, 0.85f);
+    private static readonly Color FuelTickColor = new(1f, 0.7f, 0.18f, 0.7f);
+
     private Vector3 _center;
     private float _radius;
     private int _damagePerTick;
@@ -29,6 +32,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
 
         if (Application.isPlaying)
             ExplosionRadiusVfx.Spawn(center, _radius);
+
+        WeaponUpgradeVfx.SpawnRing(center, _radius, FuelSpawnColor, Mathf.Min(1.2f, _remainingDuration), 1.4f, "FUEL");
     }
 
     private void Update()
@@ -39,6 +44,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         while (_tickTimer <= 0f && _remainingDuration > 0f)
         {
             WeaponRadialDamage.Apply(_center, _radius, _damagePerTick, falloff: 0f, knockback: 0f, maxTargets: 64);
+            WeaponUpgradeVfx.SpawnRing(_center, _radius * 0.9f, FuelTickColor, 0.25f, 0.8f, null);
             _tickTimer += _tickInterval;
         }
 

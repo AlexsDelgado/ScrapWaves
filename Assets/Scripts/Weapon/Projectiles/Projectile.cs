@@ -33,6 +33,8 @@ public class Projectile : MonoBehaviour
     private float _fragmentConeRange;
     private float _fragmentDamageScale;
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
+    private static readonly Color AmplifierVfxColor = new(1f, 0.55f, 0.08f, 0.95f);
+    private static readonly Color FragmentVfxColor = new(0.25f, 0.9f, 1f, 0.9f);
 
     private void Awake()
     {
@@ -230,6 +232,10 @@ public class Projectile : MonoBehaviour
     private void ApplyExplosionDamage()
     {
         ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius);
+        if (_applyDamageAmplifierOnExplosion)
+            WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.15f, AmplifierVfxColor, 0.65f, 2f, "KINETIC");
+        if (_useFragmentCone)
+            WeaponUpgradeVfx.SpawnCone(transform.position, GetFragmentForward(), _fragmentConeRange, _fragmentConeAngle, FragmentVfxColor, 0.55f, 7, "FRAG");
 
         Collider[] hits = Physics.OverlapSphere(transform.position, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
@@ -243,7 +249,10 @@ public class Projectile : MonoBehaviour
             float falloffScale = Mathf.Lerp(1f, 1f - _explosionFalloff, t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
             if (_applyDamageAmplifierOnExplosion)
+            {
                 WeaponDamageAmplifierStatus.Apply(damageable, _damageAmplifierMultiplier, _damageAmplifierDuration);
+                WeaponUpgradeVfx.SpawnTargetPulse(hits[i].transform, AmplifierVfxColor, 0.45f, "VULN");
+            }
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback * falloffScale);
         }
@@ -268,11 +277,7 @@ public class Projectile : MonoBehaviour
             if (toTarget.sqrMagnitude <= 0.0001f)
                 continue;
 
-            Vector3 forward = _direction;
-            forward.y = 0f;
-            if (forward.sqrMagnitude <= 0.0001f)
-                forward = transform.forward;
-
+            Vector3 forward = GetFragmentForward();
             float angle = Vector3.Angle(forward.normalized, toTarget.normalized);
             if (angle > _fragmentConeAngle * 0.5f)
                 continue;
@@ -280,6 +285,19 @@ public class Projectile : MonoBehaviour
             int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * _fragmentDamageScale));
             WeaponDamageApplier.TryApplyDamage(damageable, damage);
         }
+    }
+
+    private Vector3 GetFragmentForward()
+    {
+        Vector3 forward = _direction;
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.0001f)
+        {
+            forward = transform.forward;
+            forward.y = 0f;
+        }
+
+        return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
     }
 
     private void OnDrawGizmos()

@@ -3,6 +3,9 @@ using UnityEngine;
 
 public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 {
+    private static readonly Color ContinuousFireVfxColor = new(1f, 0.58f, 0.12f, 0.85f);
+    private static readonly Color HeadHunterVfxColor = new(0.25f, 0.95f, 1f, 0.95f);
+
     private readonly List<Transform> _piercingTargets = new();
     private readonly List<Vector3> _piercingHitOrigins = new();
     private readonly Vector3[] _piercingLine = new Vector3[2];
@@ -30,6 +33,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
         FireTimer = GetFireInterval();
+        if (IsHeadHunterPath())
+            WeaponUpgradeVfx.SpawnTargetPulse(target, HeadHunterVfxColor, 0.35f, WeaponEnemyClassifier.CountsAsEliteOrBoss(target) ? "HUNT" : null);
+
         FireLineBurst(
             target.position - Spawn.position,
             Mathf.Max(1, tuning.CannonAutoBurstCount + GetContinuousFireBonus()),
@@ -197,6 +203,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Vector3 direction = aimDirection.normalized;
         _piercingLine[0] = origin;
         _piercingLine[1] = origin + direction * Runtime.Data.BaseRange;
+        WeaponUpgradeVfx.SpawnBeam(_piercingLine[0], _piercingLine[1], HeadHunterVfxColor, 0.5f, 0.14f, "WEAK");
 
         int hitCount = EnemyRegistry.CollectClosestNearPolyline(
             _piercingLine,
@@ -215,7 +222,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(_piercingTargets[i]);
             float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride());
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * GetHeadHunterWeakPointScale()));
-            WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
+            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+                WeaponUpgradeVfx.SpawnTargetPulse(_piercingTargets[i], HeadHunterVfxColor, 0.55f, "WEAK");
         }
     }
 
@@ -232,6 +240,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
         baseDirection = ApplyAccuracySpread(baseDirection, accuracySpreadDegrees);
         float spacing = Mathf.Max(0f, lineSpacing);
+        if (IsContinuousFirePath())
+        {
+            float visualRange = Runtime?.Data != null ? Runtime.Data.BaseRange : spacing * Mathf.Max(1, count);
+            WeaponUpgradeVfx.SpawnBeam(Spawn.position, Spawn.position + baseDirection * visualRange, ContinuousFireVfxColor, 0.14f, 0.06f, null);
+        }
 
         for (int i = 0; i < count; i++)
         {

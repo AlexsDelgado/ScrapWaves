@@ -3,6 +3,9 @@ using UnityEngine;
 
 public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 {
+    private static readonly Color JellifiedFuelVfxColor = new(1f, 0.5f, 0.08f, 0.85f);
+    private static readonly Color LiquidNitrogenVfxColor = new(0.45f, 0.95f, 1f, 0.95f);
+
     private readonly PlayerMovement _movement;
     private readonly List<Transform> _targets = new();
     private readonly List<Vector3> _hitOrigins = new();
@@ -244,12 +247,14 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             float levelScale = Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
             float radius = GetScaledHoseRadius(tuning) * levelScale;
             FlamethrowerFuelPuddle.Spawn(target.position, radius, damagePerTick, duration, tuning.FlameBurnTickInterval);
+            WeaponUpgradeVfx.SpawnTargetPulse(target, JellifiedFuelVfxColor, 0.45f, "FUEL");
         }
 
         WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
         if (IsLiquidNitrogenPath())
         {
             float statusDuration = activeAbility ? 2f : 3f;
+            WeaponUpgradeVfx.SpawnTargetPulse(target, LiquidNitrogenVfxColor, activeAbility ? 0.8f : 0.45f, activeAbility ? "FREEZE" : "SLOW");
             if (dummy != null)
                 dummy.ApplyStatus(activeAbility ? "Freeze" : "Liquid Nitrogen", statusDuration);
             if (activeAbility)

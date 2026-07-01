@@ -228,6 +228,100 @@ public class WeaponUpgradeEffectTests
         DestroyGeneratedVfx();
     }
 
+    [Test]
+    public void WeaponUpgradeVfx_SpawnsRingBeamAndConeEffects()
+    {
+        System.Type vfxType = typeof(Projectile).Assembly.GetType("WeaponUpgradeVfx");
+        Assert.That(vfxType, Is.Not.Null, "Missing WeaponUpgradeVfx type.");
+
+        MethodInfo spawnRing = vfxType.GetMethod(
+            "SpawnRing",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(Vector3), typeof(float), typeof(Color), typeof(float), typeof(float), typeof(string) },
+            null);
+        MethodInfo spawnBeam = vfxType.GetMethod(
+            "SpawnBeam",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(Vector3), typeof(Vector3), typeof(Color), typeof(float), typeof(float), typeof(string) },
+            null);
+        MethodInfo spawnCone = vfxType.GetMethod(
+            "SpawnCone",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(Vector3), typeof(Vector3), typeof(float), typeof(float), typeof(Color), typeof(float), typeof(int), typeof(string) },
+            null);
+
+        Assert.That(spawnRing, Is.Not.Null, "Missing WeaponUpgradeVfx.SpawnRing.");
+        Assert.That(spawnBeam, Is.Not.Null, "Missing WeaponUpgradeVfx.SpawnBeam.");
+        Assert.That(spawnCone, Is.Not.Null, "Missing WeaponUpgradeVfx.SpawnCone.");
+
+        object ring = spawnRing.Invoke(null, new object[] { Vector3.zero, 2f, Color.cyan, 0.2f, 1.25f, "RING" });
+        object beam = spawnBeam.Invoke(null, new object[] { Vector3.zero, Vector3.forward * 3f, Color.yellow, 0.2f, 0.1f, "BEAM" });
+        object cone = spawnCone.Invoke(null, new object[] { Vector3.zero, Vector3.forward, 4f, 45f, Color.magenta, 0.2f, 5, "CONE" });
+
+        Assert.That(ring, Is.TypeOf(vfxType));
+        Assert.That(beam, Is.TypeOf(vfxType));
+        Assert.That(cone, Is.TypeOf(vfxType));
+        if (ring is Component ringComponent)
+            Assert.That(ringComponent.transform.position.y, Is.GreaterThan(0.05f));
+
+        DestroyIfComponent(ring);
+        DestroyIfComponent(beam);
+        DestroyIfComponent(cone);
+    }
+
+    [Test]
+    public void SandboxPathSelection_AutoPromotesAdvancedPathToLevelSix()
+    {
+        GameObject go = new("Sandbox Manager");
+        WeaponTestingSandboxManager sandbox = go.AddComponent<WeaponTestingSandboxManager>();
+        FieldInfo instancesField = typeof(WeaponTestingSandboxManager).GetField("_instances", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(instancesField, Is.Not.Null, "Missing WeaponTestingSandboxManager._instances.");
+
+        WeaponInstance[] instances = (WeaponInstance[])instancesField.GetValue(sandbox);
+        instances[0] = new WeaponInstance
+        {
+            Level = 1,
+            SelectedPath = WeaponUpgradePath.None,
+            State = WeaponState.Automatic
+        };
+
+        sandbox.ApplyWeaponLevelAndPath(0, 1, WeaponUpgradePath.PathA);
+
+        Assert.That(instances[0].Level, Is.EqualTo(6));
+        Assert.That(instances[0].SelectedPath, Is.EqualTo(WeaponUpgradePath.PathA));
+        Object.DestroyImmediate(go);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void WeaponUpgradeVfx_TargetPulseFollowsTarget()
+    {
+        System.Type vfxType = typeof(Projectile).Assembly.GetType("WeaponUpgradeVfx");
+        Assert.That(vfxType, Is.Not.Null, "Missing WeaponUpgradeVfx type.");
+
+        MethodInfo spawnPulse = vfxType.GetMethod(
+            "SpawnTargetPulse",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(Transform), typeof(Color), typeof(float), typeof(string) },
+            null);
+        Assert.That(spawnPulse, Is.Not.Null, "Missing WeaponUpgradeVfx.SpawnTargetPulse.");
+
+        GameObject target = new("Pulse Target");
+        target.transform.position = new Vector3(2f, 0f, 3f);
+        object pulse = spawnPulse.Invoke(null, new object[] { target.transform, Color.white, 0.2f, "PULSE" });
+
+        Assert.That(pulse, Is.TypeOf(vfxType));
+        if (pulse is Component component)
+            Assert.That(component.transform.position.x, Is.EqualTo(target.transform.position.x).Within(0.001f));
+
+        DestroyIfComponent(pulse);
+        Object.DestroyImmediate(target);
+    }
+
     private sealed class TestDamageable : MonoBehaviour, IDamageable
     {
         public int LastDamage { get; private set; }
@@ -296,6 +390,22 @@ public class WeaponUpgradeEffectTests
     {
         foreach (ExplosionRadiusVfx vfx in Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
+
+        System.Type upgradeVfxType = typeof(Projectile).Assembly.GetType("WeaponUpgradeVfx");
+        if (upgradeVfxType == null)
+            return;
+
+        foreach (Object vfx in Object.FindObjectsByType(upgradeVfxType, FindObjectsSortMode.None))
+        {
+            if (vfx is Component component)
+                Object.DestroyImmediate(component.gameObject);
+        }
+    }
+
+    private static void DestroyIfComponent(object value)
+    {
+        if (value is Component component && component != null)
+            Object.DestroyImmediate(component.gameObject);
     }
 
     private static FlamethrowerWeapon CreateFlamethrowerWeapon(WeaponUpgradePath path, out WeaponData data)
