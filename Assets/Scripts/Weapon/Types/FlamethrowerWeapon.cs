@@ -3,8 +3,12 @@ using UnityEngine;
 
 public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 {
-    private static readonly Color JellifiedFuelVfxColor = new(1f, 0.5f, 0.08f, 0.85f);
-    private static readonly Color LiquidNitrogenVfxColor = new(0.45f, 0.95f, 1f, 0.95f);
+    private static readonly Color BaseFlameCoreColor = new(1f, 0.75f, 0.15f, 0.95f);
+    private static readonly Color BaseFlameEdgeColor = new(1f, 0.18f, 0.02f, 0.75f);
+    private static readonly Color JellifiedFuelCoreColor = new(0.08f, 0.32f, 0.09f, 0.92f);
+    private static readonly Color JellifiedFuelVfxColor = new(0.02f, 0.16f, 0.04f, 0.9f);
+    private static readonly Color LiquidNitrogenCoreColor = new(0.78f, 0.97f, 1f, 0.95f);
+    private static readonly Color LiquidNitrogenVfxColor = new(0.38f, 0.78f, 1f, 0.88f);
 
     private readonly PlayerMovement _movement;
     private readonly List<Transform> _targets = new();
@@ -14,6 +18,18 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private FlamethrowerStreamVfx _streamVfx;
     private float _autoTickTimer;
     private float _manualTickTimer;
+
+    public string LastManualDebugSummary { get; private set; } = "No manual tick yet";
+    public int LastManualHitCount { get; private set; }
+    public int LastManualDamageApplications { get; private set; }
+    public int LastManualPointCount { get; private set; }
+    public int LastManualRegistryCount { get; private set; }
+    public float LastManualHoseRadius { get; private set; }
+    public float LastManualRange { get; private set; }
+    public float LastManualAmmoBefore { get; private set; }
+    public float LastManualAmmoAfter { get; private set; }
+    public bool LastManualFireHeld { get; private set; }
+    public Vector3 LastManualAimDirection { get; private set; }
 
     public FlamethrowerWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn, PlayerMovement movement)
         : base(targeting, pool, spawn)
@@ -43,30 +59,62 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     // Holds a continuous stream in the manual aim direction and spends ammo over time.
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
-        if (Runtime.State != WeaponState.Manual || !isFiring)
+        ResetManualDebug(aimDirection, isFiring);
+
+        if (Runtime.State != WeaponState.Manual)
+        {
+            LastManualDebugSummary = $"Skip: state {Runtime.State}";
             return;
+        }
+
+        if (!isFiring)
+        {
+            LastManualDebugSummary = "Skip: fire not held";
+            return;
+        }
 
         if (aimDirection.sqrMagnitude <= 0.0001f)
+        {
+            LastManualDebugSummary = "Skip: no aim direction";
             return;
+        }
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
         float ammoCost = tuning.FlameManualAmmoPerSecond * deltaTime;
+        LastManualAmmoBefore = Runtime.CurrentAmmo;
         if (!TrySpendManualAmmo(ammoCost, requireFullAmount: false))
+        {
+            LastManualAmmoAfter = Runtime.CurrentAmmo;
+            LastManualDebugSummary = $"Skip: no ammo ({LastManualAmmoAfter:0.#})";
             return;
+        }
 
         float range = GetManualRange(tuning);
-        ShowStream(aimDirection, range, tuning, deltaTime);
+        LastManualAmmoAfter = Runtime.CurrentAmmo;
+        LastManualRange = range;
+        LastManualHoseRadius = GetScaledHoseRadius(tuning);
+        if (!ShowStream(aimDirection, range, tuning, deltaTime))
+        {
+            LastManualDebugSummary = "Skip: no projectile spawn";
+            return;
+        }
+
+        LastManualPointCount = _hoseStream.PointCount;
 
         _manualTickTimer -= deltaTime;
         if (_manualTickTimer > 0f)
+        {
+            LastManualDebugSummary = $"Waiting tick: {_manualTickTimer:0.00}s";
             return;
+        }
 
-        ApplyHoseDamage(
+        LastManualHitCount = ApplyHoseDamage(
             1f,
             applyBurn: true,
             knockbackScale: tuning.FlameManualKnockbackScale,
             tuning: tuning);
         _manualTickTimer = Mathf.Max(0.01f, tuning.FlameManualTickInterval);
+        LastManualDebugSummary = $"Hits {LastManualHitCount} | Applied {LastManualDamageApplications} | Registry {LastManualRegistryCount} | Points {LastManualPointCount}";
     }
 
     // Emits a circular flame burst around the player.
@@ -90,13 +138,26 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         for (int i = 0; i < hitCount; i++)
         {
-            int damage = CalculateDirectDamage(tuning.FlameActiveDamageScale, _targets[i]);
-            int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
+            int damage = CalculateDirectDamage(tuning.FlameActiveDamageScale, _targets[i], isAbilityDamage: true);
+            int burnDamage = CalculateBurnDamage(tuning, _targets[i], isAbilityDamage: true);
             ApplyDamageToTarget(_targets[i], damage, Owner.position, tuning.FlameActiveKnockbackScale);
             ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: true);
         }
 
-        FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration);
+        if (IsJellifiedFuelPath())
+        {
+            Vector2 puddleSettings = GetJellifiedActivePuddleSettings(tuning, activeRadius);
+            int puddleDamage = CalculateBurnDamage(tuning, null, isAbilityDamage: true);
+            FlamethrowerFuelPuddle.Spawn(
+                Owner.position,
+                puddleSettings.x,
+                puddleDamage,
+                puddleSettings.y,
+                tuning.FlameBurnTickInterval);
+        }
+
+        if (!IsJellifiedFuelPath())
+            FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration, GetStreamCoreColor(), GetStreamEdgeColor());
         CompleteActiveAbility();
     }
 
@@ -156,7 +217,12 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         for (int i = 0; i < hitCount; i++)
         {
             int damage = CalculateDirectDamage(1f, _targets[i]);
-            ApplyDamageToTarget(_targets[i], damage, origin, knockbackScale: 0f);
+            if (ApplyDamageToTarget(_targets[i], damage, origin, knockbackScale: 0f)
+                && (IsJellifiedFuelPath() || IsLiquidNitrogenPath()))
+            {
+                int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
+                ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: false);
+            }
         }
 
         return hitCount;
@@ -165,13 +231,15 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     // Damages enemies near the simulated hose path and optionally refreshes burn on them.
     private int ApplyHoseDamage(float damageScale, bool applyBurn, float knockbackScale, FlamethrowerTuning tuning)
     {
+        LastManualDamageApplications = 0;
+        LastManualRegistryCount = EnemyRegistry.ActiveCount;
         if (Owner == null || _hoseStream.Points == null || _hoseStream.PointCount <= 0)
             return 0;
 
         int hitCount = EnemyRegistry.CollectClosestNearPolyline(
             _hoseStream.Points,
             _hoseStream.PointCount,
-            GetScaledHoseRadius(tuning),
+            LastManualHoseRadius > 0f ? LastManualHoseRadius : GetScaledHoseRadius(tuning),
             Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
             _targets,
             _hitOrigins);
@@ -180,7 +248,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : (Spawn != null ? Spawn.position : Owner.position);
             int damage = CalculateDirectDamage(damageScale, _targets[i]);
-            ApplyDamageToTarget(_targets[i], damage, impactOrigin, knockbackScale);
+            if (ApplyDamageToTarget(_targets[i], damage, impactOrigin, knockbackScale))
+                LastManualDamageApplications++;
             if (applyBurn)
             {
                 int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
@@ -192,19 +261,19 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     }
 
     // Calculates one direct flamethrower damage tick from shared weapon rules.
-    private int CalculateDirectDamage(float damageScale, Transform target)
+    private int CalculateDirectDamage(float damageScale, Transform target, bool isAbilityDamage = false)
     {
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale);
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale);
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
     // Calculates burn damage separately so damage-over-time does not roll critical hits.
-    private int CalculateBurnDamage(FlamethrowerTuning tuning, Transform target)
+    private int CalculateBurnDamage(FlamethrowerTuning tuning, Transform target, bool isAbilityDamage = false)
     {
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
         float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false, isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
@@ -215,14 +284,19 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
 
     // Applies immediate damage to one enemy transform if it has a damage receiver.
-    private void ApplyDamageToTarget(Transform target, int damage, Vector3 impactOrigin, float knockbackScale)
+    private bool ApplyDamageToTarget(Transform target, int damage, Vector3 impactOrigin, float knockbackScale)
     {
         if (target == null)
-            return;
+            return false;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
         if (damageable != null && WeaponDamageApplier.TryApplyDamage(damageable, damage))
+        {
             ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);
+            return true;
+        }
+
+        return false;
     }
 
     // Refreshes a simple burn component on the target's damage receiver.
@@ -234,6 +308,12 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
         if (damageable is not Component damageComponent)
             return;
+
+        if (IsLiquidNitrogenPath())
+        {
+            ApplyLiquidNitrogenStatus(target, activeAbility);
+            return;
+        }
 
         FlamethrowerBurnStatus burn = damageComponent.GetComponent<FlamethrowerBurnStatus>();
         if (burn == null)
@@ -247,36 +327,43 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             float levelScale = Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
             float radius = GetScaledHoseRadius(tuning) * levelScale;
             FlamethrowerFuelPuddle.Spawn(target.position, radius, damagePerTick, duration, tuning.FlameBurnTickInterval);
-            WeaponUpgradeVfx.SpawnTargetPulse(target, JellifiedFuelVfxColor, 0.45f, "FUEL");
         }
 
         WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
-        if (IsLiquidNitrogenPath())
-        {
-            float statusDuration = activeAbility ? 2f : 3f;
-            WeaponUpgradeVfx.SpawnTargetPulse(target, LiquidNitrogenVfxColor, activeAbility ? 0.8f : 0.45f, activeAbility ? "FREEZE" : "SLOW");
-            if (dummy != null)
-                dummy.ApplyStatus(activeAbility ? "Freeze" : "Liquid Nitrogen", statusDuration);
-            if (activeAbility)
-                WeaponMovementFreezeStatus.Apply(target, statusDuration);
-        }
-        else if (dummy != null && IsJellifiedFuelPath())
+        if (dummy != null && IsJellifiedFuelPath())
         {
             dummy.ApplyStatus("Jellified Fuel", duration);
         }
     }
 
+    private void ApplyLiquidNitrogenStatus(Transform target, bool activeAbility)
+    {
+        if (activeAbility)
+        {
+            const float freezeDuration = 2f;
+            WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 1.2f, frozen: true);
+            WeaponMovementSlowStatus.Apply(target, 0.1f, freezeDuration * 2f, "Deep Freeze");
+            WeaponMovementFreezeStatus.Apply(target, freezeDuration);
+            return;
+        }
+
+        WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 0.55f, frozen: false);
+        WeaponMovementSlowStatus.ApplyRamp(target, 0.5f, 0.1f, 6, 3f, "Liquid Nitrogen");
+    }
+
     // Keeps one reusable stream simulation and visual alive while the weapon fires.
-    private void ShowStream(Vector3 direction, float range, FlamethrowerTuning tuning, float deltaTime)
+    private bool ShowStream(Vector3 direction, float range, FlamethrowerTuning tuning, float deltaTime)
     {
         if (Spawn == null)
-            return;
+            return false;
 
         if (_streamVfx == null)
             _streamVfx = FlamethrowerStreamVfx.Create();
 
+        _streamVfx.SetPalette(GetStreamCoreColor(), GetStreamEdgeColor());
         _hoseStream.Update(Spawn.position, direction, range, tuning, deltaTime);
-        _streamVfx.ShowHose(_hoseStream.Points, _hoseStream.PointCount, GetScaledHoseRadius(tuning), tuning.FlameVisualDuration);
+        _streamVfx.ShowHose(_hoseStream.Points, _hoseStream.PointCount, LastManualHoseRadius > 0f ? LastManualHoseRadius : GetScaledHoseRadius(tuning), tuning.FlameVisualDuration);
+        return true;
     }
 
     // Keeps the automatic visual aligned with the same cone used for damage.
@@ -288,6 +375,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (_streamVfx == null)
             _streamVfx = FlamethrowerStreamVfx.Create();
 
+        _streamVfx.SetPalette(GetStreamCoreColor(), GetStreamEdgeColor());
         _streamVfx.ShowCone(Spawn.position, direction, range, tuning.FlameAutoConeAngle, tuning.FlameVisualDuration);
     }
 
@@ -305,8 +393,21 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         float duration = tuning.FlameBurnDuration;
         if (IsJellifiedFuelPath())
-            duration *= 1.5f;
+            duration *= 2f;
         return duration;
+    }
+
+    private Vector2 GetJellifiedActivePuddleSettings(FlamethrowerTuning tuning, float activeRadius)
+    {
+        float levelScale = GetJellifiedFuelLevelScale();
+        float radius = Mathf.Max(0.1f, activeRadius * 0.5f) * levelScale;
+        float duration = Mathf.Max(0.1f, tuning.FlameBurnDuration * 2f) * levelScale;
+        return new Vector2(radius, duration);
+    }
+
+    private float GetJellifiedFuelLevelScale()
+    {
+        return Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
     }
 
     private float GetPathAdjustedActiveRadius(FlamethrowerTuning tuning)
@@ -317,6 +418,39 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (IsLiquidNitrogenPath())
             radius *= 0.9f;
         return radius;
+    }
+
+    private Color GetStreamCoreColor()
+    {
+        if (IsJellifiedFuelPath())
+            return JellifiedFuelCoreColor;
+        if (IsLiquidNitrogenPath())
+            return LiquidNitrogenCoreColor;
+        return BaseFlameCoreColor;
+    }
+
+    private Color GetStreamEdgeColor()
+    {
+        if (IsJellifiedFuelPath())
+            return JellifiedFuelVfxColor;
+        if (IsLiquidNitrogenPath())
+            return LiquidNitrogenVfxColor;
+        return BaseFlameEdgeColor;
+    }
+
+    private void ResetManualDebug(Vector3 aimDirection, bool isFiring)
+    {
+        LastManualDebugSummary = "Tick start";
+        LastManualHitCount = 0;
+        LastManualDamageApplications = 0;
+        LastManualPointCount = 0;
+        LastManualRegistryCount = EnemyRegistry.ActiveCount;
+        LastManualHoseRadius = 0f;
+        LastManualRange = 0f;
+        LastManualAmmoBefore = Runtime != null ? Runtime.CurrentAmmo : 0f;
+        LastManualAmmoAfter = LastManualAmmoBefore;
+        LastManualFireHeld = isFiring;
+        LastManualAimDirection = aimDirection;
     }
 }
 

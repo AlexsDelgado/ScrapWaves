@@ -81,7 +81,9 @@ public class SimpleFollow : MonoBehaviour
 
         dir /= Mathf.Sqrt(sqr);
 
-        float speed = _baseSpeed * _difficultySpeedMultiplier;
+        float speed = _baseSpeed
+            * _difficultySpeedMultiplier
+            * WeaponMovementSlowStatus.GetSpeedMultiplier(transform);
         Vector3 nextPos = transform.position + dir * speed * fixedDeltaTime + knockbackDisplacement;
         _rb.MovePosition(nextPos);
 

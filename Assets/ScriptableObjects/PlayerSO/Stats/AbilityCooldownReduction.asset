@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 32578834035818b4886e041fb388197c, type: 3}
-  m_Name: HealthRegeneration
+  m_Name: AbilityCooldownReduction
   m_EditorClassIdentifier: Assembly-CSharp::StatDefinition
-  <StatType>k__BackingField: 15
-  <Category>k__BackingField: 2
-  <BaseValue>k__BackingField: 0.5
-  <UpgradeableByLevel>k__BackingField: 0
+  <StatType>k__BackingField: 24
+  <Category>k__BackingField: 1
+  <BaseValue>k__BackingField: 0
+  <UpgradeableByLevel>k__BackingField: 1
   <UpgradeableByItems>k__BackingField: 1
-  <LevelUpgradeBaseAmount>k__BackingField: 1.2
-  <IsPercentage>k__BackingField: 0
+  <LevelUpgradeBaseAmount>k__BackingField: 0.02
+  <IsPercentage>k__BackingField: 1
   <IsInteger>k__BackingField: 0

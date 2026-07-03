@@ -29,12 +29,12 @@ MonoBehaviour:
     rid: 7343729927190366209
   LevelData: []
   PathA:
-    PathName: 
+    PathName: Multi-Blade
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
   PathB:
-    PathName: 
+    PathName: Atomic Sharpness
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1

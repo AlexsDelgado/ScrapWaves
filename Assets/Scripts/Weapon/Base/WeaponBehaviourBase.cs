@@ -107,7 +107,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
             return;
 
-        FireAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1.75f, false);
+        FireAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1.75f, false, isAbilityDamage: true);
         CompleteActiveAbility();
     }
 
@@ -120,7 +120,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     {
         if (Runtime?.Data == null)
             return;
-        Runtime.AbilityCooldownTimer = Mathf.Max(0f, Runtime.Data.SkillCooldown);
+        Runtime.AbilityCooldownTimer = Mathf.Max(0f, WeaponMath.GetAbilityCooldownDuration(Runtime, Stats));
     }
 
     // Enables critical hits by default for generic projectile weapons.
@@ -173,7 +173,8 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         float falloff,
         float speedMultiplier,
         float maxTravelDistance,
-        bool explodeOnMaxTravel)
+        bool explodeOnMaxTravel,
+        bool isAbilityDamage = false)
     {
         if (Pool == null || Spawn == null)
             return;
@@ -184,7 +185,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
-        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale);
+        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage) * damageScale);
         float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale);
         Pool.TrySpawnExplosiveProjectile(
             Spawn.position,
@@ -200,25 +201,25 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     }
 
     // Spawns one projectile toward position and resolves final scaled damage.
-    protected void FireAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss)
+    protected void FireAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
     {
         if (Spawn == null)
             return;
 
-        FireInDirection(targetPosition - Spawn.position, damageScale, eliteOrBoss);
+        FireInDirection(targetPosition - Spawn.position, damageScale, eliteOrBoss, isAbilityDamage);
     }
 
     // Spawns one projectile in a known direction and resolves final scaled damage.
-    protected void FireInDirection(Vector3 direction, float damageScale, bool eliteOrBoss)
+    protected void FireInDirection(Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
     {
         if (Spawn == null)
             return;
 
-        FireFromPositionInDirection(Spawn.position, direction, damageScale, eliteOrBoss);
+        FireFromPositionInDirection(Spawn.position, direction, damageScale, eliteOrBoss, isAbilityDamage);
     }
 
     // Spawns one projectile from a specific position in a known direction.
-    protected void FireFromPositionInDirection(Vector3 position, Vector3 direction, float damageScale, bool eliteOrBoss)
+    protected void FireFromPositionInDirection(Vector3 position, Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
     {
         if (Pool == null)
             return;
@@ -228,7 +229,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride()) * damageScale);
+        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage) * damageScale);
         float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale);
         Pool.TrySpawnProjectile(position, rotation, direction, finalDamage, knockback);
     }

@@ -40,6 +40,28 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void RadialDamage_CanSuppressGenericExplosionVisualsForAreaEffects()
+    {
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.transform.position = Vector3.zero;
+        var damageable = target.AddComponent<TestDamageable>();
+
+        int hits = WeaponRadialDamage.Apply(
+            Vector3.zero,
+            2f,
+            12,
+            falloff: 0f,
+            knockback: 0f,
+            maxTargets: 32,
+            showVfx: false);
+
+        Assert.That(hits, Is.EqualTo(1));
+        Assert.That(damageable.TotalDamage, Is.EqualTo(12));
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
     public void FlamethrowerBurnStatus_AppliesDamageThroughWeaponDamageApplier()
     {
         GameObject target = new("Burn Target");
@@ -53,6 +75,77 @@ public class WeaponUpgradeEffectTests
 
         Assert.That(damageable.LastDamage, Is.EqualTo(15));
         Object.DestroyImmediate(target);
+    }
+
+    [Test]
+    public void FlamethrowerManualHose_DamagesVisibleEnemyBodyAboveRegisteredRoot()
+    {
+        GameObject owner = new("Flamethrower Owner");
+        GameObject spawn = new("Flamethrower Spawn");
+        GameObject target = new("Sandbox Dummy Shape");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.up;
+            spawn.transform.SetParent(owner.transform);
+            target.transform.position = Vector3.forward * 2f;
+            CapsuleCollider targetCollider = target.AddComponent<CapsuleCollider>();
+            targetCollider.center = Vector3.up;
+            targetCollider.height = 2f;
+            targetCollider.radius = 0.5f;
+            var damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestFlamethrower";
+            data.DisplayName = "Test Flamethrower";
+            data.WeaponType = WeaponType.Flamethrower;
+            data.BaseDamage = 5f;
+            data.BaseRange = 7f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.Flamethrower.FlameHoseRadius = 0.75f;
+            data.Flamethrower.FlameHoseSegmentCount = 4;
+            data.Flamethrower.FlameHoseTurbulence = 0f;
+            data.Flamethrower.FlameManualAmmoPerSecond = 0f;
+            data.Flamethrower.FlameManualTickInterval = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                SelectedPath = WeaponUpgradePath.None,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            FlamethrowerWeapon weapon = new(null, null, spawn.transform, null);
+            weapon.Setup(instance, owner.transform, stats, null);
+
+            weapon.TickManual(0.02f, Vector3.forward, isFiring: true);
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            DestroyGeneratedVfx();
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+        }
     }
 
     [Test]
@@ -131,6 +224,68 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void FlamethrowerFuelPuddle_SpawnUnderPlayerSitsAboveGround()
+    {
+        System.Type puddleType = typeof(Projectile).Assembly.GetType("FlamethrowerFuelPuddle");
+        Assert.That(puddleType, Is.Not.Null, "Missing FlamethrowerFuelPuddle type.");
+
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        floor.transform.position = Vector3.zero;
+        floor.transform.localScale = new Vector3(10f, 0.12f, 10f);
+
+        GameObject player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        player.transform.position = Vector3.up;
+        player.AddComponent<PlayerStats>();
+        Physics.SyncTransforms();
+
+        MethodInfo spawn = puddleType.GetMethod("Spawn", BindingFlags.Static | BindingFlags.Public);
+        Assert.That(spawn, Is.Not.Null, "Missing FlamethrowerFuelPuddle.Spawn.");
+        object puddle = spawn.Invoke(null, new object[] { player.transform.position, 4f, 7, 1f, 0.1f });
+
+        var component = puddle as Component;
+        Assert.That(component, Is.Not.Null);
+        Assert.That(component.transform.position.y, Is.GreaterThan(0.08f));
+
+        Object.DestroyImmediate(component.gameObject);
+        Object.DestroyImmediate(player);
+        Object.DestroyImmediate(floor);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void WeaponTestingSandbox_TickWeapons_DecrementsManualAbilityCooldown()
+    {
+        GameObject sandboxGo = new("Sandbox Cooldown Test");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        WeaponTestingSandboxManager sandbox = sandboxGo.AddComponent<WeaponTestingSandboxManager>();
+        data.DisplayName = "Cooldown Test Weapon";
+
+        try
+        {
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                State = WeaponState.Manual,
+                CurrentAmmo = 10f,
+                AbilityCooldownTimer = 1f
+            };
+
+            WeaponInstance[] instances = ReadField<WeaponInstance[]>(sandbox, "_instances");
+            instances[0] = instance;
+            SetPrivateField(sandbox, "_manualSlot", 0);
+
+            InvokePrivate(sandbox, "TickWeapons", 0.25f);
+
+            Assert.That(instance.AbilityCooldownTimer, Is.EqualTo(0.75f).Within(0.0001f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(sandboxGo);
+            Object.DestroyImmediate(data);
+        }
+    }
+
+    [Test]
     public void FlamethrowerLiquidNitrogenActiveBurn_AppliesMovementFreezeStatus()
     {
         FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathB, out WeaponData data);
@@ -151,14 +306,166 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void FlamethrowerJellifiedFuel_DoublesBurnDuration()
+    {
+        FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathA, out WeaponData data);
+        data.Flamethrower.FlameBurnDuration = 3f;
+
+        float duration = InvokePrivate<float>(weapon, "GetPathAdjustedBurnDuration", data.Flamethrower);
+
+        Assert.That(duration, Is.EqualTo(6f).Within(0.0001f));
+        Object.DestroyImmediate(data);
+    }
+
+    [Test]
+    public void FlamethrowerJellifiedFuelActivePuddle_UsesSpecRadiusAndDuration()
+    {
+        FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathA, out WeaponData data);
+        data.Flamethrower.FlameBurnDuration = 3f;
+
+        Vector2 settings = InvokePrivate<Vector2>(weapon, "GetJellifiedActivePuddleSettings", data.Flamethrower, 8f);
+
+        Assert.That(settings.x, Is.EqualTo(4f).Within(0.0001f));
+        Assert.That(settings.y, Is.EqualTo(6f).Within(0.0001f));
+        Object.DestroyImmediate(data);
+    }
+
+    [Test]
+    public void FlamethrowerAutomaticCone_LiquidNitrogenAppliesSlow()
+    {
+        GameObject owner = new("Auto Flamethrower Owner");
+        GameObject spawn = new("Auto Flamethrower Spawn");
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.SetParent(owner.transform);
+            target.transform.position = Vector3.forward * 2f;
+            var damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestFlamethrower";
+            data.DisplayName = "Test Flamethrower";
+            data.WeaponType = WeaponType.Flamethrower;
+            data.BaseDamage = 5f;
+            data.BaseRange = 6f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.Flamethrower.FlameAutoConeAngle = 90f;
+            data.Flamethrower.FlameAutoTickInterval = 0.01f;
+            data.Flamethrower.FlameVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Automatic
+            };
+
+            FlamethrowerWeapon weapon = new(null, null, spawn.transform, null);
+            weapon.Setup(instance, owner.transform, stats, null);
+
+            weapon.TickAutomatic(0.02f, Vector3.forward);
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+            Assert.That(target.GetComponent<WeaponMovementSlowStatus>(), Is.Not.Null);
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            DestroyGeneratedVfx();
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+        }
+    }
+
+    [Test]
+    public void WeaponMovementSlowStatus_AppliesAndRefreshesStrongestSlow()
+    {
+        GameObject target = new("Slow Target");
+        target.AddComponent<TestDamageable>();
+
+        WeaponMovementSlowStatus.Apply(target.transform, 0.5f, 3f, "Liquid Nitrogen");
+        WeaponMovementSlowStatus.Apply(target.transform, 0.1f, 1f, "Deep Freeze");
+
+        WeaponMovementSlowStatus status = target.GetComponent<WeaponMovementSlowStatus>();
+        Assert.That(status, Is.Not.Null);
+        Assert.That(status.SpeedMultiplier, Is.EqualTo(0.1f).Within(0.0001f));
+        Object.DestroyImmediate(target);
+    }
+
+    [Test]
+    public void FlamethrowerLiquidNitrogenBurn_RampsSlowToNinetyPercent()
+    {
+        FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathB, out WeaponData data);
+        GameObject target = new("Nitrogen Ramp Target");
+        target.AddComponent<TestDamageable>();
+
+        for (int i = 0; i < 6; i++)
+        {
+            InvokePrivate(
+                weapon,
+                "ApplyBurnToTarget",
+                target.transform,
+                4,
+                data.Flamethrower,
+                false);
+        }
+
+        WeaponMovementSlowStatus slow = target.GetComponent<WeaponMovementSlowStatus>();
+        Assert.That(slow, Is.Not.Null);
+        Assert.That(slow.SpeedMultiplier, Is.EqualTo(0.1f).Within(0.0001f));
+        Object.DestroyImmediate(target);
+        Object.DestroyImmediate(data);
+    }
+
+    [Test]
+    public void FlamethrowerLiquidNitrogenActiveBurn_AppliesPostFreezeSlow()
+    {
+        FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathB, out WeaponData data);
+        GameObject target = new("Freeze Slow Target");
+        target.AddComponent<TestDamageable>();
+
+        InvokePrivate(
+            weapon,
+            "ApplyBurnToTarget",
+            target.transform,
+            4,
+            data.Flamethrower,
+            true);
+
+        WeaponMovementSlowStatus slow = target.GetComponent<WeaponMovementSlowStatus>();
+        Assert.That(slow, Is.Not.Null);
+        Assert.That(slow.SpeedMultiplier, Is.EqualTo(0.1f).Within(0.0001f));
+        Object.DestroyImmediate(target);
+        Object.DestroyImmediate(data);
+    }
+
+    [Test]
     public void MortarUpgradePayload_ReflectsSelectedPath()
     {
         MortarWeapon grapeshotWeapon = CreateMortarWeapon(WeaponUpgradePath.PathA, out WeaponData grapeshotData);
         object grapeshotPayload = InvokePrivate<object>(grapeshotWeapon, "GetUpgradePayload", true);
 
         Assert.That(ReadField<bool>(grapeshotPayload, "UseGrapeshot"), Is.True);
-        Assert.That(ReadField<int>(grapeshotPayload, "GrapeshotCount"), Is.EqualTo(10));
+        Assert.That(ReadField<int>(grapeshotPayload, "GrapeshotCount"), Is.EqualTo(15));
+        Assert.That(ReadField<float>(grapeshotPayload, "GrapeshotDamageScale"), Is.EqualTo(0.5f).Within(0.0001f));
         Assert.That(ReadField<int>(grapeshotPayload, "RepeatExplosionCount"), Is.EqualTo(1));
+        Assert.That(InvokePrivate<int>(grapeshotWeapon, "GetGrapeshotRainShellCount", grapeshotData.Mortar), Is.EqualTo(50));
 
         MortarWeapon repeatWeapon = CreateMortarWeapon(WeaponUpgradePath.PathB, out WeaponData repeatData);
         object repeatPayload = InvokePrivate<object>(repeatWeapon, "GetUpgradePayload", false);
@@ -166,6 +473,9 @@ public class WeaponUpgradeEffectTests
         Assert.That(ReadField<bool>(repeatPayload, "UseGrapeshot"), Is.False);
         Assert.That(ReadField<int>(repeatPayload, "RepeatExplosionCount"), Is.EqualTo(3));
         Assert.That(ReadField<float>(repeatPayload, "RepeatExplosionDelay"), Is.EqualTo(2f).Within(0.0001f));
+        Assert.That(
+            InvokePrivate<float>(repeatWeapon, "GetActiveShellTravelTime", repeatData.Mortar, 0),
+            Is.EqualTo(InvokePrivate<float>(repeatWeapon, "GetActiveShellTravelTime", repeatData.Mortar, 4)).Within(0.0001f));
 
         Object.DestroyImmediate(grapeshotData);
         Object.DestroyImmediate(repeatData);
@@ -335,6 +645,37 @@ public class WeaponUpgradeEffectTests
         }
     }
 
+    private static List<StatDefinition> CreateDefaultStatDefinitions()
+    {
+        return new List<StatDefinition>
+        {
+            CreateDefinition(StatType.DamageMultiplier, 1f),
+            CreateDefinition(StatType.EliteDamageMultiplier, 1f),
+            CreateDefinition(StatType.CriticalChance, 0f),
+            CreateDefinition(StatType.CriticalDamage, 2f),
+            CreateDefinition(StatType.AttackSpeedMultiplier, 1f),
+            CreateDefinition(StatType.AmmoMultiplier, 1f),
+            CreateDefinition(StatType.Knockback, 1f),
+            CreateDefinition(StatType.ProjectileAreaSize, 1f),
+            CreateDefinition(StatType.AbilityDamageMultiplier, 1f),
+            CreateDefinition(StatType.AbilityCooldownReduction, 0f)
+        };
+    }
+
+    private static StatDefinition CreateDefinition(StatType type, float baseValue)
+    {
+        StatDefinition definition = ScriptableObject.CreateInstance<StatDefinition>();
+        SetPrivateField(definition, "<StatType>k__BackingField", type);
+        SetPrivateField(definition, "<Category>k__BackingField", StatCategory.Offensive);
+        SetPrivateField(definition, "<BaseValue>k__BackingField", baseValue);
+        SetPrivateField(definition, "<UpgradeableByLevel>k__BackingField", false);
+        SetPrivateField(definition, "<UpgradeableByItems>k__BackingField", false);
+        SetPrivateField(definition, "<LevelUpgradeBaseAmount>k__BackingField", 0f);
+        SetPrivateField(definition, "<IsPercentage>k__BackingField", false);
+        SetPrivateField(definition, "<IsInteger>k__BackingField", false);
+        return definition;
+    }
+
     private static void SetPrivateField(object target, string fieldName, object value)
     {
         FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -400,6 +741,15 @@ public class WeaponUpgradeEffectTests
             if (vfx is Component component)
                 Object.DestroyImmediate(component.gameObject);
         }
+
+        foreach (FlamethrowerStreamVfx vfx in Object.FindObjectsByType<FlamethrowerStreamVfx>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(vfx.gameObject);
+
+        foreach (WeaponStatusShardVfx vfx in Object.FindObjectsByType<WeaponStatusShardVfx>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(vfx.gameObject);
+
+        foreach (FlamethrowerFuelPuddle puddle in Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(puddle.gameObject);
     }
 
     private static void DestroyIfComponent(object value)

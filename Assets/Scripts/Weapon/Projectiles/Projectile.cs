@@ -32,9 +32,22 @@ public class Projectile : MonoBehaviour
     private float _fragmentConeAngle;
     private float _fragmentConeRange;
     private float _fragmentDamageScale;
+    private bool _useExplosionCluster;
+    private ProjectilePool _clusterPool;
+    private int _clusterProjectileCount;
+    private int _clusterDamage;
+    private float _clusterExplosionRadius;
+    private float _clusterFalloff;
+    private float _clusterKnockback;
+    private float _clusterSpeedMultiplier;
+    private float _clusterTravelDistance;
+    private float _clusterFragmentConeAngle;
+    private float _clusterFragmentConeRange;
+    private float _clusterFragmentDamageScale;
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
     private static readonly Color AmplifierVfxColor = new(1f, 0.55f, 0.08f, 0.95f);
     private static readonly Color FragmentVfxColor = new(0.25f, 0.9f, 1f, 0.9f);
+    private static readonly Color ClusterVfxColor = new(1f, 0.85f, 0.2f, 0.9f);
 
     private void Awake()
     {
@@ -92,6 +105,18 @@ public class Projectile : MonoBehaviour
         _fragmentConeAngle = 0f;
         _fragmentConeRange = 0f;
         _fragmentDamageScale = 0f;
+        _useExplosionCluster = false;
+        _clusterPool = null;
+        _clusterProjectileCount = 0;
+        _clusterDamage = 0;
+        _clusterExplosionRadius = 0f;
+        _clusterFalloff = 0f;
+        _clusterKnockback = 0f;
+        _clusterSpeedMultiplier = 1f;
+        _clusterTravelDistance = 0f;
+        _clusterFragmentConeAngle = 0f;
+        _clusterFragmentConeRange = 0f;
+        _clusterFragmentDamageScale = 0f;
     }
 
 
@@ -131,6 +156,33 @@ public class Projectile : MonoBehaviour
         _fragmentConeAngle = Mathf.Clamp(angle, 1f, 180f);
         _fragmentConeRange = Mathf.Max(0f, range);
         _fragmentDamageScale = Mathf.Max(0f, damageScale);
+    }
+
+    public void ConfigureExplosionCluster(
+        ProjectilePool pool,
+        int projectileCount,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float travelDistance,
+        float fragmentConeAngle,
+        float fragmentConeRange,
+        float fragmentDamageScale)
+    {
+        _useExplosionCluster = pool != null && projectileCount > 0 && damage > 0;
+        _clusterPool = pool;
+        _clusterProjectileCount = Mathf.Max(0, projectileCount);
+        _clusterDamage = Mathf.Max(1, damage);
+        _clusterExplosionRadius = Mathf.Max(0.05f, explosionRadius);
+        _clusterFalloff = Mathf.Clamp01(falloff);
+        _clusterKnockback = Mathf.Max(0f, knockback);
+        _clusterSpeedMultiplier = Mathf.Max(0.01f, speedMultiplier);
+        _clusterTravelDistance = Mathf.Max(0.1f, travelDistance);
+        _clusterFragmentConeAngle = Mathf.Max(0f, fragmentConeAngle);
+        _clusterFragmentConeRange = Mathf.Max(0f, fragmentConeRange);
+        _clusterFragmentDamageScale = Mathf.Max(0f, fragmentDamageScale);
     }
 
     private void FixedUpdate()
@@ -258,6 +310,7 @@ public class Projectile : MonoBehaviour
         }
 
         ApplyFragmentConeDamage();
+        SpawnExplosionCluster();
     }
 
     private void ApplyFragmentConeDamage()
@@ -298,6 +351,36 @@ public class Projectile : MonoBehaviour
         }
 
         return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+    }
+
+    private void SpawnExplosionCluster()
+    {
+        if (!_useExplosionCluster || _clusterPool == null || _clusterProjectileCount <= 0)
+            return;
+
+        WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.25f, ClusterVfxColor, 0.55f, 1.4f, "CLUSTER");
+        for (int i = 0; i < _clusterProjectileCount; i++)
+        {
+            float angle = i / (float)_clusterProjectileCount * Mathf.PI * 2f;
+            Vector3 direction = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
+            _clusterPool.TrySpawnExplosiveProjectileWithAmplifier(
+                transform.position + direction * 0.15f + Vector3.up * 0.15f,
+                rotation,
+                direction,
+                _clusterDamage,
+                _clusterExplosionRadius,
+                _clusterFalloff,
+                _clusterKnockback,
+                _clusterSpeedMultiplier,
+                _clusterTravelDistance,
+                true,
+                1f,
+                0f,
+                _clusterFragmentConeAngle,
+                _clusterFragmentConeRange,
+                _clusterFragmentDamageScale);
+        }
     }
 
     private void OnDrawGizmos()

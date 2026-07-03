@@ -145,6 +145,13 @@ public sealed class MortarShellImpact : MonoBehaviour
         Vector3 previousPosition = transform.position;
         Vector3 nextPosition = GetArcPoint(t);
 
+        if (_payload.UseGrapeshot && t >= GetGrapeshotAirburstNormalizedTime())
+        {
+            transform.position = nextPosition;
+            Detonate(nextPosition);
+            return;
+        }
+
         if (TryGetCollision(previousPosition, nextPosition, out Vector3 collisionPoint))
         {
             transform.position = collisionPoint;
@@ -287,14 +294,16 @@ public sealed class MortarShellImpact : MonoBehaviour
     private void Detonate(Vector3 explosionCenter)
     {
         _target = explosionCenter;
-        ApplyExplosionDamageAt(explosionCenter);
+        if (_payload.UseGrapeshot)
+            SpawnGrapeshot(explosionCenter);
+        else
+            ApplyExplosionDamageAt(explosionCenter);
 
         if (!_detonated)
         {
             _detonated = true;
             _remainingRepeatExplosions = Mathf.Max(1, _payload.RepeatExplosionCount) - 1;
             _repeatExplosionTimer = Mathf.Max(0.01f, _payload.RepeatExplosionDelay);
-            SpawnGrapeshot(explosionCenter);
             if (_remainingRepeatExplosions > 0)
                 WeaponUpgradeVfx.SpawnRing(explosionCenter, _explosionRadius * 1.25f, RepeatExplosionVfxColor, _repeatExplosionTimer, 1.5f, "REPEAT");
         }
@@ -364,6 +373,11 @@ public sealed class MortarShellImpact : MonoBehaviour
             WeaponUpgradeVfx.SpawnRing(hitCenter, Mathf.Max(0.25f, _explosionRadius * 0.35f), GrapeshotVfxColor, 0.35f, 0.8f, null);
             WeaponRadialDamage.Apply(hitCenter, Mathf.Max(0.25f, _explosionRadius * 0.35f), damage, 0.2f, _knockback * 0.35f, 16);
         }
+    }
+
+    private float GetGrapeshotAirburstNormalizedTime()
+    {
+        return 0.72f;
     }
 
     private static void DestroyObject(Object target)

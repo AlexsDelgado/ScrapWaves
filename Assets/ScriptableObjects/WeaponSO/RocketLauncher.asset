@@ -27,12 +27,12 @@ MonoBehaviour:
     rid: 7782109439718619137
   LevelData: []
   PathA:
-    PathName: 
+    PathName: Kinetic Explosion
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
   PathB:
-    PathName: 
+    PathName: Fragmentation Cap
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1

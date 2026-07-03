@@ -143,7 +143,9 @@ public class UIManager : MonoBehaviour
         }
 
         _xpBarImage.fillAmount = _playerXp.NormalizedProgressToNextLevel;
-        _xpLabel.text = $"XP {_playerXp.XpTowardsNext} / {_playerXp.XpRequiredForCurrentLevel}";
+        _xpLabel.text = _playerXp.IsAtLevelCap
+            ? "XP MAX"
+            : $"XP {_playerXp.XpTowardsNext} / {_playerXp.XpRequiredForCurrentLevel}";
     }
 
     private void RefreshXpAndLevel()

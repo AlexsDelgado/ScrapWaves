@@ -29,12 +29,12 @@ MonoBehaviour:
     rid: 6175396285239142401
   LevelData: []
   PathA:
-    PathName: 
+    PathName: Jellified Fuel
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
   PathB:
-    PathName: 
+    PathName: Liquid Nitrogen
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1

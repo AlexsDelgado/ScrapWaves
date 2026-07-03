@@ -33,4 +33,25 @@ public class SandboxWeaponUpgradeDataTests
         Assert.That(data.PathA.ManualAmmoOverride, Is.EqualTo(400f).Within(0.0001f));
         Assert.That(data.PathB.ManualAmmoOverride, Is.EqualTo(40f).Within(0.0001f));
     }
+
+    [TestCase("Assets/ScriptableObjects/WeaponSO/AutomaticCannon.asset", "Continuous Fire", "Head Hunter", 400f, 40f)]
+    [TestCase("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset", "Kinetic Explosion", "Fragmentation Cap", -1f, -1f)]
+    [TestCase("Assets/ScriptableObjects/WeaponSO/Flamethrower.asset", "Jellified Fuel", "Liquid Nitrogen", -1f, -1f)]
+    [TestCase("Assets/ScriptableObjects/WeaponSO/Mortar.asset", "Grapeshot", "Multi-Charged Shells", -1f, -1f)]
+    [TestCase("Assets/ScriptableObjects/WeaponSO/RotatingBlade.asset", "Multi-Blade", "Atomic Sharpness", -1f, -1f)]
+    public void ProductionWeapon_HasConfiguredPathNamesAndOverrides(
+        string path,
+        string expectedPathA,
+        string expectedPathB,
+        float expectedAmmoA,
+        float expectedAmmoB)
+    {
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>(path);
+
+        Assert.That(data, Is.Not.Null, path);
+        Assert.That(data.PathA.PathName, Is.EqualTo(expectedPathA));
+        Assert.That(data.PathB.PathName, Is.EqualTo(expectedPathB));
+        Assert.That(data.PathA.ManualAmmoOverride, Is.EqualTo(expectedAmmoA).Within(0.0001f));
+        Assert.That(data.PathB.ManualAmmoOverride, Is.EqualTo(expectedAmmoB).Within(0.0001f));
+    }
 }

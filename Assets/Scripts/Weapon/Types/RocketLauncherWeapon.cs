@@ -169,6 +169,27 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
+        if (IsFragmentationCapPath())
+        {
+            Transform target = GetFirstActiveTarget();
+            if (target != null)
+            {
+                FireRocketAt(
+                    target.position,
+                    tuning.RocketActiveDamageScale,
+                    GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius, activeAbility: true),
+                    GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
+                    tuning.RocketActiveSpeedMultiplier,
+                    WeaponEnemyClassifier.CountsAsEliteOrBoss(target),
+                    isAbilityDamage: true);
+            }
+
+            ClearTargetMarkers();
+            _abilityTargets.Clear();
+            CompleteActiveAbility();
+            return;
+        }
+
         for (int i = 0; i < _abilityTargets.Count; i++)
         {
             Transform target = _abilityTargets[i];
@@ -178,10 +199,11 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             FireRocketAt(
                 target.position,
                 tuning.RocketActiveDamageScale,
-                GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius),
+                GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius, activeAbility: true),
                 GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
                 tuning.RocketActiveSpeedMultiplier,
-                WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
+                WeaponEnemyClassifier.CountsAsEliteOrBoss(target),
+                isAbilityDamage: true);
         }
 
         ClearTargetMarkers();
@@ -230,10 +252,15 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
     private float GetPathAdjustedExplosionRadius(float radius)
     {
+        return GetPathAdjustedExplosionRadius(radius, activeAbility: false);
+    }
+
+    private float GetPathAdjustedExplosionRadius(float radius, bool activeAbility)
+    {
         if (IsKineticExplosionPath())
-            radius *= 1.3f;
-        if (IsFragmentationCapPath())
-            radius *= 0.8f;
+            radius *= 2f;
+        if (IsFragmentationCapPath() && !activeAbility)
+            radius *= 0.5f;
         return radius;
     }
 
@@ -242,6 +269,38 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (IsKineticExplosionPath())
             return Mathf.Clamp01(falloff * 0.65f);
         return falloff;
+    }
+
+    private float GetPathAdjustedKnockbackScale(bool activeAbility)
+    {
+        if (IsKineticExplosionPath())
+            return activeAbility ? 0.5f : 3f;
+        if (IsFragmentationCapPath())
+            return 0.25f;
+        return 1f;
+    }
+
+    private float GetFragmentDamageScale(bool activeAbility)
+    {
+        return IsFragmentationCapPath() && !activeAbility ? 1f : 0f;
+    }
+
+    private int GetFragmentClusterRocketCount()
+    {
+        return IsFragmentationCapPath() ? 20 : 0;
+    }
+
+    private float GetFragmentClusterDamageScale()
+    {
+        return IsFragmentationCapPath() ? 0.5f : 0f;
+    }
+
+    private float GetFragmentConeRange(float scaledExplosionRadius, bool activeAbility)
+    {
+        if (!IsFragmentationCapPath() || activeAbility)
+            return 0f;
+
+        return scaledExplosionRadius * 4f;
     }
 
     private bool IsKineticExplosionPath() =>
@@ -352,6 +411,17 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         _markedTargets.Clear();
     }
 
+    private Transform GetFirstActiveTarget()
+    {
+        for (int i = 0; i < _abilityTargets.Count; i++)
+        {
+            if (_abilityTargets[i] != null)
+                return _abilityTargets[i];
+        }
+
+        return null;
+    }
+
     // Uses current prefab naming until a dedicated elite/boss metadata component exists.
     private int GetMaxActiveRocketsForTarget(Transform target)
     {
@@ -372,7 +442,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier, false);
     }
 
-    private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
+    private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss, bool isAbilityDamage = false)
     {
         if (Pool == null || Spawn == null)
             return;
@@ -385,16 +455,51 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
         int finalDamage = Mathf.RoundToInt(
-            WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride())
+            WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage)
             * Mathf.Max(0f, damageScale));
 
-        float pathKnockback = IsKineticExplosionPath() ? 3f : 1f;
+        float pathKnockback = GetPathAdjustedKnockbackScale(isAbilityDamage);
         float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale) * pathKnockback;
         float amplifier = IsKineticExplosionPath() ? 1.2f : 1f;
         float amplifierDuration = IsKineticExplosionPath() ? 5f : 0f;
-        float fragmentConeAngle = IsFragmentationCapPath() ? 45f : 0f;
-        float fragmentConeRange = IsFragmentationCapPath() ? scaledExplosionRadius * 2f : 0f;
-        float fragmentDamageScale = IsFragmentationCapPath() ? 0.5f : 0f;
+        float fragmentConeAngle = IsFragmentationCapPath() && !isAbilityDamage ? 45f : 0f;
+        float fragmentConeRange = GetFragmentConeRange(scaledExplosionRadius, isAbilityDamage);
+        float fragmentDamageScale = GetFragmentDamageScale(isAbilityDamage);
+
+        if (IsFragmentationCapPath() && isAbilityDamage)
+        {
+            RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+            float clusterRadius = GetPathAdjustedExplosionRadius(tuning.RocketManualExplosionRadius) * GetAreaSizeMultiplier();
+            int clusterDamage = Mathf.Max(1, Mathf.RoundToInt(finalDamage * GetFragmentClusterDamageScale()));
+            float clusterKnockback = WeaponMath.CalculateKnockback(Stats, Runtime, clusterDamage, damageScale) * GetPathAdjustedKnockbackScale(false);
+            Pool.TrySpawnExplosiveProjectileWithAmplifierAndCluster(
+                Spawn.position,
+                rotation,
+                direction,
+                finalDamage,
+                scaledExplosionRadius,
+                falloff,
+                knockback,
+                speedMultiplier,
+                Runtime.Data.BaseRange,
+                true,
+                amplifier,
+                amplifierDuration,
+                fragmentConeAngle,
+                fragmentConeRange,
+                fragmentDamageScale,
+                GetFragmentClusterRocketCount(),
+                clusterDamage,
+                clusterRadius,
+                GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff),
+                clusterKnockback,
+                tuning.RocketManualSpeedMultiplier,
+                Runtime.Data.BaseRange * 0.45f,
+                45f,
+                GetFragmentConeRange(clusterRadius, activeAbility: false),
+                GetFragmentDamageScale(activeAbility: false));
+            return;
+        }
 
         Pool.TrySpawnExplosiveProjectileWithAmplifier(
             Spawn.position,

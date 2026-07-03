@@ -98,6 +98,41 @@ public class ManualWeaponFireCooldownTests
         Assert.That(weapon.GetFireTimerForTest(), Is.EqualTo(0.5f).Within(0.0001f));
     }
 
+    [Test]
+    public void UseActiveAbility_StartsCooldownReducedByAbilityCooldownReduction()
+    {
+        var owner = TrackForCleanup(new GameObject("Owner"));
+        var spawn = TrackForCleanup(new GameObject("Spawn"));
+        spawn.transform.position = Vector3.zero;
+
+        var weaponStats = owner.AddComponent<PlayerStats>();
+        SetStatDefinitions(weaponStats, CreateAbilityCooldownDefinitions());
+        InvokePrivate(weaponStats, "Awake");
+        weaponStats.AddModifier(new StatModifier(StatType.AbilityCooldownReduction, 0.25f, StatUpgradeSource.PassiveItem));
+
+        WeaponData weaponData = TrackForCleanup(ScriptableObject.CreateInstance<WeaponData>());
+        weaponData.BaseDamage = 10f;
+        weaponData.BaseRange = 10f;
+        weaponData.BaseManualAmmo = 10f;
+        weaponData.ActiveAbilityAmmoCost = 2f;
+        weaponData.SkillCooldown = 8f;
+
+        WeaponInstance runtime = new()
+        {
+            Data = weaponData,
+            State = WeaponState.Manual,
+            CurrentAmmo = 5f
+        };
+
+        var weapon = new TestManualWeapon(spawn.transform);
+        weapon.Setup(runtime, owner.transform, weaponStats, null);
+
+        weapon.UseActiveAbility(Vector3.forward);
+
+        Assert.That(runtime.CurrentAmmo, Is.EqualTo(3f).Within(0.0001f));
+        Assert.That(runtime.AbilityCooldownTimer, Is.EqualTo(6f).Within(0.0001f));
+    }
+
     private List<StatDefinition> CreateAttackSpeedDefinitions()
     {
         StatDefinition attackSpeed = TrackForCleanup(ScriptableObject.CreateInstance<StatDefinition>());
@@ -110,6 +145,20 @@ public class ManualWeaponFireCooldownTests
         SetAutoProperty(attackSpeed, "<IsPercentage>k__BackingField", false);
         SetAutoProperty(attackSpeed, "<IsInteger>k__BackingField", false);
         return new List<StatDefinition> { attackSpeed };
+    }
+
+    private List<StatDefinition> CreateAbilityCooldownDefinitions()
+    {
+        StatDefinition cooldownReduction = TrackForCleanup(ScriptableObject.CreateInstance<StatDefinition>());
+        SetAutoProperty(cooldownReduction, "<StatType>k__BackingField", StatType.AbilityCooldownReduction);
+        SetAutoProperty(cooldownReduction, "<Category>k__BackingField", StatCategory.Offensive);
+        SetAutoProperty(cooldownReduction, "<BaseValue>k__BackingField", 0f);
+        SetAutoProperty(cooldownReduction, "<UpgradeableByLevel>k__BackingField", true);
+        SetAutoProperty(cooldownReduction, "<UpgradeableByItems>k__BackingField", true);
+        SetAutoProperty(cooldownReduction, "<LevelUpgradeBaseAmount>k__BackingField", 0.02f);
+        SetAutoProperty(cooldownReduction, "<IsPercentage>k__BackingField", true);
+        SetAutoProperty(cooldownReduction, "<IsInteger>k__BackingField", false);
+        return new List<StatDefinition> { cooldownReduction };
     }
 
     private T TrackForCleanup<T>(T unityObject) where T : Object

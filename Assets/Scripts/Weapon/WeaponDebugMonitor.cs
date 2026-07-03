@@ -93,7 +93,7 @@ public class WeaponDebugMonitor : MonoBehaviour
         sb.AppendLine($"Manual Weapon: {manual.Data.DisplayName} ({manual.Data.WeaponType})");
         sb.AppendLine($"State: {manual.State}");
         sb.AppendLine($"Manual Ammo: {manual.CurrentAmmo:0.0} / {WeaponMath.GetMaxManualAmmo(manual, GetComponent<PlayerStats>()):0.0}");
-        sb.AppendLine($"Ability Cost: {manual.Data.ActiveAbilityAmmoCost:0.0}");
+        sb.AppendLine($"Ability Cost: {WeaponMath.GetActiveAbilityAmmoCost(manual):0.0}");
         sb.AppendLine("Input: LMB fire, Q ability");
 
         return sb.ToString();

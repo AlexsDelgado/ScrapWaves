@@ -117,11 +117,12 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     {
         FlamethrowerTuning tuning = weapon.Data.Flamethrower;
         float size = GetAreaSize();
+        Color guideColor = GetFlamethrowerGuideColor(weapon, 0.9f);
         if (ShowWeaponHitboxes)
-            DrawRuntimeHose(origin, forward, weapon.Data.BaseRange * size, tuning.FlameHoseRadius * size, new Color(1f, 0.28f, 0.02f, 0.95f));
+            DrawRuntimeHose(origin, forward, weapon.Data.BaseRange * size, tuning.FlameHoseRadius * size, guideColor);
 
-        if (ShowExplosionRadius)
-            DrawRuntimeSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius * size, new Color(1f, 0.08f, 0.02f, 0.9f));
+        if (ShowExplosionRadius && !IsJellifiedFuelPath(weapon))
+            DrawRuntimeSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius * size, GetFlamethrowerGuideColor(weapon, 0.75f));
     }
 
     private void DrawRuntimeRocketLauncher(WeaponInstance weapon, Vector3 origin, Vector3 forward)
@@ -255,15 +256,30 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         FlamethrowerTuning tuning = weapon.Data.Flamethrower;
         if (ShowWeaponHitboxes)
         {
-            Gizmos.color = new Color(1f, 0.35f, 0.05f, 0.85f);
+            Gizmos.color = GetFlamethrowerGuideColor(weapon, 0.85f);
             DrawHose(origin, forward, weapon.Data.BaseRange, tuning.FlameHoseRadius);
         }
 
-        if (ShowExplosionRadius)
+        if (ShowExplosionRadius && !IsJellifiedFuelPath(weapon))
         {
-            Gizmos.color = new Color(1f, 0.1f, 0.02f, 0.7f);
+            Gizmos.color = GetFlamethrowerGuideColor(weapon, 0.7f);
             Gizmos.DrawWireSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius);
         }
+    }
+
+    private static bool IsJellifiedFuelPath(WeaponInstance weapon) =>
+        weapon != null && weapon.HasAdvancedPath && weapon.SelectedPath == WeaponUpgradePath.PathA;
+
+    private static bool IsLiquidNitrogenPath(WeaponInstance weapon) =>
+        weapon != null && weapon.HasAdvancedPath && weapon.SelectedPath == WeaponUpgradePath.PathB;
+
+    private static Color GetFlamethrowerGuideColor(WeaponInstance weapon, float alpha)
+    {
+        if (IsJellifiedFuelPath(weapon))
+            return new Color(0.03f, 0.28f, 0.06f, alpha);
+        if (IsLiquidNitrogenPath(weapon))
+            return new Color(0.55f, 0.9f, 1f, alpha);
+        return new Color(1f, 0.28f, 0.02f, alpha);
     }
 
     private void DrawRocketLauncher(WeaponInstance weapon, Vector3 origin, Vector3 forward)

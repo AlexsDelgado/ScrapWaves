@@ -1,8 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Player level progression: accumulates XP toward the next level, applies a scaling curve, and fires events.
-/// Receives XP through <see cref="AddExperience"/> (typically from <see cref="XPPickup.GrantExperience"/>).
+/// Player level progression: accumulates XP toward the next level and fires level-up events.
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerXP : MonoBehaviour
@@ -10,23 +9,28 @@ public class PlayerXP : MonoBehaviour
     [SerializeField, Min(1), Tooltip("Starting level (normally 1).")]
     private int _startingLevel = 1;
 
-    [SerializeField, Min(0.01f), Tooltip("XP reference needed for the first segment (starting level to next). The curve multiplies this value.")]
-    private float _baseXpToNextLevel = 80f;
+    [SerializeField, Min(1), Tooltip("XP required to advance from level 1 to level 2.")]
+    private int _firstLevelXpRequirement = 10;
 
-    [SerializeField, Tooltip("X axis = current player level. Y axis = multiplier over Base XP to reach the next level (1 = no extra, 2 = double required XP).")]
-    private AnimationCurve _scalingMultiplierByLevel = DefaultScalingCurve();
+    [SerializeField, Min(1f), Tooltip("Each level's XP cost is the previous cost multiplied by this value, rounded up.")]
+    private float _experienceCostMultiplier = 1.2f;
+
+    [SerializeField, Min(1), Tooltip("Maximum level that can be reached through XP.")]
+    private int _levelCap = 36;
 
     [SerializeField, Tooltip("Log level-ups to the console.")]
     private bool _logLevelUps;
 
-    [SerializeField]private int _currentLevel;
-    [SerializeField]private int _xpTowardsNext;
+    [SerializeField] private int _currentLevel;
+    [SerializeField] private int _xpTowardsNext;
 
     public int CurrentLevel => _currentLevel;
     public int XpTowardsNext => _xpTowardsNext;
-    public int XpRequiredForCurrentLevel => GetXpRequiredCeiled();
+    public int LevelCap => Mathf.Max(1, _levelCap);
+    public bool IsAtLevelCap => _currentLevel >= LevelCap;
+    public int XpRequiredForCurrentLevel => IsAtLevelCap ? 0 : GetXpRequiredCeiled();
 
-    /// <summary>Progreso 0–1 hacia el siguiente nivel (para barras de UI).</summary>
+    /// <summary>Progress from 0 to 1 toward the next level, for UI bars.</summary>
     public float NormalizedProgressToNextLevel
     {
         get
@@ -34,42 +38,36 @@ public class PlayerXP : MonoBehaviour
             int need = XpRequiredForCurrentLevel;
             if (need <= 0)
                 return 1f;
+
             return Mathf.Clamp01((float)_xpTowardsNext / need);
         }
     }
 
-    /// <summary>Disparado al subir de nivel; argumento = nuevo nivel alcanzado.</summary>
+    /// <summary>Raised after leveling up; argument is the new level reached.</summary>
     public event System.Action<int> OnLevelUp;
 
-    /// <summary>Disparado cuando cambia la XP del tramo actual (recogida, subida de nivel, etc.).</summary>
+    /// <summary>Raised when XP progress for the current level changes.</summary>
     public event System.Action OnXpProgressChanged;
 
     private void Awake()
     {
-        _currentLevel = Mathf.Max(1, _startingLevel);
+        _currentLevel = Mathf.Clamp(_startingLevel, 1, LevelCap);
         _xpTowardsNext = 0;
     }
 
-    private static AnimationCurve DefaultScalingCurve()
-    {
-        return new AnimationCurve(
-            new Keyframe(1f, 1f),
-            new Keyframe(10f, 1.6f),
-            new Keyframe(25f, 2.8f),
-            new Keyframe(50f, 5f));
-    }
-
-    /// <summary>Añade XP y procesa una o varias subidas de nivel según el umbral escalado.</summary>
     public void AddExperience(int amount)
     {
-        if (amount <= 0)
+        if (amount <= 0 || IsAtLevelCap)
             return;
 
         _xpTowardsNext += amount;
 
-        while (_xpTowardsNext >= GetXpRequiredCeiled())
+        while (!IsAtLevelCap)
         {
             int required = GetXpRequiredCeiled();
+            if (_xpTowardsNext < required)
+                break;
+
             _xpTowardsNext -= required;
             _currentLevel++;
 
@@ -79,20 +77,22 @@ public class PlayerXP : MonoBehaviour
             OnLevelUp?.Invoke(_currentLevel);
         }
 
+        if (IsAtLevelCap)
+            _xpTowardsNext = 0;
+
         OnXpProgressChanged?.Invoke();
     }
 
     private int GetXpRequiredCeiled()
     {
-        return Mathf.Max(1, Mathf.CeilToInt(GetXpRequiredFloat()));
-    }
+        int required = Mathf.Max(1, _firstLevelXpRequirement);
+        int targetLevel = Mathf.Max(1, _currentLevel);
+        float multiplier = Mathf.Max(1f, _experienceCostMultiplier);
 
-    private float GetXpRequiredFloat()
-    {
-        float mult = _scalingMultiplierByLevel.Evaluate(_currentLevel);
-        if (mult <= 0f)
-            mult = 0.01f;
-        return _baseXpToNextLevel * mult;
+        for (int level = 1; level < targetLevel; level++)
+            required = Mathf.Max(1, Mathf.CeilToInt(required * multiplier));
+
+        return required;
     }
 
 #if UNITY_EDITOR
@@ -100,8 +100,14 @@ public class PlayerXP : MonoBehaviour
     {
         if (_startingLevel < 1)
             _startingLevel = 1;
-        if (_baseXpToNextLevel < 0.01f)
-            _baseXpToNextLevel = 0.01f;
+        if (_firstLevelXpRequirement < 1)
+            _firstLevelXpRequirement = 1;
+        if (_experienceCostMultiplier < 1f)
+            _experienceCostMultiplier = 1f;
+        if (_levelCap < 1)
+            _levelCap = 1;
+        if (_startingLevel > _levelCap)
+            _startingLevel = _levelCap;
     }
 #endif
 }

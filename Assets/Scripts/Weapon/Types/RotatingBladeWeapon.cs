@@ -16,6 +16,22 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private RotatingBladeVfx _vfx;
     private float _spinAngle;
     private float _autoDamageTimer;
+    private bool _multiBladeManualPending;
+    private int _multiBladeManualSwingIndex;
+    private int _multiBladeManualSwingCount;
+    private float _multiBladeManualTimer;
+    private float _multiBladeManualRange;
+    private float _multiBladeManualDamageScale;
+    private Vector3 _multiBladeManualOrigin;
+    private Vector3 _multiBladeManualDirection;
+    private bool _multiBladeActivePending;
+    private int _multiBladeActiveThrustIndex;
+    private int _multiBladeActiveThrustCount;
+    private float _multiBladeActiveTimer;
+    private float _multiBladeActiveRange;
+    private float _multiBladeActiveLineWidth;
+    private Vector3 _multiBladeActiveOrigin;
+    private Vector3 _multiBladeActiveDirection;
 
     public float SpinAngle => _spinAngle;
 
@@ -65,6 +81,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (Runtime.State != WeaponState.Manual)
             return;
 
+        if (TickPendingMultiBladeActions(deltaTime))
+            return;
+
         FireTimer = Mathf.Max(0f, FireTimer - deltaTime);
         if (!isFiring || FireTimer > 0f)
             return;
@@ -83,30 +102,21 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float range = GetScaledManualRange(tuning);
         float damageScale = GetManualDamageScale(tuning);
         int swingCount = GetBladeCount();
-        for (int swing = 0; swing < swingCount; swing++)
+        if (IsMultiBladePath() && swingCount > 1)
         {
-            Vector3 swingDirection = Quaternion.AngleAxis((swing - (swingCount - 1) * 0.5f) * 8f, Vector3.up) * slashDirection;
-            if (IsMultiBladePath())
-                WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle, MultiBladeVfxColor, tuning.BladeVisualDuration, 5, swing == 0 ? "MULTI" : null);
-            else if (IsAtomicSharpnessPath())
-                WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle * 0.75f, AtomicSharpnessVfxColor, tuning.BladeVisualDuration, 5, "ATOM");
-
-            int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
-                origin,
-                swingDirection,
-                range,
-                tuning.BladeManualConeAngle,
-                MaxManualTargets,
-                _targets);
-
-            for (int i = 0; i < hitCount; i++)
-                ApplyBladeDamage(
-                    _targets[i],
-                    damageScale * GetAtomicSharpnessDamageScale(),
-                    origin,
-                    GetAtomicSharpnessKnockbackScale(tuning.BladeManualKnockbackScale));
+            StartMultiBladeManualSwings(origin, slashDirection, range, damageScale, swingCount);
+            return;
         }
 
+        ExecuteManualSwing(
+            origin,
+            slashDirection,
+            range,
+            damageScale,
+            GetAtomicSharpnessKnockbackScale(tuning.BladeManualKnockbackScale),
+            tuning,
+            0,
+            1);
         ShowSlash(origin, slashDirection, range, tuning);
     }
 
@@ -125,39 +135,24 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         Vector3 origin = GetOwnerOrigin();
+        if (IsAtomicSharpnessPath())
+        {
+            ExecuteAtomicSharpnessDash(origin, thrustDirection, tuning);
+            CompleteActiveAbility();
+            return;
+        }
+
         float range = GetScaledActiveRange(tuning);
         float lineWidth = GetScaledActiveLineWidth(tuning);
         int thrustCount = GetBladeCount();
 
-        for (int thrust = 0; thrust < thrustCount; thrust++)
+        if (IsMultiBladePath() && thrustCount > 1)
         {
-            Vector3 repeatedDirection = Quaternion.AngleAxis((thrust - (thrustCount - 1) * 0.5f) * 8f, Vector3.up) * thrustDirection;
-            _activeLinePoints[0] = origin;
-            _activeLinePoints[1] = origin + repeatedDirection * range;
-            if (IsMultiBladePath())
-                WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], MultiBladeVfxColor, tuning.BladeVisualDuration, lineWidth * 0.25f, thrust == 0 ? "MULTI" : null);
-            else if (IsAtomicSharpnessPath())
-                WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], AtomicSharpnessVfxColor, tuning.BladeVisualDuration, lineWidth * 0.35f, "ATOM");
-
-            int hitCount = EnemyRegistry.CollectClosestNearPolyline(
-                _activeLinePoints,
-                _activeLinePoints.Length,
-                lineWidth * 0.5f,
-                MaxActiveTargets,
-                _targets,
-                _hitOrigins);
-
-            for (int i = 0; i < hitCount; i++)
-            {
-                Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : origin;
-                ApplyBladeDamage(
-                    _targets[i],
-                    tuning.BladeActiveDamageScale * GetAtomicSharpnessDamageScale(),
-                    impactOrigin,
-                    GetAtomicSharpnessKnockbackScale(tuning.BladeActiveKnockbackScale));
-            }
+            StartMultiBladeActiveThrusts(origin, thrustDirection, range, lineWidth, thrustCount);
+            return;
         }
 
+        ExecuteActiveThrust(origin, thrustDirection, range, lineWidth, tuning, 0, 1);
         ShowThrust(origin, thrustDirection, range, lineWidth, tuning);
         CompleteActiveAbility();
     }
@@ -247,6 +242,22 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
     private float GetAtomicSharpnessKnockbackScale(float original) => IsAtomicSharpnessPath() ? 0f : original;
 
+    private float GetAtomicActiveDamageScale() => 1.5f;
+
+    private float GetAtomicActiveInvulnerabilitySeconds() => 0.25f;
+
+    private float GetAtomicDashDurationForHitCount(int hitCount)
+    {
+        return GetAtomicActiveInvulnerabilitySeconds() + Mathf.Max(0, hitCount) * 0.05f;
+    }
+
+    private float GetMultiBladeActionInterval() => 0.1f;
+
+    private bool ShouldApplyMultiBladeKnockback(int actionIndex, int actionCount)
+    {
+        return actionIndex >= Mathf.Max(1, actionCount) - 1;
+    }
+
     private float GetAutomaticKnockbackScale(RotatingBladeTuning tuning)
     {
         float heat = Heat != null ? Heat.NormalizedHeat : 0f;
@@ -285,7 +296,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         return Mathf.Max(0.05f, tuning.BladeActiveLineWidth) * GetAreaSizeMultiplier();
     }
 
-    private void ApplyBladeDamage(Transform target, float damageScale, Vector3 impactOrigin, float knockbackScale)
+    private void ApplyBladeDamage(Transform target, float damageScale, Vector3 impactOrigin, float knockbackScale, bool isAbilityDamage = false)
     {
         if (target == null)
             return;
@@ -295,11 +306,228 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
 
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale);
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale);
         int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
         if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
             ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);
+    }
+
+    private bool TickPendingMultiBladeActions(float deltaTime)
+    {
+        bool consumed = false;
+        if (_multiBladeManualPending)
+        {
+            _multiBladeManualTimer -= deltaTime;
+            if (_multiBladeManualTimer <= 0f)
+                ExecuteNextMultiBladeManualSwing();
+
+            consumed = true;
+        }
+
+        if (_multiBladeActivePending)
+        {
+            _multiBladeActiveTimer -= deltaTime;
+            if (_multiBladeActiveTimer <= 0f)
+                ExecuteNextMultiBladeActiveThrust();
+
+            consumed = true;
+        }
+
+        return consumed;
+    }
+
+    private void StartMultiBladeManualSwings(Vector3 origin, Vector3 direction, float range, float damageScale, int swingCount)
+    {
+        _multiBladeManualPending = true;
+        _multiBladeManualSwingIndex = 0;
+        _multiBladeManualSwingCount = Mathf.Max(1, swingCount);
+        _multiBladeManualTimer = 0f;
+        _multiBladeManualOrigin = origin;
+        _multiBladeManualDirection = direction;
+        _multiBladeManualRange = range;
+        _multiBladeManualDamageScale = damageScale;
+        ExecuteNextMultiBladeManualSwing();
+    }
+
+    private void ExecuteNextMultiBladeManualSwing()
+    {
+        if (!_multiBladeManualPending)
+            return;
+
+        RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
+        int swing = _multiBladeManualSwingIndex;
+        Vector3 swingDirection = GetMultiBladeOffsetDirection(_multiBladeManualDirection, swing, _multiBladeManualSwingCount);
+        float knockbackScale = ShouldApplyMultiBladeKnockback(swing, _multiBladeManualSwingCount)
+            ? tuning.BladeManualKnockbackScale
+            : 0f;
+        ExecuteManualSwing(
+            _multiBladeManualOrigin,
+            swingDirection,
+            _multiBladeManualRange,
+            _multiBladeManualDamageScale,
+            knockbackScale,
+            tuning,
+            swing,
+            _multiBladeManualSwingCount);
+
+        _multiBladeManualSwingIndex++;
+        if (_multiBladeManualSwingIndex >= _multiBladeManualSwingCount)
+        {
+            _multiBladeManualPending = false;
+            ShowSlash(_multiBladeManualOrigin, _multiBladeManualDirection, _multiBladeManualRange, tuning);
+            return;
+        }
+
+        _multiBladeManualTimer = GetMultiBladeActionInterval();
+    }
+
+    private void ExecuteManualSwing(
+        Vector3 origin,
+        Vector3 swingDirection,
+        float range,
+        float damageScale,
+        float knockbackScale,
+        RotatingBladeTuning tuning,
+        int swingIndex,
+        int swingCount)
+    {
+        if (IsMultiBladePath())
+            WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle, MultiBladeVfxColor, tuning.BladeVisualDuration, 5, swingIndex == 0 ? "MULTI" : null);
+        else if (IsAtomicSharpnessPath())
+            WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle * 0.75f, AtomicSharpnessVfxColor, tuning.BladeVisualDuration, 5, "ATOM");
+
+        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
+            origin,
+            swingDirection,
+            range,
+            tuning.BladeManualConeAngle,
+            MaxManualTargets,
+            _targets);
+
+        for (int i = 0; i < hitCount; i++)
+            ApplyBladeDamage(
+                _targets[i],
+                damageScale * GetAtomicSharpnessDamageScale(),
+                origin,
+                GetAtomicSharpnessKnockbackScale(knockbackScale));
+    }
+
+    private void StartMultiBladeActiveThrusts(Vector3 origin, Vector3 direction, float range, float lineWidth, int thrustCount)
+    {
+        _multiBladeActivePending = true;
+        _multiBladeActiveThrustIndex = 0;
+        _multiBladeActiveThrustCount = Mathf.Max(1, thrustCount);
+        _multiBladeActiveTimer = 0f;
+        _multiBladeActiveOrigin = origin;
+        _multiBladeActiveDirection = direction;
+        _multiBladeActiveRange = range;
+        _multiBladeActiveLineWidth = lineWidth;
+        ExecuteNextMultiBladeActiveThrust();
+    }
+
+    private void ExecuteNextMultiBladeActiveThrust()
+    {
+        if (!_multiBladeActivePending)
+            return;
+
+        RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
+        int thrust = _multiBladeActiveThrustIndex;
+        Vector3 thrustDirection = GetMultiBladeOffsetDirection(_multiBladeActiveDirection, thrust, _multiBladeActiveThrustCount);
+        ExecuteActiveThrust(
+            _multiBladeActiveOrigin,
+            thrustDirection,
+            _multiBladeActiveRange,
+            _multiBladeActiveLineWidth,
+            tuning,
+            thrust,
+            _multiBladeActiveThrustCount);
+
+        _multiBladeActiveThrustIndex++;
+        if (_multiBladeActiveThrustIndex >= _multiBladeActiveThrustCount)
+        {
+            _multiBladeActivePending = false;
+            ShowThrust(_multiBladeActiveOrigin, _multiBladeActiveDirection, _multiBladeActiveRange, _multiBladeActiveLineWidth, tuning);
+            CompleteActiveAbility();
+            return;
+        }
+
+        _multiBladeActiveTimer = GetMultiBladeActionInterval();
+    }
+
+    private void ExecuteActiveThrust(
+        Vector3 origin,
+        Vector3 direction,
+        float range,
+        float lineWidth,
+        RotatingBladeTuning tuning,
+        int thrustIndex,
+        int thrustCount)
+    {
+        _activeLinePoints[0] = origin;
+        _activeLinePoints[1] = origin + direction * range;
+        if (IsMultiBladePath())
+            WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], MultiBladeVfxColor, tuning.BladeVisualDuration, lineWidth * 0.25f, thrustIndex == 0 ? "MULTI" : null);
+
+        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+            _activeLinePoints,
+            _activeLinePoints.Length,
+            lineWidth * 0.5f,
+            MaxActiveTargets,
+            _targets,
+            _hitOrigins);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : origin;
+            ApplyBladeDamage(
+                _targets[i],
+                tuning.BladeActiveDamageScale,
+                impactOrigin,
+                tuning.BladeActiveKnockbackScale,
+                isAbilityDamage: true);
+        }
+    }
+
+    private void ExecuteAtomicSharpnessDash(Vector3 origin, Vector3 direction, RotatingBladeTuning tuning)
+    {
+        float range = Mathf.Min(GetScaledActiveRange(tuning), GetScaledManualRange(tuning) * 3f);
+        float lineWidth = GetScaledActiveLineWidth(tuning);
+        _activeLinePoints[0] = origin;
+        _activeLinePoints[1] = origin + direction * range;
+        WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], AtomicSharpnessVfxColor, GetAtomicActiveInvulnerabilitySeconds(), lineWidth * 0.45f, "DASH");
+
+        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+            _activeLinePoints,
+            _activeLinePoints.Length,
+            lineWidth * 0.65f,
+            MaxActiveTargets,
+            _targets,
+            _hitOrigins);
+
+        float dashDuration = GetAtomicDashDurationForHitCount(hitCount);
+        Owner?.GetComponent<PlayerHealth>()?.GrantInvulnerability(dashDuration);
+        Owner?.GetComponent<PlayerMovement>()?.ApplyWeaponDash(
+            direction,
+            Mathf.Max(1f, range / Mathf.Max(0.05f, dashDuration)),
+            dashDuration);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : origin;
+            ApplyBladeDamage(
+                _targets[i],
+                GetAtomicActiveDamageScale(),
+                impactOrigin,
+                0f,
+                isAbilityDamage: true);
+            WeaponUpgradeVfx.SpawnTargetPulse(_targets[i], AtomicSharpnessVfxColor, 0.35f, "DASH");
+        }
+    }
+
+    private Vector3 GetMultiBladeOffsetDirection(Vector3 direction, int actionIndex, int actionCount)
+    {
+        return Quaternion.AngleAxis((actionIndex - (Mathf.Max(1, actionCount) - 1) * 0.5f) * 8f, Vector3.up) * direction;
     }
 
     private void ShowOrbit(Vector3 bladeCenter, float hitRadius, RotatingBladeTuning tuning)

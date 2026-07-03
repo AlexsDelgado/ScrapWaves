@@ -15,13 +15,27 @@ public class XPPickup : MonoBehaviour
     [SerializeField, Tooltip("Log each pickup to the console.")]
     private bool _logGrants;
 
+    [SerializeField, Min(0.01f), Tooltip("Radio usado si no hay stat PickupRange configurado.")]
+    private float _fallbackPickupRadius = 0.75f;
+
     private int _totalExperience;
     private PlayerXP _playerXp;
+    private PlayerStats _playerStats;
 
     public Transform PickupPointTransform => _pickupPoint != null ? _pickupPoint : transform;
 
     /// <summary>Posición mundial usada por <see cref="XPDrop"/>.</summary>
     public Vector3 PickupPoint => PickupPointTransform.position;
+
+    public float PickupRadius
+    {
+        get
+        {
+            if (_playerStats == null)
+                _playerStats = GetComponent<PlayerStats>();
+            return PlayerStatMath.GetPickupRange(_playerStats, _fallbackPickupRadius);
+        }
+    }
 
     public int TotalExperience => _totalExperience;
 
@@ -30,6 +44,7 @@ public class XPPickup : MonoBehaviour
     private void Awake()
     {
         _playerXp = GetComponent<PlayerXP>();
+        _playerStats = GetComponent<PlayerStats>();
     }
 
     private void OnEnable()

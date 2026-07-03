@@ -183,6 +183,14 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         return IsValidSlot(slot) ? _instances[slot] : null;
     }
 
+    public void SelectManualSlot(int slot)
+    {
+        if (!IsValidSlot(slot) || _instances[slot] == null)
+            return;
+
+        StartManualMode(slot, true);
+    }
+
     public void ForceAutomaticMode()
     {
         WeaponInstance weapon = CurrentManualWeapon;
@@ -256,6 +264,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             if (instance?.Data == null)
                 continue;
 
+            instance.AbilityCooldownTimer = 0f;
             _behaviours[i] = CreateBehaviour(instance.Data);
             _behaviours[i].Setup(instance, PlayerTransform, _playerStats, _heatManager);
         }
@@ -286,11 +295,12 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         {
             WeaponInstance instance = _instances[i];
             IWeaponBehaviour behaviour = _behaviours[i];
-            if (instance == null || behaviour == null)
+            if (instance == null)
                 continue;
 
+            instance.AbilityCooldownTimer = Mathf.Max(0f, instance.AbilityCooldownTimer - deltaTime);
             _lastAmmo[i] = instance.CurrentAmmo;
-            if (instance.State == WeaponState.Automatic)
+            if (behaviour != null && instance.State == WeaponState.Automatic)
                 behaviour.TickAutomatic(deltaTime, _currentAimDirection);
         }
 

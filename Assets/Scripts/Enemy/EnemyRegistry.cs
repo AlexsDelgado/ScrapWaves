@@ -4,6 +4,7 @@ using UnityEngine;
 public static class EnemyRegistry
 {
     private static readonly List<Transform> _activeEnemies = new List<Transform>(256);
+    private static readonly List<Collider> _candidateColliders = new List<Collider>(8);
 
     public static int ActiveCount => _activeEnemies.Count;
 
@@ -394,7 +395,7 @@ public static class EnemyRegistry
                 if (results.Contains(candidate))
                     continue;
 
-                float distanceSqr = DistanceSqrToPolyline(candidate.position, points, pointCount, out Vector3 closestPoint);
+                float distanceSqr = DistanceSqrToCandidate(candidate, points, pointCount, out Vector3 closestPoint);
                 if (distanceSqr > radiusSqr || distanceSqr >= bestDistanceSqr)
                     continue;
 
@@ -411,6 +412,33 @@ public static class EnemyRegistry
         }
 
         return results.Count;
+    }
+
+    private static float DistanceSqrToCandidate(Transform candidate, Vector3[] points, int pointCount, out Vector3 closestPoint)
+    {
+        float bestSqr = DistanceSqrToPolyline(candidate.position, points, pointCount, out closestPoint);
+
+        _candidateColliders.Clear();
+        candidate.GetComponentsInChildren(false, _candidateColliders);
+        for (int i = 0; i < _candidateColliders.Count; i++)
+        {
+            Collider collider = _candidateColliders[i];
+            if (collider == null || !collider.enabled)
+                continue;
+
+            Vector3 colliderAnchor = collider.bounds.center;
+            DistanceSqrToPolyline(colliderAnchor, points, pointCount, out Vector3 linePoint);
+            Vector3 colliderPoint = collider.ClosestPoint(linePoint);
+            float sqr = (linePoint - colliderPoint).sqrMagnitude;
+            if (sqr >= bestSqr)
+                continue;
+
+            bestSqr = sqr;
+            closestPoint = linePoint;
+        }
+
+        _candidateColliders.Clear();
+        return bestSqr;
     }
 
     private static bool IsInsideHorizontalCone(Vector3 delta, Vector3 forward, float coneAngle)

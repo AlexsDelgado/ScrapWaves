@@ -29,15 +29,15 @@ MonoBehaviour:
     rid: 5516199871946686465
   LevelData: []
   PathA:
-    PathName: 
+    PathName: Continuous Fire
     DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoOverride: -1
+    ManualAmmoOverride: 400
   PathB:
-    PathName: 
+    PathName: Head Hunter
     DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoOverride: -1
+    ManualAmmoOverride: 40
   references:
     version: 2
     RefIds:

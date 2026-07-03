@@ -19,6 +19,9 @@ public class EnemiesTestingHarness : MonoBehaviour
     [SerializeField, Tooltip("Vacío = PlayerMovement.PlayerTransform")]
     private Transform _player;
 
+    [SerializeField, Tooltip("Vacio = se resuelve desde el player.")]
+    private PlayerStats _playerStats;
+
     [Header("Colocación orbital")]
     [SerializeField, Min(0f)] private float _minSpawnRadius = 8f;
 
@@ -230,7 +233,7 @@ public class EnemiesTestingHarness : MonoBehaviour
             return;
         }
 
-        EnemySpawnRollResult result = _roulette.Roll(RunTimeSeconds);
+        EnemySpawnRollResult result = _roulette.Roll(RunTimeSeconds, ResolvePlayerStats());
         _lastRoll = result;
         _hasRolled = true;
         _totalRolls++;
@@ -416,6 +419,21 @@ public class EnemiesTestingHarness : MonoBehaviour
             _playerHealth = FindAnyObjectByType<PlayerHealth>();
 
         return _playerHealth;
+    }
+
+    private PlayerStats ResolvePlayerStats()
+    {
+        if (_playerStats != null)
+            return _playerStats;
+
+        Transform t = _player != null ? _player : PlayerMovement.PlayerTransform;
+        if (t != null)
+            _playerStats = t.GetComponentInParent<PlayerStats>() ?? t.GetComponentInChildren<PlayerStats>();
+
+        if (_playerStats == null)
+            _playerStats = FindAnyObjectByType<PlayerStats>();
+
+        return _playerStats;
     }
 
     private float DrawPanel(Rect rect, string title, System.Action body)

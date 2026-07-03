@@ -5,12 +5,12 @@ public static class WeaponRadialDamage
 {
     private static readonly List<IDamageable> s_damaged = new(128);
 
-    public static int Apply(Vector3 center, float radius, int damage, float falloff, float knockback, int maxTargets = 128)
+    public static int Apply(Vector3 center, float radius, int damage, float falloff, float knockback, int maxTargets = 128, bool showVfx = true)
     {
         if (radius <= 0f || damage <= 0)
             return 0;
 
-        if (Application.isPlaying)
+        if (showVfx && Application.isPlaying)
             ExplosionRadiusVfx.Spawn(center, radius);
 
         s_damaged.Clear();

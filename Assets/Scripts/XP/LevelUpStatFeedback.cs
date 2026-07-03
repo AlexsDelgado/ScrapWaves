@@ -137,6 +137,8 @@ public static class StatDisplayNames
         { StatType.CriticalDamage, "Critical Damage" },
         { StatType.Knockback, "Knockback" },
         { StatType.AmmoMultiplier, "Ammo" },
+        { StatType.AbilityDamageMultiplier, "Ability Damage" },
+        { StatType.AbilityCooldownReduction, "Ability Cooldown" },
         { StatType.MaxHealth, "Max Health" },
         { StatType.HealthRegeneration, "Health Regen" },
         { StatType.Lifesteal, "Lifesteal" },

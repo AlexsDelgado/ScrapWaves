@@ -27,12 +27,12 @@ MonoBehaviour:
     rid: 6797599696172314625
   LevelData: []
   PathA:
-    PathName: 
+    PathName: Grapeshot
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
   PathB:
-    PathName: 
+    PathName: Multi-Charged Shells
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1

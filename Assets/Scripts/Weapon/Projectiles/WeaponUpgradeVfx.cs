@@ -12,7 +12,6 @@ public sealed class WeaponUpgradeVfx : MonoBehaviour
     private readonly List<float> _baseWidths = new();
 
     private Transform _followTarget;
-    private TextMesh _label;
     private Color _color;
     private float _duration = 0.4f;
     private float _elapsed;
@@ -117,7 +116,6 @@ public sealed class WeaponUpgradeVfx : MonoBehaviour
         WeaponUpgradeVfx vfx = go.AddComponent<WeaponUpgradeVfx>();
         vfx._color = color;
         vfx._duration = Mathf.Max(0.05f, duration);
-        vfx.CreateLabel(label);
         return vfx;
     }
 
@@ -142,23 +140,6 @@ public sealed class WeaponUpgradeVfx : MonoBehaviour
         return line;
     }
 
-    private void CreateLabel(string label)
-    {
-        if (string.IsNullOrWhiteSpace(label))
-            return;
-
-        GameObject labelGo = new("Upgrade VFX Label");
-        labelGo.transform.SetParent(transform, false);
-        labelGo.transform.localPosition = Vector3.up * 1.1f;
-        _label = labelGo.AddComponent<TextMesh>();
-        _label.text = label;
-        _label.fontSize = 24;
-        _label.characterSize = 0.08f;
-        _label.anchor = TextAnchor.MiddleCenter;
-        _label.alignment = TextAlignment.Center;
-        _label.color = _color;
-    }
-
     private void Update()
     {
         if (_followTarget != null)
@@ -181,15 +162,6 @@ public sealed class WeaponUpgradeVfx : MonoBehaviour
 
             if (_isRing)
                 DrawRing(line, Mathf.Lerp(_ringRadius * 0.65f, _ringRadius * 1.2f, t));
-        }
-
-        if (_label != null)
-        {
-            Color labelColor = _color;
-            labelColor.a *= alpha;
-            _label.color = labelColor;
-            if (Camera.main != null)
-                _label.transform.rotation = Quaternion.LookRotation(_label.transform.position - Camera.main.transform.position);
         }
 
         if (t >= 1f)

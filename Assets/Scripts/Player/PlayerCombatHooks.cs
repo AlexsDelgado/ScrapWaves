@@ -15,6 +15,7 @@ public static class PlayerCombatHooks
 
     private static PlayerMovement _movement;
     private static PlayerHealth _health;
+    private static PlayerStats _stats;
 
     private static PlayerMovement Movement
     {
@@ -33,6 +34,16 @@ public static class PlayerCombatHooks
             if (_health == null)
                 _health = ResolveFromPlayer<PlayerHealth>();
             return _health;
+        }
+    }
+
+    private static PlayerStats Stats
+    {
+        get
+        {
+            if (_stats == null)
+                _stats = ResolveFromPlayer<PlayerStats>();
+            return _stats;
         }
     }
 
@@ -99,5 +110,24 @@ public static class PlayerCombatHooks
             health.ApplyBurn(seconds, damagePerSecond);
         else if (LogMissingTargets)
             Debug.LogWarning("[PlayerCombatHooks] TryBurn: no se encontro PlayerHealth.");
+    }
+
+    public static void TryLifesteal(int damageDealt)
+    {
+        if (damageDealt <= 0)
+            return;
+
+        PlayerHealth health = Health;
+        PlayerStats stats = Stats;
+        if (health == null || stats == null)
+        {
+            if (LogMissingTargets)
+                Debug.LogWarning("[PlayerCombatHooks] TryLifesteal: no se encontro PlayerHealth/PlayerStats.");
+            return;
+        }
+
+        int healAmount = PlayerStatMath.CalculateLifestealHeal(stats, damageDealt);
+        if (healAmount > 0)
+            health.Heal(healAmount);
     }
 }

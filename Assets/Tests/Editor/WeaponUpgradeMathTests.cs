@@ -84,6 +84,34 @@ public class WeaponUpgradeMathTests
     }
 
     [Test]
+    public void CalculateDamage_AppliesAbilityDamageMultiplierOnlyForAbilityDamage()
+    {
+        PlayerStats stats = CreateStats();
+        stats.AddModifier(new StatModifier(StatType.AbilityDamageMultiplier, 0.5f, StatUpgradeSource.PassiveItem));
+        WeaponInstance weapon = CreateWeaponInstance(level: 1, WeaponUpgradePath.None);
+        weapon.Data.BaseDamage = 10f;
+
+        float regularDamage = WeaponDamageResolver.CalculateDamage(stats, weapon, eliteOrBoss: false, canCrit: false);
+        float abilityDamage = WeaponDamageResolver.CalculateDamage(stats, weapon, eliteOrBoss: false, canCrit: false, isAbilityDamage: true);
+
+        Assert.That(regularDamage, Is.EqualTo(10f).Within(0.0001f));
+        Assert.That(abilityDamage, Is.EqualTo(15f).Within(0.0001f));
+    }
+
+    [Test]
+    public void GetAbilityCooldownDuration_AppliesCooldownReductionStat()
+    {
+        PlayerStats stats = CreateStats();
+        stats.AddModifier(new StatModifier(StatType.AbilityCooldownReduction, 0.25f, StatUpgradeSource.PassiveItem));
+        WeaponInstance weapon = CreateWeaponInstance(level: 1, WeaponUpgradePath.None);
+        weapon.Data.SkillCooldown = 8f;
+
+        float cooldown = WeaponMath.GetAbilityCooldownDuration(weapon, stats);
+
+        Assert.That(cooldown, Is.EqualTo(6f).Within(0.0001f));
+    }
+
+    [Test]
     public void AutomaticCannon_ContinuousFireMultiplier_AppliesBasePathBonus()
     {
         AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
@@ -91,6 +119,20 @@ public class WeaponUpgradeMathTests
         float multiplier = InvokePrivate<float>(weapon, "GetContinuousFireAttackSpeedMultiplier");
 
         Assert.That(multiplier, Is.EqualTo(1.25f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_ContinuousFire_ReplacesBurstsAndDefinesActiveBarrage()
+    {
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
+        AutomaticCannonTuning tuning = weapon.Runtime.Data.AutomaticCannon;
+
+        Assert.That(InvokePrivate<int>(weapon, "GetAutomaticShotCount", tuning), Is.EqualTo(1));
+        Assert.That(InvokePrivate<int>(weapon, "GetManualShotCount", tuning), Is.EqualTo(1));
+        Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireManualAttackSpeedMultiplier"), Is.EqualTo(1.875f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireActiveDuration"), Is.EqualTo(2f).Within(0.0001f));
+        Assert.That(InvokePrivate<int>(weapon, "GetContinuousFireActiveBulletCount"), Is.EqualTo(80));
+        Assert.That(InvokePrivate<float>(weapon, "GetActiveAbilityAmmoCost"), Is.EqualTo(80f).Within(0.0001f));
     }
 
     [Test]
@@ -103,6 +145,51 @@ public class WeaponUpgradeMathTests
         float multiplier = InvokePrivate<float>(weapon, "GetHeadHunterWeakPointScale");
 
         Assert.That(multiplier, Is.EqualTo(10f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_HeadHunter_UsesPiercingFalloffAndChargeGate()
+    {
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathB);
+
+        Assert.That(InvokePrivate<int>(weapon, "GetHeadHunterPierceLimit"), Is.EqualTo(10));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterPierceDamageScale", 0), Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterPierceDamageScale", 5), Is.EqualTo(0.5f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterActiveChargeSeconds"), Is.EqualTo(1f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RocketLauncher_KineticExplosion_UsesSpecRadiusAndKnockback()
+    {
+        RocketLauncherWeapon weapon = CreateRocketLauncherWeapon(level: 6, WeaponUpgradePath.PathA);
+
+        float radius = InvokePrivate<float>(weapon, "GetPathAdjustedExplosionRadius", 2f);
+        float regularKnockback = InvokePrivate<float>(weapon, "GetPathAdjustedKnockbackScale", false);
+        float activeKnockback = InvokePrivate<float>(weapon, "GetPathAdjustedKnockbackScale", true);
+
+        Assert.That(radius, Is.EqualTo(4f).Within(0.0001f));
+        Assert.That(regularKnockback, Is.EqualTo(3f).Within(0.0001f));
+        Assert.That(activeKnockback, Is.EqualTo(0.5f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RocketLauncher_FragmentationCap_UsesSpecRadiusKnockbackAndConeDamage()
+    {
+        RocketLauncherWeapon weapon = CreateRocketLauncherWeapon(level: 6, WeaponUpgradePath.PathB);
+
+        float radius = InvokePrivate<float>(weapon, "GetPathAdjustedExplosionRadius", 2f);
+        float knockback = InvokePrivate<float>(weapon, "GetPathAdjustedKnockbackScale", false);
+        float fragmentDamageScale = InvokePrivate<float>(weapon, "GetFragmentDamageScale", false);
+        float activeFragmentDamageScale = InvokePrivate<float>(weapon, "GetFragmentDamageScale", true);
+        int clusterCount = InvokePrivate<int>(weapon, "GetFragmentClusterRocketCount");
+        float clusterDamageScale = InvokePrivate<float>(weapon, "GetFragmentClusterDamageScale");
+
+        Assert.That(radius, Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(knockback, Is.EqualTo(0.25f).Within(0.0001f));
+        Assert.That(fragmentDamageScale, Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(activeFragmentDamageScale, Is.Zero);
+        Assert.That(clusterCount, Is.EqualTo(20));
+        Assert.That(clusterDamageScale, Is.EqualTo(0.5f).Within(0.0001f));
     }
 
     [Test]
@@ -144,6 +231,26 @@ public class WeaponUpgradeMathTests
         Assert.That(InvokePrivate<float>(atomic, "GetAtomicSharpnessKnockbackScale", 1.25f), Is.Zero);
         Assert.That(InvokePrivate<float>(baseline, "GetAtomicSharpnessDamageScale"), Is.EqualTo(1f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(baseline, "GetAtomicSharpnessKnockbackScale", 1.25f), Is.EqualTo(1.25f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RotatingBlade_MultiBlade_StagesHitsAndOnlyFinalSwingKnocksBack()
+    {
+        RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathA);
+
+        Assert.That(InvokePrivate<float>(weapon, "GetMultiBladeActionInterval"), Is.EqualTo(0.1f).Within(0.0001f));
+        Assert.That(InvokePrivate<bool>(weapon, "ShouldApplyMultiBladeKnockback", 0, 3), Is.False);
+        Assert.That(InvokePrivate<bool>(weapon, "ShouldApplyMultiBladeKnockback", 2, 3), Is.True);
+    }
+
+    [Test]
+    public void RotatingBlade_AtomicSharpnessActive_UsesDashDamageAndIFrameWindow()
+    {
+        RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathB);
+
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveDamageScale"), Is.EqualTo(1.5f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveInvulnerabilitySeconds"), Is.EqualTo(0.25f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashDurationForHitCount", 3), Is.EqualTo(0.4f).Within(0.0001f));
     }
 
     private WeaponInstance CreateWeaponInstance(int level, WeaponUpgradePath path)
@@ -204,6 +311,16 @@ public class WeaponUpgradeMathTests
         return weapon;
     }
 
+    private RocketLauncherWeapon CreateRocketLauncherWeapon(int level, WeaponUpgradePath path)
+    {
+        WeaponInstance instance = CreateWeaponInstance(level, path);
+        instance.Data.WeaponType = WeaponType.RocketLauncher;
+        instance.Data.EnsureSpecificTuningForCurrentType();
+        RocketLauncherWeapon weapon = new(null, null, null);
+        weapon.Setup(instance, null, null, null);
+        return weapon;
+    }
+
     private RotatingBladeWeapon CreateRotatingBladeWeapon(int level, WeaponUpgradePath path, Transform owner = null)
     {
         WeaponInstance instance = CreateWeaponInstance(level, path);
@@ -233,7 +350,9 @@ public class WeaponUpgradeMathTests
             CreateDefinition(StatType.AttackSpeedMultiplier, 1f),
             CreateDefinition(StatType.AmmoMultiplier, 1f),
             CreateDefinition(StatType.Knockback, 1f),
-            CreateDefinition(StatType.ProjectileAreaSize, 1f)
+            CreateDefinition(StatType.ProjectileAreaSize, 1f),
+            CreateDefinition(StatType.AbilityDamageMultiplier, 1f),
+            CreateDefinition(StatType.AbilityCooldownReduction, 0f)
         };
     }
 

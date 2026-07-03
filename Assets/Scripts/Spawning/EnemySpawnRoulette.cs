@@ -56,8 +56,15 @@ public readonly struct EnemySpawnRollResult
 
 public class EnemySpawnRoulette
 {
+    private struct EffectiveEntry
+    {
+        public EnemySpawnRouletteConfig.Entry Entry;
+        public int Weight;
+    }
+
     private readonly EnemySpawnRouletteConfig _config;
     private readonly List<EnemySpawnWeightSnapshot> _snapshotBuffer = new(8);
+    private readonly List<EffectiveEntry> _effectiveEntries = new(8);
 
     public EnemySpawnRoulette(EnemySpawnRouletteConfig config)
     {
@@ -75,28 +82,30 @@ public class EnemySpawnRoulette
 
     public Dictionary<EnemySpawnKind, int> GetEffectiveWeights(float runTimeSeconds)
     {
+        return GetEffectiveWeights(runTimeSeconds, null);
+    }
+
+    public Dictionary<EnemySpawnKind, int> GetEffectiveWeights(float runTimeSeconds, PlayerStats stats)
+    {
         var weights = new Dictionary<EnemySpawnKind, int>();
-        if (_config?.Entries == null) return weights;
+        BuildEffectiveEntries(runTimeSeconds, stats);
 
-        int variantBonus = GetVariantWeightBonus(runTimeSeconds);
-        foreach (EnemySpawnRouletteConfig.Entry entry in _config.Entries)
-        {
-            if (entry == null || entry.BaseWeight <= 0) continue;
-
-            int weight = entry.BaseWeight;
-            if (entry.IsVariant)
-                weight += variantBonus;
-
-            weights[entry.Kind] = weight;
-        }
+        for (int i = 0; i < _effectiveEntries.Count; i++)
+            weights[_effectiveEntries[i].Entry.Kind] = _effectiveEntries[i].Weight;
 
         return weights;
     }
 
     public EnemySpawnRollResult Roll(float runTimeSeconds)
     {
+        return Roll(runTimeSeconds, null);
+    }
+
+    public EnemySpawnRollResult Roll(float runTimeSeconds, PlayerStats stats)
+    {
         _snapshotBuffer.Clear();
-        if (_config?.Entries == null || _config.Entries.Length == 0)
+        BuildEffectiveEntries(runTimeSeconds, stats);
+        if (_effectiveEntries.Count == 0)
         {
             return new EnemySpawnRollResult(
                 default,
@@ -111,21 +120,17 @@ public class EnemySpawnRoulette
         int variantBonus = GetVariantWeightBonus(runTimeSeconds);
         int totalWeight = 0;
 
-        foreach (EnemySpawnRouletteConfig.Entry entry in _config.Entries)
+        for (int i = 0; i < _effectiveEntries.Count; i++)
         {
-            if (entry == null || entry.BaseWeight <= 0) continue;
-
-            int effective = entry.BaseWeight;
-            if (entry.IsVariant)
-                effective += variantBonus;
+            EffectiveEntry effectiveEntry = _effectiveEntries[i];
 
             int cumulativeMin = totalWeight;
-            totalWeight += effective;
+            totalWeight += effectiveEntry.Weight;
             int cumulativeMax = totalWeight - 1;
             float percent = 0f;
             _snapshotBuffer.Add(new EnemySpawnWeightSnapshot(
-                entry.Kind,
-                effective,
+                effectiveEntry.Entry.Kind,
+                effectiveEntry.Weight,
                 cumulativeMin,
                 cumulativeMax,
                 percent));
@@ -179,5 +184,87 @@ public class EnemySpawnRoulette
             rollIndex,
             variantBonus,
             new List<EnemySpawnWeightSnapshot>(_snapshotBuffer));
+    }
+
+    private void BuildEffectiveEntries(float runTimeSeconds, PlayerStats stats)
+    {
+        _effectiveEntries.Clear();
+        if (_config?.Entries == null)
+            return;
+
+        int variantBonus = GetVariantWeightBonus(runTimeSeconds);
+        foreach (EnemySpawnRouletteConfig.Entry entry in _config.Entries)
+        {
+            if (entry == null || entry.BaseWeight <= 0)
+                continue;
+
+            int weight = entry.BaseWeight;
+            if (entry.IsVariant)
+                weight += variantBonus;
+
+            _effectiveEntries.Add(new EffectiveEntry
+            {
+                Entry = entry,
+                Weight = Mathf.Max(1, weight)
+            });
+        }
+
+        ApplyExtraEliteChance(stats);
+    }
+
+    private void ApplyExtraEliteChance(PlayerStats stats)
+    {
+        float extraEliteChance = PlayerStatMath.GetExtraEliteChance(stats);
+        if (extraEliteChance <= 0f)
+            return;
+
+        int normalWeight = 0;
+        int variantWeight = 0;
+        for (int i = 0; i < _effectiveEntries.Count; i++)
+        {
+            if (_effectiveEntries[i].Entry.IsVariant)
+                variantWeight += _effectiveEntries[i].Weight;
+            else
+                normalWeight += _effectiveEntries[i].Weight;
+        }
+
+        if (normalWeight <= 0 || variantWeight <= 0)
+            return;
+
+        float baseVariantChance = variantWeight / (float)(normalWeight + variantWeight);
+        if (baseVariantChance >= 0.95f)
+            return;
+
+        float targetVariantChance = Mathf.Clamp(baseVariantChance + extraEliteChance, baseVariantChance, 0.95f);
+        int targetVariantWeight = Mathf.RoundToInt(targetVariantChance * normalWeight / (1f - targetVariantChance));
+        int bonusToDistribute = Mathf.Max(0, targetVariantWeight - variantWeight);
+        if (bonusToDistribute <= 0)
+            return;
+
+        int variantEntriesRemaining = 0;
+        for (int i = 0; i < _effectiveEntries.Count; i++)
+        {
+            if (_effectiveEntries[i].Entry.IsVariant)
+                variantEntriesRemaining++;
+        }
+
+        int remainingBonus = bonusToDistribute;
+        for (int i = 0; i < _effectiveEntries.Count; i++)
+        {
+            EffectiveEntry effective = _effectiveEntries[i];
+            if (!effective.Entry.IsVariant)
+                continue;
+
+            variantEntriesRemaining--;
+            int share = variantEntriesRemaining == 0
+                ? remainingBonus
+                : Mathf.RoundToInt(bonusToDistribute * (effective.Weight / (float)variantWeight));
+
+            share = Mathf.Clamp(share, 0, remainingBonus);
+            effective.Weight += share;
+            _effectiveEntries[i] = effective;
+
+            remainingBonus -= share;
+        }
     }
 }

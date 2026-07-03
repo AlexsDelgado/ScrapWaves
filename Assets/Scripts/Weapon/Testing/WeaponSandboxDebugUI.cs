@@ -83,6 +83,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         HandleAutoCursorMode(rect);
 
         GUILayout.BeginArea(rect, GUI.skin.box);
+        DrawImmediatePinnedStatus();
         _immediateScroll = GUILayout.BeginScrollView(_immediateScroll);
 
         GUILayout.Label("Weapon Testing Sandbox");
@@ -97,6 +98,24 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
         GUILayout.EndScrollView();
         GUILayout.EndArea();
+    }
+
+    private void DrawImmediatePinnedStatus()
+    {
+        WeaponInstance manual = _sandbox.CurrentManualWeapon;
+        WeaponInstance upgrade = _sandbox.GetWeaponInSlot(_immediateUpgradeSlot);
+        string manualName = FormatWeaponName(manual);
+        string upgradeName = FormatWeaponName(upgrade);
+        string ammo = manual != null ? manual.CurrentAmmo.ToString("0.#") : "0";
+
+        GUILayout.Label($"Manual Weapon: {manualName} | Ammo: {ammo}");
+        GUILayout.Label($"Editing Upgrade: Slot {_immediateUpgradeSlot + 1} {upgradeName}");
+        GUILayout.Label($"Registry: {EnemyRegistry.ActiveCount} enemies | Aim: {_sandbox.CurrentAimDirection.x:0.00}, {_sandbox.CurrentAimDirection.y:0.00}, {_sandbox.CurrentAimDirection.z:0.00}");
+        if (_sandbox.CurrentManualBehaviour is FlamethrowerWeapon flamethrower)
+        {
+            GUILayout.Label($"Flamethrower: {flamethrower.LastManualDebugSummary}");
+            GUILayout.Label($"Flame Ammo {flamethrower.LastManualAmmoBefore:0.#}->{flamethrower.LastManualAmmoAfter:0.#} | Radius {flamethrower.LastManualHoseRadius:0.##} | Range {flamethrower.LastManualRange:0.#}");
+        }
     }
 
     private void DrawImmediateCursorMode()
@@ -224,8 +243,11 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         for (int slot = 0; slot < WeaponTestingSandboxManager.WeaponSlots; slot++)
         {
             WeaponInstance weapon = _sandbox.GetWeaponInSlot(slot);
-            GUILayout.Label($"Slot {slot + 1}: {(weapon?.Data != null ? weapon.Data.DisplayName : "None")}");
+            bool isManual = slot == _sandbox.CurrentManualSlot;
+            GUILayout.Label($"Slot {slot + 1}: {FormatWeaponName(weapon)}{(isManual ? " (Manual)" : "")}");
             GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Manual", GUILayout.Width(70f)))
+                _sandbox.SelectManualSlot(slot);
             DrawWeaponButton(slot, "None", null);
             DrawWeaponButton(slot, "Flame", WeaponType.Flamethrower);
             DrawWeaponButton(slot, "Rocket", WeaponType.RocketLauncher);
@@ -242,7 +264,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         GUILayout.BeginHorizontal();
         for (int i = 0; i < WeaponTestingSandboxManager.WeaponSlots; i++)
         {
-            if (GUILayout.Toggle(_immediateUpgradeSlot == i, $"Slot {i + 1}", GUI.skin.button))
+            if (GUILayout.Toggle(_immediateUpgradeSlot == i, FormatUpgradeSlotButton(i), GUI.skin.button))
                 _immediateUpgradeSlot = i;
         }
         GUILayout.EndHorizontal();
@@ -394,6 +416,35 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     {
         if (GUILayout.Button(label))
             _sandbox.SetWeaponSlot(slot, weaponType);
+    }
+
+    private string FormatUpgradeSlotButton(int slot)
+    {
+        WeaponInstance weapon = _sandbox.GetWeaponInSlot(slot);
+        return $"S{slot + 1} {FormatShortWeaponName(weapon)}";
+    }
+
+    private static string FormatWeaponName(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null)
+            return "None";
+
+        return string.IsNullOrEmpty(weapon.Data.DisplayName) ? weapon.Data.name : weapon.Data.DisplayName;
+    }
+
+    private static string FormatShortWeaponName(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null)
+            return "None";
+
+        return weapon.Data.WeaponType switch
+        {
+            WeaponType.Flamethrower => "Flame",
+            WeaponType.RocketLauncher => "Rocket",
+            WeaponType.AutomaticCannon => "Cannon",
+            WeaponType.RotatingBlade => "Blade",
+            _ => FormatWeaponName(weapon)
+        };
     }
 
     private void DrawPathButton(int level, WeaponUpgradePath path, string label)

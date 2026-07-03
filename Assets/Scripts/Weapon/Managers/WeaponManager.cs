@@ -188,7 +188,7 @@ public class WeaponManager : MonoBehaviour
         if (weapon?.Data == null)
             return 1f;
 
-        float duration = Mathf.Max(0.01f, weapon.Data.SkillCooldown);
+        float duration = Mathf.Max(0.01f, WeaponMath.GetAbilityCooldownDuration(weapon, _stats));
         if (weapon.AbilityCooldownTimer <= 0f)
             return 1f;
 
@@ -202,7 +202,7 @@ public class WeaponManager : MonoBehaviour
             return false;
         if (weapon.AbilityCooldownTimer > 0f)
             return false;
-        return weapon.CurrentAmmo >= weapon.Data.ActiveAbilityAmmoCost;
+        return weapon.CurrentAmmo >= WeaponMath.GetActiveAbilityAmmoCost(weapon);
     }
 
     private static void TickAbilityCooldown(WeaponInstance weapon, float deltaTime)

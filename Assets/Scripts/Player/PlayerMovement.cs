@@ -142,6 +142,28 @@ public class PlayerMovement : MonoBehaviour
         _slowTimer = Mathf.Max(_slowTimer, seconds);
     }
 
+    public void ApplyWeaponDash(Vector3 worldDirection, float speed, float seconds)
+    {
+        if (_rb == null || seconds <= 0f || speed <= 0f)
+            return;
+
+        worldDirection.y = 0f;
+        if (worldDirection.sqrMagnitude <= 0.0001f)
+            return;
+
+        Vector3 direction = worldDirection.normalized;
+        StopSlide(false);
+        StopCrouch();
+        _isDashing = true;
+        _dashTimer = Mathf.Max(_dashTimer, seconds);
+
+        Vector3 currentPlanar = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
+        Vector3 desiredVelocity = direction * speed;
+        Vector3 velocityChange = desiredVelocity - currentPlanar;
+        _rb.AddForce(velocityChange * _rb.mass, ForceMode.Impulse);
+        OnDashStarted?.Invoke();
+    }
+
     // Cache movement components and initialize singleton and physics defaults.
     private void Awake()
     {

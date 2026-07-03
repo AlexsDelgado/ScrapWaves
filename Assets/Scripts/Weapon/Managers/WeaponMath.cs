@@ -65,6 +65,37 @@ public static class WeaponMath
         return Mathf.Max(0.01f, stats.GetStat(statType));
     }
 
+    public static float GetAbilityCooldownDuration(WeaponInstance instance, PlayerStats stats)
+    {
+        if (instance?.Data == null)
+            return 0f;
+
+        float baseCooldown = Mathf.Max(0f, instance.Data.SkillCooldown);
+        float reduction = GetAbilityCooldownReduction(stats);
+        return baseCooldown * (1f - reduction);
+    }
+
+    public static float GetActiveAbilityAmmoCost(WeaponInstance instance)
+    {
+        if (instance?.Data == null)
+            return 0f;
+
+        if (instance.HasAdvancedPath
+            && instance.Data.WeaponType == WeaponType.AutomaticCannon
+            && instance.SelectedPath == WeaponUpgradePath.PathA)
+            return 80f;
+
+        return Mathf.Max(0f, instance.Data.ActiveAbilityAmmoCost);
+    }
+
+    public static float GetAbilityCooldownReduction(PlayerStats stats)
+    {
+        if (stats == null || stats.GetDefinition(StatType.AbilityCooldownReduction) == null)
+            return 0f;
+
+        return Mathf.Clamp(stats.GetStat(StatType.AbilityCooldownReduction), 0f, 0.95f);
+    }
+
     // Calculates a gameplay-friendly impulse from weapon tuning, damage, player stat, and caller scale.
     public static float CalculateKnockback(PlayerStats stats, WeaponInstance instance, int damage, float scale = 1f, float falloffScale = 1f)
     {

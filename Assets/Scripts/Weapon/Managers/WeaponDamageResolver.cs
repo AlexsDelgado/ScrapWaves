@@ -6,15 +6,17 @@ public readonly struct WeaponDamageRoll
     public readonly bool EliteOrBoss;
     public readonly bool CanCrit;
     public readonly bool IsCritical;
+    public readonly bool IsAbilityDamage;
     public readonly float BaseDamage;
     public readonly float FinalDamage;
 
-    public WeaponDamageRoll(WeaponInstance weapon, bool eliteOrBoss, bool canCrit, bool isCritical, float baseDamage, float finalDamage)
+    public WeaponDamageRoll(WeaponInstance weapon, bool eliteOrBoss, bool canCrit, bool isCritical, float baseDamage, float finalDamage, bool isAbilityDamage = false)
     {
         Weapon = weapon;
         EliteOrBoss = eliteOrBoss;
         CanCrit = canCrit;
         IsCritical = isCritical;
+        IsAbilityDamage = isAbilityDamage;
         BaseDamage = baseDamage;
         FinalDamage = finalDamage;
     }
@@ -25,13 +27,16 @@ public static class WeaponDamageResolver
     public static event System.Action<WeaponDamageRoll> OnDamageResolved;
 
     // Calculates damage from weapon base, level/path, stats, and crit.
-    public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f)
+    public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f, bool isAbilityDamage = false)
     {
         float damage = Mathf.Max(0f, instance.Data.BaseDamage);
         float baseDamage = damage;
         damage *= GetLevelDamageMultiplier(instance);
         damage *= GetPathDamageMultiplier(instance);
         damage *= Mathf.Max(0f, stats.GetStat(StatType.DamageMultiplier));
+
+        if (isAbilityDamage)
+            damage *= WeaponMath.GetStatScale(stats, StatType.AbilityDamageMultiplier);
 
         if (eliteOrBoss)
             damage *= Mathf.Max(0f, stats.GetStat(StatType.EliteDamageMultiplier));
@@ -40,7 +45,7 @@ public static class WeaponDamageResolver
         if (isCritical)
             damage *= Mathf.Max(1f, stats.GetStat(StatType.CriticalDamage) * critMultiplierOverride);
 
-        OnDamageResolved?.Invoke(new WeaponDamageRoll(instance, eliteOrBoss, canCrit, isCritical, baseDamage, damage));
+        OnDamageResolved?.Invoke(new WeaponDamageRoll(instance, eliteOrBoss, canCrit, isCritical, baseDamage, damage, isAbilityDamage));
         return damage;
     }
 
