@@ -183,6 +183,27 @@ public class ProjectilePool : MonoBehaviour
         return true;
     }
 
+    public bool TrySpawnVisualProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, float speedMultiplier)
+    {
+        GameObject go = TryGet();
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigureVisualOnly(_projectileLifetime);
+        projectile.Launch(fireDirection);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        return true;
+    }
+
     // Spawns projectile configured with explosion radius and damage falloff.
     public bool TrySpawnExplosiveProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float explosionRadius, float falloff)
     {
@@ -288,7 +309,8 @@ public class ProjectilePool : MonoBehaviour
         float clusterTravelDistance,
         float clusterFragmentConeAngle,
         float clusterFragmentConeRange,
-        float clusterFragmentDamageScale)
+        float clusterFragmentDamageScale,
+        float visualScaleMultiplier = 1f)
     {
         GameObject go = TryGet();
         if (go == null)
@@ -305,6 +327,7 @@ public class ProjectilePool : MonoBehaviour
 
         projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
         projectile.Launch(fireDirection);
+        projectile.ConfigureVisualScale(visualScaleMultiplier);
         projectile.ConfigureExplosion(explosionRadius, falloff);
         projectile.ConfigureSpeedMultiplier(speedMultiplier);
         projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);

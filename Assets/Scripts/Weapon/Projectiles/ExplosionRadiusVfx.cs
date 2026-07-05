@@ -4,17 +4,23 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
 {
     private const int SegmentCount = 72;
     private const float HeightOffset = 0.06f;
-    private static readonly Color BaseColor = new(1f, 0.42f, 0.05f, 0.9f);
+    private static readonly Color DefaultColor = new(1f, 0.42f, 0.05f, 0.9f);
 
     private static Material s_lineMaterial;
 
     private LineRenderer _outerRing;
     private LineRenderer _shockwaveRing;
+    private Color _baseColor = DefaultColor;
     private float _radius;
     private float _duration;
     private float _elapsed;
 
     public static void Spawn(Vector3 position, float radius)
+    {
+        Spawn(position, radius, DefaultColor);
+    }
+
+    public static void Spawn(Vector3 position, float radius, Color color)
     {
         if (radius <= 0f)
             return;
@@ -23,11 +29,12 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
         go.transform.position = position + Vector3.up * HeightOffset;
 
         ExplosionRadiusVfx vfx = go.AddComponent<ExplosionRadiusVfx>();
-        vfx.Initialize(radius, 0.42f);
+        vfx.Initialize(radius, 0.42f, color);
     }
 
-    private void Initialize(float radius, float duration)
+    private void Initialize(float radius, float duration, Color color)
     {
+        _baseColor = color;
         _radius = Mathf.Max(0.01f, radius);
         _duration = Mathf.Max(0.05f, duration);
 
@@ -69,8 +76,8 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
         float eased = 1f - Mathf.Pow(1f - t, 3f);
         float alpha = 1f - t;
 
-        DrawRing(_outerRing, _radius, new Color(BaseColor.r, BaseColor.g, BaseColor.b, alpha * 0.7f), Mathf.Lerp(0.08f, 0.025f, t));
-        DrawRing(_shockwaveRing, Mathf.Lerp(_radius * 0.18f, _radius, eased), new Color(BaseColor.r, BaseColor.g, BaseColor.b, alpha), Mathf.Lerp(0.18f, 0.035f, t));
+        DrawRing(_outerRing, _radius, new Color(_baseColor.r, _baseColor.g, _baseColor.b, _baseColor.a * alpha * 0.7f), Mathf.Lerp(0.08f, 0.025f, t));
+        DrawRing(_shockwaveRing, Mathf.Lerp(_radius * 0.18f, _radius, eased), new Color(_baseColor.r, _baseColor.g, _baseColor.b, _baseColor.a * alpha), Mathf.Lerp(0.18f, 0.035f, t));
     }
 
     private static void DrawRing(LineRenderer line, float radius, Color color, float width)

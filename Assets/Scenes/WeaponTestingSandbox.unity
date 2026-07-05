@@ -5054,15 +5054,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10b5603b9a978fd40af881ffe0a3f46c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDebugGizmos
-  ShowRuntimeVisuals: 1
-  ShowTargetingCone: 1
-  ShowProjectilePaths: 1
-  ShowExplosionRadius: 1
-  ShowDamageNumbers: 1
-  ShowKnockbackVectors: 1
-  ShowWeaponHitboxes: 1
-  ShowStatusEffectIcons: 1
-  ShowDpsWindow: 1
+  ShowRuntimeVisuals: 0
+  ShowTargetingCone: 0
+  ShowProjectilePaths: 0
+  ShowExplosionRadius: 0
+  ShowDamageNumbers: 0
+  ShowKnockbackVectors: 0
+  ShowWeaponHitboxes: 0
+  ShowStatusEffectIcons: 0
+  ShowDpsWindow: 0
 --- !u!114 &787552539
 MonoBehaviour:
   m_ObjectHideFlags: 0

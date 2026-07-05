@@ -17,6 +17,8 @@ public class Projectile : MonoBehaviour
     private float _elapsed;
     private bool _consumed;
     private Rigidbody _rigidbody;
+    private SphereCollider _sphereCollider;
+    private Vector3 _baseScale;
     private bool _useExplosion;
     private float _explosionRadius;
     private float _explosionFalloff;
@@ -33,6 +35,7 @@ public class Projectile : MonoBehaviour
     private float _fragmentConeRange;
     private float _fragmentDamageScale;
     private bool _useExplosionCluster;
+    private bool _visualOnly;
     private ProjectilePool _clusterPool;
     private int _clusterProjectileCount;
     private int _clusterDamage;
@@ -45,19 +48,21 @@ public class Projectile : MonoBehaviour
     private float _clusterFragmentConeRange;
     private float _clusterFragmentDamageScale;
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
-    private static readonly Color AmplifierVfxColor = new(1f, 0.55f, 0.08f, 0.95f);
-    private static readonly Color FragmentVfxColor = new(0.25f, 0.9f, 1f, 0.9f);
-    private static readonly Color ClusterVfxColor = new(1f, 0.85f, 0.2f, 0.9f);
+    private static readonly Color AmplifierVfxColor = new(1f, 0.1f, 0.72f, 0.95f);
+    private static readonly Color FragmentVfxColor = new(0.55f, 0.02f, 0.02f, 0.95f);
+    private static readonly Color ClusterVfxColor = new(0.7f, 0.03f, 0.02f, 0.95f);
+    private readonly RaycastHit[] _sweepHits = new RaycastHit[12];
 
     private void Awake()
     {
+        _baseScale = transform.localScale;
         _rigidbody = GetComponent<Rigidbody>();
         _rigidbody.isKinematic = true;
         _rigidbody.useGravity = false;
         _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
 
-        SphereCollider sphere = GetComponent<SphereCollider>();
-        sphere.isTrigger = true;
+        _sphereCollider = GetComponent<SphereCollider>();
+        _sphereCollider.isTrigger = true;
         _activeMaxLifetime = _maxLifetime;
         _activeSpeed = _speed;
     }
@@ -66,6 +71,7 @@ public class Projectile : MonoBehaviour
     {
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
+        _visualOnly = false;
     }
 
     public void ConfigurePooled(float maxLifetimeSeconds, int damageForThisShot)
@@ -80,6 +86,13 @@ public class Projectile : MonoBehaviour
         _knockback = Mathf.Max(0f, knockbackForThisShot);
     }
 
+    public void ConfigureVisualOnly(float maxLifetimeSeconds)
+    {
+        _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
+        _knockback = 0f;
+        _visualOnly = true;
+    }
+
     // Launches projectile and resets runtime damage mode state.
     public void Launch(Vector3 worldDirection)
     {
@@ -91,6 +104,7 @@ public class Projectile : MonoBehaviour
 
         _rigidbody.position = transform.position;
         _rigidbody.rotation = transform.rotation;
+        transform.localScale = _baseScale;
         _launchPosition = transform.position;
         _activeSpeed = _speed;
         _useExplosion = false;
@@ -132,6 +146,11 @@ public class Projectile : MonoBehaviour
     public void ConfigureSpeedMultiplier(float multiplier)
     {
         _activeSpeed = _speed * Mathf.Max(0.01f, multiplier);
+    }
+
+    public void ConfigureVisualScale(float multiplier)
+    {
+        transform.localScale = _baseScale * Mathf.Max(0.01f, multiplier);
     }
 
     // Configures detonation once the projectile travels its weapon range.
@@ -191,7 +210,11 @@ public class Projectile : MonoBehaviour
             return;
 
         Vector3 delta = _direction * (_activeSpeed * Time.fixedDeltaTime);
-        _rigidbody.MovePosition(_rigidbody.position + delta);
+        Vector3 currentPosition = _rigidbody.position;
+        if (TryConsumeSweptWorldCollision(currentPosition, delta))
+            return;
+
+        _rigidbody.MovePosition(currentPosition + delta);
 
         if (_maxTravelDistance > 0f && Vector3.Distance(_launchPosition, _rigidbody.position) >= _maxTravelDistance)
             ConsumeAtCurrentPosition(_explodeOnMaxTravel);
@@ -217,7 +240,9 @@ public class Projectile : MonoBehaviour
         bool hitTerrain = terrainLayer >= 0 && other.gameObject.layer == terrainLayer;
         if (hitTerrain)
         {
-            if (_useExplosion)
+            if (_visualOnly)
+                DespawnOrDestroy();
+            else if (_useExplosion)
                 ConsumeAtCurrentPosition(detonate: true);
             else
                 DespawnOrDestroy();
@@ -229,6 +254,14 @@ public class Projectile : MonoBehaviour
             return;
 
         IDamageable damageable = other.GetComponentInParent<IDamageable>();
+        if (_visualOnly)
+        {
+            if (damageable != null || IsSolidWorldCollider(other))
+                DespawnOrDestroy();
+
+            return;
+        }
+
         if (_useExplosion)
         {
             if (damageable != null || IsSolidWorldCollider(other))
@@ -268,6 +301,103 @@ public class Projectile : MonoBehaviour
         return !other.isTrigger;
     }
 
+    // Kinematic trigger projectiles can tunnel through thin floor tiles at high speed.
+    private bool TryConsumeSweptWorldCollision(Vector3 currentPosition, Vector3 delta)
+    {
+        if (delta.sqrMagnitude <= 0.000001f)
+            return false;
+
+        float distance = delta.magnitude;
+        Vector3 direction = delta / distance;
+        Vector3 centerOffset = GetSphereCenterOffset();
+        Vector3 sweepStart = currentPosition + centerOffset;
+        float sweepRadius = GetScaledSphereRadius();
+        int hitCount = Physics.SphereCastNonAlloc(
+            sweepStart,
+            sweepRadius,
+            direction,
+            _sweepHits,
+            distance,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Ignore);
+
+        if (hitCount <= 0)
+            return false;
+
+        Collider closestCollider = null;
+        float closestDistance = float.PositiveInfinity;
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hitCollider = _sweepHits[i].collider;
+            if (hitCollider == null || hitCollider == _sphereCollider)
+                continue;
+
+            if (IsIgnoredCollision(hitCollider))
+                continue;
+
+            bool damageableHit = hitCollider.GetComponentInParent<IDamageable>() != null;
+            if (!damageableHit && !IsSolidWorldCollider(hitCollider))
+                continue;
+
+            if (_sweepHits[i].distance >= closestDistance)
+                continue;
+
+            closestDistance = _sweepHits[i].distance;
+            closestCollider = hitCollider;
+        }
+
+        if (closestCollider == null)
+            return false;
+
+        Vector3 impactPosition = sweepStart + direction * closestDistance - centerOffset;
+        _rigidbody.position = impactPosition;
+        transform.position = impactPosition;
+
+        IDamageable damageable = closestCollider.GetComponentInParent<IDamageable>();
+        if (damageable != null)
+        {
+            if (_visualOnly)
+                DespawnOrDestroy();
+            else if (_useExplosion)
+                ConsumeAtCurrentPosition(detonate: true);
+            else
+            {
+                if (WeaponDamageApplier.TryApplyDamage(damageable, _damage))
+                    EnemyKnockbackReceiver.TryApply(damageable, impactPosition, _knockback);
+                DespawnOrDestroy();
+            }
+
+            return true;
+        }
+
+        if (_visualOnly)
+            DespawnOrDestroy();
+        else if (_useExplosion)
+            ConsumeAtCurrentPosition(detonate: true);
+        else
+            DespawnOrDestroy();
+
+        return true;
+    }
+
+    private Vector3 GetSphereCenterOffset()
+    {
+        if (_sphereCollider == null)
+            return Vector3.zero;
+
+        return transform.TransformVector(_sphereCollider.center);
+    }
+
+    private float GetScaledSphereRadius()
+    {
+        if (_sphereCollider == null)
+            return 0.05f;
+
+        Vector3 scale = _sphereCollider.transform.lossyScale;
+        float largestAxis = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+        return Mathf.Max(0.01f, _sphereCollider.radius * largestAxis);
+    }
+
     // Applies optional explosion before removing this projectile.
     private void ConsumeAtCurrentPosition(bool detonate)
     {
@@ -283,7 +413,12 @@ public class Projectile : MonoBehaviour
     // Applies area damage around impact point with distance-based falloff.
     private void ApplyExplosionDamage()
     {
-        ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius);
+        if (_applyDamageAmplifierOnExplosion)
+            ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius, AmplifierVfxColor);
+        else if (_useFragmentCone || _useExplosionCluster)
+            ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius, FragmentVfxColor);
+        else
+            ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius);
         if (_applyDamageAmplifierOnExplosion)
             WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.15f, AmplifierVfxColor, 0.65f, 2f, "KINETIC");
         if (_useFragmentCone)

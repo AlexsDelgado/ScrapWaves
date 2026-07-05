@@ -161,6 +161,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         if (Runtime.SelectedPath == WeaponUpgradePath.PathA)
         {
+            if (activeAbility)
+                return MortarUpgradePayload.None;
+
             return new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f);
         }
 
@@ -216,6 +219,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         float area = GetAreaSizeMultiplier();
         int damage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale));
         float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, damageScale);
+        MortarUpgradePayload payload = GetUpgradePayload(activeAbility);
         MortarShellImpact.Launch(
             launchPosition,
             impactPosition,
@@ -227,7 +231,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             knockback,
             tuning.MortarShellCollisionRadius * area,
             Owner,
-            GetUpgradePayload(activeAbility));
+            payload,
+            IsGrapeshotPath());
     }
 
     private static Vector3 RandomPlanarOffset(float radius)

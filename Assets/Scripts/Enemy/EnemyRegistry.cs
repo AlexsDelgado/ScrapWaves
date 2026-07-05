@@ -100,6 +100,60 @@ public static class EnemyRegistry
         return random != null;
     }
 
+    public static Vector3 GetAimPoint(Transform target)
+    {
+        if (target == null)
+            return Vector3.zero;
+
+        _candidateColliders.Clear();
+        target.GetComponentsInChildren(false, _candidateColliders);
+
+        Bounds bodyBounds = default;
+        Bounds fallbackBounds = default;
+        bool hasBodyBounds = false;
+        bool hasFallbackBounds = false;
+
+        for (int i = 0; i < _candidateColliders.Count; i++)
+        {
+            Collider collider = _candidateColliders[i];
+            if (collider == null || !collider.enabled)
+                continue;
+
+            if (!hasFallbackBounds)
+            {
+                fallbackBounds = collider.bounds;
+                hasFallbackBounds = true;
+            }
+            else
+            {
+                fallbackBounds.Encapsulate(collider.bounds);
+            }
+
+            if (collider.isTrigger)
+                continue;
+
+            if (!hasBodyBounds)
+            {
+                bodyBounds = collider.bounds;
+                hasBodyBounds = true;
+            }
+            else
+            {
+                bodyBounds.Encapsulate(collider.bounds);
+            }
+        }
+
+        _candidateColliders.Clear();
+
+        if (hasBodyBounds)
+            return bodyBounds.center;
+
+        if (hasFallbackBounds)
+            return fallbackBounds.center;
+
+        return target.position;
+    }
+
     // Finds the closest active enemy inside a horizontal cone.
     public static bool TryGetClosestOnPlaneInCone(Vector3 from, Vector3 forward, float range, float coneAngle, out Transform closest)
     {

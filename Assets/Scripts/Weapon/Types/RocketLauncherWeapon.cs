@@ -22,7 +22,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             if (Runtime?.Data == null)
                 return 0;
 
-            int maximum = GetMaximumActiveRocketCount(Runtime.Data.RocketLauncher);
+            int maximum = GetActiveTargetLimit(Runtime.Data.RocketLauncher);
             return Mathf.Min(
                 maximum,
                 Mathf.Max(1, Runtime.Data.RocketLauncher.RocketActiveInitialTargetCount));
@@ -30,7 +30,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     }
     public int MaximumRocketLocks => Runtime?.Data == null
         ? 0
-        : GetMaximumActiveRocketCount(Runtime.Data.RocketLauncher);
+        : GetActiveTargetLimit(Runtime.Data.RocketLauncher);
 
     public RocketLauncherWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
@@ -50,14 +50,14 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (Spawn == null)
             return;
 
-        if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
+        if (!Targeting.TryGetTarget(Runtime, Owner, GetScaledWeaponRange(Runtime.Data.BaseRange), aimDirection, out Transform target))
             return;
 
         FireTimer = GetFireInterval();
         int extra = GetThresholdRocketBonus() + GetFragmentationRocketBonus();
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         FireBurstAt(
-            target.position,
+            EnemyRegistry.GetAimPoint(target),
             tuning.RocketAutoBaseRocketCount + extra,
             1f,
             GetPathAdjustedExplosionRadius(tuning.RocketAutoExplosionRadius),
@@ -113,9 +113,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         _isActiveAbilityCharging = true;
-        _requestedActiveTargetCount = Mathf.Min(
-            GetMaximumActiveRocketCount(tuning),
-            Mathf.Max(1, tuning.RocketActiveInitialTargetCount));
+        _requestedActiveTargetCount = GetInitialActiveTargetCount(tuning);
         _activeTargetLockTimer = Mathf.Max(0.01f, tuning.RocketActiveTargetLockInterval);
         RefreshActiveTargets(aimDirection, tuning);
     }
@@ -133,7 +131,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         }
 
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
-        int maximum = GetMaximumActiveRocketCount(tuning);
+        int maximum = GetActiveTargetLimit(tuning);
         _requestedActiveTargetCount = Mathf.Min(_requestedActiveTargetCount, maximum);
         _activeTargetLockTimer -= deltaTime;
 
@@ -322,6 +320,21 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         return Mathf.Max(1, tuning.RocketActiveBaseRocketCount + heatBonus);
     }
 
+    private int GetActiveTargetLimit(RocketLauncherTuning tuning)
+    {
+        if (IsFragmentationCapPath())
+            return 1;
+
+        return GetMaximumActiveRocketCount(tuning);
+    }
+
+    private int GetInitialActiveTargetCount(RocketLauncherTuning tuning)
+    {
+        return Mathf.Min(
+            GetActiveTargetLimit(tuning),
+            Mathf.Max(1, tuning.RocketActiveInitialTargetCount));
+    }
+
     // Builds the current lock plan, assigning one rocket per enemy before elite/boss repeats.
     private void RefreshActiveTargets(Vector3 aimDirection, RocketLauncherTuning tuning)
     {
@@ -332,20 +345,29 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
+        int targetLimit = GetActiveTargetLimit(tuning);
+        int requestedTargetCount = Mathf.Min(_requestedActiveTargetCount, targetLimit);
+
         EnemyRegistry.CollectClosestOnPlaneInCone(
             Spawn.position,
             aimDirection,
-            Runtime.Data.BaseRange,
+            GetScaledWeaponRange(Runtime.Data.BaseRange),
             tuning.RocketActiveConeAngle,
-            Mathf.Max(_requestedActiveTargetCount, 64),
+            IsFragmentationCapPath() ? 1 : Mathf.Max(requestedTargetCount, 64),
             _abilityCandidates);
 
-        for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < _requestedActiveTargetCount; i++)
+        for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < requestedTargetCount; i++)
             _abilityTargets.Add(_abilityCandidates[i]);
 
-        for (int repeatIndex = 1; repeatIndex < 5 && _abilityTargets.Count < _requestedActiveTargetCount; repeatIndex++)
+        if (IsFragmentationCapPath())
         {
-            for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < _requestedActiveTargetCount; i++)
+            SyncTargetMarkers(tuning);
+            return;
+        }
+
+        for (int repeatIndex = 1; repeatIndex < 5 && _abilityTargets.Count < requestedTargetCount; repeatIndex++)
+        {
+            for (int i = 0; i < _abilityCandidates.Count && _abilityTargets.Count < requestedTargetCount; i++)
             {
                 Transform candidate = _abilityCandidates[i];
                 if (GetMaxActiveRocketsForTarget(candidate) > repeatIndex)
@@ -458,6 +480,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage)
             * Mathf.Max(0f, damageScale));
 
+        float travelRange = GetScaledWeaponRange(Runtime.Data.BaseRange);
         float pathKnockback = GetPathAdjustedKnockbackScale(isAbilityDamage);
         float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale) * pathKnockback;
         float amplifier = IsKineticExplosionPath() ? 1.2f : 1f;
@@ -481,7 +504,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 falloff,
                 knockback,
                 speedMultiplier,
-                Runtime.Data.BaseRange,
+                travelRange,
                 true,
                 amplifier,
                 amplifierDuration,
@@ -494,10 +517,11 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff),
                 clusterKnockback,
                 tuning.RocketManualSpeedMultiplier,
-                Runtime.Data.BaseRange * 0.45f,
+                GetScaledWeaponRange(Runtime.Data.BaseRange * 0.45f),
                 45f,
                 GetFragmentConeRange(clusterRadius, activeAbility: false),
-                GetFragmentDamageScale(activeAbility: false));
+                GetFragmentDamageScale(activeAbility: false),
+                5f);
             return;
         }
 
@@ -510,7 +534,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             falloff,
             knockback,
             speedMultiplier,
-            Runtime.Data.BaseRange,
+            travelRange,
             true,
             amplifier,
             amplifierDuration,

@@ -77,12 +77,15 @@ public class PlayerMovement : MonoBehaviour
     private float _postDashFrictionTimer;
     private float _knockbackTimer;
     private float _stunTimer;
+    private float _momentumPreservingStunTimer;
     private float _aimFacingTimer;
     private float _slowTimer;
     private float _slowMultiplier = 1f;
     private int _remainingAirJumps;
     private int _currentDashCharges;
     private Vector3 _aimFacingDirection;
+    private Vector3 _momentumPreservingStunVelocity;
+    private bool _hasMomentumPreservingStunVelocity;
 
     // Exposes camera-relative movement direction for weapons that aim from movement input.
     public Vector3 CurrentMoveDirectionWorld => _moveDirectionWorld;
@@ -126,6 +129,28 @@ public class PlayerMovement : MonoBehaviour
         _stunTimer = Mathf.Max(_stunTimer, seconds);
         if (!wasStunned)
             OnStunned?.Invoke();
+    }
+
+    public void ApplyMomentumPreservingStun(float seconds)
+    {
+        if (seconds <= 0f)
+            return;
+
+        ApplyStun(seconds);
+        if (_rb == null)
+            return;
+
+        if (!_hasMomentumPreservingStunVelocity)
+            _momentumPreservingStunVelocity = _rb.linearVelocity;
+
+        _hasMomentumPreservingStunVelocity = true;
+        _momentumPreservingStunTimer = Mathf.Max(_momentumPreservingStunTimer, seconds);
+        _isDashing = false;
+        _dashTimer = 0f;
+        StopSlide(false);
+
+        Vector3 velocity = _rb.linearVelocity;
+        _rb.linearVelocity = new Vector3(0f, velocity.y, 0f);
     }
 
     /// <summary>
@@ -237,6 +262,7 @@ public class PlayerMovement : MonoBehaviour
         if (_rb == null || _cameraTransform == null) return;
 
         UpdateGroundedState();
+        HoldMomentumPreservingStun();
 
         if (_isDashing)
         {
@@ -252,6 +278,7 @@ public class PlayerMovement : MonoBehaviour
         TickPostDashFrictionWindow();
         TickKnockbackWindow();
         TickStun();
+        TickMomentumPreservingStun();
         TickSlow();
         TickAimFacingTimer();
         HandleDashRegeneration();
@@ -375,6 +402,35 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_stunTimer <= 0f) return;
         _stunTimer = Mathf.Max(0f, _stunTimer - Time.fixedDeltaTime);
+    }
+
+    private void HoldMomentumPreservingStun()
+    {
+        if (!_hasMomentumPreservingStunVelocity || _momentumPreservingStunTimer <= 0f || _rb == null)
+            return;
+
+        Vector3 velocity = _rb.linearVelocity;
+        _rb.linearVelocity = new Vector3(0f, velocity.y, 0f);
+    }
+
+    private void TickMomentumPreservingStun()
+    {
+        if (!_hasMomentumPreservingStunVelocity)
+            return;
+
+        _momentumPreservingStunTimer = Mathf.Max(0f, _momentumPreservingStunTimer - Time.fixedDeltaTime);
+        if (_momentumPreservingStunTimer > 0f)
+            return;
+
+        if (_rb != null)
+        {
+            Vector3 velocity = _rb.linearVelocity;
+            _rb.linearVelocity = new Vector3(_momentumPreservingStunVelocity.x, velocity.y, _momentumPreservingStunVelocity.z);
+            _postDashFrictionTimer = Mathf.Max(_postDashFrictionTimer, _postDashFrictionDuration);
+        }
+
+        _hasMomentumPreservingStunVelocity = false;
+        _momentumPreservingStunVelocity = Vector3.zero;
     }
 
     private void TickSlow()

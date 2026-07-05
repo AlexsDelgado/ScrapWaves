@@ -62,6 +62,519 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void ExplosionRadiusVfx_CanSpawnWithCustomColor()
+    {
+        MethodInfo spawn = typeof(ExplosionRadiusVfx).GetMethod(
+            "Spawn",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(Vector3), typeof(float), typeof(Color) },
+            null);
+        Assert.That(spawn, Is.Not.Null, "Missing ExplosionRadiusVfx.Spawn overload with Color.");
+
+        Color pink = new(1f, 0.1f, 0.72f, 0.95f);
+        spawn.Invoke(null, new object[] { Vector3.zero, 2f, pink });
+
+        ExplosionRadiusVfx vfx = Object.FindAnyObjectByType<ExplosionRadiusVfx>();
+        Assert.That(vfx, Is.Not.Null);
+
+        LineRenderer line = vfx.GetComponentInChildren<LineRenderer>();
+        Assert.That(line, Is.Not.Null);
+        Assert.That(line.startColor.r, Is.EqualTo(pink.r).Within(0.001f));
+        Assert.That(line.startColor.g, Is.EqualTo(pink.g).Within(0.001f));
+        Assert.That(line.startColor.b, Is.EqualTo(pink.b).Within(0.001f));
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void Projectile_FragmentationVfxColors_AreDarkRed()
+    {
+        Color fragmentColor = ReadStaticField<Color>(typeof(Projectile), "FragmentVfxColor");
+        Color clusterColor = ReadStaticField<Color>(typeof(Projectile), "ClusterVfxColor");
+
+        AssertDarkRed(fragmentColor);
+        AssertDarkRed(clusterColor);
+    }
+
+    [Test]
+    public void WeaponDamageAmplifierStatus_SpawnsVulnerableAura()
+    {
+        System.Type auraType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
+        Assert.That(auraType, Is.Not.Null, "Missing WeaponStatusAuraVfx type.");
+
+        GameObject target = new("Vulnerable Target");
+        var damageable = target.AddComponent<TestDamageable>();
+
+        WeaponDamageAmplifierStatus.Apply(damageable, 1.5f, 3f);
+
+        Object aura = Object.FindAnyObjectByType(auraType);
+        Assert.That(aura, Is.Not.Null);
+        if (aura is Component component)
+            Assert.That(component.transform.position, Is.EqualTo(target.transform.position));
+
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void WeaponDamageAmplifierStatus_DismissesVulnerableAuraWhenTargetDisabled()
+    {
+        System.Type auraType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
+        Assert.That(auraType, Is.Not.Null, "Missing WeaponStatusAuraVfx type.");
+
+        GameObject target = new("Disabled Vulnerable Target");
+        var damageable = target.AddComponent<TestDamageable>();
+
+        WeaponDamageAmplifierStatus.Apply(damageable, 1.5f, 3f);
+        Assert.That(Object.FindAnyObjectByType(auraType), Is.Not.Null);
+
+        target.SetActive(false);
+
+        Assert.That(Object.FindAnyObjectByType(auraType), Is.Null);
+
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void ExplosiveProjectile_DetonatesWhenFastMovementSweepsThroughGround()
+    {
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject rocket = new("Fast Rocket");
+
+        try
+        {
+            floor.transform.position = Vector3.zero;
+            floor.transform.localScale = new Vector3(10f, 0.12f, 10f);
+
+            rocket.transform.position = Vector3.up * 2f;
+            rocket.AddComponent<Rigidbody>();
+            SphereCollider sphere = rocket.AddComponent<SphereCollider>();
+            sphere.radius = 0.08f;
+            Projectile projectile = rocket.AddComponent<Projectile>();
+            InvokePrivate(projectile, "Awake");
+
+            projectile.ConfigurePooled(5f, 10, 0f);
+            projectile.Launch(Vector3.down);
+            projectile.ConfigureExplosion(1.5f, 0f);
+            projectile.ConfigureSpeedMultiplier(10f);
+            Physics.SyncTransforms();
+
+            InvokePrivate(projectile, "FixedUpdate");
+
+            Assert.That(ReadField<bool>(projectile, "_consumed"), Is.True);
+            Assert.That(Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+        }
+        finally
+        {
+            Object.DestroyImmediate(floor);
+            Object.DestroyImmediate(rocket);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void Projectile_SweptCollisionAgainstDamageable_AppliesDamage()
+    {
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject bullet = new("Fast Cannon Bullet");
+
+        try
+        {
+            target.transform.position = Vector3.forward;
+            var damageable = target.AddComponent<TestDamageable>();
+
+            bullet.transform.position = Vector3.zero;
+            bullet.AddComponent<Rigidbody>();
+            SphereCollider sphere = bullet.AddComponent<SphereCollider>();
+            sphere.radius = 0.08f;
+            Projectile projectile = bullet.AddComponent<Projectile>();
+            InvokePrivate(projectile, "Awake");
+
+            projectile.ConfigurePooled(5f, 10, 0f);
+            projectile.Launch(Vector3.forward);
+            Physics.SyncTransforms();
+
+            bool consumed = InvokePrivate<bool>(projectile, "TryConsumeSweptWorldCollision", Vector3.zero, Vector3.forward * 2f);
+
+            Assert.That(consumed, Is.True);
+            Assert.That(ReadField<bool>(projectile, "_consumed"), Is.True);
+            Assert.That(damageable.TotalDamage, Is.EqualTo(10));
+        }
+        finally
+        {
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(bullet);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void EnemyRegistryAimPoint_UsesBodyColliderCenterInsteadOfGroundRoot()
+    {
+        GameObject target = new("Tall Target");
+
+        try
+        {
+            target.transform.position = Vector3.zero;
+            CapsuleCollider body = target.AddComponent<CapsuleCollider>();
+            body.center = Vector3.up;
+            body.height = 2f;
+            body.radius = 0.5f;
+
+            Vector3 aimPoint = EnemyRegistry.GetAimPoint(target.transform);
+
+            Assert.That(aimPoint.y, Is.EqualTo(body.bounds.center.y).Within(0.0001f));
+            Assert.That(aimPoint.y, Is.GreaterThan(target.transform.position.y + 0.5f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(target);
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonContinuousFire_DoesNotSpawnOrangePathBeam()
+    {
+        GameObject spawn = new("Cannon Spawn");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 400f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathA = new WeaponUpgradePathData { PathName = "Continuous Fire", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 400f };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Manual,
+                CurrentAmmo = 400f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, null, null, null);
+
+            InvokePrivate(
+                weapon,
+                "FireLineBurst",
+                Vector3.forward,
+                1,
+                1f,
+                0f,
+                0f,
+                0f,
+                false);
+
+            System.Type upgradeVfxType = typeof(Projectile).Assembly.GetType("WeaponUpgradeVfx");
+            Assert.That(upgradeVfxType, Is.Not.Null, "Missing WeaponUpgradeVfx type.");
+            Assert.That(Object.FindObjectsByType(upgradeVfxType, FindObjectsSortMode.None), Has.Length.EqualTo(0));
+        }
+        finally
+        {
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunter_SpawnsProjectileVisualWithoutBlueBeam()
+    {
+        GameObject spawn = new("Head Hunter Spawn");
+        GameObject poolGo = new("Head Hunter Pool");
+        GameObject poolContainer = new("Head Hunter Pool Container");
+        GameObject prefab = new("Head Hunter Projectile Prefab");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            prefab.AddComponent<Rigidbody>();
+            prefab.AddComponent<SphereCollider>();
+            prefab.AddComponent<Projectile>();
+            prefab.SetActive(false);
+
+            poolGo.SetActive(false);
+            ProjectilePool pool = poolGo.AddComponent<ProjectilePool>();
+            SetPrivateField(pool, "_projectilePrefab", prefab);
+            SetPrivateField(pool, "_container", poolContainer.transform);
+            SetPrivateField(pool, "_initialPoolSize", 1);
+            SetPrivateField(pool, "_maxPoolSize", 2);
+            SetPrivateField(pool, "_allowPoolGrowth", true);
+            poolGo.SetActive(true);
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, pool, spawn.transform);
+            weapon.Setup(instance, null, null, null);
+
+            InvokePrivate(
+                weapon,
+                "FireHeadHunterPiercingLine",
+                Vector3.forward,
+                10,
+                12f,
+                false,
+                false,
+                null);
+
+            Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
+            Assert.That(pool.ActiveLeasedCount, Is.EqualTo(1));
+
+            Projectile activeProjectile = null;
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate.gameObject.activeSelf)
+                {
+                    activeProjectile = candidate;
+                    break;
+                }
+            }
+
+            Assert.That(activeProjectile, Is.Not.Null);
+            Assert.That(ReadField<bool>(activeProjectile, "_visualOnly"), Is.True);
+            Assert.That(ReadField<float>(activeProjectile, "_maxTravelDistance"), Is.Zero);
+        }
+        finally
+        {
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(poolGo);
+            Object.DestroyImmediate(poolContainer);
+            Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void ProjectileVisualOnly_DoesNotApplyCollisionDamage()
+    {
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject bullet = new("Visual Only Bullet");
+
+        try
+        {
+            target.transform.position = Vector3.forward;
+            var damageable = target.AddComponent<TestDamageable>();
+
+            bullet.transform.position = Vector3.zero;
+            bullet.AddComponent<Rigidbody>();
+            bullet.AddComponent<SphereCollider>();
+            Projectile projectile = bullet.AddComponent<Projectile>();
+            InvokePrivate(projectile, "Awake");
+
+            projectile.ConfigureVisualOnly(5f);
+            projectile.Launch(Vector3.forward);
+            Physics.SyncTransforms();
+
+            bool consumed = InvokePrivate<bool>(projectile, "TryConsumeSweptWorldCollision", Vector3.zero, Vector3.forward * 2f);
+
+            Assert.That(consumed, Is.True);
+            Assert.That(damageable.TotalDamage, Is.Zero);
+        }
+        finally
+        {
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(bullet);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RocketLauncherManualRocket_TravelsPastBaseReticleRangeWhenAreaSizeScalesRange()
+    {
+        GameObject owner = new("Rocket Owner");
+        GameObject spawn = new("Rocket Spawn");
+        GameObject poolGo = new("Rocket Pool");
+        GameObject poolContainer = new("Rocket Pool Container");
+        GameObject prefab = new("Rocket Projectile Prefab");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions(projectileAreaSize: 2f);
+
+        try
+        {
+            prefab.AddComponent<Rigidbody>();
+            prefab.AddComponent<SphereCollider>();
+            prefab.AddComponent<Projectile>();
+            prefab.SetActive(false);
+
+            poolGo.SetActive(false);
+            ProjectilePool pool = poolGo.AddComponent<ProjectilePool>();
+            SetPrivateField(pool, "_projectilePrefab", prefab);
+            SetPrivateField(pool, "_container", poolContainer.transform);
+            SetPrivateField(pool, "_initialPoolSize", 1);
+            SetPrivateField(pool, "_maxPoolSize", 2);
+            SetPrivateField(pool, "_allowPoolGrowth", true);
+            poolGo.SetActive(true);
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestRocket";
+            data.DisplayName = "Test Rocket";
+            data.WeaponType = WeaponType.RocketLauncher;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                SelectedPath = WeaponUpgradePath.None,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            RocketLauncherWeapon weapon = new(null, pool, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+            InvokePrivateWithSignature(
+                weapon,
+                "FireRocketAt",
+                new[] { typeof(Vector3), typeof(float), typeof(float), typeof(float), typeof(float) },
+                Vector3.forward * data.BaseRange,
+                1f,
+                data.RocketLauncher.RocketManualExplosionRadius,
+                data.RocketLauncher.RocketManualExplosionFalloff,
+                data.RocketLauncher.RocketManualSpeedMultiplier);
+
+            Projectile activeRocket = null;
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate.gameObject.activeSelf)
+                {
+                    activeRocket = candidate;
+                    break;
+                }
+            }
+
+            Assert.That(activeRocket, Is.Not.Null);
+            Assert.That(ReadField<float>(activeRocket, "_maxTravelDistance"), Is.EqualTo(24f).Within(0.0001f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(poolGo);
+            Object.DestroyImmediate(poolContainer);
+            Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunterManual_HitsPastBaseReticleRangeLikeRegularProjectile()
+    {
+        GameObject owner = new("Cannon Owner");
+        GameObject spawn = new("Cannon Spawn");
+        GameObject target = new("Far Head Hunter Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            target.transform.position = Vector3.forward * 18f;
+            SphereCollider targetCollider = target.AddComponent<SphereCollider>();
+            targetCollider.radius = 0.4f;
+            var damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+            weapon.TickManual(0.1f, Vector3.forward, isFiring: true);
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
     public void FlamethrowerBurnStatus_AppliesDamageThroughWeaponDamageApplier()
     {
         GameObject target = new("Burn Target");
@@ -197,6 +710,231 @@ public class WeaponUpgradeEffectTests
         Object.DestroyImmediate(forwardTarget);
         Object.DestroyImmediate(sideTarget);
         DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void RocketLauncherFragmentationActive_MarksOnlyOneLockedTarget()
+    {
+        GameObject owner = new("Rocket Owner");
+        GameObject spawn = new("Rocket Spawn");
+        GameObject firstTarget = new("First Lock Target");
+        GameObject secondTarget = new("Second Lock Target");
+        WeaponData data = CreateRocketTestData();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            firstTarget.transform.position = Vector3.forward * 3f;
+            secondTarget.transform.position = Vector3.forward * 5f;
+            EnemyRegistry.Register(firstTarget.transform);
+            EnemyRegistry.Register(secondTarget.transform);
+
+            RocketLauncherWeapon weapon = CreateRocketLauncherWeapon(WeaponUpgradePath.PathB, data, owner.transform, spawn.transform);
+
+            weapon.BeginActiveAbility(Vector3.forward);
+
+            Assert.That(weapon.InitialRocketLocks, Is.EqualTo(1));
+            Assert.That(weapon.MaximumRocketLocks, Is.EqualTo(1));
+            Assert.That(weapon.CurrentRocketLocks, Is.EqualTo(1));
+            RocketTargetMarkerVfx[] markers = Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None);
+            Assert.That(markers, Has.Length.EqualTo(1));
+            Assert.That(markers[0].Target, Is.EqualTo(firstTarget.transform));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(firstTarget.transform);
+            EnemyRegistry.Unregister(secondTarget.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(firstTarget);
+            Object.DestroyImmediate(secondTarget);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RocketLauncherFragmentationActive_RelocksWhenMarkedTargetLeavesRange()
+    {
+        GameObject owner = new("Rocket Owner");
+        GameObject spawn = new("Rocket Spawn");
+        GameObject firstTarget = new("First Lock Target");
+        GameObject secondTarget = new("Second Lock Target");
+        WeaponData data = CreateRocketTestData();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            firstTarget.transform.position = Vector3.forward * 3f;
+            secondTarget.transform.position = Vector3.forward * 5f;
+            EnemyRegistry.Register(firstTarget.transform);
+            EnemyRegistry.Register(secondTarget.transform);
+
+            RocketLauncherWeapon weapon = CreateRocketLauncherWeapon(WeaponUpgradePath.PathB, data, owner.transform, spawn.transform);
+            weapon.BeginActiveAbility(Vector3.forward);
+
+            firstTarget.transform.position = Vector3.forward * 30f;
+            weapon.TickActiveAbility(0.2f, Vector3.forward);
+
+            Assert.That(weapon.CurrentRocketLocks, Is.EqualTo(1));
+            RocketTargetMarkerVfx[] markers = Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None);
+            Assert.That(markers, Has.Length.EqualTo(1));
+            Assert.That(markers[0].Target, Is.EqualTo(secondTarget.transform));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(firstTarget.transform);
+            EnemyRegistry.Unregister(secondTarget.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(firstTarget);
+            Object.DestroyImmediate(secondTarget);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RocketLauncherNonFragmentationActive_KeepsMultipleLocks()
+    {
+        GameObject owner = new("Rocket Owner");
+        GameObject spawn = new("Rocket Spawn");
+        GameObject firstTarget = new("First Lock Target");
+        GameObject secondTarget = new("Second Lock Target");
+        WeaponData data = CreateRocketTestData();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            firstTarget.transform.position = Vector3.forward * 3f;
+            secondTarget.transform.position = Vector3.forward * 5f;
+            EnemyRegistry.Register(firstTarget.transform);
+            EnemyRegistry.Register(secondTarget.transform);
+
+            RocketLauncherWeapon weapon = CreateRocketLauncherWeapon(WeaponUpgradePath.PathA, data, owner.transform, spawn.transform);
+
+            weapon.BeginActiveAbility(Vector3.forward);
+
+            Assert.That(weapon.InitialRocketLocks, Is.GreaterThan(1));
+            Assert.That(weapon.MaximumRocketLocks, Is.GreaterThan(1));
+            Assert.That(weapon.CurrentRocketLocks, Is.EqualTo(2));
+            Assert.That(Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(2));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(firstTarget.transform);
+            EnemyRegistry.Unregister(secondTarget.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(firstTarget);
+            Object.DestroyImmediate(secondTarget);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RocketLauncherFragmentationActive_ConfiguresSingleClusterRocketWithoutMainCone()
+    {
+        GameObject owner = new("Rocket Owner");
+        GameObject spawn = new("Rocket Spawn");
+        GameObject poolGo = new("Rocket Pool");
+        GameObject poolContainer = new("Rocket Pool Container");
+        GameObject prefab = new("Rocket Projectile Prefab");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            prefab.AddComponent<Rigidbody>();
+            prefab.AddComponent<SphereCollider>();
+            prefab.AddComponent<Projectile>();
+            prefab.SetActive(false);
+
+            poolGo.SetActive(false);
+            ProjectilePool pool = poolGo.AddComponent<ProjectilePool>();
+            SetPrivateField(pool, "_projectilePrefab", prefab);
+            SetPrivateField(pool, "_container", poolContainer.transform);
+            SetPrivateField(pool, "_initialPoolSize", 1);
+            SetPrivateField(pool, "_maxPoolSize", 4);
+            SetPrivateField(pool, "_allowPoolGrowth", true);
+            poolGo.SetActive(true);
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestRocket";
+            data.DisplayName = "Test Rocket";
+            data.WeaponType = WeaponType.RocketLauncher;
+            data.BaseDamage = 10f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Fragmentation Cap", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = -1f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            RocketLauncherWeapon weapon = new(null, pool, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+            RocketLauncherTuning tuning = data.RocketLauncher;
+            InvokePrivateWithSignature(
+                weapon,
+                "FireRocketAt",
+                new[] { typeof(Vector3), typeof(float), typeof(float), typeof(float), typeof(float), typeof(bool), typeof(bool) },
+                Vector3.forward * 6f,
+                tuning.RocketActiveDamageScale,
+                tuning.RocketActiveExplosionRadius,
+                tuning.RocketActiveExplosionFalloff,
+                tuning.RocketActiveSpeedMultiplier,
+                false,
+                true);
+
+            Projectile activeRocket = null;
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate.gameObject.activeSelf)
+                {
+                    activeRocket = candidate;
+                    break;
+                }
+            }
+
+            Assert.That(activeRocket, Is.Not.Null);
+            Assert.That(ReadField<bool>(activeRocket, "_useFragmentCone"), Is.False);
+            Assert.That(ReadField<bool>(activeRocket, "_useExplosionCluster"), Is.True);
+            Assert.That(activeRocket.transform.localScale, Is.EqualTo(Vector3.one * 5f));
+            Assert.That(ReadField<int>(activeRocket, "_clusterProjectileCount"), Is.EqualTo(20));
+            Assert.That(ReadField<int>(activeRocket, "_clusterDamage"), Is.EqualTo(Mathf.RoundToInt(ReadField<int>(activeRocket, "_damage") * 0.5f)));
+            Assert.That(ReadField<float>(activeRocket, "_clusterFragmentConeAngle"), Is.EqualTo(45f).Within(0.0001f));
+            Assert.That(ReadField<float>(activeRocket, "_clusterFragmentDamageScale"), Is.EqualTo(1f).Within(0.0001f));
+            Assert.That(ReadField<float>(activeRocket, "_clusterFragmentConeRange"), Is.GreaterThan(0f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(poolGo);
+            Object.DestroyImmediate(poolContainer);
+            Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
     }
 
     [Test]
@@ -459,13 +1197,18 @@ public class WeaponUpgradeEffectTests
     public void MortarUpgradePayload_ReflectsSelectedPath()
     {
         MortarWeapon grapeshotWeapon = CreateMortarWeapon(WeaponUpgradePath.PathA, out WeaponData grapeshotData);
-        object grapeshotPayload = InvokePrivate<object>(grapeshotWeapon, "GetUpgradePayload", true);
+        object grapeshotPayload = InvokePrivate<object>(grapeshotWeapon, "GetUpgradePayload", false);
 
         Assert.That(ReadField<bool>(grapeshotPayload, "UseGrapeshot"), Is.True);
         Assert.That(ReadField<int>(grapeshotPayload, "GrapeshotCount"), Is.EqualTo(15));
+        Assert.That(ReadField<float>(grapeshotPayload, "GrapeshotConeAngle"), Is.EqualTo(70f).Within(0.0001f));
         Assert.That(ReadField<float>(grapeshotPayload, "GrapeshotDamageScale"), Is.EqualTo(0.5f).Within(0.0001f));
         Assert.That(ReadField<int>(grapeshotPayload, "RepeatExplosionCount"), Is.EqualTo(1));
         Assert.That(InvokePrivate<int>(grapeshotWeapon, "GetGrapeshotRainShellCount", grapeshotData.Mortar), Is.EqualTo(50));
+
+        object grapeshotActivePayload = InvokePrivate<object>(grapeshotWeapon, "GetUpgradePayload", true);
+        Assert.That(ReadField<bool>(grapeshotActivePayload, "UseGrapeshot"), Is.False);
+        Assert.That(ReadField<int>(grapeshotActivePayload, "RepeatExplosionCount"), Is.EqualTo(1));
 
         MortarWeapon repeatWeapon = CreateMortarWeapon(WeaponUpgradePath.PathB, out WeaponData repeatData);
         object repeatPayload = InvokePrivate<object>(repeatWeapon, "GetUpgradePayload", false);
@@ -479,6 +1222,361 @@ public class WeaponUpgradeEffectTests
 
         Object.DestroyImmediate(grapeshotData);
         Object.DestroyImmediate(repeatData);
+    }
+
+    [Test]
+    public void MortarGrapeshotShell_IgnoresCollisionsUntilAirburst()
+    {
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        MortarShellImpact shell = null;
+
+        try
+        {
+            floor.transform.position = new Vector3(0f, -0.05f, 0f);
+            floor.transform.localScale = new Vector3(5f, 0.1f, 5f);
+            target.transform.position = new Vector3(0f, 1f, 0f);
+            target.AddComponent<TestDamageable>();
+            Physics.SyncTransforms();
+
+            shell = MortarShellImpact.Launch(
+                Vector3.up * 3f,
+                Vector3.down,
+                1f,
+                0f,
+                10,
+                2f,
+                0f,
+                0f,
+                0.1f,
+                null,
+                new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
+
+            bool foundCollision = TryGetMortarCollision(shell, Vector3.up * 3f, Vector3.down, out _);
+
+            Assert.That(foundCollision, Is.False);
+        }
+        finally
+        {
+            if (shell != null)
+                Object.DestroyImmediate(shell.gameObject);
+            Object.DestroyImmediate(floor);
+            Object.DestroyImmediate(target);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarMultiChargedShell_IgnoresEnemiesAndCollidesWithGround()
+    {
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        MortarShellImpact shell = null;
+
+        try
+        {
+            floor.transform.position = new Vector3(0f, -0.05f, 0f);
+            floor.transform.localScale = new Vector3(5f, 0.1f, 5f);
+            target.transform.position = new Vector3(0f, 1f, 0f);
+            target.AddComponent<TestDamageable>();
+            Physics.SyncTransforms();
+
+            shell = MortarShellImpact.Launch(
+                Vector3.up * 3f,
+                Vector3.down,
+                1f,
+                0f,
+                10,
+                2f,
+                0f,
+                0f,
+                0.1f,
+                null,
+                new MortarUpgradePayload(false, 0, 0f, 0f, 3, 2f));
+
+            bool foundCollision = TryGetMortarCollision(shell, Vector3.up * 3f, Vector3.down, out Vector3 collisionPoint);
+
+            Assert.That(foundCollision, Is.True);
+            Assert.That(collisionPoint.y, Is.LessThan(0.25f));
+        }
+        finally
+        {
+            if (shell != null)
+                Object.DestroyImmediate(shell.gameObject);
+            Object.DestroyImmediate(floor);
+            Object.DestroyImmediate(target);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarGrapeshotAirburst_SpawnsFallingSubShells()
+    {
+        MortarShellImpact shell = null;
+
+        try
+        {
+            shell = MortarShellImpact.Launch(
+                Vector3.zero,
+                Vector3.forward * 4f,
+                1f,
+                0f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
+
+            InvokePrivateWithSignature(shell, "Detonate", new[] { typeof(Vector3) }, Vector3.up * 2f);
+
+            MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
+            Assert.That(subShells, Has.Length.EqualTo(15));
+            for (int i = 0; i < subShells.Length; i++)
+            {
+                Assert.That(ReadField<int>(subShells[i], "_damage"), Is.EqualTo(10));
+                Assert.That(ReadField<bool>(ReadField<MortarUpgradePayload>(subShells[i], "_payload"), "UseGrapeshot"), Is.False);
+                Assert.That(ReadField<Vector3>(subShells[i], "_target").y, Is.LessThan(ReadField<Vector3>(subShells[i], "_start").y));
+                Assert.That(ReadField<bool>(subShells[i], "_useGrapeshotVfx"), Is.True);
+            }
+        }
+        finally
+        {
+            foreach (MortarShellImpact impact in Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(impact.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarGrapeshotVfx_UsesYellowShellVisuals()
+    {
+        MortarShellImpact shell = null;
+
+        try
+        {
+            shell = MortarShellImpact.Launch(
+                Vector3.zero,
+                Vector3.forward * 4f,
+                1f,
+                0f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
+
+            LineRenderer line = shell.GetComponent<LineRenderer>();
+            Assert.That(line, Is.Not.Null);
+            AssertYellow(line.startColor);
+
+            Renderer visualRenderer = shell.GetComponentInChildren<Renderer>();
+            Assert.That(visualRenderer, Is.Not.Null);
+            AssertYellow(visualRenderer.sharedMaterial.color);
+        }
+        finally
+        {
+            if (shell != null)
+                Object.DestroyImmediate(shell.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarGrapeshotShell_DetonatesHalfwayThroughDownwardTrajectory()
+    {
+        MortarShellImpact shell = null;
+
+        try
+        {
+            shell = MortarShellImpact.Launch(
+                Vector3.zero,
+                Vector3.forward * 4f,
+                1f,
+                4f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
+
+            SetPrivateField(shell, "_elapsed", 0.74f);
+            InvokePrivate(shell, "Update");
+            Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+
+            SetPrivateField(shell, "_elapsed", 0.75f);
+            InvokePrivate(shell, "Update");
+            MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
+            Assert.That(subShells, Has.Length.EqualTo(15));
+            for (int i = 0; i < subShells.Length; i++)
+                Assert.That(ReadField<bool>(ReadField<MortarUpgradePayload>(subShells[i], "_payload"), "UseGrapeshot"), Is.False);
+        }
+        finally
+        {
+            foreach (MortarShellImpact impact in Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(impact.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarGrapeshotShell_AirburstUsesExactMidDownwardPointWhenFrameOvershoots()
+    {
+        MortarShellImpact shell = null;
+
+        try
+        {
+            shell = MortarShellImpact.Launch(
+                Vector3.zero,
+                Vector3.forward * 4f,
+                1f,
+                4f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
+
+            SetPrivateField(shell, "_elapsed", 0.9f);
+            InvokePrivate(shell, "Update");
+
+            MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
+            Assert.That(subShells, Has.Length.EqualTo(15));
+            for (int i = 0; i < subShells.Length; i++)
+                Assert.That(ReadField<Vector3>(subShells[i], "_start").y, Is.EqualTo(3f).Within(0.001f));
+        }
+        finally
+        {
+            foreach (MortarShellImpact impact in Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(impact.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarGrapeshotShell_AirburstUsesGroundImpactBeforeBelowGroundTarget()
+    {
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        MortarShellImpact shell = null;
+
+        try
+        {
+            floor.transform.position = new Vector3(0f, -0.05f, 0f);
+            floor.transform.localScale = new Vector3(10f, 0.1f, 10f);
+            Physics.SyncTransforms();
+
+            shell = MortarShellImpact.Launch(
+                Vector3.up * 2f,
+                new Vector3(0f, -8f, 4f),
+                1f,
+                2f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
+
+            float airburstTime = InvokePrivate<float>(shell, "GetGrapeshotAirburstNormalizedTime");
+
+            Assert.That(airburstTime, Is.LessThan(0.4f));
+            Assert.That(ReadField<Vector3>(shell, "_target").y, Is.LessThan(0f));
+        }
+        finally
+        {
+            if (shell != null)
+                Object.DestroyImmediate(shell.gameObject);
+            Object.DestroyImmediate(floor);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarMultiChargedVfx_UsesVioletShellTrajectoryAndExplosion()
+    {
+        MortarShellImpact shell = null;
+
+        try
+        {
+            shell = MortarShellImpact.Launch(
+                Vector3.up * 2f,
+                Vector3.zero,
+                1f,
+                2f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(false, 0, 0f, 0f, 3, 2f));
+
+            LineRenderer line = shell.GetComponent<LineRenderer>();
+            Assert.That(line, Is.Not.Null);
+            AssertViolet(line.startColor);
+
+            Renderer visualRenderer = GetShellVisualRenderer(shell);
+            AssertViolet(visualRenderer.sharedMaterial.color);
+
+            InvokePrivateWithSignature(shell, "Detonate", new[] { typeof(Vector3) }, Vector3.zero);
+
+            ExplosionRadiusVfx explosion = Object.FindAnyObjectByType<ExplosionRadiusVfx>();
+            Assert.That(explosion, Is.Not.Null);
+            LineRenderer explosionLine = explosion.GetComponentInChildren<LineRenderer>();
+            Assert.That(explosionLine, Is.Not.Null);
+            AssertViolet(explosionLine.startColor);
+        }
+        finally
+        {
+            if (shell != null)
+                Object.DestroyImmediate(shell.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void MortarShellImpact_HidesTrajectoryVfxAfterDetonation()
+    {
+        MortarShellImpact shell = null;
+
+        try
+        {
+            shell = MortarShellImpact.Launch(
+                Vector3.up * 2f,
+                Vector3.zero,
+                1f,
+                2f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(false, 0, 0f, 0f, 3, 2f));
+
+            LineRenderer line = shell.GetComponent<LineRenderer>();
+            Assert.That(line, Is.Not.Null);
+            Assert.That(line.enabled, Is.True);
+
+            InvokePrivateWithSignature(shell, "Detonate", new[] { typeof(Vector3) }, Vector3.zero);
+
+            Assert.That(line.enabled, Is.False);
+            Assert.That(GetShellVisualRenderer(shell).gameObject.activeSelf, Is.False);
+        }
+        finally
+        {
+            if (shell != null)
+                Object.DestroyImmediate(shell.gameObject);
+            DestroyGeneratedVfx();
+        }
     }
 
     [Test]
@@ -645,7 +1743,7 @@ public class WeaponUpgradeEffectTests
         }
     }
 
-    private static List<StatDefinition> CreateDefaultStatDefinitions()
+    private static List<StatDefinition> CreateDefaultStatDefinitions(float projectileAreaSize = 1f)
     {
         return new List<StatDefinition>
         {
@@ -656,7 +1754,7 @@ public class WeaponUpgradeEffectTests
             CreateDefinition(StatType.AttackSpeedMultiplier, 1f),
             CreateDefinition(StatType.AmmoMultiplier, 1f),
             CreateDefinition(StatType.Knockback, 1f),
-            CreateDefinition(StatType.ProjectileAreaSize, 1f),
+            CreateDefinition(StatType.ProjectileAreaSize, projectileAreaSize),
             CreateDefinition(StatType.AbilityDamageMultiplier, 1f),
             CreateDefinition(StatType.AbilityCooldownReduction, 0f)
         };
@@ -708,6 +1806,18 @@ public class WeaponUpgradeEffectTests
         return (T)method.Invoke(target, arguments);
     }
 
+    private static bool TryGetMortarCollision(MortarShellImpact shell, Vector3 start, Vector3 end, out Vector3 collisionPoint)
+    {
+        MethodInfo method = typeof(MortarShellImpact).GetMethod(
+            "TryGetCollision",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null, "Missing MortarShellImpact.TryGetCollision.");
+        object[] arguments = { start, end, Vector3.zero };
+        bool found = (bool)method.Invoke(shell, arguments);
+        collisionPoint = (Vector3)arguments[2];
+        return found;
+    }
+
     private static void InvokePrivateWithSignature(object target, string methodName, System.Type[] parameterTypes, params object[] arguments)
     {
         MethodInfo method = target.GetType().GetMethod(
@@ -725,6 +1835,52 @@ public class WeaponUpgradeEffectTests
         FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         Assert.That(field, Is.Not.Null, $"Missing field {fieldName} on {target.GetType().Name}");
         return (T)field.GetValue(target);
+    }
+
+    private static T ReadStaticField<T>(System.Type type, string fieldName)
+    {
+        FieldInfo field = type.GetField(fieldName, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, $"Missing static field {fieldName} on {type.Name}");
+        return (T)field.GetValue(null);
+    }
+
+    private static void AssertDarkRed(Color color)
+    {
+        Assert.That(color.r, Is.GreaterThanOrEqualTo(0.35f));
+        Assert.That(color.g, Is.LessThanOrEqualTo(0.16f));
+        Assert.That(color.b, Is.LessThanOrEqualTo(0.16f));
+        Assert.That(color.r, Is.GreaterThan(color.g * 2f));
+        Assert.That(color.r, Is.GreaterThan(color.b * 2f));
+    }
+
+    private static void AssertYellow(Color color)
+    {
+        Assert.That(color.r, Is.GreaterThanOrEqualTo(0.85f));
+        Assert.That(color.g, Is.GreaterThanOrEqualTo(0.7f));
+        Assert.That(color.b, Is.LessThanOrEqualTo(0.35f));
+        Assert.That(color.g, Is.GreaterThan(color.b * 2f));
+    }
+
+    private static void AssertViolet(Color color)
+    {
+        Assert.That(color.r, Is.GreaterThanOrEqualTo(0.45f));
+        Assert.That(color.b, Is.GreaterThanOrEqualTo(0.75f));
+        Assert.That(color.g, Is.LessThanOrEqualTo(0.55f));
+        Assert.That(color.b, Is.GreaterThan(color.g * 1.5f));
+    }
+
+    private static Renderer GetShellVisualRenderer(Component root)
+    {
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer is LineRenderer)
+                continue;
+
+            return renderer;
+        }
+
+        Assert.Fail("Missing mortar shell visual renderer.");
+        return null;
     }
 
     private static void DestroyGeneratedVfx()
@@ -747,6 +1903,19 @@ public class WeaponUpgradeEffectTests
 
         foreach (WeaponStatusShardVfx vfx in Object.FindObjectsByType<WeaponStatusShardVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
+
+        foreach (RocketTargetMarkerVfx marker in Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(marker.gameObject);
+
+        System.Type auraVfxType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
+        if (auraVfxType != null)
+        {
+            foreach (Object vfx in Object.FindObjectsByType(auraVfxType, FindObjectsSortMode.None))
+            {
+                if (vfx is Component component)
+                    Object.DestroyImmediate(component.gameObject);
+            }
+        }
 
         foreach (FlamethrowerFuelPuddle puddle in Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None))
             Object.DestroyImmediate(puddle.gameObject);
@@ -784,6 +1953,44 @@ public class WeaponUpgradeEffectTests
 
         FlamethrowerWeapon weapon = new(null, null, null, null);
         weapon.Setup(instance, null, null, null);
+        return weapon;
+    }
+
+    private static WeaponData CreateRocketTestData()
+    {
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        data.WeaponId = "TestRocket";
+        data.DisplayName = "Test Rocket";
+        data.WeaponType = WeaponType.RocketLauncher;
+        data.BaseDamage = 10f;
+        data.BaseAttackRate = 1f;
+        data.BaseRange = 12f;
+        data.BaseManualAmmo = 100f;
+        data.ActiveAbilityAmmoCost = 20f;
+        data.EnsureSpecificTuningForCurrentType();
+        data.LevelData = new List<WeaponLevelData>
+        {
+            new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+            new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+        };
+        data.PathA = new WeaponUpgradePathData { PathName = "Kinetic Explosion", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = -1f };
+        data.PathB = new WeaponUpgradePathData { PathName = "Fragmentation Cap", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = -1f };
+        return data;
+    }
+
+    private static RocketLauncherWeapon CreateRocketLauncherWeapon(WeaponUpgradePath path, WeaponData data, Transform owner, Transform spawn)
+    {
+        WeaponInstance instance = new()
+        {
+            Data = data,
+            Level = 6,
+            SelectedPath = path,
+            State = WeaponState.Manual,
+            CurrentAmmo = 100f
+        };
+
+        RocketLauncherWeapon weapon = new(null, null, spawn);
+        weapon.Setup(instance, owner, null, null);
         return weapon;
     }
 

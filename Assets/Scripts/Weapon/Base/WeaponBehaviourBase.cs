@@ -78,7 +78,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
             return;
 
-        FireAt(target.position, 1f, WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
+        FireAt(EnemyRegistry.GetAimPoint(target), 1f, WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
     // Fires manually toward aim direction and consumes one ammo.
@@ -238,6 +238,11 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     protected float GetAreaSizeMultiplier()
     {
         return WeaponMath.GetStatScale(Stats, StatType.ProjectileAreaSize);
+    }
+
+    protected float GetScaledWeaponRange(float range)
+    {
+        return Mathf.Max(0f, range) * GetAreaSizeMultiplier();
     }
 
     // Applies weapon knockback to a damage receiver after a successful hit.

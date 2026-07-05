@@ -5,6 +5,7 @@ public sealed class WeaponDamageAmplifierStatus : MonoBehaviour
 {
     private float _multiplier = 1f;
     private float _remainingDuration;
+    private WeaponStatusAuraVfx _aura;
 
     public float Multiplier => _remainingDuration > 0f ? Mathf.Max(1f, _multiplier) : 1f;
 
@@ -12,6 +13,7 @@ public sealed class WeaponDamageAmplifierStatus : MonoBehaviour
     {
         _multiplier = Mathf.Max(_multiplier, multiplier);
         _remainingDuration = Mathf.Max(_remainingDuration, duration);
+        RefreshAura(duration);
         TryApplyDummyStatus(duration);
     }
 
@@ -57,5 +59,31 @@ public sealed class WeaponDamageAmplifierStatus : MonoBehaviour
         WeaponDummyEnemy dummy = GetComponent<WeaponDummyEnemy>();
         if (dummy != null)
             dummy.ApplyStatus("Vulnerable", duration);
+    }
+
+    private void RefreshAura(float duration)
+    {
+        if (_aura == null)
+            _aura = WeaponStatusAuraVfx.SpawnVulnerableAura(transform, duration);
+        else
+            _aura.Refresh(duration);
+    }
+
+    private void OnDisable()
+    {
+        _remainingDuration = 0f;
+        DismissAura();
+    }
+
+    private void OnDestroy()
+    {
+        DismissAura();
+    }
+
+    private void DismissAura()
+    {
+        if (_aura != null)
+            _aura.Dismiss();
+        _aura = null;
     }
 }

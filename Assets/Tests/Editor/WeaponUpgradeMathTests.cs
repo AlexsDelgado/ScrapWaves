@@ -131,8 +131,37 @@ public class WeaponUpgradeMathTests
         Assert.That(InvokePrivate<int>(weapon, "GetManualShotCount", tuning), Is.EqualTo(1));
         Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireManualAttackSpeedMultiplier"), Is.EqualTo(1.875f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireActiveDuration"), Is.EqualTo(2f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireActiveBulletsPerSecond"), Is.EqualTo(40f).Within(0.0001f));
         Assert.That(InvokePrivate<int>(weapon, "GetContinuousFireActiveBulletCount"), Is.EqualTo(80));
         Assert.That(InvokePrivate<float>(weapon, "GetActiveAbilityAmmoCost"), Is.EqualTo(80f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_ContinuousFireActive_StartsTimedBarrage()
+    {
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
+        weapon.Runtime.CurrentAmmo = 100f;
+
+        weapon.UseActiveAbility(Vector3.forward);
+
+        Assert.That(ReadPrivate<bool>(weapon, "_continuousFireActive"), Is.True);
+        Assert.That(ReadPrivate<float>(weapon, "_continuousFireActiveRemainingDuration"), Is.EqualTo(2f).Within(0.0001f));
+        Assert.That(ReadPrivate<int>(weapon, "_continuousFireActiveShotsRemaining"), Is.EqualTo(80));
+        Assert.That(weapon.Runtime.CurrentAmmo, Is.EqualTo(20f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_ContinuousFireActive_TracksLatestAimDirection()
+    {
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
+        weapon.Runtime.CurrentAmmo = 100f;
+
+        weapon.UseActiveAbility(Vector3.forward);
+        InvokePrivate<bool>(weapon, "TickContinuousFireActive", 0.1f, Vector3.right);
+
+        Vector3 activeDirection = ReadPrivate<Vector3>(weapon, "_continuousFireActiveDirection");
+        Assert.That(activeDirection.x, Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(activeDirection.z, Is.EqualTo(0f).Within(0.0001f));
     }
 
     [Test]
@@ -156,20 +185,38 @@ public class WeaponUpgradeMathTests
         Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterPierceDamageScale", 0), Is.EqualTo(1f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterPierceDamageScale", 5), Is.EqualTo(0.5f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterActiveChargeSeconds"), Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(InvokePrivate<int>(weapon, "GetHeadHunterActivePierceLimit"), Is.EqualTo(int.MaxValue));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterActivePierceRange"), Is.GreaterThanOrEqualTo(1000f));
+    }
+
+    [Test]
+    public void AutomaticCannon_HeadHunterDamageScale_MatchesSpec()
+    {
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathB);
+
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterDamageScale", WeaponEnemyKind.Normal, 0, false, false), Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterDamageScale", WeaponEnemyKind.Elite, 0, false, false), Is.EqualTo(2f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterDamageScale", WeaponEnemyKind.Boss, 0, false, false), Is.EqualTo(3f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterDamageScale", WeaponEnemyKind.Elite, 1, false, false), Is.EqualTo(1.8f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterDamageScale", WeaponEnemyKind.Normal, 0, true, false), Is.EqualTo(5f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetHeadHunterDamageScale", WeaponEnemyKind.Normal, 5, false, true), Is.EqualTo(5f).Within(0.0001f));
     }
 
     [Test]
     public void RocketLauncher_KineticExplosion_UsesSpecRadiusAndKnockback()
     {
         RocketLauncherWeapon weapon = CreateRocketLauncherWeapon(level: 6, WeaponUpgradePath.PathA);
+        RocketLauncherWeapon baseline = CreateRocketLauncherWeapon(level: 6, WeaponUpgradePath.None);
 
         float radius = InvokePrivate<float>(weapon, "GetPathAdjustedExplosionRadius", 2f);
+        float baselineKnockback = InvokePrivate<float>(baseline, "GetPathAdjustedKnockbackScale", false);
         float regularKnockback = InvokePrivate<float>(weapon, "GetPathAdjustedKnockbackScale", false);
         float activeKnockback = InvokePrivate<float>(weapon, "GetPathAdjustedKnockbackScale", true);
 
         Assert.That(radius, Is.EqualTo(4f).Within(0.0001f));
+        Assert.That(baselineKnockback, Is.EqualTo(1f).Within(0.0001f));
         Assert.That(regularKnockback, Is.EqualTo(3f).Within(0.0001f));
-        Assert.That(activeKnockback, Is.EqualTo(0.5f).Within(0.0001f));
+        Assert.That(activeKnockback, Is.EqualTo(baselineKnockback * 0.5f).Within(0.0001f));
     }
 
     [Test]
@@ -181,13 +228,18 @@ public class WeaponUpgradeMathTests
         float knockback = InvokePrivate<float>(weapon, "GetPathAdjustedKnockbackScale", false);
         float fragmentDamageScale = InvokePrivate<float>(weapon, "GetFragmentDamageScale", false);
         float activeFragmentDamageScale = InvokePrivate<float>(weapon, "GetFragmentDamageScale", true);
+        float manualConeRange = InvokePrivate<float>(weapon, "GetFragmentConeRange", 1f, false);
+        float activeConeRange = InvokePrivate<float>(weapon, "GetFragmentConeRange", 1f, true);
         int clusterCount = InvokePrivate<int>(weapon, "GetFragmentClusterRocketCount");
         float clusterDamageScale = InvokePrivate<float>(weapon, "GetFragmentClusterDamageScale");
 
         Assert.That(radius, Is.EqualTo(1f).Within(0.0001f));
         Assert.That(knockback, Is.EqualTo(0.25f).Within(0.0001f));
         Assert.That(fragmentDamageScale, Is.EqualTo(1f).Within(0.0001f));
+        Assert.That(manualConeRange, Is.EqualTo(4f).Within(0.0001f));
         Assert.That(activeFragmentDamageScale, Is.Zero);
+        Assert.That(activeConeRange, Is.Zero);
+        Assert.That(weapon.Runtime.Data.RocketLauncher.RocketActiveDamageScale, Is.EqualTo(2f).Within(0.0001f));
         Assert.That(clusterCount, Is.EqualTo(20));
         Assert.That(clusterDamageScale, Is.EqualTo(0.5f).Within(0.0001f));
     }
@@ -397,5 +449,12 @@ public class WeaponUpgradeMathTests
         MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         return (T)method.Invoke(target, arguments);
+    }
+
+    private static T ReadPrivate<T>(object target, string fieldName)
+    {
+        FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, $"Missing field {fieldName} on {target.GetType().Name}");
+        return (T)field.GetValue(target);
     }
 }

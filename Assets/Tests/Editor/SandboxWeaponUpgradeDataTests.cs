@@ -1,3 +1,4 @@
+using System.IO;
 using NUnit.Framework;
 using UnityEditor;
 
@@ -32,6 +33,27 @@ public class SandboxWeaponUpgradeDataTests
         Assert.That(data, Is.Not.Null);
         Assert.That(data.PathA.ManualAmmoOverride, Is.EqualTo(400f).Within(0.0001f));
         Assert.That(data.PathB.ManualAmmoOverride, Is.EqualTo(40f).Within(0.0001f));
+    }
+
+    [Test]
+    public void WeaponTestingSandbox_DebugVisualizationsStartDisabled()
+    {
+        string sceneText = File.ReadAllText("Assets/Scenes/WeaponTestingSandbox.unity");
+        string[] disabledFields =
+        {
+            "ShowRuntimeVisuals: 0",
+            "ShowTargetingCone: 0",
+            "ShowProjectilePaths: 0",
+            "ShowExplosionRadius: 0",
+            "ShowDamageNumbers: 0",
+            "ShowKnockbackVectors: 0",
+            "ShowWeaponHitboxes: 0",
+            "ShowStatusEffectIcons: 0",
+            "ShowDpsWindow: 0"
+        };
+
+        foreach (string field in disabledFields)
+            Assert.That(sceneText, Does.Contain(field));
     }
 
     [TestCase("Assets/ScriptableObjects/WeaponSO/AutomaticCannon.asset", "Continuous Fire", "Head Hunter", 400f, 40f)]
