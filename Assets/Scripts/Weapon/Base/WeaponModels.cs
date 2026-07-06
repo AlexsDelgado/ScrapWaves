@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 [Serializable]
 public class WeaponLevelData
@@ -16,6 +17,7 @@ public class WeaponUpgradePathData
     public float DamageMultiplier = 1f;
     public float AttackRateMultiplier = 1f;
     public float ManualAmmoOverride = -1f;
+    public List<WeaponLevelData> LevelData = new();
 }
 
 [Serializable]

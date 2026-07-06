@@ -8,10 +8,23 @@ public static class WeaponMath
         if (instance == null || instance.Data == null)
             return null;
 
-        for (int i = 0; i < instance.Data.LevelData.Count; i++)
+        WeaponUpgradePathData pathData = GetPathData(instance);
+        WeaponLevelData pathLevelData = FindLevelData(pathData?.LevelData, instance.Level);
+        if (pathLevelData != null)
+            return pathLevelData;
+
+        return FindLevelData(instance.Data.LevelData, instance.Level);
+    }
+
+    private static WeaponLevelData FindLevelData(System.Collections.Generic.IReadOnlyList<WeaponLevelData> levelData, int level)
+    {
+        if (levelData == null)
+            return null;
+
+        for (int i = 0; i < levelData.Count; i++)
         {
-            WeaponLevelData entry = instance.Data.LevelData[i];
-            if (entry != null && entry.Level == instance.Level)
+            WeaponLevelData entry = levelData[i];
+            if (entry != null && entry.Level == level)
                 return entry;
         }
 

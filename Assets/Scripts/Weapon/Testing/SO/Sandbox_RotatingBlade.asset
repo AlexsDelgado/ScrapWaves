@@ -68,13 +68,13 @@ MonoBehaviour:
     ManualAmmoMultiplier: 1.495
   PathA:
     PathName: Multi-Blade
-    DamageMultiplier: 1.22
-    AttackRateMultiplier: 1.12
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
     ManualAmmoOverride: -1
   PathB:
     PathName: Atomic Sharpness
-    DamageMultiplier: 1.36
-    AttackRateMultiplier: 0.92
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
     ManualAmmoOverride: -1
   references:
     version: 2

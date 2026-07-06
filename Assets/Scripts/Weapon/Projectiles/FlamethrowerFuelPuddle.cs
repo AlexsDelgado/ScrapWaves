@@ -20,6 +20,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     private float _tickInterval;
     private float _tickTimer;
     private float _shapeSeed;
+    private bool _useDamageContext;
+    private WeaponDamageContext _damageContext;
     private Mesh _mesh;
     private MeshRenderer _meshRenderer;
     private LineRenderer _outline;
@@ -34,7 +36,20 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         return puddle;
     }
 
+    public static FlamethrowerFuelPuddle Spawn(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval, WeaponDamageContext damageContext)
+    {
+        GameObject go = new("FlamethrowerFuelPuddle");
+        FlamethrowerFuelPuddle puddle = go.AddComponent<FlamethrowerFuelPuddle>();
+        puddle.Configure(center, radius, damagePerTick, duration, tickInterval, damageContext);
+        return puddle;
+    }
+
     private void Configure(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval)
+    {
+        Configure(center, radius, damagePerTick, duration, tickInterval, default);
+    }
+
+    private void Configure(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval, WeaponDamageContext damageContext)
     {
         _center = center;
         _radius = Mathf.Max(0.1f, radius);
@@ -43,6 +58,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         _remainingDuration = _initialDuration;
         _tickInterval = Mathf.Max(0.05f, tickInterval);
         _tickTimer = 0f;
+        _damageContext = damageContext;
+        _useDamageContext = damageContext.IsValid;
         _center = ResolveGroundPosition(center);
         _shapeSeed = Mathf.Abs(center.x * 12.9898f + center.z * 78.233f);
         transform.position = _center;
@@ -58,7 +75,10 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
 
         while (_tickTimer <= 0f && _remainingDuration > 0f)
         {
-            WeaponRadialDamage.Apply(_center, _radius, _damagePerTick, falloff: 0f, knockback: 0f, maxTargets: 64, showVfx: false);
+            if (_useDamageContext)
+                WeaponRadialDamage.Apply(_center, _radius, _damageContext, falloff: 0f, maxTargets: 64, showVfx: false);
+            else
+                WeaponRadialDamage.Apply(_center, _radius, _damagePerTick, falloff: 0f, knockback: 0f, maxTargets: 64, showVfx: false);
             _tickTimer += _tickInterval;
         }
 

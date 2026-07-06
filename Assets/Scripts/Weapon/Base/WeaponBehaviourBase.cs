@@ -104,7 +104,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         if (!CanBeginActiveAbility())
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
         FireAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1.75f, false, isAbilityDamage: true);
@@ -129,10 +129,14 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     // Computes interval from base rate, stats, level/path, and heat.
     protected virtual float GetFireInterval()
     {
-        float attackSpeed = Mathf.Max(0.01f, Stats.GetStat(StatType.AttackSpeedMultiplier));
+        return GetFireIntervalWithoutHeat() / Mathf.Max(0.01f, GetHeatFireRateMultiplier());
+    }
+
+    protected float GetFireIntervalWithoutHeat()
+    {
+        float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
         float weaponRate = Mathf.Max(0.01f, Runtime.Data.BaseAttackRate * WeaponMath.GetAttackRateMultiplier(Runtime));
-        float heatBonus = GetHeatFireRateMultiplier();
-        return 1f / Mathf.Max(0.05f, weaponRate * attackSpeed * heatBonus);
+        return 1f / Mathf.Max(0.05f, weaponRate * attackSpeed);
     }
 
     // Lets individual weapons decide whether heat affects fire rate.
@@ -147,10 +151,16 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     // Spends manual ammo, optionally requiring the full amount before firing.
     protected bool TrySpendManualAmmo(float amount, bool requireFullAmount)
     {
-        if (Runtime == null || Runtime.State != WeaponState.Manual || Runtime.CurrentAmmo <= 0f)
+        if (Runtime == null || Runtime.State != WeaponState.Manual)
             return false;
 
         float cost = Mathf.Max(0f, amount);
+        if (cost <= 0f)
+            return true;
+
+        if (Runtime.CurrentAmmo <= 0f)
+            return false;
+
         if (requireFullAmount && Runtime.CurrentAmmo < cost)
             return false;
 
@@ -185,8 +195,9 @@ public class BasicProjectileWeapon : IWeaponBehaviour
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
-        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage) * damageScale);
-        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale);
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
+        float knockback = damageContext.CalculateKnockback(finalDamage);
         Pool.TrySpawnExplosiveProjectile(
             Spawn.position,
             rotation,
@@ -197,7 +208,8 @@ public class BasicProjectileWeapon : IWeaponBehaviour
             knockback,
             speedMultiplier,
             maxTravelDistance,
-            explodeOnMaxTravel);
+            explodeOnMaxTravel,
+            damageContext);
     }
 
     // Spawns one projectile toward position and resolves final scaled damage.
@@ -229,9 +241,23 @@ public class BasicProjectileWeapon : IWeaponBehaviour
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-        int finalDamage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage) * damageScale);
-        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale);
-        Pool.TrySpawnProjectile(position, rotation, direction, finalDamage, knockback);
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
+        float knockback = damageContext.CalculateKnockback(finalDamage);
+        Pool.TrySpawnProjectile(position, rotation, direction, finalDamage, knockback, damageContext);
+    }
+
+    protected WeaponDamageContext CreateDamageContext(float damageScale, bool isAbilityDamage, float knockbackScale = -1f)
+    {
+        float resolvedKnockbackScale = knockbackScale >= 0f ? knockbackScale : damageScale;
+        return new WeaponDamageContext(
+            Stats,
+            Runtime,
+            CanCrit(),
+            GetCritMultiplierOverride(),
+            damageScale,
+            isAbilityDamage,
+            resolvedKnockbackScale);
     }
 
     // Applies projectile/area size stat to weapon ranges and areas without affecting angles.

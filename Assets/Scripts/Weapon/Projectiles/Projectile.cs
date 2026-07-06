@@ -19,6 +19,7 @@ public class Projectile : MonoBehaviour
     private Rigidbody _rigidbody;
     private SphereCollider _sphereCollider;
     private Vector3 _baseScale;
+    private bool _initialized;
     private bool _useExplosion;
     private float _explosionRadius;
     private float _explosionFalloff;
@@ -36,6 +37,8 @@ public class Projectile : MonoBehaviour
     private float _fragmentDamageScale;
     private bool _useExplosionCluster;
     private bool _visualOnly;
+    private bool _useWeaponDamageContext;
+    private WeaponDamageContext _weaponDamageContext;
     private ProjectilePool _clusterPool;
     private int _clusterProjectileCount;
     private int _clusterDamage;
@@ -47,6 +50,7 @@ public class Projectile : MonoBehaviour
     private float _clusterFragmentConeAngle;
     private float _clusterFragmentConeRange;
     private float _clusterFragmentDamageScale;
+    private WeaponDamageContext _clusterDamageContext;
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
     private static readonly Color AmplifierVfxColor = new(1f, 0.1f, 0.72f, 0.95f);
     private static readonly Color FragmentVfxColor = new(0.55f, 0.02f, 0.02f, 0.95f);
@@ -57,16 +61,30 @@ public class Projectile : MonoBehaviour
 
     private void Awake()
     {
+        EnsureInitialized();
+    }
+
+    private void EnsureInitialized()
+    {
+        if (_initialized)
+            return;
+
         _baseScale = transform.localScale;
         _rigidbody = GetComponent<Rigidbody>();
-        _rigidbody.isKinematic = true;
-        _rigidbody.useGravity = false;
-        _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+        if (_rigidbody != null)
+        {
+            _rigidbody.isKinematic = true;
+            _rigidbody.useGravity = false;
+            _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+        }
 
         _sphereCollider = GetComponent<SphereCollider>();
-        _sphereCollider.isTrigger = true;
+        if (_sphereCollider != null)
+            _sphereCollider.isTrigger = true;
+
         _activeMaxLifetime = _maxLifetime;
         _activeSpeed = _speed;
+        _initialized = true;
     }
 
     public void ConfigurePooled(float maxLifetimeSeconds)
@@ -74,6 +92,7 @@ public class Projectile : MonoBehaviour
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = false;
+        _useWeaponDamageContext = false;
     }
 
     public void ConfigurePooled(float maxLifetimeSeconds, int damageForThisShot)
@@ -93,11 +112,20 @@ public class Projectile : MonoBehaviour
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = true;
+        _useWeaponDamageContext = false;
+    }
+
+    public void ConfigureWeaponDamage(WeaponDamageContext context)
+    {
+        _weaponDamageContext = context;
+        _useWeaponDamageContext = context.IsValid;
     }
 
     // Launches projectile and resets runtime damage mode state.
     public void Launch(Vector3 worldDirection)
     {
+        EnsureInitialized();
+
         if (worldDirection.sqrMagnitude > 0.0001f)
             _direction = worldDirection.normalized;
 
@@ -133,6 +161,7 @@ public class Projectile : MonoBehaviour
         _clusterFragmentConeAngle = 0f;
         _clusterFragmentConeRange = 0f;
         _clusterFragmentDamageScale = 0f;
+        _clusterDamageContext = default;
     }
 
 
@@ -190,7 +219,8 @@ public class Projectile : MonoBehaviour
         float travelDistance,
         float fragmentConeAngle,
         float fragmentConeRange,
-        float fragmentDamageScale)
+        float fragmentDamageScale,
+        WeaponDamageContext damageContext = default)
     {
         _useExplosionCluster = pool != null && projectileCount > 0 && damage > 0;
         _clusterPool = pool;
@@ -204,6 +234,7 @@ public class Projectile : MonoBehaviour
         _clusterFragmentConeAngle = Mathf.Max(0f, fragmentConeAngle);
         _clusterFragmentConeRange = Mathf.Max(0f, fragmentConeRange);
         _clusterFragmentDamageScale = Mathf.Max(0f, fragmentDamageScale);
+        _clusterDamageContext = damageContext;
     }
 
     private void FixedUpdate()
@@ -274,8 +305,9 @@ public class Projectile : MonoBehaviour
 
         if (damageable != null)
         {
-            if (WeaponDamageApplier.TryApplyDamage(damageable, _damage))
-                EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback);
+            int finalDamage = ResolveDamage(damageable, other);
+            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+                EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage));
             DespawnOrDestroy();
             return;
         }
@@ -364,8 +396,9 @@ public class Projectile : MonoBehaviour
                 ConsumeAtCurrentPosition(detonate: true);
             else
             {
-                if (WeaponDamageApplier.TryApplyDamage(damageable, _damage))
-                    EnemyKnockbackReceiver.TryApply(damageable, impactPosition, _knockback);
+                int finalDamage = ResolveDamage(damageable, closestCollider);
+                if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+                    EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
                 DespawnOrDestroy();
             }
 
@@ -436,14 +469,14 @@ public class Projectile : MonoBehaviour
             float distance = Vector3.Distance(transform.position, hits[i].transform.position);
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _explosionFalloff, t);
-            int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
             if (_applyDamageAmplifierOnExplosion)
             {
                 WeaponDamageAmplifierStatus.Apply(damageable, _damageAmplifierMultiplier, _damageAmplifierDuration);
                 WeaponUpgradeVfx.SpawnTargetPulse(hits[i].transform, AmplifierVfxColor, 0.45f, "VULN");
             }
+            int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
-                EnemyKnockbackReceiver.TryApply(damageable, transform.position, _knockback * falloffScale);
+                EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage, falloffScale));
         }
 
         ApplyFragmentConeDamage();
@@ -472,9 +505,33 @@ public class Projectile : MonoBehaviour
             if (angle > _fragmentConeAngle * 0.5f)
                 continue;
 
-            int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * _fragmentDamageScale));
+            int damage = ResolveDamage(damageable, hits[i], _fragmentDamageScale);
             WeaponDamageApplier.TryApplyDamage(damageable, damage);
         }
+    }
+
+    private int ResolveDamage(IDamageable damageable, Collider hitCollider, float additionalScale = 1f)
+    {
+        if (!_useWeaponDamageContext)
+            return Mathf.Max(1, Mathf.RoundToInt(_damage * Mathf.Max(0f, additionalScale)));
+
+        return _weaponDamageContext.CalculateDamage(GetDamageTarget(damageable, hitCollider), additionalScale);
+    }
+
+    private float ResolveKnockback(int damage, float falloffScale = 1f)
+    {
+        if (!_useWeaponDamageContext)
+            return _knockback * Mathf.Max(0f, falloffScale);
+
+        return _weaponDamageContext.CalculateKnockback(damage, falloffScale);
+    }
+
+    private static Transform GetDamageTarget(IDamageable damageable, Collider hitCollider)
+    {
+        if (damageable is Component component)
+            return component.transform;
+
+        return hitCollider != null ? hitCollider.transform : null;
     }
 
     private Vector3 GetFragmentForward()
@@ -516,7 +573,8 @@ public class Projectile : MonoBehaviour
                 0f,
                 _clusterFragmentConeAngle,
                 _clusterFragmentConeRange,
-                _clusterFragmentDamageScale);
+                _clusterFragmentDamageScale,
+                _clusterDamageContext);
         }
     }
 
@@ -540,6 +598,15 @@ public class Projectile : MonoBehaviour
         if (TryGetComponent(out ProjectilePoolMember poolMember))
             poolMember.Despawn();
         else
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+                DestroyImmediate(gameObject);
+            else
+                Destroy(gameObject);
+#else
             Destroy(gameObject);
+#endif
+        }
     }
 }

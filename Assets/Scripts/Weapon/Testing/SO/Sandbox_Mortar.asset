@@ -22,7 +22,7 @@ MonoBehaviour:
   BaseRange: 22
   BaseKnockback: 4
   BaseManualAmmo: 36
-  ActiveAbilityAmmoCost: 12
+  ActiveAbilityAmmoCost: 5
   _specificTuning:
     rid: 5516199936037486596
   LevelData:
@@ -95,7 +95,7 @@ MonoBehaviour:
         MortarActiveDropHeight: 14
         MortarExplosionFalloff: 0.75
         MortarArcHeight: 7
-        MortarActiveShellCount: 8
+        MortarActiveShellCount: 5
         MortarActiveDamageScale: 1.4
         MortarHeatFireRateBonusAbove50: 0.75
-        MortarHeatManualSpeedBonus: 0.75
+        MortarHeatManualSpeedBonus: 0.5

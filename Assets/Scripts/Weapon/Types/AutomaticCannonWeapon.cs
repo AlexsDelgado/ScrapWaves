@@ -35,6 +35,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         TickHeadHunterPendingImpacts(deltaTime);
+        if (_headHunterActiveCharging)
+        {
+            TickHeadHunterActiveCharge(deltaTime, aimDirection);
+            return;
+        }
 
         if (Runtime.State != WeaponState.Automatic)
             return;
@@ -46,8 +51,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (Spawn == null)
             return;
 
-        float scaledRange = GetScaledWeaponRange(Runtime.Data.BaseRange);
-        if (!Targeting.TryGetTarget(Runtime, Owner, scaledRange, aimDirection, out Transform target))
+        float targetRange = Mathf.Max(0f, Runtime.Data.BaseRange);
+        if (!Targeting.TryGetTarget(Runtime, Owner, targetRange, aimDirection, out Transform target))
             return;
 
         Vector3 targetPoint = EnemyRegistry.GetAimPoint(target);
@@ -173,7 +178,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (!TrySpendManualAmmo(GetActiveAbilityAmmoCost(), requireFullAmount: true))
+        if (!TrySpendManualAmmo(GetActiveAbilityAmmoCost(), requireFullAmount: false))
             return;
 
         if (IsHeadHunterPath())
@@ -377,7 +382,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private float GetHeadHunterActivePierceRange()
     {
-        float baseRange = Runtime?.Data != null ? GetScaledWeaponRange(Runtime.Data.BaseRange) : 0f;
+        float baseRange = Runtime?.Data != null ? Mathf.Max(0f, Runtime.Data.BaseRange) : 0f;
         return Mathf.Max(HeadHunterActiveMinimumRange, baseRange);
     }
 
@@ -568,10 +573,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             float scale = GetHeadHunterDamageScale(kind, i, weakPointHit, isAbilityDamage);
 
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * scale));
+            Vector3 hitPoint = i < _piercingHitOrigins.Count ? _piercingHitOrigins[i] : origin;
+            Vector3 impactOrigin = hitPoint - direction * HeadHunterPierceRadius;
             QueueHeadHunterImpact(
                 _piercingTargets[i],
                 finalDamage,
                 weakPointHit,
+                impactOrigin,
                 GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed));
         }
     }
@@ -604,7 +612,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return distanceAlongShot / Mathf.Max(0.01f, projectileSpeed);
     }
 
-    private void QueueHeadHunterImpact(Transform target, int damage, bool weakPointHit, float delay)
+    private void QueueHeadHunterImpact(Transform target, int damage, bool weakPointHit, Vector3 impactOrigin, float delay)
     {
         if (target == null || damage <= 0)
             return;
@@ -614,6 +622,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             Target = target,
             Damage = damage,
             WeakPointHit = weakPointHit,
+            ImpactOrigin = impactOrigin,
             RemainingDelay = Mathf.Max(0f, delay)
         });
     }
@@ -650,6 +659,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         if (WeaponDamageApplier.TryApplyDamage(damageable, impact.Damage))
         {
+            ApplyKnockback(damageable, impact.ImpactOrigin, impact.Damage, 1f);
             if (impact.WeakPointHit)
                 WeaponWeakPointFeedback.NotifyWeakPointHit();
         }
@@ -699,6 +709,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public Transform Target;
         public int Damage;
         public bool WeakPointHit;
+        public Vector3 ImpactOrigin;
         public float RemainingDelay;
     }
 

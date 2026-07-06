@@ -112,10 +112,10 @@ public sealed class MortarTuning : WeaponSpecificTuning
 
     [Min(0f)] public float MortarExplosionFalloff = 0.75f;
     [Min(0f)] public float MortarArcHeight = 7f;
-    [Min(1)] public int MortarActiveShellCount = 8;
+    [Min(1)] public int MortarActiveShellCount = 5;
     [Min(0f)] public float MortarActiveDamageScale = 1.4f;
     [Min(0f)] public float MortarHeatFireRateBonusAbove50 = 0.75f;
-    [Min(0f)] public float MortarHeatManualSpeedBonus = 0.75f;
+    [Min(0f)] public float MortarHeatManualSpeedBonus = 0.5f;
 }
 
 [Serializable]

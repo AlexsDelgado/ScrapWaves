@@ -58,6 +58,8 @@ public sealed class MortarShellImpact : MonoBehaviour
     private readonly RaycastHit[] _collisionHits = new RaycastHit[CollisionBufferSize];
     private readonly List<IDamageable> _damagedThisExplosion = new();
     private MortarUpgradePayload _payload = MortarUpgradePayload.None;
+    private bool _useWeaponDamageContext;
+    private WeaponDamageContext _weaponDamageContext;
     private bool _useGrapeshotVfx;
     private float _grapeshotAirburstNormalizedTime = -1f;
     private int _remainingRepeatExplosions;
@@ -130,12 +132,15 @@ public sealed class MortarShellImpact : MonoBehaviour
         float collisionRadius,
         Transform ignoredRoot,
         MortarUpgradePayload payload,
-        bool useGrapeshotVfx)
+        bool useGrapeshotVfx,
+        WeaponDamageContext damageContext = default)
     {
         GameObject go = new GameObject("MortarShellImpact");
         MortarShellImpact shell = go.AddComponent<MortarShellImpact>();
         shell._payload = payload;
         shell._useGrapeshotVfx = useGrapeshotVfx || payload.UseGrapeshot;
+        shell._weaponDamageContext = damageContext;
+        shell._useWeaponDamageContext = damageContext.IsValid;
         shell.Configure(start, target, travelTime, arcHeight, damage, explosionRadius, falloff, knockback, collisionRadius, ignoredRoot);
         return shell;
     }
@@ -437,9 +442,9 @@ public sealed class MortarShellImpact : MonoBehaviour
             float distance = Vector3.Distance(explosionCenter, hits[i].transform.position);
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
-            int finalDamage = Mathf.Max(1, Mathf.RoundToInt(_damage * falloffScale));
+            int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
-                EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, _knockback * falloffScale);
+                EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, ResolveKnockback(finalDamage, falloffScale));
         }
     }
 
@@ -456,7 +461,9 @@ public sealed class MortarShellImpact : MonoBehaviour
             forward.Normalize();
 
         Quaternion baseRotation = Quaternion.LookRotation(forward, Vector3.up);
-        int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * Mathf.Max(0f, _payload.GrapeshotDamageScale)));
+        float grapeshotDamageScale = Mathf.Max(0f, _payload.GrapeshotDamageScale);
+        int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * grapeshotDamageScale));
+        WeaponDamageContext grapeshotContext = CreateScaledDamageContext(grapeshotDamageScale, 0.35f);
         float subShellExplosionRadius = Mathf.Max(0.25f, _explosionRadius * 0.35f);
         float subShellCollisionRadius = Mathf.Max(0.04f, _collisionRadius * 0.75f);
         float subShellTravelTime = Mathf.Clamp(_travelTime * 0.45f, 0.22f, 0.6f);
@@ -485,8 +492,48 @@ public sealed class MortarShellImpact : MonoBehaviour
                 subShellCollisionRadius,
                 _ignoredRoot,
                 MortarUpgradePayload.None,
-                useGrapeshotVfx: true);
+                useGrapeshotVfx: true,
+                grapeshotContext);
         }
+    }
+
+    private int ResolveDamage(IDamageable damageable, Collider hitCollider, float additionalScale = 1f)
+    {
+        if (!_useWeaponDamageContext)
+            return Mathf.Max(1, Mathf.RoundToInt(_damage * Mathf.Max(0f, additionalScale)));
+
+        return _weaponDamageContext.CalculateDamage(GetDamageTarget(damageable, hitCollider), additionalScale);
+    }
+
+    private float ResolveKnockback(int damage, float falloffScale = 1f)
+    {
+        if (!_useWeaponDamageContext)
+            return _knockback * Mathf.Max(0f, falloffScale);
+
+        return _weaponDamageContext.CalculateKnockback(damage, falloffScale);
+    }
+
+    private WeaponDamageContext CreateScaledDamageContext(float damageScale, float knockbackScale)
+    {
+        if (!_useWeaponDamageContext)
+            return default;
+
+        return new WeaponDamageContext(
+            _weaponDamageContext.Stats,
+            _weaponDamageContext.Weapon,
+            _weaponDamageContext.CanCrit,
+            _weaponDamageContext.CritMultiplierOverride,
+            _weaponDamageContext.DamageScale * Mathf.Max(0f, damageScale),
+            _weaponDamageContext.IsAbilityDamage,
+            _weaponDamageContext.KnockbackScale * Mathf.Max(0f, knockbackScale));
+    }
+
+    private static Transform GetDamageTarget(IDamageable damageable, Collider hitCollider)
+    {
+        if (damageable is Component component)
+            return component.transform;
+
+        return hitCollider != null ? hitCollider.transform : null;
     }
 
     private bool UsesGrapeshotVisuals() => _useGrapeshotVfx || _payload.UseGrapeshot;

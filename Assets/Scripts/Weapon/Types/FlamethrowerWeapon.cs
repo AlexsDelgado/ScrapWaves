@@ -124,7 +124,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return;
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
         float activeRadius = GetScaledRange(GetPathAdjustedActiveRadius(tuning));
@@ -153,7 +153,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 puddleSettings.x,
                 puddleDamage,
                 puddleSettings.y,
-                tuning.FlameBurnTickInterval);
+                tuning.FlameBurnTickInterval,
+                CreateBurnDamageContext(tuning, isAbilityDamage: true));
         }
 
         if (!IsJellifiedFuelPath())
@@ -277,6 +278,19 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
+    private WeaponDamageContext CreateBurnDamageContext(FlamethrowerTuning tuning, bool isAbilityDamage)
+    {
+        float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
+        return new WeaponDamageContext(
+            Stats,
+            Runtime,
+            canCrit: false,
+            critMultiplierOverride: 1f,
+            damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
+            isAbilityDamage: isAbilityDamage,
+            knockbackScale: 0f);
+    }
+
     private bool IsJellifiedFuelPath() =>
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
 
@@ -326,7 +340,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             float levelScale = Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
             float radius = GetScaledHoseRadius(tuning) * levelScale;
-            FlamethrowerFuelPuddle.Spawn(target.position, radius, damagePerTick, duration, tuning.FlameBurnTickInterval);
+            FlamethrowerFuelPuddle.Spawn(
+                target.position,
+                radius,
+                damagePerTick,
+                duration,
+                tuning.FlameBurnTickInterval,
+                CreateBurnDamageContext(tuning, activeAbility));
         }
 
         WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();

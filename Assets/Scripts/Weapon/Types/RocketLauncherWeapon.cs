@@ -50,7 +50,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (Spawn == null)
             return;
 
-        if (!Targeting.TryGetTarget(Runtime, Owner, GetScaledWeaponRange(Runtime.Data.BaseRange), aimDirection, out Transform target))
+        if (!Targeting.TryGetTarget(Runtime, Owner, Mathf.Max(0f, Runtime.Data.BaseRange), aimDirection, out Transform target))
             return;
 
         FireTimer = GetFireInterval();
@@ -108,7 +108,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (Runtime.CurrentAmmo < Mathf.Max(0f, Runtime.Data.ActiveAbilityAmmoCost))
+        if (Runtime.CurrentAmmo <= 0f)
             return;
 
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
@@ -161,7 +161,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
         {
             ClearTargetMarkers();
             return;
@@ -351,7 +351,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         EnemyRegistry.CollectClosestOnPlaneInCone(
             Spawn.position,
             aimDirection,
-            GetScaledWeaponRange(Runtime.Data.BaseRange),
+            Mathf.Max(0f, Runtime.Data.BaseRange),
             tuning.RocketActiveConeAngle,
             IsFragmentationCapPath() ? 1 : Mathf.Max(requestedTargetCount, 64),
             _abilityCandidates);
@@ -476,13 +476,11 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
-        int finalDamage = Mathf.RoundToInt(
-            WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage)
-            * Mathf.Max(0f, damageScale));
-
-        float travelRange = GetScaledWeaponRange(Runtime.Data.BaseRange);
+        float travelRange = Mathf.Max(0f, Runtime.Data.BaseRange);
         float pathKnockback = GetPathAdjustedKnockbackScale(isAbilityDamage);
-        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, finalDamage, damageScale) * pathKnockback;
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage, damageScale * pathKnockback);
+        int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
+        float knockback = damageContext.CalculateKnockback(finalDamage);
         float amplifier = IsKineticExplosionPath() ? 1.2f : 1f;
         float amplifierDuration = IsKineticExplosionPath() ? 5f : 0f;
         float fragmentConeAngle = IsFragmentationCapPath() && !isAbilityDamage ? 45f : 0f;
@@ -493,8 +491,13 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         {
             RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
             float clusterRadius = GetPathAdjustedExplosionRadius(tuning.RocketManualExplosionRadius) * GetAreaSizeMultiplier();
-            int clusterDamage = Mathf.Max(1, Mathf.RoundToInt(finalDamage * GetFragmentClusterDamageScale()));
-            float clusterKnockback = WeaponMath.CalculateKnockback(Stats, Runtime, clusterDamage, damageScale) * GetPathAdjustedKnockbackScale(false);
+            float clusterDamageScale = GetFragmentClusterDamageScale();
+            WeaponDamageContext clusterDamageContext = CreateDamageContext(
+                damageScale * clusterDamageScale,
+                isAbilityDamage,
+                damageScale * GetPathAdjustedKnockbackScale(false));
+            int clusterDamage = clusterDamageContext.EstimateDamage(eliteOrBoss);
+            float clusterKnockback = clusterDamageContext.CalculateKnockback(clusterDamage);
             Pool.TrySpawnExplosiveProjectileWithAmplifierAndCluster(
                 Spawn.position,
                 rotation,
@@ -517,11 +520,13 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff),
                 clusterKnockback,
                 tuning.RocketManualSpeedMultiplier,
-                GetScaledWeaponRange(Runtime.Data.BaseRange * 0.45f),
+                Mathf.Max(0f, Runtime.Data.BaseRange * 0.45f),
                 45f,
                 GetFragmentConeRange(clusterRadius, activeAbility: false),
                 GetFragmentDamageScale(activeAbility: false),
-                5f);
+                5f,
+                damageContext,
+                clusterDamageContext);
             return;
         }
 
@@ -540,6 +545,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             amplifierDuration,
             fragmentConeAngle,
             fragmentConeRange,
-            fragmentDamageScale);
+            fragmentDamageScale,
+            damageContext);
     }
 }

@@ -418,7 +418,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void RocketLauncherManualRocket_TravelsPastBaseReticleRangeWhenAreaSizeScalesRange()
+    public void RocketLauncherManualRocket_IgnoresAreaSizeForTravelRangeButScalesExplosion()
     {
         GameObject owner = new("Rocket Owner");
         GameObject spawn = new("Rocket Spawn");
@@ -493,7 +493,8 @@ public class WeaponUpgradeEffectTests
             }
 
             Assert.That(activeRocket, Is.Not.Null);
-            Assert.That(ReadField<float>(activeRocket, "_maxTravelDistance"), Is.EqualTo(24f).Within(0.0001f));
+            Assert.That(ReadField<float>(activeRocket, "_maxTravelDistance"), Is.EqualTo(12f).Within(0.0001f));
+            Assert.That(ReadField<float>(activeRocket, "_explosionRadius"), Is.EqualTo(4.8f).Within(0.0001f));
         }
         finally
         {
@@ -566,6 +567,77 @@ public class WeaponUpgradeEffectTests
 
             Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
             Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunterManual_AppliesKnockbackOnImpact()
+    {
+        GameObject owner = new("Cannon Owner");
+        GameObject spawn = new("Cannon Spawn");
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.name = "Head Hunter Knockback Target";
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            target.transform.position = Vector3.forward * 6f;
+            var damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseKnockback = 1f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+            weapon.TickManual(0.1f, Vector3.forward, isFiring: true);
+            weapon.TickManual(0.2f, Vector3.forward, isFiring: false);
+
+            EnemyKnockbackReceiver receiver = target.GetComponent<EnemyKnockbackReceiver>();
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+            Assert.That(receiver, Is.Not.Null);
+            Assert.That(receiver.ConsumeDisplacement(0.1f).z, Is.GreaterThan(0f));
         }
         finally
         {
@@ -1119,6 +1191,73 @@ public class WeaponUpgradeEffectTests
         Object.DestroyImmediate(forwardTarget);
         Object.DestroyImmediate(sideTarget);
         DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void WeaponRadialDamage_ContextAppliesEliteMultiplierPerTarget()
+    {
+        MethodInfo contextApply = typeof(WeaponRadialDamage).GetMethod(
+            "Apply",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(Vector3), typeof(float), typeof(WeaponDamageContext), typeof(float), typeof(int), typeof(bool) },
+            null);
+        Assert.That(contextApply, Is.Not.Null, "Jellified Fuel puddles need context-aware radial damage so stats resolve per target.");
+
+        GameObject owner = new("Radial Damage Owner");
+        GameObject normalTarget = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject eliteTarget = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions(eliteDamageMultiplier: 2f);
+
+        try
+        {
+            Vector3 center = new(1000f, 0f, 1000f);
+            normalTarget.name = "Normal Target";
+            eliteTarget.name = "Elite Target";
+            normalTarget.transform.position = center + Vector3.forward;
+            eliteTarget.transform.position = center + Vector3.right;
+            TestDamageable normalDamageable = normalTarget.AddComponent<TestDamageable>();
+            TestDamageable eliteDamageable = eliteTarget.AddComponent<TestDamageable>();
+            Physics.SyncTransforms();
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "PuddleDamageTest";
+            data.DisplayName = "Puddle Damage Test";
+            data.BaseDamage = 10f;
+            data.BaseKnockback = 0f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                State = WeaponState.Manual
+            };
+            WeaponDamageContext context = new(stats, instance, canCrit: false, critMultiplierOverride: 1f, damageScale: 0.5f, isAbilityDamage: false, knockbackScale: 0f);
+
+            int applied = (int)contextApply.Invoke(null, new object[] { center, 3f, context, 0f, 64, false });
+
+            Assert.That(applied, Is.EqualTo(2));
+            Assert.That(normalDamageable.LastDamage, Is.EqualTo(5));
+            Assert.That(eliteDamageable.LastDamage, Is.EqualTo(10));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(normalTarget);
+            Object.DestroyImmediate(eliteTarget);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
     }
 
     [Test]
@@ -2152,12 +2291,12 @@ public class WeaponUpgradeEffectTests
         }
     }
 
-    private static List<StatDefinition> CreateDefaultStatDefinitions(float projectileAreaSize = 1f)
+    private static List<StatDefinition> CreateDefaultStatDefinitions(float projectileAreaSize = 1f, float eliteDamageMultiplier = 1f)
     {
         return new List<StatDefinition>
         {
             CreateDefinition(StatType.DamageMultiplier, 1f),
-            CreateDefinition(StatType.EliteDamageMultiplier, 1f),
+            CreateDefinition(StatType.EliteDamageMultiplier, eliteDamageMultiplier),
             CreateDefinition(StatType.CriticalChance, 0f),
             CreateDefinition(StatType.CriticalDamage, 2f),
             CreateDefinition(StatType.AttackSpeedMultiplier, 1f),

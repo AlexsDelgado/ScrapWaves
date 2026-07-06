@@ -17,25 +17,89 @@ MonoBehaviour:
   WeaponType: 2
   AutoTargetingMode: 0
   ManualMode: 0
-  BaseDamage: 20
+  BaseDamage: 70
   BaseAttackRate: 1
   BaseRange: 20
-  BaseKnockback: 5
+  BaseKnockback: 1.5
   BaseManualAmmo: 40
   ActiveAbilityAmmoCost: 10
+  SkillCooldown: 8
+  Icon: {fileID: 0}
   _specificTuning:
     rid: 7782109439718619137
-  LevelData: []
+  LevelData:
+  - Level: 1
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 2
+    DamageMultiplier: 1.1428572
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1.125
+  - Level: 3
+    DamageMultiplier: 1.2857143
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1.25
+  - Level: 4
+    DamageMultiplier: 1.4285715
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1.375
+  - Level: 5
+    DamageMultiplier: 1.5714285
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1.5
   PathA:
     PathName: Kinetic Explosion
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 1.8571428
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.75
+    - Level: 7
+      DamageMultiplier: 2.142857
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.875
+    - Level: 8
+      DamageMultiplier: 2.4285715
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
+    - Level: 9
+      DamageMultiplier: 2.7142856
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.125
+    - Level: 10
+      DamageMultiplier: 3.5714285
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.5
   PathB:
     PathName: Fragmentation Cap
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 1.7142857
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.75
+    - Level: 7
+      DamageMultiplier: 1.8571428
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.875
+    - Level: 8
+      DamageMultiplier: 2
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
+    - Level: 9
+      DamageMultiplier: 2.142857
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.125
+    - Level: 10
+      DamageMultiplier: 2.5
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.5
   references:
     version: 2
     RefIds:

@@ -340,15 +340,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     private IWeaponBehaviour CreateBehaviour(WeaponData data)
     {
         Transform spawn = ProjectileSpawn != null ? ProjectileSpawn : PlayerTransform;
-        return data.WeaponType switch
-        {
-            WeaponType.AutomaticCannon => new AutomaticCannonWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.Flamethrower => new FlamethrowerWeapon(_targeting, _projectilePool, spawn, _playerMovement),
-            WeaponType.RocketLauncher => new RocketLauncherWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.Mortar => new MortarWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.RotatingBlade => new RotatingBladeWeapon(_targeting, _projectilePool, spawn),
-            _ => new BasicProjectileWeapon(_targeting, _projectilePool, spawn)
-        };
+        return WeaponBehaviourFactory.Create(data, _targeting, _projectilePool, spawn, _playerMovement);
     }
 
     private void StartManualMode(int slot, bool refillAmmo)

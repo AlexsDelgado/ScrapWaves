@@ -50,6 +50,23 @@ public class WeaponUpgradeMathTests
     }
 
     [Test]
+    public void GetLevelData_UsesSelectedPathLevelDataWhenConfigured()
+    {
+        WeaponInstance weapon = CreateWeaponInstance(level: 7, WeaponUpgradePath.PathB);
+        weapon.Data.PathB.LevelData = new List<WeaponLevelData>
+        {
+            new() { Level = 7, DamageMultiplier = 3.25f, AttackRateMultiplier = 0.65f, ManualAmmoMultiplier = 0.45f }
+        };
+
+        WeaponLevelData levelData = WeaponMath.GetLevelData(weapon);
+
+        Assert.That(levelData, Is.Not.Null);
+        Assert.That(levelData.Level, Is.EqualTo(7));
+        Assert.That(levelData.DamageMultiplier, Is.EqualTo(3.25f).Within(0.0001f));
+        Assert.That(WeaponMath.GetAttackRateMultiplier(weapon), Is.EqualTo(0.65f * 0.8f).Within(0.0001f));
+    }
+
+    [Test]
     public void GetMaxManualAmmo_UsesLevelMultiplierAndPathOverride()
     {
         PlayerStats stats = CreateStats();
@@ -190,6 +207,38 @@ public class WeaponUpgradeMathTests
     }
 
     [Test]
+    public void AutomaticCannon_HeadHunterActivePierceRange_IgnoresProjectileAreaSize()
+    {
+        PlayerStats stats = CreateStats(projectileAreaSize: 2f);
+        AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathB, stats: stats);
+        weapon.Runtime.Data.BaseRange = 1200f;
+
+        float range = InvokePrivate<float>(weapon, "GetHeadHunterActivePierceRange");
+
+        Assert.That(range, Is.EqualTo(1200f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_AutomaticTargetRange_IgnoresProjectileAreaSize()
+    {
+        GameObject spawn = new("Cannon Spawn");
+        _cleanup.Add(spawn);
+        CapturingTargeting targeting = new(returnTarget: false);
+        PlayerStats stats = CreateStats(projectileAreaSize: 2f);
+        WeaponInstance instance = CreateWeaponInstance(level: 1, WeaponUpgradePath.None);
+        instance.Data.WeaponType = WeaponType.AutomaticCannon;
+        instance.Data.BaseRange = 12f;
+        instance.State = WeaponState.Automatic;
+
+        AutomaticCannonWeapon weapon = new(targeting, null, spawn.transform);
+        weapon.Setup(instance, null, stats, null);
+
+        weapon.TickAutomatic(1f, Vector3.forward);
+
+        Assert.That(targeting.LastRange, Is.EqualTo(12f).Within(0.0001f));
+    }
+
+    [Test]
     public void AutomaticCannon_HeadHunterDamageScale_MatchesSpec()
     {
         AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathB);
@@ -245,6 +294,57 @@ public class WeaponUpgradeMathTests
     }
 
     [Test]
+    public void RocketLauncher_AutomaticTargetRange_IgnoresProjectileAreaSize()
+    {
+        GameObject spawn = new("Rocket Spawn");
+        _cleanup.Add(spawn);
+        CapturingTargeting targeting = new(returnTarget: false);
+        PlayerStats stats = CreateStats(projectileAreaSize: 2f);
+        WeaponInstance instance = CreateWeaponInstance(level: 1, WeaponUpgradePath.None);
+        instance.Data.WeaponType = WeaponType.RocketLauncher;
+        instance.Data.EnsureSpecificTuningForCurrentType();
+        instance.Data.BaseRange = 20f;
+        instance.State = WeaponState.Automatic;
+
+        RocketLauncherWeapon weapon = new(targeting, null, spawn.transform);
+        weapon.Setup(instance, null, stats, null);
+
+        weapon.TickAutomatic(1f, Vector3.forward);
+
+        Assert.That(targeting.LastRange, Is.EqualTo(20f).Within(0.0001f));
+    }
+
+    [Test]
+    public void MortarManualFireInterval_IgnoresAutomaticHeatFireRateBonus()
+    {
+        HeatManager heat = CreateHeatManager();
+        heat.SetHeat(heat.MaxHeat);
+        PlayerStats stats = CreateStats();
+        MortarWeapon weapon = CreateMortarWeapon(heat, stats);
+        weapon.Runtime.Data.BaseAttackRate = 1f;
+        weapon.Runtime.Data.Mortar.MortarHeatFireRateBonusAbove50 = 0.75f;
+        weapon.Runtime.Data.Mortar.MortarHeatManualSpeedBonus = 0.5f;
+
+        float interval = InvokePrivate<float>(weapon, "GetManualFireInterval");
+
+        Assert.That(interval, Is.EqualTo(1f).Within(0.0001f));
+    }
+
+    [Test]
+    public void MortarManualTravelTime_UsesHalfHeatAsSpeedBonus()
+    {
+        HeatManager heat = CreateHeatManager();
+        heat.SetHeat(heat.MaxHeat);
+        MortarWeapon weapon = CreateMortarWeapon(heat, stats: null);
+        MortarTuning tuning = weapon.Runtime.Data.Mortar;
+        tuning.MortarManualTravelTime = 0.6f;
+
+        float travelTime = InvokePrivate<float>(weapon, "GetManualTravelTime", tuning);
+
+        Assert.That(travelTime, Is.EqualTo(0.4f).Within(0.0001f));
+    }
+
+    [Test]
     public void RotatingBlade_MultiBladeCount_ScalesWithPathLevel()
     {
         RotatingBladeWeapon levelSix = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA);
@@ -286,6 +386,16 @@ public class WeaponUpgradeMathTests
     }
 
     [Test]
+    public void RotatingBlade_AtomicSharpness_SpinsFasterThanBase()
+    {
+        RotatingBladeWeapon atomic = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathB);
+        RotatingBladeWeapon baseline = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA);
+
+        Assert.That(InvokePrivate<float>(atomic, "GetAtomicSharpnessSpinMultiplier"), Is.GreaterThan(1f));
+        Assert.That(InvokePrivate<float>(baseline, "GetAtomicSharpnessSpinMultiplier"), Is.EqualTo(1f).Within(0.0001f));
+    }
+
+    [Test]
     public void RotatingBlade_MultiBlade_StagesHitsAndOnlyFinalSwingKnocksBack()
     {
         RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathA);
@@ -299,10 +409,15 @@ public class WeaponUpgradeMathTests
     public void RotatingBlade_AtomicSharpnessActive_UsesDashDamageAndIFrameWindow()
     {
         RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathB);
+        float dashSegmentSeconds = InvokePrivate<float>(weapon, "GetAtomicActiveDashSegmentSeconds");
+        float dashDuration = InvokePrivate<float>(weapon, "GetAtomicDashDurationForHitCount", 3);
 
         Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveDamageScale"), Is.EqualTo(1.5f).Within(0.0001f));
-        Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveInvulnerabilitySeconds"), Is.EqualTo(0.25f).Within(0.0001f));
-        Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashDurationForHitCount", 3), Is.EqualTo(0.4f).Within(0.0001f));
+        Assert.That(dashSegmentSeconds, Is.EqualTo(0.16f).Within(0.0001f));
+        Assert.That(dashDuration, Is.EqualTo(dashSegmentSeconds * 4f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicActivePostDashInvulnerabilitySeconds"), Is.EqualTo(0.25f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveInvulnerabilityDuration", dashDuration), Is.EqualTo(dashDuration + 0.25f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashRangeForHitCount", 7f, 3), Is.EqualTo(28f).Within(0.0001f));
     }
 
     private WeaponInstance CreateWeaponInstance(int level, WeaponUpgradePath path)
@@ -344,22 +459,22 @@ public class WeaponUpgradeMathTests
         };
     }
 
-    private PlayerStats CreateStats()
+    private PlayerStats CreateStats(float projectileAreaSize = 1f)
     {
         GameObject owner = new("StatsOwner");
         _cleanup.Add(owner);
         PlayerStats stats = owner.AddComponent<PlayerStats>();
-        SetPrivateField(stats, "_statDefinitions", CreateStatDefinitions());
+        SetPrivateField(stats, "_statDefinitions", CreateStatDefinitions(projectileAreaSize));
         InvokePrivate(stats, "Awake");
         return stats;
     }
 
-    private AutomaticCannonWeapon CreateAutomaticCannonWeapon(int level, WeaponUpgradePath path, HeatManager heat = null)
+    private AutomaticCannonWeapon CreateAutomaticCannonWeapon(int level, WeaponUpgradePath path, HeatManager heat = null, PlayerStats stats = null)
     {
         WeaponInstance instance = CreateWeaponInstance(level, path);
         instance.Data.WeaponType = WeaponType.AutomaticCannon;
         AutomaticCannonWeapon weapon = new(null, null, null);
-        weapon.Setup(instance, null, null, heat);
+        weapon.Setup(instance, null, stats, heat);
         return weapon;
     }
 
@@ -391,7 +506,17 @@ public class WeaponUpgradeMathTests
         return heat;
     }
 
-    private List<StatDefinition> CreateStatDefinitions()
+    private MortarWeapon CreateMortarWeapon(HeatManager heat, PlayerStats stats)
+    {
+        WeaponInstance instance = CreateWeaponInstance(level: 1, WeaponUpgradePath.None);
+        instance.Data.WeaponType = WeaponType.Mortar;
+        instance.Data.EnsureSpecificTuningForCurrentType();
+        MortarWeapon weapon = new(null, null, null);
+        weapon.Setup(instance, null, stats, heat);
+        return weapon;
+    }
+
+    private List<StatDefinition> CreateStatDefinitions(float projectileAreaSize = 1f)
     {
         return new List<StatDefinition>
         {
@@ -402,7 +527,7 @@ public class WeaponUpgradeMathTests
             CreateDefinition(StatType.AttackSpeedMultiplier, 1f),
             CreateDefinition(StatType.AmmoMultiplier, 1f),
             CreateDefinition(StatType.Knockback, 1f),
-            CreateDefinition(StatType.ProjectileAreaSize, 1f),
+            CreateDefinition(StatType.ProjectileAreaSize, projectileAreaSize),
             CreateDefinition(StatType.AbilityDamageMultiplier, 1f),
             CreateDefinition(StatType.AbilityCooldownReduction, 0f)
         };
@@ -432,23 +557,56 @@ public class WeaponUpgradeMathTests
 
     private static void InvokePrivate(object target, string methodName)
     {
-        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo method = FindPrivateMethod(target.GetType(), methodName, System.Array.Empty<object>());
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         method.Invoke(target, null);
     }
 
     private static T InvokePrivate<T>(object target, string methodName)
     {
-        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo method = FindPrivateMethod(target.GetType(), methodName, System.Array.Empty<object>());
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         return (T)method.Invoke(target, null);
     }
 
     private static T InvokePrivate<T>(object target, string methodName, params object[] arguments)
     {
-        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo method = FindPrivateMethod(target.GetType(), methodName, arguments);
         Assert.That(method, Is.Not.Null, $"Missing method {methodName} on {target.GetType().Name}");
         return (T)method.Invoke(target, arguments);
+    }
+
+    private static MethodInfo FindPrivateMethod(System.Type type, string methodName, object[] arguments)
+    {
+        MethodInfo[] methods = type.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
+        for (int i = 0; i < methods.Length; i++)
+        {
+            MethodInfo method = methods[i];
+            if (method.Name != methodName)
+                continue;
+
+            ParameterInfo[] parameters = method.GetParameters();
+            if (parameters.Length != arguments.Length)
+                continue;
+
+            bool matches = true;
+            for (int j = 0; j < parameters.Length; j++)
+            {
+                if (arguments[j] == null)
+                    continue;
+
+                if (!parameters[j].ParameterType.IsInstanceOfType(arguments[j]))
+                {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (matches)
+                return method;
+        }
+
+        return null;
     }
 
     private static T ReadPrivate<T>(object target, string fieldName)
@@ -456,5 +614,24 @@ public class WeaponUpgradeMathTests
         FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(field, Is.Not.Null, $"Missing field {fieldName} on {target.GetType().Name}");
         return (T)field.GetValue(target);
+    }
+
+    private sealed class CapturingTargeting : IWeaponTargeting
+    {
+        private readonly bool _returnTarget;
+
+        public float LastRange { get; private set; } = -1f;
+
+        public CapturingTargeting(bool returnTarget)
+        {
+            _returnTarget = returnTarget;
+        }
+
+        public bool TryGetTarget(WeaponInstance weapon, Transform owner, float range, Vector3 aimDirection, out Transform target)
+        {
+            LastRange = range;
+            target = null;
+            return _returnTarget;
+        }
     }
 }

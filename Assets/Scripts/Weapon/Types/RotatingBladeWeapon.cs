@@ -6,6 +6,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private const int MaxContactTargets = 64;
     private const int MaxManualTargets = 64;
     private const int MaxActiveTargets = 128;
+    private const float AtomicSharpnessSpinMultiplier = 1.5f;
+    private const float AtomicActiveDashSegmentSeconds = 0.16f;
+    private const float AtomicActivePostDashInvulnerabilitySeconds = 0.25f;
     private static readonly Color MultiBladeVfxColor = new(0.95f, 1f, 0.35f, 0.9f);
     private static readonly Color AtomicSharpnessVfxColor = new(0.6f, 0.95f, 1f, 0.95f);
 
@@ -43,6 +46,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     // Spins one blade around the owner and damages enemies only when the blade itself contacts them.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
+        if (_multiBladeActivePending && TickPendingMultiBladeActions(deltaTime))
+            return;
+
         if (Runtime.State != WeaponState.Automatic || Owner == null)
             return;
 
@@ -130,7 +136,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (thrustDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
@@ -163,7 +169,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     {
         float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
         float weaponRate = WeaponMath.GetAttackRateMultiplier(Runtime);
-        float spinRate = tuning.BladeBaseSpinDegreesPerSecond * attackSpeed * weaponRate;
+        float spinRate = tuning.BladeBaseSpinDegreesPerSecond * attackSpeed * weaponRate * GetAtomicSharpnessSpinMultiplier();
         _spinAngle = Mathf.Repeat(_spinAngle + spinRate * deltaTime, 360f);
     }
 
@@ -242,13 +248,27 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
     private float GetAtomicSharpnessKnockbackScale(float original) => IsAtomicSharpnessPath() ? 0f : original;
 
+    private float GetAtomicSharpnessSpinMultiplier() => IsAtomicSharpnessPath() ? AtomicSharpnessSpinMultiplier : 1f;
+
     private float GetAtomicActiveDamageScale() => 1.5f;
 
-    private float GetAtomicActiveInvulnerabilitySeconds() => 0.25f;
+    private float GetAtomicActiveDashSegmentSeconds() => AtomicActiveDashSegmentSeconds;
+
+    private float GetAtomicActivePostDashInvulnerabilitySeconds() => AtomicActivePostDashInvulnerabilitySeconds;
 
     private float GetAtomicDashDurationForHitCount(int hitCount)
     {
-        return GetAtomicActiveInvulnerabilitySeconds() + Mathf.Max(0, hitCount) * 0.05f;
+        return GetAtomicActiveDashSegmentSeconds() * (1f + Mathf.Max(0, hitCount));
+    }
+
+    private float GetAtomicActiveInvulnerabilityDuration(float dashDuration)
+    {
+        return Mathf.Max(0f, dashDuration) + GetAtomicActivePostDashInvulnerabilitySeconds();
+    }
+
+    private float GetAtomicDashRangeForHitCount(float baseRange, int hitCount)
+    {
+        return Mathf.Max(0f, baseRange) * (1f + Mathf.Max(0, hitCount));
     }
 
     private float GetMultiBladeActionInterval() => 0.1f;
@@ -491,25 +511,20 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
     private void ExecuteAtomicSharpnessDash(Vector3 origin, Vector3 direction, RotatingBladeTuning tuning)
     {
-        float range = Mathf.Min(GetScaledActiveRange(tuning), GetScaledManualRange(tuning) * 3f);
+        float baseRange = Mathf.Min(GetScaledActiveRange(tuning), GetScaledManualRange(tuning) * 3f);
         float lineWidth = GetScaledActiveLineWidth(tuning);
-        _activeLinePoints[0] = origin;
-        _activeLinePoints[1] = origin + direction * range;
-        WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], AtomicSharpnessVfxColor, GetAtomicActiveInvulnerabilitySeconds(), lineWidth * 0.45f, "DASH");
 
-        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
-            _activeLinePoints,
-            _activeLinePoints.Length,
-            lineWidth * 0.65f,
-            MaxActiveTargets,
-            _targets,
-            _hitOrigins);
-
+        int hitCount = CollectAtomicDashTargets(origin, direction, baseRange, lineWidth);
         float dashDuration = GetAtomicDashDurationForHitCount(hitCount);
-        Owner?.GetComponent<PlayerHealth>()?.GrantInvulnerability(dashDuration);
+        float dashRange = GetAtomicDashRangeForHitCount(baseRange, hitCount);
+        _activeLinePoints[0] = origin;
+        _activeLinePoints[1] = origin + direction * dashRange;
+        WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], AtomicSharpnessVfxColor, dashDuration, lineWidth * 0.45f, "DASH");
+
+        Owner?.GetComponent<PlayerHealth>()?.GrantInvulnerability(GetAtomicActiveInvulnerabilityDuration(dashDuration));
         Owner?.GetComponent<PlayerMovement>()?.ApplyWeaponDash(
             direction,
-            Mathf.Max(1f, range / Mathf.Max(0.05f, dashDuration)),
+            Mathf.Max(1f, baseRange / Mathf.Max(0.05f, GetAtomicActiveDashSegmentSeconds())),
             dashDuration);
 
         for (int i = 0; i < hitCount; i++)
@@ -523,6 +538,32 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 isAbilityDamage: true);
             WeaponUpgradeVfx.SpawnTargetPulse(_targets[i], AtomicSharpnessVfxColor, 0.35f, "DASH");
         }
+    }
+
+    private int CollectAtomicDashTargets(Vector3 origin, Vector3 direction, float baseRange, float lineWidth)
+    {
+        float dashRange = Mathf.Max(0.01f, baseRange);
+        int hitCount = 0;
+        for (int pass = 0; pass < 4; pass++)
+        {
+            _activeLinePoints[0] = origin;
+            _activeLinePoints[1] = origin + direction * dashRange;
+            hitCount = EnemyRegistry.CollectClosestNearPolyline(
+                _activeLinePoints,
+                _activeLinePoints.Length,
+                lineWidth * 0.65f,
+                MaxActiveTargets,
+                _targets,
+                _hitOrigins);
+
+            float resetRange = GetAtomicDashRangeForHitCount(baseRange, hitCount);
+            if (Mathf.Abs(resetRange - dashRange) <= 0.01f)
+                break;
+
+            dashRange = resetRange;
+        }
+
+        return hitCount;
     }
 
     private Vector3 GetMultiBladeOffsetDirection(Vector3 direction, int actionIndex, int actionCount)

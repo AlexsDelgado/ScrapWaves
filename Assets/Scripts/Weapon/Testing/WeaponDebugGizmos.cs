@@ -129,7 +129,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     {
         RocketLauncherTuning tuning = weapon.Data.RocketLauncher;
         float size = GetAreaSize();
-        Vector3 target = origin + forward.normalized * weapon.Data.BaseRange * size;
+        Vector3 target = origin + forward.normalized * weapon.Data.BaseRange;
 
         if (ShowProjectilePaths)
             DrawRuntimeLine(origin, target, new Color(1f, 0.9f, 0.05f, 0.95f), RuntimeLineWidth);
@@ -166,7 +166,6 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     private void DrawRuntimeAutomaticCannon(WeaponInstance weapon, Vector3 origin, Vector3 forward)
     {
         AutomaticCannonTuning tuning = weapon.Data.AutomaticCannon;
-        float size = GetAreaSize();
         Vector3 direction = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
 
         if (ShowProjectilePaths)
@@ -176,12 +175,12 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
             for (int i = 0; i < count; i++)
             {
                 Vector3 start = origin + direction * (tuning.CannonManualLineSpacing * i);
-                DrawRuntimeLine(start, start + direction * weapon.Data.BaseRange * size, pathColor, RuntimeLineWidth);
+                DrawRuntimeLine(start, start + direction * weapon.Data.BaseRange, pathColor, RuntimeLineWidth);
             }
         }
 
         if (ShowWeaponHitboxes)
-            DrawRuntimeCone(origin, direction, weapon.Data.BaseRange * size, tuning.CannonAbilityScatterRadius, new Color(1f, 1f, 1f, 0.55f));
+            DrawRuntimeCone(origin, direction, weapon.Data.BaseRange, tuning.CannonAbilityScatterRadius, new Color(1f, 1f, 1f, 0.55f));
     }
 
     private void DrawRuntimeRotatingBlade(WeaponInstance weapon, Vector3 origin, Vector3 forward)
@@ -287,7 +286,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     {
         RocketLauncherTuning tuning = weapon.Data.RocketLauncher;
         float size = _sandbox.StatOverride != null ? _sandbox.StatOverride.ProjectileAreaSizeMultiplier : 1f;
-        Vector3 target = origin + forward * weapon.Data.BaseRange * size;
+        Vector3 target = origin + forward * weapon.Data.BaseRange;
 
         if (ShowProjectilePaths)
         {
@@ -298,7 +297,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         if (ShowExplosionRadius)
         {
             Gizmos.color = new Color(1f, 0.45f, 0.05f, 0.75f);
-            Gizmos.DrawWireSphere(target, tuning.RocketManualExplosionRadius);
+            Gizmos.DrawWireSphere(target, tuning.RocketManualExplosionRadius * size);
         }
     }
 
@@ -339,21 +338,20 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     private void DrawAutomaticCannon(WeaponInstance weapon, Vector3 origin, Vector3 forward)
     {
         AutomaticCannonTuning tuning = weapon.Data.AutomaticCannon;
-        float size = _sandbox.StatOverride != null ? _sandbox.StatOverride.ProjectileAreaSizeMultiplier : 1f;
         if (ShowProjectilePaths)
         {
             Gizmos.color = new Color(0.8f, 1f, 0.2f, 0.8f);
             for (int i = 0; i < tuning.CannonManualBurstCount; i++)
             {
                 Vector3 start = origin + forward * (tuning.CannonManualLineSpacing * i);
-                Gizmos.DrawLine(start, start + forward * weapon.Data.BaseRange * size);
+                Gizmos.DrawLine(start, start + forward * weapon.Data.BaseRange);
             }
         }
 
         if (ShowWeaponHitboxes)
         {
             Gizmos.color = new Color(1f, 1f, 1f, 0.35f);
-            DrawCone(origin, forward, weapon.Data.BaseRange * size, tuning.CannonAbilityScatterRadius);
+            DrawCone(origin, forward, weapon.Data.BaseRange, tuning.CannonAbilityScatterRadius);
         }
     }
 

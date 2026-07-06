@@ -133,6 +133,40 @@ public class ManualWeaponFireCooldownTests
         Assert.That(runtime.AbilityCooldownTimer, Is.EqualTo(6f).Within(0.0001f));
     }
 
+    [Test]
+    public void UseActiveAbility_WithLessAmmoThanCost_SpendsRemainingAmmoAndStartsCooldown()
+    {
+        var owner = TrackForCleanup(new GameObject("Owner"));
+        var spawn = TrackForCleanup(new GameObject("Spawn"));
+        spawn.transform.position = Vector3.zero;
+
+        var weaponStats = owner.AddComponent<PlayerStats>();
+        SetStatDefinitions(weaponStats, CreateAbilityCooldownDefinitions());
+        InvokePrivate(weaponStats, "Awake");
+
+        WeaponData weaponData = TrackForCleanup(ScriptableObject.CreateInstance<WeaponData>());
+        weaponData.BaseDamage = 10f;
+        weaponData.BaseRange = 10f;
+        weaponData.BaseManualAmmo = 10f;
+        weaponData.ActiveAbilityAmmoCost = 5f;
+        weaponData.SkillCooldown = 8f;
+
+        WeaponInstance runtime = new()
+        {
+            Data = weaponData,
+            State = WeaponState.Manual,
+            CurrentAmmo = 2f
+        };
+
+        var weapon = new TestManualWeapon(spawn.transform);
+        weapon.Setup(runtime, owner.transform, weaponStats, null);
+
+        weapon.UseActiveAbility(Vector3.forward);
+
+        Assert.That(runtime.CurrentAmmo, Is.Zero);
+        Assert.That(runtime.AbilityCooldownTimer, Is.EqualTo(8f).Within(0.0001f));
+    }
+
     private List<StatDefinition> CreateAttackSpeedDefinitions()
     {
         StatDefinition attackSpeed = TrackForCleanup(ScriptableObject.CreateInstance<StatDefinition>());

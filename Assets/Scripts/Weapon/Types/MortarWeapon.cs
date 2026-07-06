@@ -93,7 +93,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
         MortarTuning tuning = Runtime.Data.Mortar;
@@ -133,13 +133,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     private float GetManualFireInterval()
     {
-        float baseInterval = GetFireInterval();
-        if (Heat == null || Heat.NormalizedHeat <= 0.5f)
-            return baseInterval;
-
-        float heatOverHalf = Mathf.InverseLerp(0.5f, 1f, Heat.NormalizedHeat);
-        float speedBonus = 1f + heatOverHalf * Mathf.Max(0f, Runtime.Data.Mortar.MortarHeatManualSpeedBonus);
-        return baseInterval / Mathf.Max(0.1f, speedBonus);
+        return GetFireIntervalWithoutHeat();
     }
 
     private float GetManualTravelTime(MortarTuning tuning)
@@ -217,9 +211,10 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
     {
         MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
-        int damage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale));
-        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, damageScale);
         MortarUpgradePayload payload = GetUpgradePayload(activeAbility);
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        int damage = damageContext.EstimateDamage(eliteOrBoss);
+        float knockback = damageContext.CalculateKnockback(damage);
         MortarShellImpact.Launch(
             launchPosition,
             impactPosition,
@@ -232,7 +227,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             tuning.MortarShellCollisionRadius * area,
             Owner,
             payload,
-            IsGrapeshotPath());
+            IsGrapeshotPath(),
+            damageContext);
     }
 
     private static Vector3 RandomPlanarOffset(float radius)
