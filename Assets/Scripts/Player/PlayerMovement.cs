@@ -92,6 +92,7 @@ public class PlayerMovement : MonoBehaviour
 
     /// <summary>El jugador está aturdido (input de movimiento/salto/dash bloqueado).</summary>
     public bool IsStunned => _stunTimer > 0f;
+    private bool IsMovementInputLocked => IsStunned || _momentumPreservingStunTimer > 0f;
 
     /// <summary>El jugador está en contacto con el suelo (para detección de vibraciones enemigas).</summary>
     public bool IsGroundedOnSurface => _isGrounded;
@@ -131,24 +132,32 @@ public class PlayerMovement : MonoBehaviour
             OnStunned?.Invoke();
     }
 
-    public void ApplyMomentumPreservingStun(float seconds)
+    public void ApplyMomentumPreservingStun(float seconds, bool triggerStunFeedback = true, bool freezePlanarVelocity = true)
     {
         if (seconds <= 0f)
             return;
 
-        ApplyStun(seconds);
+        if (triggerStunFeedback)
+            ApplyStun(seconds);
         if (_rb == null)
             return;
 
-        if (!_hasMomentumPreservingStunVelocity)
+        _momentumPreservingStunTimer = Mathf.Max(_momentumPreservingStunTimer, seconds);
+        if (freezePlanarVelocity && !_hasMomentumPreservingStunVelocity)
             _momentumPreservingStunVelocity = _rb.linearVelocity;
 
-        _hasMomentumPreservingStunVelocity = true;
-        _momentumPreservingStunTimer = Mathf.Max(_momentumPreservingStunTimer, seconds);
         _isDashing = false;
         _dashTimer = 0f;
         StopSlide(false);
 
+        if (!freezePlanarVelocity)
+        {
+            _hasMomentumPreservingStunVelocity = false;
+            _momentumPreservingStunVelocity = Vector3.zero;
+            return;
+        }
+
+        _hasMomentumPreservingStunVelocity = true;
         Vector3 velocity = _rb.linearVelocity;
         _rb.linearVelocity = new Vector3(0f, velocity.y, 0f);
     }
@@ -242,7 +251,7 @@ public class PlayerMovement : MonoBehaviour
 
         ReadInput();
 
-        if (!IsStunned)
+        if (!IsMovementInputLocked)
         {
             if (_jumpPressed) TryJump();
             if (_crouchPressed) TryStartCrouchOrSlide();
@@ -325,7 +334,7 @@ public class PlayerMovement : MonoBehaviour
     private void HandleMovement()
     {
         // Aturdido: sin rotación ni aceleración por input (la fricción sigue para frenar).
-        if (IsStunned)
+        if (IsMovementInputLocked)
             return;
 
         Vector3 aimFacingDirection = Vector3.zero;
@@ -415,14 +424,14 @@ public class PlayerMovement : MonoBehaviour
 
     private void TickMomentumPreservingStun()
     {
-        if (!_hasMomentumPreservingStunVelocity)
+        if (_momentumPreservingStunTimer <= 0f)
             return;
 
         _momentumPreservingStunTimer = Mathf.Max(0f, _momentumPreservingStunTimer - Time.fixedDeltaTime);
         if (_momentumPreservingStunTimer > 0f)
             return;
 
-        if (_rb != null)
+        if (_hasMomentumPreservingStunVelocity && _rb != null)
         {
             Vector3 velocity = _rb.linearVelocity;
             _rb.linearVelocity = new Vector3(_momentumPreservingStunVelocity.x, velocity.y, _momentumPreservingStunVelocity.z);

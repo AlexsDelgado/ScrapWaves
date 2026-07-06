@@ -185,7 +185,13 @@ public class ProjectilePool : MonoBehaviour
 
     public bool TrySpawnVisualProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, float speedMultiplier)
     {
+        return TrySpawnVisualProjectile(position, rotation, fireDirection, speedMultiplier, out _);
+    }
+
+    public bool TrySpawnVisualProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, float speedMultiplier, out Projectile spawnedProjectile)
+    {
         GameObject go = TryGet();
+        spawnedProjectile = null;
         if (go == null)
             return false;
 
@@ -201,6 +207,7 @@ public class ProjectilePool : MonoBehaviour
         projectile.ConfigureVisualOnly(_projectileLifetime);
         projectile.Launch(fireDirection);
         projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        spawnedProjectile = projectile;
         return true;
     }
 

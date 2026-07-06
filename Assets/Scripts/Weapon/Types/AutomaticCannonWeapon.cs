@@ -7,11 +7,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private const float HeadHunterPierceRadius = 0.45f;
     private const float HeadHunterActiveMinimumRange = 1000f;
     private const float HeadHunterProjectileVisualSpeedMultiplier = 3f;
-
-    private static readonly Color HeadHunterVfxColor = new(0.25f, 0.95f, 1f, 0.95f);
+    private const float HeadHunterFallbackProjectileSpeed = 54f;
 
     private readonly List<Transform> _piercingTargets = new();
     private readonly List<Vector3> _piercingHitOrigins = new();
+    private readonly List<PendingHeadHunterImpact> _pendingHeadHunterImpacts = new();
     private readonly Vector3[] _piercingLine = new Vector3[2];
 
     private bool _continuousFireActive;
@@ -20,9 +20,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private int _continuousFireActiveShotsRemaining;
     private Vector3 _continuousFireActiveDirection;
 
+    private HeadHunterChargeVfx _headHunterChargeVfx;
     private bool _headHunterActiveCharging;
     private float _headHunterActiveChargeTimer;
     private Vector3 _headHunterChargedDirection;
+    private bool _headHunterManualFireHeld;
 
     public AutomaticCannonWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
@@ -32,6 +34,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     // Fires three-round burst in automatic mode.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
+        TickHeadHunterPendingImpacts(deltaTime);
+
         if (Runtime.State != WeaponState.Automatic)
             return;
 
@@ -74,17 +78,39 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     // Fires five-round burst in manual mode.
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
-        if (Runtime.State != WeaponState.Manual)
-            return;
+        TickHeadHunterPendingImpacts(deltaTime);
 
-        if (TickHeadHunterActiveCharge(deltaTime))
+        if (Runtime.State != WeaponState.Manual)
+        {
+            _headHunterManualFireHeld = false;
             return;
+        }
+
+        if (TickHeadHunterActiveCharge(deltaTime, aimDirection))
+        {
+            if (IsHeadHunterPath())
+                _headHunterManualFireHeld = isFiring;
+            return;
+        }
 
         if (TickContinuousFireActive(deltaTime, aimDirection))
             return;
 
         FireTimer = Mathf.Max(0f, FireTimer - deltaTime);
-        if (!isFiring || FireTimer > 0f)
+        bool isHeadHunter = IsHeadHunterPath();
+        if (isHeadHunter)
+        {
+            if (!ConsumeHeadHunterManualClick(isFiring))
+                return;
+        }
+        else
+        {
+            _headHunterManualFireHeld = false;
+            if (!isFiring)
+                return;
+        }
+
+        if (FireTimer > 0f)
             return;
 
         if (aimDirection.sqrMagnitude <= 0.0001f)
@@ -101,7 +127,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier),
             WeaponMath.GetAttackRateMultiplier(Runtime) * GetManualAttackSpeedPathMultiplier());
 
-        if (IsHeadHunterPath())
+        if (isHeadHunter)
         {
             FireHeadHunterPiercingLine(
                 aimDirection,
@@ -121,6 +147,21 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             0f,
             tuning.CannonBurstProjectileScatterDegrees,
             false);
+    }
+
+    private bool ConsumeHeadHunterManualClick(bool isFiring)
+    {
+        if (!isFiring)
+        {
+            _headHunterManualFireHeld = false;
+            return false;
+        }
+
+        if (_headHunterManualFireHeld)
+            return false;
+
+        _headHunterManualFireHeld = true;
+        return true;
     }
 
     // Fires spread burst active ability, scaled by heat.
@@ -411,26 +452,34 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private void BeginHeadHunterActiveCharge(Vector3 aimDirection)
     {
+        Vector3 direction = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Vector3.forward;
         _headHunterActiveCharging = true;
         _headHunterActiveChargeTimer = GetHeadHunterActiveChargeSeconds();
-        _headHunterChargedDirection = aimDirection;
+        _headHunterChargedDirection = direction;
+        BeginHeadHunterChargeVfx(GetCurrentHeadHunterChargedDirection());
         PlayerMovement movement = Owner != null ? Owner.GetComponent<PlayerMovement>() : null;
         if (movement != null)
-            movement.ApplyMomentumPreservingStun(GetHeadHunterActiveChargeSeconds());
+            movement.ApplyMomentumPreservingStun(
+                GetHeadHunterActiveChargeSeconds(),
+                triggerStunFeedback: false,
+                freezePlanarVelocity: false);
     }
 
-    private bool TickHeadHunterActiveCharge(float deltaTime)
+    private bool TickHeadHunterActiveCharge(float deltaTime, Vector3 aimDirection)
     {
         if (!_headHunterActiveCharging)
             return false;
 
+        UpdateHeadHunterChargedDirection(aimDirection);
         _headHunterActiveChargeTimer -= deltaTime;
+        UpdateHeadHunterChargeVfx();
         if (_headHunterActiveChargeTimer > 0f)
             return true;
 
         _headHunterActiveCharging = false;
+        DismissHeadHunterChargeVfx();
         FireHeadHunterPiercingLine(
-            _headHunterChargedDirection,
+            GetCurrentHeadHunterChargedDirection(),
             GetHeadHunterActivePierceLimit(),
             GetHeadHunterActivePierceRange(),
             allowWeakPointHits: false,
@@ -438,6 +487,47 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             label: null);
         CompleteActiveAbility();
         return true;
+    }
+
+    private void UpdateHeadHunterChargedDirection(Vector3 aimDirection)
+    {
+        if (aimDirection.sqrMagnitude > 0.0001f)
+            _headHunterChargedDirection = aimDirection.normalized;
+    }
+
+    private Vector3 GetCurrentHeadHunterChargedDirection()
+    {
+        return _headHunterChargedDirection.sqrMagnitude > 0.0001f
+            ? _headHunterChargedDirection.normalized
+            : Vector3.forward;
+    }
+
+    private void BeginHeadHunterChargeVfx(Vector3 aimDirection)
+    {
+        DismissHeadHunterChargeVfx();
+        if (Spawn == null)
+            return;
+
+        _headHunterChargeVfx = HeadHunterChargeVfx.Spawn(Spawn, aimDirection, GetHeadHunterActiveChargeSeconds());
+    }
+
+    private void UpdateHeadHunterChargeVfx()
+    {
+        if (_headHunterChargeVfx == null)
+            return;
+
+        float duration = GetHeadHunterActiveChargeSeconds();
+        float progress = 1f - Mathf.Clamp01(_headHunterActiveChargeTimer / Mathf.Max(0.01f, duration));
+        _headHunterChargeVfx.SetChargeProgress(progress, GetCurrentHeadHunterChargedDirection());
+    }
+
+    private void DismissHeadHunterChargeVfx()
+    {
+        if (_headHunterChargeVfx == null)
+            return;
+
+        _headHunterChargeVfx.Dismiss();
+        _headHunterChargeVfx = null;
     }
 
     private void FireHeadHunterPiercingLine(
@@ -455,7 +545,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Vector3 direction = aimDirection.normalized;
         _piercingLine[0] = origin;
         _piercingLine[1] = origin + direction * Mathf.Max(0.01f, range);
-        SpawnHeadHunterProjectileVisual(origin, direction);
+        float projectileSpeed = SpawnHeadHunterProjectileVisual(origin, direction);
 
         int hitCount = EnemyRegistry.CollectClosestNearPolyline(
             _piercingLine,
@@ -478,23 +568,91 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             float scale = GetHeadHunterDamageScale(kind, i, weakPointHit, isAbilityDamage);
 
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * scale));
-            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
-                WeaponUpgradeVfx.SpawnTargetPulse(_piercingTargets[i], HeadHunterVfxColor, 0.55f, null);
+            QueueHeadHunterImpact(
+                _piercingTargets[i],
+                finalDamage,
+                weakPointHit,
+                GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed));
         }
     }
 
-    private void SpawnHeadHunterProjectileVisual(Vector3 origin, Vector3 direction)
+    private float SpawnHeadHunterProjectileVisual(Vector3 origin, Vector3 direction)
     {
         if (Pool == null || direction.sqrMagnitude <= 0.0001f)
-            return;
+            return HeadHunterFallbackProjectileSpeed;
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-        Pool.TrySpawnVisualProjectile(
+        if (Pool.TrySpawnVisualProjectile(
             origin,
             rotation,
             direction,
-            HeadHunterProjectileVisualSpeedMultiplier);
+            HeadHunterProjectileVisualSpeedMultiplier,
+            out Projectile projectile)
+            && projectile != null)
+            return Mathf.Max(0.01f, projectile.ActiveSpeed);
+
+        return HeadHunterFallbackProjectileSpeed;
+    }
+
+    private float GetHeadHunterImpactDelay(Vector3 origin, Vector3 direction, int hitIndex, float projectileSpeed)
+    {
+        Vector3 hitPoint = hitIndex >= 0 && hitIndex < _piercingHitOrigins.Count
+            ? _piercingHitOrigins[hitIndex]
+            : origin;
+        float distanceAlongShot = Mathf.Max(0f, Vector3.Dot(hitPoint - origin, direction));
+        return distanceAlongShot / Mathf.Max(0.01f, projectileSpeed);
+    }
+
+    private void QueueHeadHunterImpact(Transform target, int damage, bool weakPointHit, float delay)
+    {
+        if (target == null || damage <= 0)
+            return;
+
+        _pendingHeadHunterImpacts.Add(new PendingHeadHunterImpact
+        {
+            Target = target,
+            Damage = damage,
+            WeakPointHit = weakPointHit,
+            RemainingDelay = Mathf.Max(0f, delay)
+        });
+    }
+
+    private void TickHeadHunterPendingImpacts(float deltaTime)
+    {
+        if (_pendingHeadHunterImpacts.Count == 0)
+            return;
+
+        float elapsed = Mathf.Max(0f, deltaTime);
+        for (int i = _pendingHeadHunterImpacts.Count - 1; i >= 0; i--)
+        {
+            PendingHeadHunterImpact impact = _pendingHeadHunterImpacts[i];
+            impact.RemainingDelay -= elapsed;
+            if (impact.RemainingDelay > 0f)
+            {
+                _pendingHeadHunterImpacts[i] = impact;
+                continue;
+            }
+
+            ApplyHeadHunterImpact(impact);
+            _pendingHeadHunterImpacts.RemoveAt(i);
+        }
+    }
+
+    private void ApplyHeadHunterImpact(PendingHeadHunterImpact impact)
+    {
+        if (impact.Target == null)
+            return;
+
+        IDamageable damageable = impact.Target.GetComponentInParent<IDamageable>();
+        if (damageable == null)
+            return;
+
+        if (WeaponDamageApplier.TryApplyDamage(damageable, impact.Damage))
+        {
+            if (impact.WeakPointHit)
+                WeaponWeakPointFeedback.NotifyWeakPointHit();
+        }
     }
 
     private bool IsWeakPointHit(Transform target, Vector3 lineStart, Vector3 lineEnd)
@@ -534,6 +692,14 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         float t = Mathf.Clamp01(Vector3.Dot(point - a, ab) / denominator);
         return a + ab * t;
+    }
+
+    private struct PendingHeadHunterImpact
+    {
+        public Transform Target;
+        public int Damage;
+        public bool WeakPointHit;
+        public float RemainingDelay;
     }
 
     // Spawns normal cannon bursts as a straight line of projectiles.

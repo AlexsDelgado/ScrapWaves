@@ -53,6 +53,8 @@ public class Projectile : MonoBehaviour
     private static readonly Color ClusterVfxColor = new(0.7f, 0.03f, 0.02f, 0.95f);
     private readonly RaycastHit[] _sweepHits = new RaycastHit[12];
 
+    public float ActiveSpeed => _activeSpeed;
+
     private void Awake()
     {
         _baseScale = transform.localScale;

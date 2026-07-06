@@ -2,6 +2,7 @@ using NUnit.Framework;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class WeaponUpgradeEffectTests
 {
@@ -509,7 +510,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void AutomaticCannonHeadHunterManual_HitsPastBaseReticleRangeLikeRegularProjectile()
+    public void AutomaticCannonHeadHunterManual_DamagesOnlyWhenProjectileReachesFarTarget()
     {
         GameObject owner = new("Cannon Owner");
         GameObject spawn = new("Cannon Spawn");
@@ -559,7 +560,12 @@ public class WeaponUpgradeEffectTests
             weapon.Setup(instance, owner.transform, stats, null);
             weapon.TickManual(0.1f, Vector3.forward, isFiring: true);
 
+            Assert.That(damageable.TotalDamage, Is.Zero);
+
+            weapon.TickManual(0.4f, Vector3.forward, isFiring: false);
+
             Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+            Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
         }
         finally
         {
@@ -570,6 +576,409 @@ public class WeaponUpgradeEffectTests
             Object.DestroyImmediate(data);
             for (int i = 0; i < statDefinitions.Count; i++)
                 Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunterManual_FiresOnlyOncePerClick()
+    {
+        GameObject owner = new("Cannon Owner");
+        GameObject spawn = new("Cannon Spawn");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            spawn.transform.SetParent(owner.transform);
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+
+            weapon.TickManual(0.1f, Vector3.forward, isFiring: true);
+
+            Assert.That(instance.CurrentAmmo, Is.EqualTo(39f));
+
+            weapon.TickManual(5f, Vector3.forward, isFiring: true);
+
+            Assert.That(instance.CurrentAmmo, Is.EqualTo(39f));
+
+            weapon.TickManual(0.1f, Vector3.forward, isFiring: false);
+            weapon.TickManual(5f, Vector3.forward, isFiring: true);
+
+            Assert.That(instance.CurrentAmmo, Is.EqualTo(38f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunterWeakPointHit_NotifiesReticleFeedback()
+    {
+        GameObject owner = new("Cannon Owner");
+        GameObject spawn = new("Cannon Spawn");
+        GameObject target = new("Weak Point Target");
+        GameObject weakPoint = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+        int weakPointNotifications = 0;
+
+        void OnWeakPointHit() => weakPointNotifications++;
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            target.transform.position = Vector3.forward * 8f;
+            SphereCollider targetCollider = target.AddComponent<SphereCollider>();
+            targetCollider.radius = 0.5f;
+            target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+
+            weakPoint.name = "WeakPoint";
+            weakPoint.transform.SetParent(target.transform, false);
+            weakPoint.transform.localPosition = Vector3.zero;
+            weakPoint.transform.localScale = Vector3.one * 0.3f;
+            weakPoint.GetComponent<Collider>().isTrigger = true;
+            Physics.SyncTransforms();
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            WeaponWeakPointFeedback.WeakPointHit += OnWeakPointHit;
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+            InvokePrivate(
+                weapon,
+                "FireHeadHunterPiercingLine",
+                Vector3.forward,
+                10,
+                100f,
+                true,
+                false,
+                null);
+
+            Assert.That(weakPointNotifications, Is.Zero);
+
+            weapon.TickManual(0.2f, Vector3.forward, isFiring: false);
+
+            Assert.That(weakPointNotifications, Is.EqualTo(1));
+        }
+        finally
+        {
+            WeaponWeakPointFeedback.WeakPointHit -= OnWeakPointHit;
+            EnemyRegistry.Unregister(target.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void ReticleHud_WeakPointFeedbackFlashesMainReticleBrightRed()
+    {
+        GameObject owner = new("Reticle Owner");
+
+        try
+        {
+            ReticleHud hud = owner.AddComponent<ReticleHud>();
+            if (ReadField<GameObject>(hud, "_canvasRoot") == null)
+                InvokePrivate(hud, "Awake");
+            InvokePrivate(hud, "OnEnable");
+
+            WeaponWeakPointFeedback.NotifyWeakPointHit();
+
+            Image circle = null;
+            Image shadow = null;
+            foreach (Image image in owner.GetComponentsInChildren<Image>(true))
+            {
+                if (image.name == "Circle")
+                    circle = image;
+                else if (image.name == "CircleShadow")
+                    shadow = image;
+            }
+
+            Assert.That(circle, Is.Not.Null);
+            Assert.That(circle.color.r, Is.EqualTo(1f).Within(0.001f));
+            Assert.That(circle.color.g, Is.LessThanOrEqualTo(0.05f));
+            Assert.That(circle.color.b, Is.LessThanOrEqualTo(0.05f));
+            Assert.That(shadow, Is.Not.Null);
+            Assert.That(shadow.color.r, Is.LessThan(0.1f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+        }
+    }
+
+    [Test]
+    public void PlayerMovement_MomentumPreservingChargeLock_CanCoastWithoutStunFeedback()
+    {
+        GameObject player = new("Player");
+
+        try
+        {
+            Rigidbody body = player.AddComponent<Rigidbody>();
+            body.linearVelocity = new Vector3(7f, 0f, 2f);
+            player.AddComponent<PlayerStats>();
+            PlayerMovement movement = player.AddComponent<PlayerMovement>();
+            int stunEvents = 0;
+            movement.OnStunned += () => stunEvents++;
+
+            movement.ApplyMomentumPreservingStun(1f, triggerStunFeedback: false, freezePlanarVelocity: false);
+
+            Assert.That(stunEvents, Is.Zero);
+            Assert.That(movement.IsStunned, Is.False);
+            Assert.That(body.linearVelocity.x, Is.EqualTo(7f).Within(0.001f));
+            Assert.That(body.linearVelocity.z, Is.EqualTo(2f).Within(0.001f));
+            Assert.That(ReadField<float>(movement, "_momentumPreservingStunTimer"), Is.GreaterThan(0f));
+            Assert.That(ReadField<bool>(movement, "_hasMomentumPreservingStunVelocity"), Is.False);
+
+            SetPrivateField(movement, "_momentumPreservingStunTimer", 0.01f);
+            InvokePrivate(movement, "TickMomentumPreservingStun");
+
+            Assert.That(ReadField<float>(movement, "_momentumPreservingStunTimer"), Is.Zero);
+            Assert.That(InvokePrivate<bool>(movement, "get_IsMovementInputLocked"), Is.False);
+        }
+        finally
+        {
+            Object.DestroyImmediate(player);
+        }
+    }
+
+    [Test]
+    public void HeadHunterChargeVfx_GrowsFromFirePointWithProgress()
+    {
+        GameObject firePoint = new("Fire Point");
+
+        try
+        {
+            firePoint.transform.position = new Vector3(1f, 2f, 3f);
+            HeadHunterChargeVfx vfx = HeadHunterChargeVfx.Spawn(firePoint.transform, Vector3.forward, 1f);
+
+            Assert.That(vfx, Is.Not.Null);
+            Assert.That(vfx.transform.position, Is.EqualTo(firePoint.transform.position));
+
+            LineRenderer ring = vfx.GetComponentInChildren<LineRenderer>();
+            Assert.That(ring, Is.Not.Null);
+            float initialRadius = ring.GetPosition(0).magnitude;
+
+            vfx.SetChargeProgress(0.75f, Vector3.forward);
+            float grownRadius = ring.GetPosition(0).magnitude;
+
+            Assert.That(grownRadius, Is.GreaterThan(initialRadius));
+            Assert.That(ring.startColor.r, Is.EqualTo(1f).Within(0.001f));
+            Assert.That(ring.startColor.g, Is.EqualTo(1f).Within(0.001f));
+            Assert.That(ring.startColor.b, Is.EqualTo(1f).Within(0.001f));
+
+            firePoint.transform.position += Vector3.right * 3f;
+            vfx.SetChargeProgress(0.8f, Vector3.forward);
+
+            Assert.That(vfx.transform.position, Is.EqualTo(firePoint.transform.position));
+        }
+        finally
+        {
+            Object.DestroyImmediate(firePoint);
+            foreach (HeadHunterChargeVfx vfx in Object.FindObjectsByType<HeadHunterChargeVfx>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(vfx.gameObject);
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunterActiveCharge_SpawnsAndClearsChargeVfx()
+    {
+        GameObject owner = new("Cannon Owner");
+        GameObject spawn = new("Cannon Spawn");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.up;
+            spawn.transform.SetParent(owner.transform);
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+
+            weapon.UseActiveAbility(Vector3.forward);
+
+            Assert.That(Object.FindAnyObjectByType<HeadHunterChargeVfx>(), Is.Not.Null);
+
+            weapon.TickManual(1.1f, Vector3.forward, isFiring: false);
+
+            Assert.That(Object.FindAnyObjectByType<HeadHunterChargeVfx>(), Is.Null);
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            foreach (HeadHunterChargeVfx vfx in Object.FindObjectsByType<HeadHunterChargeVfx>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(vfx.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunterActiveCharge_FollowsReticleDirectionUntilRelease()
+    {
+        GameObject owner = new("Cannon Owner");
+        GameObject spawn = new("Cannon Spawn");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            spawn.transform.SetParent(owner.transform);
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 40f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoOverride = 40f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 40f
+            };
+
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner.transform, stats, null);
+            weapon.UseActiveAbility(Vector3.forward);
+
+            weapon.TickManual(0.25f, Vector3.right, isFiring: false);
+
+            HeadHunterChargeVfx vfx = Object.FindAnyObjectByType<HeadHunterChargeVfx>();
+            Assert.That(vfx, Is.Not.Null);
+            Assert.That(Vector3.Dot(vfx.transform.forward, Vector3.right), Is.GreaterThan(0.99f));
+
+            weapon.TickManual(1f, Vector3.right, isFiring: false);
+
+            Vector3[] line = ReadField<Vector3[]>(weapon, "_piercingLine");
+            Vector3 firedDirection = (line[1] - line[0]).normalized;
+
+            Assert.That(firedDirection.x, Is.GreaterThan(0.99f));
+            Assert.That(Mathf.Abs(firedDirection.z), Is.LessThan(0.01f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            foreach (HeadHunterChargeVfx vfx in Object.FindObjectsByType<HeadHunterChargeVfx>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(vfx.gameObject);
             DestroyGeneratedVfx();
         }
     }
@@ -1906,6 +2315,9 @@ public class WeaponUpgradeEffectTests
 
         foreach (RocketTargetMarkerVfx marker in Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(marker.gameObject);
+
+        foreach (HeadHunterChargeVfx vfx in Object.FindObjectsByType<HeadHunterChargeVfx>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(vfx.gameObject);
 
         System.Type auraVfxType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
         if (auraVfxType != null)
