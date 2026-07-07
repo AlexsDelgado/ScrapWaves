@@ -88,6 +88,63 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void RotatingBladeVfx_ShowOrbit_DrawsBladeAlongRadius()
+    {
+        RotatingBladeVfx vfx = RotatingBladeVfx.Create();
+        try
+        {
+            vfx.ShowOrbit(Vector3.zero, Vector3.forward * 3f, 0.5f, 1f);
+
+            List<LineRenderer> bladeLines = GetEnabledRotatingBladeContactLines(vfx);
+            Assert.That(bladeLines.Count, Is.EqualTo(1));
+
+            Vector3 bladeDelta = bladeLines[0].GetPosition(1) - bladeLines[0].GetPosition(0);
+            bladeDelta.y = 0f;
+
+            Assert.That(Mathf.Abs(bladeDelta.z), Is.GreaterThan(Mathf.Abs(bladeDelta.x) * 4f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(vfx.gameObject);
+        }
+    }
+
+    [Test]
+    public void RotatingBladeVfx_ShowOrbit_KeepsMultipleBladeLinesInSameFrame()
+    {
+        RotatingBladeVfx vfx = RotatingBladeVfx.Create();
+        try
+        {
+            vfx.ShowOrbit(Vector3.zero, Vector3.forward * 3f, 0.5f, 1f);
+            vfx.ShowOrbit(Vector3.zero, Vector3.back * 3f, 0.5f, 1f);
+
+            List<LineRenderer> bladeLines = GetEnabledRotatingBladeContactLines(vfx);
+
+            Assert.That(bladeLines.Count, Is.EqualTo(2));
+        }
+        finally
+        {
+            Object.DestroyImmediate(vfx.gameObject);
+        }
+    }
+
+    [Test]
+    public void RotatingBlade_MultiBladeVfxColor_IsPeach()
+    {
+        Color color = ReadStaticField<Color>(typeof(RotatingBladeWeapon), "MultiBladeVfxColor");
+
+        AssertPeach(color);
+    }
+
+    [Test]
+    public void RotatingBlade_AtomicSharpnessVfxColor_IsDarkPurple()
+    {
+        Color color = ReadStaticField<Color>(typeof(RotatingBladeWeapon), "AtomicSharpnessVfxColor");
+
+        AssertDarkPurple(color);
+    }
+
+    [Test]
     public void Projectile_FragmentationVfxColors_AreDarkRed()
     {
         Color fragmentColor = ReadStaticField<Color>(typeof(Projectile), "FragmentVfxColor");
@@ -135,6 +192,39 @@ public class WeaponUpgradeEffectTests
 
         Object.DestroyImmediate(target);
         DestroyGeneratedVfx();
+    }
+
+    [Test]
+    public void PlayerInvulnerability_IgnoresEnemyCollisionUntilIFramesExpire()
+    {
+        GameObject player = new("Invulnerable Player");
+        GameObject enemy = new("Collision Enemy");
+
+        try
+        {
+            CapsuleCollider playerCollider = player.AddComponent<CapsuleCollider>();
+            PlayerHealth health = player.AddComponent<PlayerHealth>();
+            CapsuleCollider enemyCollider = enemy.AddComponent<CapsuleCollider>();
+            EnemyRegistry.Register(enemy.transform);
+            Physics.SyncTransforms();
+
+            health.GrantInvulnerability(1f);
+            InvokePrivate(health, "Update");
+
+            Assert.That(Physics.GetIgnoreCollision(playerCollider, enemyCollider), Is.True);
+
+            SetPrivateField(health, "_invulnerableUntil", Time.time - 0.1f);
+            InvokePrivate(health, "Update");
+
+            Assert.That(Physics.GetIgnoreCollision(playerCollider, enemyCollider), Is.False);
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(enemy.transform);
+            Object.DestroyImmediate(player);
+            Object.DestroyImmediate(enemy);
+            DestroyGeneratedVfx();
+        }
     }
 
     [Test]
@@ -1051,6 +1141,565 @@ public class WeaponUpgradeEffectTests
                 Object.DestroyImmediate(statDefinitions[i]);
             foreach (HeadHunterChargeVfx vfx in Object.FindObjectsByType<HeadHunterChargeVfx>(FindObjectsSortMode.None))
                 Object.DestroyImmediate(vfx.gameObject);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeAutomatic_DamagesEnemySweptByOrbitingBlade()
+    {
+        GameObject owner = new("Blade Owner");
+        GameObject target = new("Swept Blade Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            owner.transform.position = Vector3.zero;
+            owner.transform.rotation = Quaternion.LookRotation(Vector3.right, Vector3.up);
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestRotatingBlade";
+            data.DisplayName = "Test Rotating Blade";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeOrbitRadius = 2.2f;
+            data.RotatingBlade.BladeHitRadius = 0.35f;
+            data.RotatingBlade.BladeAutoDamageInterval = 0.25f;
+            data.RotatingBlade.BladeBaseSpinDegreesPerSecond = 240f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                SelectedPath = WeaponUpgradePath.None,
+                State = WeaponState.Automatic
+            };
+
+            Vector3 sweptArcPoint = Quaternion.AngleAxis(30f, Vector3.up) * Vector3.forward * data.RotatingBlade.BladeOrbitRadius;
+            target.transform.position = sweptArcPoint;
+            TestDamageable damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, stats, null);
+            SetPrivateField(weapon, "_spinAngle", 0f);
+
+            weapon.TickAutomatic(0.25f, Vector3.forward);
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeAutomatic_AreaSizeHitWidthDamagesEnemyInsideExpandedOrbit()
+    {
+        GameObject owner = new("Blade Area Owner");
+        GameObject target = new("Blade Inner Orbit Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions(projectileAreaSize: 2f);
+
+        try
+        {
+            owner.transform.position = Vector3.zero;
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestRotatingBladeArea";
+            data.DisplayName = "Test Rotating Blade Area";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeOrbitRadius = 2f;
+            data.RotatingBlade.BladeHitRadius = 0.25f;
+            data.RotatingBlade.BladeAutoDamageInterval = 0.25f;
+            data.RotatingBlade.BladeBaseSpinDegreesPerSecond = 240f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                SelectedPath = WeaponUpgradePath.None,
+                State = WeaponState.Automatic
+            };
+
+            target.transform.position = Vector3.forward * 2f;
+            TestDamageable damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, stats, null);
+            SetPrivateField(weapon, "_spinAngle", 0f);
+
+            weapon.TickAutomatic(0.25f, Vector3.forward);
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeMultiBladeAutomatic_DoesNotSpawnUpgradeRingVfx()
+    {
+        GameObject owner = new("Multi Blade Auto Owner");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathA";
+            data.DisplayName = "Test Rotating Blade Path A";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeOrbitRadius = 2f;
+            data.RotatingBlade.BladeHitRadius = 0.25f;
+            data.RotatingBlade.BladeAutoDamageInterval = 0.25f;
+            data.RotatingBlade.BladeBaseSpinDegreesPerSecond = 240f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Automatic
+            };
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+            weapon.TickAutomatic(0.25f, Vector3.forward);
+
+            Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeAtomicSharpnessAutomatic_DoesNotSpawnUpgradeRingVfx()
+    {
+        GameObject owner = new("Atomic Sharpness Auto Owner");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathB";
+            data.DisplayName = "Test Rotating Blade Path B";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeOrbitRadius = 2f;
+            data.RotatingBlade.BladeHitRadius = 0.25f;
+            data.RotatingBlade.BladeAutoDamageInterval = 0.25f;
+            data.RotatingBlade.BladeBaseSpinDegreesPerSecond = 240f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Automatic
+            };
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+            weapon.TickAutomatic(0.25f, Vector3.forward);
+
+            Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeMultiBladeManual_ShowsOnePeachSwishPerSwordWithoutVerticalSwordOrUpgradeStreaks()
+    {
+        GameObject owner = new("Multi Blade Manual Owner");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathAManual";
+            data.DisplayName = "Test Rotating Blade Path A Manual";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeHitRadius = 0.35f;
+            data.RotatingBlade.BladeManualRange = 3f;
+            data.RotatingBlade.BladeManualCooldown = 0.1f;
+            data.RotatingBlade.BladeVisualDuration = 1f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 7, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 7,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+
+            weapon.TickManual(0.1f, Vector3.forward, true);
+            weapon.TickManual(0.1f, Vector3.forward, true);
+
+            Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
+
+            RotatingBladeVfx vfx = Object.FindAnyObjectByType<RotatingBladeVfx>();
+            Assert.That(vfx, Is.Not.Null);
+
+            List<LineRenderer> slashLines = GetEnabledLineRenderersStartingWith(vfx, "Blade Slash");
+            Assert.That(slashLines.Count, Is.EqualTo(2));
+            for (int i = 0; i < slashLines.Count; i++)
+                AssertPeach(slashLines[i].startColor);
+
+            List<LineRenderer> swordLines = GetEnabledLineRenderersStartingWith(vfx, "Blade Manual Sword");
+            Assert.That(swordLines, Is.Empty);
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeAtomicSharpnessManual_ShowsDarkPurpleRadialSlashWithoutUpgradeStreaks()
+    {
+        GameObject owner = new("Atomic Sharpness Manual Owner");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathBManual";
+            data.DisplayName = "Test Rotating Blade Path B Manual";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeManualRange = 3f;
+            data.RotatingBlade.BladeManualCooldown = 0.1f;
+            data.RotatingBlade.BladeVisualDuration = 1f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+
+            weapon.TickManual(0.1f, Vector3.forward, true);
+
+            Assert.That(Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None), Is.Empty);
+
+            RotatingBladeVfx vfx = Object.FindAnyObjectByType<RotatingBladeVfx>();
+            Assert.That(vfx, Is.Not.Null);
+
+            List<LineRenderer> slashLines = GetEnabledLineRenderersStartingWith(vfx, "Blade Slash");
+            Assert.That(slashLines.Count, Is.EqualTo(1));
+            AssertDarkPurple(slashLines[0].startColor);
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeMultiBladeManual_UsesPlayerOriginConeHitbox()
+    {
+        GameObject owner = new("Multi Blade Hitbox Owner");
+        GameObject forwardTarget = new("Forward Target");
+        GameObject sideTarget = new("Side Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathAHitbox";
+            data.DisplayName = "Test Rotating Blade Path A Hitbox";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeManualRange = 4f;
+            data.RotatingBlade.BladeManualConeAngle = 45f;
+            data.RotatingBlade.BladeManualCooldown = 0.1f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            forwardTarget.transform.position = Vector3.forward * 3f;
+            sideTarget.transform.position = Vector3.right * 2f + Vector3.forward * 3f;
+            TestDamageable forwardDamageable = forwardTarget.AddComponent<TestDamageable>();
+            TestDamageable sideDamageable = sideTarget.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(forwardTarget.transform);
+            EnemyRegistry.Register(sideTarget.transform);
+            Physics.SyncTransforms();
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+
+            weapon.TickManual(0.1f, Vector3.forward, true);
+
+            Assert.That(forwardDamageable.TotalDamage, Is.GreaterThan(0));
+            Assert.That(sideDamageable.TotalDamage, Is.Zero);
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(forwardTarget.transform);
+            EnemyRegistry.Unregister(sideTarget.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(forwardTarget);
+            Object.DestroyImmediate(sideTarget);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeMultiBladeManual_DelayedSwingsFollowOwnerPosition()
+    {
+        GameObject owner = new("Multi Blade Moving Manual Owner");
+        GameObject movedTarget = new("Moved Manual Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathAMovingManual";
+            data.DisplayName = "Test Rotating Blade Path A Moving Manual";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseKnockback = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeManualRange = 4f;
+            data.RotatingBlade.BladeManualConeAngle = 35f;
+            data.RotatingBlade.BladeManualCooldown = 0.1f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 7, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 7,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            movedTarget.transform.position = Vector3.right * 10f + Vector3.forward * 3f;
+            TestDamageable movedDamageable = movedTarget.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(movedTarget.transform);
+            Physics.SyncTransforms();
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+
+            weapon.TickManual(0.1f, Vector3.forward, true);
+            Assert.That(movedDamageable.TotalDamage, Is.Zero);
+
+            owner.transform.position = Vector3.right * 10f;
+            Physics.SyncTransforms();
+
+            weapon.TickManual(0.1f, Vector3.forward, true);
+
+            Assert.That(movedDamageable.TotalDamage, Is.GreaterThan(0));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(movedTarget.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(movedTarget);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeMultiBladeActive_FollowsOwnerAndOnlyFinalThrustKnocksBack()
+    {
+        GameObject owner = new("Multi Blade Moving Active Owner");
+        GameObject firstTarget = new("First Active Target");
+        GameObject finalTarget = new("Final Active Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            data.WeaponId = "TestRotatingBladePathAMovingActive";
+            data.DisplayName = "Test Rotating Blade Path A Moving Active";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseKnockback = 1f;
+            data.BaseRange = 12f;
+            data.BaseManualAmmo = 100f;
+            data.ActiveAbilityAmmoCost = 0f;
+            data.SkillCooldown = 0f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeManualRange = 4f;
+            data.RotatingBlade.BladeActiveBaseRangeMultiplier = 1f;
+            data.RotatingBlade.BladeActiveMaxRangeMultiplier = 1f;
+            data.RotatingBlade.BladeActiveLineWidth = 1f;
+            data.RotatingBlade.BladeActiveKnockbackScale = 1.25f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 7, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 7,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            firstTarget.transform.position = Vector3.forward * 2f;
+            finalTarget.transform.position = Vector3.right * 10f + Vector3.forward * 2f;
+            TestDamageable firstDamageable = firstTarget.AddComponent<TestDamageable>();
+            TestDamageable finalDamageable = finalTarget.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(firstTarget.transform);
+            EnemyRegistry.Register(finalTarget.transform);
+            Physics.SyncTransforms();
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, null, null);
+
+            weapon.UseActiveAbility(Vector3.forward);
+
+            Assert.That(firstDamageable.TotalDamage, Is.GreaterThan(0));
+            Assert.That(firstTarget.GetComponent<EnemyKnockbackReceiver>(), Is.Null);
+            Assert.That(finalDamageable.TotalDamage, Is.Zero);
+
+            owner.transform.position = Vector3.right * 10f;
+            Physics.SyncTransforms();
+
+            weapon.TickManual(0.1f, Vector3.forward, false);
+
+            Assert.That(finalDamageable.TotalDamage, Is.GreaterThan(0));
+            EnemyKnockbackReceiver finalReceiver = finalTarget.GetComponent<EnemyKnockbackReceiver>();
+            Assert.That(finalReceiver, Is.Not.Null);
+            Assert.That(finalReceiver.ConsumeDisplacement(0.1f).sqrMagnitude, Is.GreaterThan(0f));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(firstTarget.transform);
+            EnemyRegistry.Unregister(finalTarget.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(firstTarget);
+            Object.DestroyImmediate(finalTarget);
+            Object.DestroyImmediate(data);
             DestroyGeneratedVfx();
         }
     }
@@ -2291,6 +2940,27 @@ public class WeaponUpgradeEffectTests
         }
     }
 
+    private static List<LineRenderer> GetEnabledRotatingBladeContactLines(RotatingBladeVfx vfx)
+    {
+        return GetEnabledLineRenderersStartingWith(vfx, "Blade Contact");
+    }
+
+    private static List<LineRenderer> GetEnabledLineRenderersStartingWith(RotatingBladeVfx vfx, string namePrefix)
+    {
+        List<LineRenderer> lines = new();
+        LineRenderer[] renderers = vfx.GetComponentsInChildren<LineRenderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            LineRenderer renderer = renderers[i];
+            if (!renderer.enabled || !renderer.name.StartsWith(namePrefix, System.StringComparison.Ordinal))
+                continue;
+
+            lines.Add(renderer);
+        }
+
+        return lines;
+    }
+
     private static List<StatDefinition> CreateDefaultStatDefinitions(float projectileAreaSize = 1f, float eliteDamageMultiplier = 1f)
     {
         return new List<StatDefinition>
@@ -2417,6 +3087,23 @@ public class WeaponUpgradeEffectTests
         Assert.That(color.b, Is.GreaterThan(color.g * 1.5f));
     }
 
+    private static void AssertDarkPurple(Color color)
+    {
+        Assert.That(color.r, Is.GreaterThanOrEqualTo(0.25f));
+        Assert.That(color.r, Is.LessThanOrEqualTo(0.5f));
+        Assert.That(color.g, Is.LessThanOrEqualTo(0.15f));
+        Assert.That(color.b, Is.GreaterThanOrEqualTo(0.35f));
+        Assert.That(color.b, Is.LessThanOrEqualTo(0.7f));
+        Assert.That(color.b, Is.GreaterThan(color.g * 3f));
+    }
+
+    private static void AssertPeach(Color color)
+    {
+        Assert.That(color.r, Is.EqualTo(1f).Within(0.001f));
+        Assert.That(color.g, Is.EqualTo(0.68f).Within(0.001f));
+        Assert.That(color.b, Is.EqualTo(0.48f).Within(0.001f));
+    }
+
     private static Renderer GetShellVisualRenderer(Component root)
     {
         foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
@@ -2456,6 +3143,9 @@ public class WeaponUpgradeEffectTests
             Object.DestroyImmediate(marker.gameObject);
 
         foreach (HeadHunterChargeVfx vfx in Object.FindObjectsByType<HeadHunterChargeVfx>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(vfx.gameObject);
+
+        foreach (RotatingBladeVfx vfx in Object.FindObjectsByType<RotatingBladeVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
 
         System.Type auraVfxType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");

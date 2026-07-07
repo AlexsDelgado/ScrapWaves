@@ -9,12 +9,13 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private const float AtomicSharpnessSpinMultiplier = 1.5f;
     private const float AtomicActiveDashSegmentSeconds = 0.16f;
     private const float AtomicActivePostDashInvulnerabilitySeconds = 0.25f;
-    private static readonly Color MultiBladeVfxColor = new(0.95f, 1f, 0.35f, 0.9f);
-    private static readonly Color AtomicSharpnessVfxColor = new(0.6f, 0.95f, 1f, 0.95f);
+    private static readonly Color MultiBladeVfxColor = new(1f, 0.68f, 0.48f, 0.9f);
+    private static readonly Color AtomicSharpnessVfxColor = new(0.36f, 0.04f, 0.55f, 0.95f);
 
     private readonly List<Transform> _targets = new();
     private readonly List<Vector3> _hitOrigins = new();
     private readonly Vector3[] _activeLinePoints = new Vector3[2];
+    private readonly Vector3[] _bladeSweepPoints = new Vector3[12];
 
     private RotatingBladeVfx _vfx;
     private float _spinAngle;
@@ -25,7 +26,6 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private float _multiBladeManualTimer;
     private float _multiBladeManualRange;
     private float _multiBladeManualDamageScale;
-    private Vector3 _multiBladeManualOrigin;
     private Vector3 _multiBladeManualDirection;
     private bool _multiBladeActivePending;
     private int _multiBladeActiveThrustIndex;
@@ -33,7 +33,6 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private float _multiBladeActiveTimer;
     private float _multiBladeActiveRange;
     private float _multiBladeActiveLineWidth;
-    private Vector3 _multiBladeActiveOrigin;
     private Vector3 _multiBladeActiveDirection;
 
     public float SpinAngle => _spinAngle;
@@ -53,6 +52,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
+        float previousSpinAngle = _spinAngle;
         TickSpin(deltaTime, tuning);
 
         float hitRadius = GetScaledHitRadius(tuning);
@@ -66,18 +66,17 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         {
             Vector3 bladeCenter = GetBladeCenter(tuning, bladeIndex, bladeCount);
             ShowOrbit(bladeCenter, hitRadius, tuning);
-            if (shouldDamage && IsMultiBladePath())
-                WeaponUpgradeVfx.SpawnRing(bladeCenter, hitRadius * 1.25f, MultiBladeVfxColor, tuning.BladeVisualDuration, 0.9f, bladeIndex == 0 ? "MULTI" : null);
-            else if (shouldDamage && IsAtomicSharpnessPath())
-                WeaponUpgradeVfx.SpawnRing(bladeCenter, hitRadius * 1.35f, AtomicSharpnessVfxColor, tuning.BladeVisualDuration, 1.1f, "ATOM");
 
             if (!shouldDamage)
                 continue;
 
-            int hitCount = EnemyRegistry.CollectClosestOnPlane(bladeCenter, hitRadius, MaxContactTargets, _targets);
+            int hitCount = CollectBladeContactTargets(tuning, bladeIndex, bladeCount, previousSpinAngle, _spinAngle, hitRadius);
             float knockbackScale = GetAtomicSharpnessKnockbackScale(GetAutomaticKnockbackScale(tuning));
             for (int i = 0; i < hitCount; i++)
-                ApplyBladeDamage(_targets[i], GetAtomicSharpnessDamageScale(), bladeCenter, knockbackScale);
+            {
+                Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : bladeCenter;
+                ApplyBladeDamage(_targets[i], GetAtomicSharpnessDamageScale(), impactOrigin, knockbackScale);
+            }
         }
     }
 
@@ -110,7 +109,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         int swingCount = GetBladeCount();
         if (IsMultiBladePath() && swingCount > 1)
         {
-            StartMultiBladeManualSwings(origin, slashDirection, range, damageScale, swingCount);
+            StartMultiBladeManualSwings(slashDirection, range, damageScale, swingCount);
             return;
         }
 
@@ -123,7 +122,8 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             tuning,
             0,
             1);
-        ShowSlash(origin, slashDirection, range, tuning);
+        if (!IsMultiBladePath())
+            ShowSlash(origin, slashDirection, range, tuning);
     }
 
     // Thrusts forward in a thick line. Heat adds range in discrete 20% steps, capped by tuning.
@@ -154,11 +154,11 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         if (IsMultiBladePath() && thrustCount > 1)
         {
-            StartMultiBladeActiveThrusts(origin, thrustDirection, range, lineWidth, thrustCount);
+            StartMultiBladeActiveThrusts(thrustDirection, range, lineWidth, thrustCount);
             return;
         }
 
-        ExecuteActiveThrust(origin, thrustDirection, range, lineWidth, tuning, 0, 1);
+        ExecuteActiveThrust(origin, thrustDirection, range, lineWidth, tuning.BladeActiveKnockbackScale, tuning, 0, 1);
         ShowThrust(origin, thrustDirection, range, lineWidth, tuning);
         CompleteActiveAbility();
     }
@@ -191,15 +191,41 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
     private Vector3 GetBladeCenter(RotatingBladeTuning tuning, int bladeIndex = 0, int bladeCount = 1)
     {
-        Vector3 baseDirection = Owner != null ? Owner.forward : Vector3.forward;
-        baseDirection.y = 0f;
-        if (baseDirection.sqrMagnitude <= 0.0001f)
-            baseDirection = Vector3.forward;
+        return GetBladeCenter(tuning, bladeIndex, bladeCount, _spinAngle);
+    }
 
-        baseDirection.Normalize();
+    private Vector3 GetBladeCenter(RotatingBladeTuning tuning, int bladeIndex, int bladeCount, float spinAngle)
+    {
+        Vector3 baseDirection = Vector3.forward;
         float offset = bladeCount <= 1 ? 0f : (360f / bladeCount) * bladeIndex;
-        Vector3 orbitDirection = Quaternion.AngleAxis(_spinAngle + offset, Vector3.up) * baseDirection;
+        Vector3 orbitDirection = Quaternion.AngleAxis(spinAngle + offset, Vector3.up) * baseDirection;
         return GetOwnerOrigin() + orbitDirection * GetScaledOrbitRadius(tuning);
+    }
+
+    private int CollectBladeContactTargets(
+        RotatingBladeTuning tuning,
+        int bladeIndex,
+        int bladeCount,
+        float previousSpinAngle,
+        float currentSpinAngle,
+        float hitRadius)
+    {
+        float sweepDegrees = Mathf.Repeat(currentSpinAngle - previousSpinAngle + 360f, 360f);
+        int segmentCount = Mathf.Clamp(Mathf.CeilToInt(sweepDegrees / 20f), 1, _bladeSweepPoints.Length - 1);
+        for (int i = 0; i <= segmentCount; i++)
+        {
+            float t = i / (float)segmentCount;
+            float spinAngle = previousSpinAngle + sweepDegrees * t;
+            _bladeSweepPoints[i] = GetBladeCenter(tuning, bladeIndex, bladeCount, spinAngle);
+        }
+
+        return EnemyRegistry.CollectClosestNearPolyline(
+            _bladeSweepPoints,
+            segmentCount + 1,
+            hitRadius,
+            MaxContactTargets,
+            _targets,
+            _hitOrigins);
     }
 
     private bool IsMultiBladePath() =>
@@ -213,11 +239,14 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (!IsMultiBladePath())
             return 1;
 
-        return Mathf.Clamp(1 + Mathf.FloorToInt((Runtime.Level - 6) / 2f), 2, 4);
+        return 1 + Mathf.Max(0, Runtime.Level - 6);
     }
 
     private Vector3 GetHorizontalAimDirection(Vector3 aimDirection)
     {
+        if (TryGetCameraHorizontalAimDirection(out Vector3 cameraDirection))
+            return cameraDirection;
+
         Vector3 direction = aimDirection;
         direction.y = 0f;
 
@@ -228,6 +257,22 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         }
 
         return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.zero;
+    }
+
+    private static bool TryGetCameraHorizontalAimDirection(out Vector3 direction)
+    {
+        direction = Vector3.zero;
+        Camera camera = Camera.main;
+        if (camera == null)
+            return false;
+
+        direction = camera.transform.forward;
+        direction.y = 0f;
+        if (direction.sqrMagnitude <= 0.0001f)
+            return false;
+
+        direction.Normalize();
+        return true;
     }
 
     private Vector3 GetOwnerOrigin()
@@ -291,7 +336,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
     private float GetScaledHitRadius(RotatingBladeTuning tuning)
     {
-        return Mathf.Max(0.05f, tuning.BladeHitRadius) * GetAreaSizeMultiplier();
+        float areaSize = GetAreaSizeMultiplier();
+        float scaledBladeWidth = Mathf.Max(0.05f, tuning.BladeHitRadius) * areaSize;
+        float orbitGrowth = Mathf.Max(0f, tuning.BladeOrbitRadius) * Mathf.Max(0f, areaSize - 1f);
+        return scaledBladeWidth + orbitGrowth;
     }
 
     private float GetScaledManualRange(RotatingBladeTuning tuning)
@@ -357,13 +405,12 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         return consumed;
     }
 
-    private void StartMultiBladeManualSwings(Vector3 origin, Vector3 direction, float range, float damageScale, int swingCount)
+    private void StartMultiBladeManualSwings(Vector3 direction, float range, float damageScale, int swingCount)
     {
         _multiBladeManualPending = true;
         _multiBladeManualSwingIndex = 0;
         _multiBladeManualSwingCount = Mathf.Max(1, swingCount);
         _multiBladeManualTimer = 0f;
-        _multiBladeManualOrigin = origin;
         _multiBladeManualDirection = direction;
         _multiBladeManualRange = range;
         _multiBladeManualDamageScale = damageScale;
@@ -377,12 +424,13 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         int swing = _multiBladeManualSwingIndex;
+        Vector3 origin = GetOwnerOrigin();
         Vector3 swingDirection = GetMultiBladeOffsetDirection(_multiBladeManualDirection, swing, _multiBladeManualSwingCount);
         float knockbackScale = ShouldApplyMultiBladeKnockback(swing, _multiBladeManualSwingCount)
             ? tuning.BladeManualKnockbackScale
             : 0f;
         ExecuteManualSwing(
-            _multiBladeManualOrigin,
+            origin,
             swingDirection,
             _multiBladeManualRange,
             _multiBladeManualDamageScale,
@@ -395,7 +443,6 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (_multiBladeManualSwingIndex >= _multiBladeManualSwingCount)
         {
             _multiBladeManualPending = false;
-            ShowSlash(_multiBladeManualOrigin, _multiBladeManualDirection, _multiBladeManualRange, tuning);
             return;
         }
 
@@ -413,9 +460,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         int swingCount)
     {
         if (IsMultiBladePath())
-            WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle, MultiBladeVfxColor, tuning.BladeVisualDuration, 5, swingIndex == 0 ? "MULTI" : null);
-        else if (IsAtomicSharpnessPath())
-            WeaponUpgradeVfx.SpawnCone(origin, swingDirection, range, tuning.BladeManualConeAngle * 0.75f, AtomicSharpnessVfxColor, tuning.BladeVisualDuration, 5, "ATOM");
+            ShowSlash(origin, swingDirection, range, tuning);
 
         int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
             origin,
@@ -433,13 +478,12 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 GetAtomicSharpnessKnockbackScale(knockbackScale));
     }
 
-    private void StartMultiBladeActiveThrusts(Vector3 origin, Vector3 direction, float range, float lineWidth, int thrustCount)
+    private void StartMultiBladeActiveThrusts(Vector3 direction, float range, float lineWidth, int thrustCount)
     {
         _multiBladeActivePending = true;
         _multiBladeActiveThrustIndex = 0;
         _multiBladeActiveThrustCount = Mathf.Max(1, thrustCount);
         _multiBladeActiveTimer = 0f;
-        _multiBladeActiveOrigin = origin;
         _multiBladeActiveDirection = direction;
         _multiBladeActiveRange = range;
         _multiBladeActiveLineWidth = lineWidth;
@@ -453,12 +497,17 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         int thrust = _multiBladeActiveThrustIndex;
-        Vector3 thrustDirection = GetMultiBladeOffsetDirection(_multiBladeActiveDirection, thrust, _multiBladeActiveThrustCount);
+        Vector3 origin = GetOwnerOrigin();
+        Vector3 thrustDirection = _multiBladeActiveDirection;
+        float knockbackScale = ShouldApplyMultiBladeKnockback(thrust, _multiBladeActiveThrustCount)
+            ? tuning.BladeActiveKnockbackScale
+            : 0f;
         ExecuteActiveThrust(
-            _multiBladeActiveOrigin,
+            origin,
             thrustDirection,
             _multiBladeActiveRange,
             _multiBladeActiveLineWidth,
+            knockbackScale,
             tuning,
             thrust,
             _multiBladeActiveThrustCount);
@@ -467,7 +516,6 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (_multiBladeActiveThrustIndex >= _multiBladeActiveThrustCount)
         {
             _multiBladeActivePending = false;
-            ShowThrust(_multiBladeActiveOrigin, _multiBladeActiveDirection, _multiBladeActiveRange, _multiBladeActiveLineWidth, tuning);
             CompleteActiveAbility();
             return;
         }
@@ -480,6 +528,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         Vector3 direction,
         float range,
         float lineWidth,
+        float knockbackScale,
         RotatingBladeTuning tuning,
         int thrustIndex,
         int thrustCount)
@@ -504,7 +553,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 _targets[i],
                 tuning.BladeActiveDamageScale,
                 impactOrigin,
-                tuning.BladeActiveKnockbackScale,
+                knockbackScale,
                 isAbilityDamage: true);
         }
     }
@@ -577,19 +626,34 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
 
         EnsureVfx();
-        _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration);
+        if (IsMultiBladePath())
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, MultiBladeVfxColor);
+        else if (IsAtomicSharpnessPath())
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, AtomicSharpnessVfxColor);
+        else
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration);
     }
 
     private void ShowSlash(Vector3 origin, Vector3 direction, float range, RotatingBladeTuning tuning)
     {
         EnsureVfx();
-        _vfx.ShowSlash(origin, direction, range, tuning.BladeManualConeAngle, tuning.BladeVisualDuration);
+        if (IsMultiBladePath())
+            _vfx.ShowSlash(origin, direction, range, tuning.BladeManualConeAngle, tuning.BladeVisualDuration, MultiBladeVfxColor);
+        else if (IsAtomicSharpnessPath())
+            _vfx.ShowSlash(origin, direction, range, tuning.BladeManualConeAngle, tuning.BladeVisualDuration, AtomicSharpnessVfxColor);
+        else
+            _vfx.ShowSlash(origin, direction, range, tuning.BladeManualConeAngle, tuning.BladeVisualDuration);
     }
 
     private void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, RotatingBladeTuning tuning)
     {
         EnsureVfx();
-        _vfx.ShowThrust(origin, direction, range, lineWidth, tuning.BladeVisualDuration);
+        if (IsMultiBladePath())
+            _vfx.ShowThrust(origin, direction, range, lineWidth, tuning.BladeVisualDuration, MultiBladeVfxColor);
+        else if (IsAtomicSharpnessPath())
+            _vfx.ShowThrust(origin, direction, range, lineWidth, tuning.BladeVisualDuration, AtomicSharpnessVfxColor);
+        else
+            _vfx.ShowThrust(origin, direction, range, lineWidth, tuning.BladeVisualDuration);
     }
 
     private void EnsureVfx()

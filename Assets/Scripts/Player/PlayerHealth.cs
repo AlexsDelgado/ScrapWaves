@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerHealth : MonoBehaviour
@@ -17,6 +18,9 @@ public class PlayerHealth : MonoBehaviour
     private float _lastDamageTime;
     private float _regenerationRemainder;
     private bool _isDead;
+    private readonly List<Collider> _playerCollisionColliders = new();
+    private readonly List<Collider> _enemyCollisionColliders = new();
+    private readonly List<IgnoredEnemyCollisionPair> _ignoredEnemyCollisionPairs = new();
 
     private const float BurnTickInterval = 0.5f;
     private float _burnRemaining;
@@ -46,6 +50,7 @@ public class PlayerHealth : MonoBehaviour
             return;
 
         _invulnerableUntil = Mathf.Max(_invulnerableUntil, Time.time + seconds);
+        SyncEnemyCollisionIgnores();
     }
 
     private PlayerStats Stats
@@ -86,11 +91,24 @@ public class PlayerHealth : MonoBehaviour
         _lastDamageTime = Time.time - _regenerationDelaySeconds;
         _regenerationRemainder = 0f;
         ClearBurn();
+        ClearEnemyCollisionIgnores();
         OnHealthChanged?.Invoke();
+    }
+
+    private void OnDisable()
+    {
+        ClearEnemyCollisionIgnores();
+    }
+
+    private void OnDestroy()
+    {
+        ClearEnemyCollisionIgnores();
     }
 
     private void Update()
     {
+        SyncEnemyCollisionIgnores();
+
         if (_isDead)
             return;
 
@@ -197,6 +215,7 @@ public class PlayerHealth : MonoBehaviour
             _currentHealth = 0;
 
         _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
+        SyncEnemyCollisionIgnores();
         RegisterDamageTaken(Time.time);
 
         AudioManager.TryPlayPlayerHurt();
@@ -238,5 +257,109 @@ public class PlayerHealth : MonoBehaviour
     {
         _lastDamageTime = currentTime;
         _regenerationRemainder = 0f;
+    }
+
+    private void SyncEnemyCollisionIgnores()
+    {
+        if (IsInvulnerable)
+        {
+            RefreshEnemyCollisionIgnores();
+            return;
+        }
+
+        ClearEnemyCollisionIgnores();
+    }
+
+    private void RefreshEnemyCollisionIgnores()
+    {
+        CollectPlayerCollisionColliders();
+        EnemyRegistry.CollectActiveEnemyColliders(_enemyCollisionColliders);
+        RemoveStaleEnemyCollisionIgnores();
+
+        for (int p = 0; p < _playerCollisionColliders.Count; p++)
+        {
+            Collider playerCollider = _playerCollisionColliders[p];
+            if (playerCollider == null)
+                continue;
+
+            for (int e = 0; e < _enemyCollisionColliders.Count; e++)
+            {
+                Collider enemyCollider = _enemyCollisionColliders[e];
+                if (enemyCollider == null || playerCollider == enemyCollider)
+                    continue;
+
+                if (ContainsIgnoredEnemyCollisionPair(playerCollider, enemyCollider))
+                    continue;
+
+                Physics.IgnoreCollision(playerCollider, enemyCollider, true);
+                _ignoredEnemyCollisionPairs.Add(new IgnoredEnemyCollisionPair(playerCollider, enemyCollider));
+            }
+        }
+    }
+
+    private void CollectPlayerCollisionColliders()
+    {
+        _playerCollisionColliders.Clear();
+        GetComponentsInChildren(false, _playerCollisionColliders);
+        for (int i = _playerCollisionColliders.Count - 1; i >= 0; i--)
+        {
+            Collider collider = _playerCollisionColliders[i];
+            if (collider == null || !collider.enabled || collider.isTrigger)
+                _playerCollisionColliders.RemoveAt(i);
+        }
+    }
+
+    private void RemoveStaleEnemyCollisionIgnores()
+    {
+        for (int i = _ignoredEnemyCollisionPairs.Count - 1; i >= 0; i--)
+        {
+            IgnoredEnemyCollisionPair pair = _ignoredEnemyCollisionPairs[i];
+            if (pair.PlayerCollider != null
+                && pair.EnemyCollider != null
+                && _playerCollisionColliders.Contains(pair.PlayerCollider)
+                && _enemyCollisionColliders.Contains(pair.EnemyCollider))
+                continue;
+
+            RestoreIgnoredEnemyCollisionPair(pair);
+            _ignoredEnemyCollisionPairs.RemoveAt(i);
+        }
+    }
+
+    private bool ContainsIgnoredEnemyCollisionPair(Collider playerCollider, Collider enemyCollider)
+    {
+        for (int i = 0; i < _ignoredEnemyCollisionPairs.Count; i++)
+        {
+            IgnoredEnemyCollisionPair pair = _ignoredEnemyCollisionPairs[i];
+            if (pair.PlayerCollider == playerCollider && pair.EnemyCollider == enemyCollider)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void ClearEnemyCollisionIgnores()
+    {
+        for (int i = _ignoredEnemyCollisionPairs.Count - 1; i >= 0; i--)
+            RestoreIgnoredEnemyCollisionPair(_ignoredEnemyCollisionPairs[i]);
+
+        _ignoredEnemyCollisionPairs.Clear();
+    }
+
+    private static void RestoreIgnoredEnemyCollisionPair(IgnoredEnemyCollisionPair pair)
+    {
+        if (pair.PlayerCollider != null && pair.EnemyCollider != null)
+            Physics.IgnoreCollision(pair.PlayerCollider, pair.EnemyCollider, false);
+    }
+
+    private readonly struct IgnoredEnemyCollisionPair
+    {
+        public readonly Collider PlayerCollider;
+        public readonly Collider EnemyCollider;
+
+        public IgnoredEnemyCollisionPair(Collider playerCollider, Collider enemyCollider)
+        {
+            PlayerCollider = playerCollider;
+            EnemyCollider = enemyCollider;
+        }
     }
 }

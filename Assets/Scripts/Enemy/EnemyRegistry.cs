@@ -37,6 +37,39 @@ public static class EnemyRegistry
         }
     }
 
+    public static int CollectActiveEnemyColliders(List<Collider> results, bool includeTriggers = false)
+    {
+        results.Clear();
+
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Transform enemy = _activeEnemies[i];
+            if (enemy == null)
+            {
+                _activeEnemies.RemoveAt(i);
+                continue;
+            }
+
+            _candidateColliders.Clear();
+            enemy.GetComponentsInChildren(false, _candidateColliders);
+            for (int c = 0; c < _candidateColliders.Count; c++)
+            {
+                Collider collider = _candidateColliders[c];
+                if (collider == null || !collider.enabled)
+                    continue;
+
+                if (!includeTriggers && collider.isTrigger)
+                    continue;
+
+                if (!results.Contains(collider))
+                    results.Add(collider);
+            }
+        }
+
+        _candidateColliders.Clear();
+        return results.Count;
+    }
+
     public static bool TryGetClosestOnPlane(Vector3 from, float range, out Transform closest)
     {
         closest = null;

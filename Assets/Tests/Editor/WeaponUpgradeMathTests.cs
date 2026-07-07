@@ -348,11 +348,13 @@ public class WeaponUpgradeMathTests
     public void RotatingBlade_MultiBladeCount_ScalesWithPathLevel()
     {
         RotatingBladeWeapon levelSix = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA);
+        RotatingBladeWeapon levelSeven = CreateRotatingBladeWeapon(level: 7, WeaponUpgradePath.PathA);
         RotatingBladeWeapon levelTen = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathA);
         RotatingBladeWeapon atomic = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathB);
 
-        Assert.That(InvokePrivate<int>(levelSix, "GetBladeCount"), Is.EqualTo(2));
-        Assert.That(InvokePrivate<int>(levelTen, "GetBladeCount"), Is.EqualTo(3));
+        Assert.That(InvokePrivate<int>(levelSix, "GetBladeCount"), Is.EqualTo(1));
+        Assert.That(InvokePrivate<int>(levelSeven, "GetBladeCount"), Is.EqualTo(2));
+        Assert.That(InvokePrivate<int>(levelTen, "GetBladeCount"), Is.EqualTo(5));
         Assert.That(InvokePrivate<int>(atomic, "GetBladeCount"), Is.EqualTo(1));
     }
 
@@ -371,6 +373,24 @@ public class WeaponUpgradeMathTests
         Assert.That(first.z, Is.GreaterThan(0f));
         Assert.That(second.z, Is.LessThan(0f));
         Assert.That(Vector3.Distance(first, second), Is.EqualTo(tuning.BladeOrbitRadius * 2f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RotatingBlade_BladeCenterDoesNotFollowOwnerRotation()
+    {
+        GameObject owner = new("BladeOwner");
+        _cleanup.Add(owner);
+        RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathA, owner.transform);
+        SetPrivateField(weapon, "_spinAngle", 0f);
+
+        RotatingBladeTuning tuning = weapon.Runtime.Data.RotatingBlade;
+        owner.transform.rotation = Quaternion.LookRotation(Vector3.forward, Vector3.up);
+        Vector3 forwardFacingCenter = InvokePrivate<Vector3>(weapon, "GetBladeCenter", tuning, 0, 1);
+
+        owner.transform.rotation = Quaternion.LookRotation(Vector3.right, Vector3.up);
+        Vector3 sidewaysFacingCenter = InvokePrivate<Vector3>(weapon, "GetBladeCenter", tuning, 0, 1);
+
+        Assert.That(Vector3.Distance(sidewaysFacingCenter, forwardFacingCenter), Is.LessThan(0.0001f));
     }
 
     [Test]
@@ -418,6 +438,23 @@ public class WeaponUpgradeMathTests
         Assert.That(InvokePrivate<float>(weapon, "GetAtomicActivePostDashInvulnerabilitySeconds"), Is.EqualTo(0.25f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveInvulnerabilityDuration", dashDuration), Is.EqualTo(dashDuration + 0.25f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashRangeForHitCount", 7f, 3), Is.EqualTo(28f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RotatingBlade_HorizontalAimDirection_UsesCameraFacingWhenReticleVectorFlipsBackward()
+    {
+        GameObject cameraGo = new("Sword Aim Camera");
+        _cleanup.Add(cameraGo);
+        Camera camera = cameraGo.AddComponent<Camera>();
+        cameraGo.tag = "MainCamera";
+        camera.transform.rotation = Quaternion.LookRotation(new Vector3(0f, -0.65f, 1f).normalized, Vector3.up);
+
+        RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 1, WeaponUpgradePath.None);
+
+        Vector3 direction = InvokePrivate<Vector3>(weapon, "GetHorizontalAimDirection", new Vector3(0f, -0.8f, -1f));
+
+        Assert.That(direction.z, Is.GreaterThan(0.99f));
+        Assert.That(Mathf.Abs(direction.x), Is.LessThan(0.01f));
     }
 
     private WeaponInstance CreateWeaponInstance(int level, WeaponUpgradePath path)
