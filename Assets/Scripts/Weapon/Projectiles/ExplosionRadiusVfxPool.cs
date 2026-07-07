@@ -82,10 +82,11 @@ public class ExplosionRadiusVfxPool : MonoBehaviour
 
     private ExplosionRadiusVfx CreateInstance()
     {
-        GameObject go = new GameObject("ExplosionRadiusVfx (pool)");
-        go.transform.SetParent(_parent, false);
         Scene targetScene = gameObject.scene.IsValid() ? gameObject.scene : SceneManager.GetActiveScene();
+
+        GameObject go = new GameObject("ExplosionRadiusVfx (pool)");
         SceneManager.MoveGameObjectToScene(go, targetScene);
+        go.transform.SetParent(_parent, false);
 
         ExplosionRadiusVfx vfx = go.AddComponent<ExplosionRadiusVfx>();
         vfx.PrepareForPool();

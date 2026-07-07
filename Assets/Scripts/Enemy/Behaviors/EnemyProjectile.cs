@@ -25,6 +25,7 @@ public class EnemyProjectile : MonoBehaviour
     private float _elapsed;
     private bool _consumed;
     private EnemyProjectilePool _pool;
+    private GameObject _sourcePrefab;
 
     private void Awake()
     {
@@ -52,7 +53,11 @@ public class EnemyProjectile : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(_direction);
     }
 
-    public void BindPool(EnemyProjectilePool pool) => _pool = pool;
+    public void BindPool(EnemyProjectilePool pool, GameObject sourcePrefab)
+    {
+        _pool = pool;
+        _sourcePrefab = sourcePrefab;
+    }
 
     private void FixedUpdate()
     {
@@ -96,8 +101,8 @@ public class EnemyProjectile : MonoBehaviour
             return;
 
         _consumed = true;
-        if (_pool != null)
-            _pool.Release(gameObject);
+        if (_pool != null && _sourcePrefab != null)
+            _pool.Release(gameObject, _sourcePrefab);
         else
         {
             EnemyPoolProfiler.RegisterDestroy();

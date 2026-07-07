@@ -11,7 +11,7 @@ using UnityEngine.UI;
 public static class TitleScreenSceneBuilder
 {
     public const string ScenePath = "Assets/Scenes/TitleScreen.unity";
-    private const string PlayScenePath = "Assets/Scenes/SampleScene.unity";
+    private const string PlayScenePath = "Assets/Scenes/GameplayScene.unity";
     private const string WeaponSandboxScenePath = "Assets/Scenes/WeaponTestingSandbox.unity";
     private const string EnemiesTestingScenePath = "Assets/Scenes/enemiesTesting.unity";
 
@@ -72,6 +72,7 @@ public static class TitleScreenSceneBuilder
         {
             new EditorBuildSettingsScene(ScenePath, true),
             new EditorBuildSettingsScene(PlayScenePath, true),
+            new EditorBuildSettingsScene("Assets/Scenes/SampleScene.unity", false),
             new EditorBuildSettingsScene(WeaponSandboxScenePath, true),
             new EditorBuildSettingsScene(EnemiesTestingScenePath, true)
         };
@@ -351,7 +352,7 @@ public static class TitleScreenSceneBuilder
             test => test.GetSceneName_ReturnsCanonicalSceneName(SceneDestination.Title, "TitleScreen"));
         RunFixture(
             () => new SceneNavigationTests(),
-            test => test.GetSceneName_ReturnsCanonicalSceneName(SceneDestination.Play, "SampleScene"));
+            test => test.GetSceneName_ReturnsCanonicalSceneName(SceneDestination.Play, "GameplayScene"));
         RunFixture(
             () => new SceneNavigationTests(),
             test => test.GetSceneName_ReturnsCanonicalSceneName(SceneDestination.WeaponSandbox, "WeaponTestingSandbox"));
@@ -366,7 +367,7 @@ public static class TitleScreenSceneBuilder
             test => test.GetScenePath_ReturnsCanonicalScenePath(SceneDestination.Title, "Assets/Scenes/TitleScreen.unity"));
         RunFixture(
             () => new SceneNavigationTests(),
-            test => test.GetScenePath_ReturnsCanonicalScenePath(SceneDestination.Play, "Assets/Scenes/SampleScene.unity"));
+            test => test.GetScenePath_ReturnsCanonicalScenePath(SceneDestination.Play, "Assets/Scenes/GameplayScene.unity"));
         RunFixture(
             () => new SceneNavigationTests(),
             test => test.GetScenePath_ReturnsCanonicalScenePath(SceneDestination.WeaponSandbox, "Assets/Scenes/WeaponTestingSandbox.unity"));

@@ -108,7 +108,11 @@ public class EnemyTimedAreaPool : MonoBehaviour
 
     private GameObject CreateInstance(GameObject prefab)
     {
-        GameObject instance = Instantiate(prefab, _parent);
+        Scene targetScene = gameObject.scene.IsValid() ? gameObject.scene : SceneManager.GetActiveScene();
+
+        GameObject instance = Instantiate(prefab);
+        SceneManager.MoveGameObjectToScene(instance, targetScene);
+        instance.transform.SetParent(_parent, false);
         EnemyPoolProfiler.RegisterInstantiate();
         instance.SetActive(false);
 
@@ -117,8 +121,6 @@ public class EnemyTimedAreaPool : MonoBehaviour
             member = instance.AddComponent<PooledTimedAreaMember>();
         member.Bind(this, prefab);
 
-        Scene targetScene = gameObject.scene.IsValid() ? gameObject.scene : SceneManager.GetActiveScene();
-        SceneManager.MoveGameObjectToScene(instance, targetScene);
         return instance;
     }
 

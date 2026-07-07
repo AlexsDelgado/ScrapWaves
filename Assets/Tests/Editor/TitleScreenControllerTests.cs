@@ -97,7 +97,7 @@ public class TitleScreenControllerTests
             new[]
             {
                 "Assets/Scenes/TitleScreen.unity",
-                "Assets/Scenes/SampleScene.unity",
+                "Assets/Scenes/GameplayScene.unity",
                 "Assets/Scenes/WeaponTestingSandbox.unity",
                 "Assets/Scenes/enemiesTesting.unity"
             },

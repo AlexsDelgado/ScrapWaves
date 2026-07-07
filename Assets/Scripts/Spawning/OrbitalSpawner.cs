@@ -90,8 +90,11 @@ public class OrbitalSpawner : MonoBehaviour
         if (_config != null)
         {
             _roulette = new EnemySpawnRoulette(_config);
-            EnemyPoolRegistry.EnsureExists();
-            EnemyPoolRegistry.Instance?.RegisterFromRoulette(_config);
+            EnemyPoolRegistry registry = FindAnyObjectByType<EnemyPoolRegistry>();
+            if (registry != null)
+                registry.RegisterFromRoulette(_config);
+            else
+                EnemyPoolRegistry.EnsureExists();
         }
     }
 
