@@ -115,7 +115,16 @@ public static class OrbitalSpawnPlacement
         if (prefab == null)
             return false;
 
-        instance = Object.Instantiate(prefab);
+        bool fromPool = EnemyPoolRegistry.UseEnemyPool
+            && EnemyPoolRegistry.Instance != null
+            && EnemyPoolRegistry.Instance.TryGet(prefab, out instance);
+
+        if (!fromPool)
+        {
+            instance = Object.Instantiate(prefab);
+            EnemyPoolProfiler.RegisterInstantiate();
+        }
+
         Transform root = instance.transform;
 
         CharacterController cc = instance.GetComponent<CharacterController>();
@@ -143,7 +152,14 @@ public static class OrbitalSpawnPlacement
                 resolveStepOut,
                 out Vector3 foot))
         {
-            Object.Destroy(instance);
+            if (fromPool && EnemyPoolRegistry.Instance != null)
+                EnemyPoolRegistry.Instance.Release(instance);
+            else
+            {
+                Object.Destroy(instance);
+                EnemyPoolProfiler.RegisterDestroy();
+            }
+
             instance = null;
             return false;
         }

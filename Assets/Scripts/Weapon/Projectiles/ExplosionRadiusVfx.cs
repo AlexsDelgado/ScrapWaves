@@ -13,8 +13,14 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
     private float _radius;
     private float _duration;
     private float _elapsed;
+    private ExplosionRadiusVfxPool _pool;
 
     public static void Spawn(Vector3 position, float radius)
+    {
+        ExplosionRadiusVfxPool.TrySpawn(position, radius);
+    }
+
+    internal static void SpawnRuntime(Vector3 position, float radius, float duration)
     {
         if (radius <= 0f)
             return;
@@ -23,7 +29,22 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
         go.transform.position = position + Vector3.up * HeightOffset;
 
         ExplosionRadiusVfx vfx = go.AddComponent<ExplosionRadiusVfx>();
-        vfx.Initialize(radius, 0.42f);
+        vfx.Initialize(radius, duration);
+    }
+
+    public void PrepareForPool()
+    {
+        _outerRing = CreateRing("Explosion Radius", 0.075f);
+        _shockwaveRing = CreateRing("Explosion Shockwave", 0.16f);
+    }
+
+    public void ActivateFromPool(Vector3 position, float radius, float duration, ExplosionRadiusVfxPool pool)
+    {
+        _pool = pool;
+        _elapsed = 0f;
+        transform.position = position + Vector3.up * HeightOffset;
+        Initialize(radius, duration);
+        gameObject.SetActive(true);
     }
 
     private void Initialize(float radius, float duration)
@@ -31,8 +52,9 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
         _radius = Mathf.Max(0.01f, radius);
         _duration = Mathf.Max(0.05f, duration);
 
-        _outerRing = CreateRing("Explosion Radius", 0.075f);
-        _shockwaveRing = CreateRing("Explosion Shockwave", 0.16f);
+        if (_outerRing == null || _shockwaveRing == null)
+            PrepareForPool();
+
         UpdateRings(0f);
     }
 
@@ -61,7 +83,18 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
         UpdateRings(t);
 
         if (t >= 1f)
-            Destroy(gameObject);
+        {
+            if (_pool != null)
+            {
+                _pool.Release(this);
+                _pool = null;
+            }
+            else
+            {
+                EnemyPoolProfiler.RegisterDestroy();
+                Destroy(gameObject);
+            }
+        }
     }
 
     private void UpdateRings(float t)

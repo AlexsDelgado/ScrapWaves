@@ -83,13 +83,24 @@ public class ZoneSpawner : MonoBehaviour
         if (_overheatManager == null)
             _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_overheatManager != null)
+        {
             _overheatManager.OnOverheatStarted += Rearm;
+            _overheatManager.OnOverheatFinished += OnOverheatFinished;
+        }
     }
 
     private void OnDisable()
     {
         if (_overheatManager != null)
+        {
             _overheatManager.OnOverheatStarted -= Rearm;
+            _overheatManager.OnOverheatFinished -= OnOverheatFinished;
+        }
+    }
+
+    private void OnOverheatFinished(OverheatEndReason reason)
+    {
+        ClearSpawned();
     }
 
     private void OnTriggerEnter(Collider other)
@@ -145,13 +156,28 @@ public class ZoneSpawner : MonoBehaviour
         _armed = true;
     }
 
-    /// <summary>Destruye los enemigos que spawneo esta zona (QA / Clear all).</summary>
+    /// <summary>Devuelve al pool o destruye los enemigos que spawneo esta zona (QA / Clear all).</summary>
     public void ClearSpawned()
     {
-        for (int i = _spawned.Count - 1; i >= 0; i--)
+        if (EnemyPoolRegistry.UseEnemyPool && EnemyPoolRegistry.Instance != null)
         {
-            if (_spawned[i] != null)
-                Destroy(_spawned[i]);
+            for (int i = _spawned.Count - 1; i >= 0; i--)
+            {
+                GameObject go = _spawned[i];
+                if (go != null && go.activeSelf)
+                    EnemyPoolRegistry.Instance.Release(go);
+            }
+        }
+        else
+        {
+            for (int i = _spawned.Count - 1; i >= 0; i--)
+            {
+                if (_spawned[i] != null)
+                {
+                    Destroy(_spawned[i]);
+                    EnemyPoolProfiler.RegisterDestroy();
+                }
+            }
         }
 
         _spawned.Clear();

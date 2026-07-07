@@ -41,7 +41,7 @@ public class EnemyC4 : MonoBehaviour
 
         if (Time.time >= _expiresAt)
         {
-            Destroy(gameObject);
+            ReturnToPool();
             return;
         }
 
@@ -78,7 +78,18 @@ public class EnemyC4 : MonoBehaviour
             }
         }
 
-        Destroy(gameObject);
+        ReturnToPool();
+    }
+
+    private void ReturnToPool()
+    {
+        if (TryGetComponent(out PooledTimedAreaMember member))
+            member.ReturnToPool();
+        else
+        {
+            EnemyPoolProfiler.RegisterDestroy();
+            Destroy(gameObject);
+        }
     }
 
     private void OnDrawGizmosSelected()

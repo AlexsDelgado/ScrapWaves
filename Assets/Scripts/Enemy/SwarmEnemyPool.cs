@@ -28,6 +28,7 @@ public class SwarmEnemyPool : MonoBehaviour
     private Transform _runtimeParent;
     private bool _ownsRuntimeParent;
 
+    public GameObject EnemyPrefab => _enemyPrefab;
     public int ActiveLeasedCount => _leasedCount;
     public int TotalPooledInstances => _instances.Count;
     public int InactiveCount => _inactive.Count;
@@ -154,6 +155,7 @@ public class SwarmEnemyPool : MonoBehaviour
         EnsureRuntimeParentExists();
 
         GameObject instance = Instantiate(_enemyPrefab);
+        EnemyPoolProfiler.RegisterInstantiate();
         instance.name = $"{_enemyPrefab.name} (pool)";
 
         Scene targetScene = gameObject.scene.IsValid() ? gameObject.scene : SceneManager.GetActiveScene();
@@ -165,6 +167,7 @@ public class SwarmEnemyPool : MonoBehaviour
         if (pooled == null)
             pooled = instance.AddComponent<SwarmPooledEnemy>();
         pooled.Bind(this);
+        pooled.BindRegistry(_enemyPrefab);
 
         instance.SetActive(false);
         _instances.Add(instance);

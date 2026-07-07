@@ -137,7 +137,7 @@ public class EnemyFollow : MonoBehaviour
         moveDir.Normalize();
 
         float speed = _baseMoveSpeed * _difficultySpeedMultiplier;
-        if (_pooled != null)
+        if (OverheatSwarmBoost.SpeedMultiplier > 1f)
             speed *= OverheatSwarmBoost.SpeedMultiplier;
 
         bool isClimbing = ShouldClimb(moveDir);

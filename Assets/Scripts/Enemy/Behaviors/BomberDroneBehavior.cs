@@ -209,7 +209,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 60f, _groundMask, QueryTriggerInteraction.Ignore))
             pos = hit.point;
 
-        Instantiate(_c4Prefab, pos, Quaternion.identity);
+        EnemyTimedAreaPool.TrySpawn(_c4Prefab, pos, Quaternion.identity);
     }
 
     private void FireBullet()
@@ -223,8 +223,6 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         if (dir.sqrMagnitude < 0.0001f)
             dir = transform.forward;
 
-        GameObject go = Instantiate(_bulletPrefab, muzzle, Quaternion.LookRotation(dir.normalized));
-        if (go.TryGetComponent(out EnemyProjectile projectile))
-            projectile.Launch(dir, _bulletDamage, _bulletSpeed);
+        EnemyProjectilePool.TryLaunch(_bulletPrefab, muzzle, Quaternion.LookRotation(dir.normalized), dir, _bulletDamage, _bulletSpeed);
     }
 }

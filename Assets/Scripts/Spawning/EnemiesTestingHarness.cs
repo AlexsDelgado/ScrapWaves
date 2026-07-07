@@ -36,8 +36,11 @@ public class EnemiesTestingHarness : MonoBehaviour
     [SerializeField, Tooltip("Spawner de oleadas legacy (solo slimes del pool). Vacío = FindAnyObjectByType.")]
     private SwarmSpawner _swarmSpawner;
 
-    [SerializeField, Tooltip("Pool de enemigos para 'Clear all'. Vacío = FindAnyObjectByType.")]
-    private SwarmEnemyPool _swarmEnemyPool;
+    [SerializeField, Tooltip("Pool multi-prefab (orbital). Vacío = auto en runtime.")]
+    private EnemyPoolRegistry _enemyPoolRegistry;
+
+    [SerializeField, Tooltip("HUD de contadores de pool (opcional).")]
+    private EnemyPoolProfilerHud _profilerHud;
 
     [Header("Spawn en suelo")]
     [SerializeField] private LayerMask _groundRaycastMask;
@@ -108,8 +111,12 @@ public class EnemiesTestingHarness : MonoBehaviour
             _orbitalSpawner = FindAnyObjectByType<OrbitalSpawner>(FindObjectsInactive.Include);
         if (_swarmSpawner == null)
             _swarmSpawner = FindAnyObjectByType<SwarmSpawner>(FindObjectsInactive.Include);
-        if (_swarmEnemyPool == null)
-            _swarmEnemyPool = FindAnyObjectByType<SwarmEnemyPool>(FindObjectsInactive.Include);
+        if (_enemyPoolRegistry == null)
+            _enemyPoolRegistry = FindAnyObjectByType<EnemyPoolRegistry>(FindObjectsInactive.Include);
+        if (_profilerHud == null)
+            _profilerHud = FindAnyObjectByType<EnemyPoolProfilerHud>(FindObjectsInactive.Include);
+
+        EnemyPoolRegistry.EnsureExists();
 
         if (_orbitalSpawner != null)
             _orbitalSpawner.enabled = false;
@@ -250,28 +257,11 @@ public class EnemiesTestingHarness : MonoBehaviour
 
     private void ClearAll()
     {
-        for (int i = _spawned.Count - 1; i >= 0; i--)
-        {
-            GameObject go = _spawned[i].Instance;
-            if (go != null)
-                Destroy(go);
-        }
-
         _spawned.Clear();
-
-        if (_orbitalSpawner == null)
-            _orbitalSpawner = FindAnyObjectByType<OrbitalSpawner>(FindObjectsInactive.Include);
-        _orbitalSpawner?.ClearSpawned();
+        EnemyLifecycleCoordinator.ClearAllForQa();
 
         foreach (ZoneSpawner zone in FindObjectsByType<ZoneSpawner>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-        {
-            zone.ClearSpawned();
             zone.Rearm();
-        }
-
-        if (_swarmEnemyPool == null)
-            _swarmEnemyPool = FindAnyObjectByType<SwarmEnemyPool>(FindObjectsInactive.Include);
-        _swarmEnemyPool?.ReleaseAllActive();
     }
 
     private void PruneSpawned()
@@ -431,6 +421,10 @@ public class EnemiesTestingHarness : MonoBehaviour
     {
         GUILayout.Label($"En pantalla: {CurrentOnScreenCount} / {_maxActiveEnemies}");
         GUILayout.Label($"Run time: {FormatTime(RunTimeSeconds)}");
+        EnemyPoolProfiler.RefreshInactiveEnemyCount();
+        GUILayout.Label($"Pool leased: {(_enemyPoolRegistry != null ? _enemyPoolRegistry.TotalLeased : EnemyPoolRegistry.Instance?.TotalLeased ?? 0)}");
+        GUILayout.Label($"Inactivos escena: {EnemyPoolProfiler.InactiveEnemyObjects}");
+        GUILayout.Label($"Inst/Destroy: {EnemyPoolProfiler.InstantiateCount}/{EnemyPoolProfiler.DestroyCount}");
         GUILayout.Space(4f);
         DrawCapField();
     }
@@ -516,8 +510,8 @@ public class EnemiesTestingHarness : MonoBehaviour
 
         GUILayout.Label($"Activos del orbital: {_orbitalSpawner.ActiveSpawnedCount}");
 
-        if (_swarmEnemyPool != null)
-            GUILayout.Label($"Pool legacy: {_swarmEnemyPool.ActiveLeasedCount}/{_swarmEnemyPool.TotalPooledInstances}");
+        if (_enemyPoolRegistry != null)
+            GUILayout.Label($"Pool registry: {_enemyPoolRegistry.TotalLeased} leased");
     }
 
     private void DrawUtilitiesSection()
