@@ -17,7 +17,7 @@ public class SceneNavigationTests
     }
 
     [TestCase(SceneDestination.Title, "TitleScreen")]
-    [TestCase(SceneDestination.Play, "SampleScene")]
+    [TestCase(SceneDestination.Play, "GameplayScene")]
     [TestCase(SceneDestination.WeaponSandbox, "WeaponTestingSandbox")]
     [TestCase(SceneDestination.EnemiesTesting, "enemiesTesting")]
     public void GetSceneName_ReturnsCanonicalSceneName(SceneDestination destination, string expectedSceneName)
@@ -36,7 +36,7 @@ public class SceneNavigationTests
     }
 
     [TestCase(SceneDestination.Title, "Assets/Scenes/TitleScreen.unity")]
-    [TestCase(SceneDestination.Play, "Assets/Scenes/SampleScene.unity")]
+    [TestCase(SceneDestination.Play, "Assets/Scenes/GameplayScene.unity")]
     [TestCase(SceneDestination.WeaponSandbox, "Assets/Scenes/WeaponTestingSandbox.unity")]
     [TestCase(SceneDestination.EnemiesTesting, "Assets/Scenes/enemiesTesting.unity")]
     public void GetScenePath_ReturnsCanonicalScenePath(SceneDestination destination, string expectedScenePath)

@@ -139,7 +139,7 @@ public class EnemyFollow : MonoBehaviour
         float speed = _baseMoveSpeed
             * _difficultySpeedMultiplier
             * WeaponMovementSlowStatus.GetSpeedMultiplier(transform);
-        if (_pooled != null)
+        if (OverheatSwarmBoost.SpeedMultiplier > 1f)
             speed *= OverheatSwarmBoost.SpeedMultiplier;
 
         bool isClimbing = ShouldClimb(moveDir);

@@ -5,6 +5,7 @@ public static class EnemyRegistry
 {
     private static readonly List<Transform> _activeEnemies = new List<Transform>(256);
     private static readonly List<Collider> _candidateColliders = new List<Collider>(8);
+    private static readonly HashSet<Transform> _excludeScratch = new HashSet<Transform>();
 
     public static int ActiveCount => _activeEnemies.Count;
 
@@ -314,6 +315,10 @@ public static class EnemyRegistry
 
         while (results.Count < maxCount)
         {
+            _excludeScratch.Clear();
+            for (int r = 0; r < results.Count; r++)
+                _excludeScratch.Add(results[r]);
+
             Transform best = null;
             float bestSqr = float.MaxValue;
 
@@ -326,7 +331,7 @@ public static class EnemyRegistry
                     continue;
                 }
 
-                if (results.Contains(candidate))
+                if (_excludeScratch.Contains(candidate))
                     continue;
 
                 Vector3 delta = candidate.position - from;
@@ -362,6 +367,10 @@ public static class EnemyRegistry
 
         while (results.Count < maxCount)
         {
+            _excludeScratch.Clear();
+            for (int r = 0; r < results.Count; r++)
+                _excludeScratch.Add(results[r]);
+
             Transform best = null;
             float bestSqr = float.MaxValue;
 
@@ -374,7 +383,7 @@ public static class EnemyRegistry
                     continue;
                 }
 
-                if (results.Contains(candidate))
+                if (_excludeScratch.Contains(candidate))
                     continue;
 
                 Vector3 delta = candidate.position - from;
@@ -413,6 +422,10 @@ public static class EnemyRegistry
 
         while (results.Count < maxCount)
         {
+            _excludeScratch.Clear();
+            for (int r = 0; r < results.Count; r++)
+                _excludeScratch.Add(results[r]);
+
             Transform best = null;
             float bestSqr = float.MaxValue;
 
@@ -425,7 +438,7 @@ public static class EnemyRegistry
                     continue;
                 }
 
-                if (results.Contains(candidate))
+                if (_excludeScratch.Contains(candidate))
                     continue;
 
                 Vector3 delta = candidate.position - from;
@@ -466,6 +479,10 @@ public static class EnemyRegistry
 
         while (results.Count < maxCount)
         {
+            _excludeScratch.Clear();
+            for (int r = 0; r < results.Count; r++)
+                _excludeScratch.Add(results[r]);
+
             Transform best = null;
             Vector3 bestClosestPoint = Vector3.zero;
             float bestDistanceSqr = float.MaxValue;
@@ -479,7 +496,7 @@ public static class EnemyRegistry
                     continue;
                 }
 
-                if (results.Contains(candidate))
+                if (_excludeScratch.Contains(candidate))
                     continue;
 
                 float distanceSqr = DistanceSqrToCandidate(candidate, points, pointCount, out Vector3 closestPoint);

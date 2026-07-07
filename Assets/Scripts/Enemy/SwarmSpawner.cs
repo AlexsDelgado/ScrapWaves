@@ -1,5 +1,6 @@
 using UnityEngine;
 
+[System.Obsolete("Usar OrbitalSpawner + EnemyPoolRegistry. Se mantiene solo para escenas QA legacy.")]
 public class SwarmSpawner : MonoBehaviour
 {
     [SerializeField] private SwarmEnemyPool _pool;
@@ -121,7 +122,7 @@ public class SwarmSpawner : MonoBehaviour
         int count = Mathf.Max(1, Mathf.RoundToInt(_spawnPerWave * diffCount * OverheatSwarmBoost.SpawnWaveMultiplier));
         for (int i = 0; i < count; i++)
         {
-            if (_pool.ActiveLeasedCount >= _maxActiveEnemies)
+            if (EnemyRegistry.ActiveCount >= _maxActiveEnemies)
                 break;
 
             GameObject enemy = _pool.TryGet();

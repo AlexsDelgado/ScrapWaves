@@ -24,6 +24,8 @@ public class EnemyProjectile : MonoBehaviour
     private Vector3 _direction = Vector3.forward;
     private float _elapsed;
     private bool _consumed;
+    private EnemyProjectilePool _pool;
+    private GameObject _sourcePrefab;
 
     private void Awake()
     {
@@ -39,16 +41,22 @@ public class EnemyProjectile : MonoBehaviour
     /// <summary>Configura y lanza el proyectil en una direccion mundial.</summary>
     public void Launch(Vector3 worldDirection, int damage, float speed)
     {
+        _consumed = false;
         if (worldDirection.sqrMagnitude > 0.0001f)
             _direction = worldDirection.normalized;
 
         _damage = Mathf.Max(1, damage);
         _speed = Mathf.Max(0.1f, speed);
         _elapsed = 0f;
-        _consumed = false;
 
         if (_direction.sqrMagnitude > 0.0001f)
             transform.rotation = Quaternion.LookRotation(_direction);
+    }
+
+    public void BindPool(EnemyProjectilePool pool, GameObject sourcePrefab)
+    {
+        _pool = pool;
+        _sourcePrefab = sourcePrefab;
     }
 
     private void FixedUpdate()
@@ -93,6 +101,12 @@ public class EnemyProjectile : MonoBehaviour
             return;
 
         _consumed = true;
-        Destroy(gameObject);
+        if (_pool != null && _sourcePrefab != null)
+            _pool.Release(gameObject, _sourcePrefab);
+        else
+        {
+            EnemyPoolProfiler.RegisterDestroy();
+            Destroy(gameObject);
+        }
     }
 }

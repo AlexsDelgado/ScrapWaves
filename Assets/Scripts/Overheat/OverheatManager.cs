@@ -160,7 +160,8 @@ public class OverheatManager : MonoBehaviour
 
         if (_swarmEnemyPool == null)
             _swarmEnemyPool = FindAnyObjectByType<SwarmEnemyPool>();
-        _swarmEnemyPool?.ReleaseAllActive();
+
+        EnemyLifecycleCoordinator.OnOverheatEnded();
 
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(1f);

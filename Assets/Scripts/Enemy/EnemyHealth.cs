@@ -51,6 +51,14 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         _currentHealth = newMax;
     }
 
+    /// <summary>Reset de estado al reutilizar desde pool (antes de modifiers de dificultad).</summary>
+    public void PrepareForPoolSpawn()
+    {
+        _maxHealth = _prefabMaxHealth;
+        _currentHealth = _maxHealth;
+        _isInvincible = false;
+    }
+
     /// <summary>
     /// Daño por estado (DoT). Ignora invencibilidad pero no puede matar si ya está muerto.
     /// </summary>
@@ -64,15 +72,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
             return true;
 
         _currentHealth = 0;
-        AudioManager.TryPlayEnemyDeath();
-        OnDied?.Invoke();
-        RunCombatStats.RegisterEnemyEliminated();
-
-        if (TryGetComponent(out SwarmPooledEnemy pooled))
-            pooled.Despawn();
-        else
-            gameObject.SetActive(false);
-
+        CompleteDeath();
         return true;
     }
 
@@ -89,16 +89,27 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         }
 
         _currentHealth = 0;
+        CompleteDeath();
+        return true;
+    }
 
+    private void CompleteDeath()
+    {
         AudioManager.TryPlayEnemyDeath();
         OnDied?.Invoke();
         RunCombatStats.RegisterEnemyEliminated();
+        FinalizeDeath();
+    }
 
-        if (TryGetComponent(out SwarmPooledEnemy pooled))
+    private void FinalizeDeath()
+    {
+        if (TryGetComponent(out SwarmPooledEnemy pooled) && pooled.IsBound)
+        {
             pooled.Despawn();
-        else
-            gameObject.SetActive(false);
+            return;
+        }
 
-        return true;
+        EnemyPoolProfiler.RegisterDestroy();
+        Destroy(gameObject);
     }
 }

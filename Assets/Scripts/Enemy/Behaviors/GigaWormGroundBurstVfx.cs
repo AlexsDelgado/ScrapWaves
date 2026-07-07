@@ -23,6 +23,27 @@ public static class GigaWormGroundBurstVfx
         }
     }
 
+    private static Material[] s_junkMaterials;
+
+    private static Material GetJunkMaterial(int colorIndex)
+    {
+        if (s_junkMaterials == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            s_junkMaterials = new Material[JunkColors.Length];
+            for (int i = 0; i < JunkColors.Length; i++)
+            {
+                s_junkMaterials[i] = new Material(shader)
+                {
+                    color = JunkColors[i],
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+            }
+        }
+
+        return s_junkMaterials[colorIndex % JunkColors.Length];
+    }
+
     private static void SpawnPiece(Vector3 position)
     {
         PrimitiveType type = Random.value > 0.5f ? PrimitiveType.Cube : PrimitiveType.Cylinder;
@@ -38,12 +59,7 @@ public static class GigaWormGroundBurstVfx
 
         Renderer renderer = piece.GetComponent<Renderer>();
         if (renderer != null)
-        {
-            renderer.sharedMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"))
-            {
-                color = JunkColors[Random.Range(0, JunkColors.Length)]
-            };
-        }
+            renderer.sharedMaterial = GetJunkMaterial(Random.Range(0, JunkColors.Length));
 
         Rigidbody rb = piece.AddComponent<Rigidbody>();
         rb.mass = Random.Range(0.2f, 0.8f);

@@ -164,8 +164,6 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         if (dir.sqrMagnitude < 0.0001f)
             dir = transform.forward;
 
-        GameObject go = Instantiate(_bulletPrefab, muzzle, Quaternion.LookRotation(dir.normalized));
-        if (go.TryGetComponent(out EnemyProjectile projectile))
-            projectile.Launch(dir, _bulletDamage, _bulletSpeed);
+        EnemyProjectilePool.TryLaunch(_bulletPrefab, muzzle, Quaternion.LookRotation(dir.normalized), dir, _bulletDamage, _bulletSpeed);
     }
 }

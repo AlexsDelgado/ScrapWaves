@@ -155,7 +155,7 @@ public class CorrosiveSpitProjectile : MonoBehaviour
         if (Physics.Raycast(pos + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 8f, ~0, QueryTriggerInteraction.Ignore))
             pos = hit.point;
 
-        Instantiate(_slimeAreaPrefab, pos, Quaternion.identity);
+        EnemyTimedAreaPool.TrySpawn(_slimeAreaPrefab, pos, Quaternion.identity);
     }
 
     private void Consume()

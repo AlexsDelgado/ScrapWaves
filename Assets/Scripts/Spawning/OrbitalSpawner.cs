@@ -91,7 +91,14 @@ public class OrbitalSpawner : MonoBehaviour
             _overlapSolidMask = LayerMask.GetMask("Terrain", "Default");
 
         if (_config != null)
+        {
             _roulette = new EnemySpawnRoulette(_config);
+            EnemyPoolRegistry registry = FindAnyObjectByType<EnemyPoolRegistry>();
+            if (registry != null)
+                registry.RegisterFromRoulette(_config);
+            else
+                EnemyPoolRegistry.EnsureExists();
+        }
     }
 
     private void OnEnable()
@@ -194,13 +201,28 @@ public class OrbitalSpawner : MonoBehaviour
         }
     }
 
-    /// <summary>Destruye todos los enemigos que instancio este spawner (para QA / Clear all).</summary>
+    /// <summary>Devuelve al pool o destruye enemigos rastreados (QA / fin de Overheat).</summary>
     public void ClearSpawned()
     {
-        for (int i = _spawned.Count - 1; i >= 0; i--)
+        if (EnemyPoolRegistry.UseEnemyPool && EnemyPoolRegistry.Instance != null)
         {
-            if (_spawned[i] != null)
-                Destroy(_spawned[i]);
+            for (int i = _spawned.Count - 1; i >= 0; i--)
+            {
+                GameObject go = _spawned[i];
+                if (go != null && go.activeSelf)
+                    EnemyPoolRegistry.Instance.Release(go);
+            }
+        }
+        else
+        {
+            for (int i = _spawned.Count - 1; i >= 0; i--)
+            {
+                if (_spawned[i] != null)
+                {
+                    Destroy(_spawned[i]);
+                    EnemyPoolProfiler.RegisterDestroy();
+                }
+            }
         }
 
         _spawned.Clear();

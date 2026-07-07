@@ -258,7 +258,18 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
             _spawnHeightOffset,
             Mathf.Sin(angle) * radius);
 
-        GameObject fallback = Instantiate(prefab, pos, Quaternion.identity);
+        GameObject fallback;
+        if (EnemyPoolRegistry.UseEnemyPool
+            && EnemyPoolRegistry.Instance != null
+            && EnemyPoolRegistry.Instance.TryGet(prefab, out fallback))
+        {
+            fallback.transform.SetPositionAndRotation(pos, Quaternion.identity);
+        }
+        else
+        {
+            fallback = Instantiate(prefab, pos, Quaternion.identity);
+            EnemyPoolProfiler.RegisterInstantiate();
+        }
 
         Vector3 toPlayer = player.position - fallback.transform.position;
         toPlayer.y = 0f;
@@ -325,7 +336,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
             _overheatManager.NotifyOverheatObjectiveCleared();
     }
 
-    /// <summary>Destruye los elites que spawneó esta oleada (fin de Overheat / Clear all).</summary>
+    /// <summary>Devuelve al pool o destruye los elites que spawneó esta oleada.</summary>
     public void ClearSpawned()
     {
         foreach (KeyValuePair<EnemyHealth, Action> kv in _onEliteDiedHandlers)
@@ -337,10 +348,25 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         _aliveEliteCount = 0;
         _waveActive = false;
 
-        for (int i = _spawned.Count - 1; i >= 0; i--)
+        if (EnemyPoolRegistry.UseEnemyPool && EnemyPoolRegistry.Instance != null)
         {
-            if (_spawned[i] != null)
-                Destroy(_spawned[i]);
+            for (int i = _spawned.Count - 1; i >= 0; i--)
+            {
+                GameObject go = _spawned[i];
+                if (go != null && go.activeSelf)
+                    EnemyPoolRegistry.Instance.Release(go);
+            }
+        }
+        else
+        {
+            for (int i = _spawned.Count - 1; i >= 0; i--)
+            {
+                if (_spawned[i] != null)
+                {
+                    Destroy(_spawned[i]);
+                    EnemyPoolProfiler.RegisterDestroy();
+                }
+            }
         }
 
         _spawned.Clear();

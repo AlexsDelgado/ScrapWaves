@@ -142,7 +142,7 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 60f, _groundMask, QueryTriggerInteraction.Ignore))
             pos.y = hit.point.y;
 
-        Instantiate(_fireAreaPrefab, pos, Quaternion.identity);
+        EnemyTimedAreaPool.TrySpawn(_fireAreaPrefab, pos, Quaternion.identity);
     }
 
     private void Die()

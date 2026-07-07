@@ -80,6 +80,12 @@ public class CorrosiveSlimeArea : MonoBehaviour
 
     private void SelfDestroy()
     {
-        Destroy(gameObject);
+        if (TryGetComponent(out PooledTimedAreaMember member))
+            member.ReturnToPool();
+        else
+        {
+            EnemyPoolProfiler.RegisterDestroy();
+            Destroy(gameObject);
+        }
     }
 }

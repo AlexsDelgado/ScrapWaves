@@ -13,7 +13,7 @@ public enum SceneDestination
 public static class SceneNavigation
 {
     public const string TitleSceneName = "TitleScreen";
-    public const string PlaySceneName = "SampleScene";
+    public const string PlaySceneName = "GameplayScene";
     public const string WeaponSandboxSceneName = "WeaponTestingSandbox";
     public const string EnemiesTestingSceneName = "enemiesTesting";
 
@@ -75,7 +75,7 @@ public static class SceneNavigation
         return destination switch
         {
             SceneDestination.Title => "Assets/Scenes/TitleScreen.unity",
-            SceneDestination.Play => "Assets/Scenes/SampleScene.unity",
+            SceneDestination.Play => "Assets/Scenes/GameplayScene.unity",
             SceneDestination.WeaponSandbox => "Assets/Scenes/WeaponTestingSandbox.unity",
             SceneDestination.EnemiesTesting => "Assets/Scenes/enemiesTesting.unity",
             _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, "Unknown scene destination.")
