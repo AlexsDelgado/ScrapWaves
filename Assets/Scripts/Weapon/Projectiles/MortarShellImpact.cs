@@ -379,7 +379,7 @@ public sealed class MortarShellImpact : MonoBehaviour
     private void Detonate(Vector3 explosionCenter)
     {
         _target = explosionCenter;
-        HideFlightVisuals();
+        HideFlightVisuals(keepShellVisual: !_payload.UseGrapeshot && _payload.RepeatExplosionCount > 1);
         if (_payload.UseGrapeshot)
             SpawnGrapeshot(explosionCenter);
         else
@@ -453,32 +453,21 @@ public sealed class MortarShellImpact : MonoBehaviour
         if (!_payload.UseGrapeshot || _payload.GrapeshotCount <= 0)
             return;
 
-        Vector3 forward = _target - _start;
-        forward.y = 0f;
-        if (forward.sqrMagnitude <= 0.0001f)
-            forward = Vector3.forward;
-        else
-            forward.Normalize();
-
-        Quaternion baseRotation = Quaternion.LookRotation(forward, Vector3.up);
         float grapeshotDamageScale = Mathf.Max(0f, _payload.GrapeshotDamageScale);
         int damage = Mathf.Max(1, Mathf.RoundToInt(_damage * grapeshotDamageScale));
-        WeaponDamageContext grapeshotContext = CreateScaledDamageContext(grapeshotDamageScale, 0.35f);
-        float subShellExplosionRadius = Mathf.Max(0.25f, _explosionRadius * 0.35f);
+        WeaponDamageContext grapeshotContext = CreateScaledDamageContext(grapeshotDamageScale, 0.2f);
         float subShellCollisionRadius = Mathf.Max(0.04f, _collisionRadius * 0.75f);
+        float subShellExplosionRadius = Mathf.Max(0.08f, subShellCollisionRadius * 1.25f);
         float subShellTravelTime = Mathf.Clamp(_travelTime * 0.45f, 0.22f, 0.6f);
-        float spreadDistance = Mathf.Max(0.75f, _explosionRadius);
+        float spreadRadius = Mathf.Max(0.75f, _explosionRadius * 1.5f);
         float fallDistance = Mathf.Max(1.5f, _explosionRadius * 1.2f);
 
         WeaponUpgradeVfx.SpawnRing(center, Mathf.Max(0.35f, _explosionRadius * 0.45f), GrapeshotVfxColor, 0.35f, 1.1f, null);
 
         for (int i = 0; i < _payload.GrapeshotCount; i++)
         {
-            float yaw = Random.Range(-_payload.GrapeshotConeAngle * 0.5f, _payload.GrapeshotConeAngle * 0.5f);
-            Vector3 direction = baseRotation * Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
-            Vector3 target = center
-                + direction.normalized * spreadDistance
-                + Vector3.down * fallDistance;
+            Vector2 offset = Random.insideUnitCircle * spreadRadius;
+            Vector3 target = new(center.x + offset.x, center.y - fallDistance, center.z + offset.y);
 
             MortarShellImpact.Launch(
                 center,
@@ -539,13 +528,24 @@ public sealed class MortarShellImpact : MonoBehaviour
     private bool UsesGrapeshotVisuals() => _useGrapeshotVfx || _payload.UseGrapeshot;
     private bool UsesRepeatExplosionVisuals() => _payload.RepeatExplosionCount > 1;
 
-    private void HideFlightVisuals()
+    private void HideFlightVisuals(bool keepShellVisual = false)
     {
         if (_line != null)
             _line.enabled = false;
 
         if (_shellVisual != null)
-            _shellVisual.SetActive(false);
+        {
+            if (keepShellVisual)
+            {
+                transform.position = _target;
+                _shellVisual.transform.localPosition = Vector3.zero;
+                _shellVisual.SetActive(true);
+            }
+            else
+            {
+                _shellVisual.SetActive(false);
+            }
+        }
     }
 
     private float GetGrapeshotAirburstNormalizedTime()

@@ -8,11 +8,22 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private const float HeadHunterActiveMinimumRange = 1000f;
     private const float HeadHunterProjectileVisualSpeedMultiplier = 3f;
     private const float HeadHunterFallbackProjectileSpeed = 54f;
+    private const float LineBurstShotInterval = 0.05f;
 
     private readonly List<Transform> _piercingTargets = new();
     private readonly List<Vector3> _piercingHitOrigins = new();
     private readonly List<PendingHeadHunterImpact> _pendingHeadHunterImpacts = new();
     private readonly Vector3[] _piercingLine = new Vector3[2];
+
+    private bool _lineBurstActive;
+    private int _lineBurstRemaining;
+    private int _lineBurstIndex;
+    private float _lineBurstTimer;
+    private Vector3 _lineBurstDirection;
+    private float _lineBurstDamageScale;
+    private float _lineBurstSpacing;
+    private float _lineBurstScatterDegrees;
+    private bool _lineBurstEliteOrBoss;
 
     private bool _continuousFireActive;
     private float _continuousFireActiveRemainingDuration;
@@ -35,6 +46,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         TickHeadHunterPendingImpacts(deltaTime);
+        TickPendingLineBurst(deltaTime);
         if (_headHunterActiveCharging)
         {
             TickHeadHunterActiveCharge(deltaTime, aimDirection);
@@ -84,6 +96,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
         TickHeadHunterPendingImpacts(deltaTime);
+        TickPendingLineBurst(deltaTime);
 
         if (Runtime.State != WeaponState.Manual)
         {
@@ -596,6 +609,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             rotation,
             direction,
             HeadHunterProjectileVisualSpeedMultiplier,
+            true,
             out Projectile projectile)
             && projectile != null)
             return Mathf.Max(0.01f, projectile.ActiveSpeed);
@@ -723,19 +737,65 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         float projectileScatterDegrees,
         bool eliteOrBoss)
     {
+        if (Spawn == null || count <= 0)
+            return;
+
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
         baseDirection = ApplyAccuracySpread(baseDirection, accuracySpreadDegrees);
-        float spacing = Mathf.Max(0f, lineSpacing);
+        _lineBurstDirection = baseDirection;
+        _lineBurstDamageScale = damageScale;
+        _lineBurstSpacing = Mathf.Max(0f, lineSpacing);
+        _lineBurstScatterDegrees = Mathf.Max(0f, projectileScatterDegrees);
+        _lineBurstEliteOrBoss = eliteOrBoss;
+        _lineBurstIndex = 0;
+        _lineBurstRemaining = Mathf.Max(0, count);
+        _lineBurstTimer = 0f;
+        _lineBurstActive = true;
+        FireNextLineBurstShot();
+        if (_lineBurstActive)
+            _lineBurstTimer = LineBurstShotInterval;
+    }
 
-        for (int i = 0; i < count; i++)
+    private void TickPendingLineBurst(float deltaTime)
+    {
+        if (!_lineBurstActive)
+            return;
+
+        if (Spawn == null)
         {
-            Vector3 position = Spawn.position + baseDirection * (spacing * i);
-            Vector3 shotDirection = AutomaticCannonFireLogic.ApplyProjectileScatter(
-                baseDirection,
-                projectileScatterDegrees,
-                UnityEngine.Random.insideUnitCircle);
-            FireFromPositionInDirection(position, shotDirection, damageScale, eliteOrBoss);
+            _lineBurstActive = false;
+            _lineBurstRemaining = 0;
+            return;
         }
+
+        _lineBurstTimer -= Mathf.Max(0f, deltaTime);
+        while (_lineBurstActive && _lineBurstTimer <= 0f)
+        {
+            FireNextLineBurstShot();
+            _lineBurstTimer += LineBurstShotInterval;
+        }
+    }
+
+    private void FireNextLineBurstShot()
+    {
+        if (!_lineBurstActive || _lineBurstRemaining <= 0)
+        {
+            _lineBurstActive = false;
+            _lineBurstRemaining = 0;
+            return;
+        }
+
+        Vector3 position = Spawn.position + _lineBurstDirection * (_lineBurstSpacing * _lineBurstIndex);
+        Vector3 shotDirection = AutomaticCannonFireLogic.ApplyProjectileScatter(
+            _lineBurstDirection,
+            _lineBurstScatterDegrees,
+            UnityEngine.Random.insideUnitCircle);
+        FireFromPositionInDirection(position, shotDirection, _lineBurstDamageScale, _lineBurstEliteOrBoss);
+
+        _lineBurstIndex++;
+        _lineBurstRemaining--;
+        if (_lineBurstRemaining <= 0)
+            _lineBurstActive = false;
     }
 
     // Medium automatic accuracy offsets the whole burst while keeping bullets in a clean line.

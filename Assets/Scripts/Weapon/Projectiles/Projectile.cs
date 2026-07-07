@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
@@ -37,6 +38,7 @@ public class Projectile : MonoBehaviour
     private float _fragmentDamageScale;
     private bool _useExplosionCluster;
     private bool _visualOnly;
+    private bool _visualOnlyIgnoresCollisions;
     private bool _useWeaponDamageContext;
     private WeaponDamageContext _weaponDamageContext;
     private ProjectilePool _clusterPool;
@@ -51,6 +53,8 @@ public class Projectile : MonoBehaviour
     private float _clusterFragmentConeRange;
     private float _clusterFragmentDamageScale;
     private WeaponDamageContext _clusterDamageContext;
+    private readonly HashSet<IDamageable> _explosionDamageables = new();
+    private readonly HashSet<IDamageable> _fragmentConeDamageables = new();
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
     private static readonly Color AmplifierVfxColor = new(1f, 0.1f, 0.72f, 0.95f);
     private static readonly Color FragmentVfxColor = new(0.55f, 0.02f, 0.02f, 0.95f);
@@ -92,6 +96,7 @@ public class Projectile : MonoBehaviour
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = false;
+        _visualOnlyIgnoresCollisions = false;
         _useWeaponDamageContext = false;
     }
 
@@ -109,9 +114,15 @@ public class Projectile : MonoBehaviour
 
     public void ConfigureVisualOnly(float maxLifetimeSeconds)
     {
+        ConfigureVisualOnly(maxLifetimeSeconds, ignoreCollisions: false);
+    }
+
+    public void ConfigureVisualOnly(float maxLifetimeSeconds, bool ignoreCollisions)
+    {
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = true;
+        _visualOnlyIgnoresCollisions = ignoreCollisions;
         _useWeaponDamageContext = false;
     }
 
@@ -273,6 +284,9 @@ public class Projectile : MonoBehaviour
         bool hitTerrain = terrainLayer >= 0 && other.gameObject.layer == terrainLayer;
         if (hitTerrain)
         {
+            if (_visualOnly && _visualOnlyIgnoresCollisions)
+                return;
+
             if (_visualOnly)
                 DespawnOrDestroy();
             else if (_useExplosion)
@@ -289,6 +303,9 @@ public class Projectile : MonoBehaviour
         IDamageable damageable = other.GetComponentInParent<IDamageable>();
         if (_visualOnly)
         {
+            if (_visualOnlyIgnoresCollisions)
+                return;
+
             if (damageable != null || IsSolidWorldCollider(other))
                 DespawnOrDestroy();
 
@@ -383,6 +400,9 @@ public class Projectile : MonoBehaviour
         if (closestCollider == null)
             return false;
 
+        if (_visualOnly && _visualOnlyIgnoresCollisions)
+            return false;
+
         Vector3 impactPosition = sweepStart + direction * closestDistance - centerOffset;
         _rigidbody.position = impactPosition;
         transform.position = impactPosition;
@@ -459,20 +479,25 @@ public class Projectile : MonoBehaviour
         if (_useFragmentCone)
             WeaponUpgradeVfx.SpawnCone(transform.position, GetFragmentForward(), _fragmentConeRange, _fragmentConeAngle, FragmentVfxColor, 0.55f, 7, "FRAG");
 
+        _explosionDamageables.Clear();
         Collider[] hits = Physics.OverlapSphere(transform.position, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
         {
-            IDamageable damageable = hits[i].GetComponentInParent<IDamageable>();
+            IDamageable damageable = GetAreaDamageable(hits[i]);
             if (damageable == null)
                 continue;
 
-            float distance = Vector3.Distance(transform.position, hits[i].transform.position);
+            if (!_explosionDamageables.Add(damageable))
+                continue;
+
+            Transform targetTransform = GetDamageableTransform(damageable, hits[i]);
+            float distance = Vector3.Distance(transform.position, targetTransform.position);
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _explosionFalloff, t);
             if (_applyDamageAmplifierOnExplosion)
             {
                 WeaponDamageAmplifierStatus.Apply(damageable, _damageAmplifierMultiplier, _damageAmplifierDuration);
-                WeaponUpgradeVfx.SpawnTargetPulse(hits[i].transform, AmplifierVfxColor, 0.45f, "VULN");
+                WeaponUpgradeVfx.SpawnTargetPulse(targetTransform, AmplifierVfxColor, 0.45f, "VULN");
             }
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
@@ -488,26 +513,79 @@ public class Projectile : MonoBehaviour
         if (!_useFragmentCone)
             return;
 
+        _fragmentConeDamageables.Clear();
+        Vector3 forward = GetFragmentForward();
         Collider[] hits = Physics.OverlapSphere(transform.position, _fragmentConeRange);
         for (int i = 0; i < hits.Length; i++)
         {
-            IDamageable damageable = hits[i].GetComponentInParent<IDamageable>();
+            IDamageable damageable = GetAreaDamageable(hits[i]);
             if (damageable == null)
                 continue;
 
-            Vector3 toTarget = hits[i].transform.position - transform.position;
+            Vector3 conePoint = GetConeTestPoint(hits[i], forward);
+            Vector3 toTarget = conePoint - transform.position;
             toTarget.y = 0f;
             if (toTarget.sqrMagnitude <= 0.0001f)
                 continue;
 
-            Vector3 forward = GetFragmentForward();
             float angle = Vector3.Angle(forward.normalized, toTarget.normalized);
             if (angle > _fragmentConeAngle * 0.5f)
+                continue;
+
+            if (!_fragmentConeDamageables.Add(damageable))
                 continue;
 
             int damage = ResolveDamage(damageable, hits[i], _fragmentDamageScale);
             WeaponDamageApplier.TryApplyDamage(damageable, damage);
         }
+    }
+
+    private static IDamageable GetAreaDamageable(Collider hitCollider)
+    {
+        if (hitCollider == null)
+            return null;
+
+        if (hitCollider.transform.parent != null)
+        {
+            IDamageable parentDamageable = hitCollider.transform.parent.GetComponentInParent<IDamageable>();
+            if (parentDamageable != null)
+                return parentDamageable;
+        }
+
+        return hitCollider.GetComponentInParent<IDamageable>();
+    }
+
+    private static Transform GetDamageableTransform(IDamageable damageable, Collider fallbackCollider)
+    {
+        if (damageable is Component component)
+            return component.transform;
+
+        return fallbackCollider != null ? fallbackCollider.transform : null;
+    }
+
+    private Vector3 GetConeTestPoint(Collider hitCollider, Vector3 forward)
+    {
+        if (hitCollider == null)
+            return transform.position;
+
+        Vector3 flatForward = forward;
+        flatForward.y = 0f;
+        if (flatForward.sqrMagnitude <= 0.0001f)
+            flatForward = Vector3.forward;
+        else
+            flatForward.Normalize();
+
+        Vector3 boundsCenter = hitCollider.bounds.center;
+        Vector3 toCenter = boundsCenter - transform.position;
+        toCenter.y = 0f;
+        float axisDistance = Mathf.Clamp(Vector3.Dot(toCenter, flatForward), 0f, _fragmentConeRange);
+        Vector3 closestAxisPoint = transform.position + flatForward * axisDistance;
+        closestAxisPoint.y = boundsCenter.y;
+
+        Vector3 closestPoint = hitCollider.ClosestPoint(closestAxisPoint);
+        return (closestPoint - transform.position).sqrMagnitude > 0.000001f
+            ? closestPoint
+            : hitCollider.bounds.center;
     }
 
     private int ResolveDamage(IDamageable damageable, Collider hitCollider, float additionalScale = 1f)

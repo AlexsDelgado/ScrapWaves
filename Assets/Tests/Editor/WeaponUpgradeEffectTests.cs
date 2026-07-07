@@ -384,6 +384,83 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void AutomaticCannonLineBurst_SpawnsProjectilesSequentially()
+    {
+        GameObject spawn = new("Cannon Burst Spawn");
+        GameObject poolGo = new("Cannon Burst Pool");
+        GameObject poolContainer = new("Cannon Burst Pool Container");
+        GameObject prefab = new("Cannon Burst Projectile Prefab");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            prefab.AddComponent<Rigidbody>();
+            prefab.AddComponent<SphereCollider>();
+            prefab.AddComponent<Projectile>();
+            prefab.SetActive(false);
+
+            poolGo.SetActive(false);
+            ProjectilePool pool = poolGo.AddComponent<ProjectilePool>();
+            SetPrivateField(pool, "_projectilePrefab", prefab);
+            SetPrivateField(pool, "_container", poolContainer.transform);
+            SetPrivateField(pool, "_initialPoolSize", 1);
+            SetPrivateField(pool, "_maxPoolSize", 8);
+            SetPrivateField(pool, "_allowPoolGrowth", true);
+            poolGo.SetActive(true);
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                State = WeaponState.Automatic
+            };
+
+            AutomaticCannonWeapon weapon = new(null, pool, spawn.transform);
+            weapon.Setup(instance, null, null, null);
+
+            InvokePrivate(
+                weapon,
+                "FireLineBurst",
+                Vector3.forward,
+                5,
+                1f,
+                0f,
+                0f,
+                0f,
+                false);
+
+            Assert.That(pool.ActiveLeasedCount, Is.EqualTo(1));
+
+            InvokePrivate(weapon, "TickPendingLineBurst", 0.049f);
+            Assert.That(pool.ActiveLeasedCount, Is.EqualTo(1));
+
+            InvokePrivate(weapon, "TickPendingLineBurst", 0.001f);
+            Assert.That(pool.ActiveLeasedCount, Is.EqualTo(2));
+        }
+        finally
+        {
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(poolGo);
+            Object.DestroyImmediate(poolContainer);
+            Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
     public void AutomaticCannonHeadHunter_SpawnsProjectileVisualWithoutBlueBeam()
     {
         GameObject spawn = new("Head Hunter Spawn");
@@ -460,6 +537,7 @@ public class WeaponUpgradeEffectTests
 
             Assert.That(activeProjectile, Is.Not.Null);
             Assert.That(ReadField<bool>(activeProjectile, "_visualOnly"), Is.True);
+            Assert.That(ReadField<bool>(activeProjectile, "_visualOnlyIgnoresCollisions"), Is.True);
             Assert.That(ReadField<float>(activeProjectile, "_maxTravelDistance"), Is.Zero);
         }
         finally
@@ -498,6 +576,41 @@ public class WeaponUpgradeEffectTests
 
             Assert.That(consumed, Is.True);
             Assert.That(damageable.TotalDamage, Is.Zero);
+        }
+        finally
+        {
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(bullet);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void ProjectileVisualOnlyCanIgnoreCollision_ForPiercingVisuals()
+    {
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject bullet = new("Piercing Visual Only Bullet");
+
+        try
+        {
+            target.transform.position = Vector3.forward;
+            var damageable = target.AddComponent<TestDamageable>();
+
+            bullet.transform.position = Vector3.zero;
+            bullet.AddComponent<Rigidbody>();
+            bullet.AddComponent<SphereCollider>();
+            Projectile projectile = bullet.AddComponent<Projectile>();
+            InvokePrivate(projectile, "Awake");
+
+            projectile.ConfigureVisualOnly(5f, ignoreCollisions: true);
+            projectile.Launch(Vector3.forward);
+            Physics.SyncTransforms();
+
+            bool consumed = InvokePrivate<bool>(projectile, "TryConsumeSweptWorldCollision", Vector3.zero, Vector3.forward * 2f);
+
+            Assert.That(consumed, Is.False);
+            Assert.That(damageable.TotalDamage, Is.Zero);
+            Assert.That(bullet.activeSelf, Is.True);
         }
         finally
         {
@@ -1843,6 +1956,155 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void ProjectileExplosionDamage_DamagesParentOnlyOnceWhenChildDamageableIsInRadius()
+    {
+        bool previousQueriesHitTriggers = Physics.queriesHitTriggers;
+        GameObject projectileGo = null;
+        GameObject target = null;
+
+        try
+        {
+            Physics.queriesHitTriggers = true;
+            projectileGo = new GameObject("Projectile");
+            Projectile projectile = projectileGo.AddComponent<Projectile>();
+            projectile.ConfigurePooled(3f, 10, 0f);
+            projectile.ConfigureExplosion(3f, 0f);
+
+            target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            target.transform.position = Vector3.forward;
+            var parentDamageable = target.AddComponent<TestDamageable>();
+
+            GameObject weakPoint = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            weakPoint.name = "WeakPoint";
+            weakPoint.transform.SetParent(target.transform, false);
+            weakPoint.transform.localPosition = Vector3.zero;
+            weakPoint.transform.localScale = Vector3.one * 0.25f;
+            weakPoint.GetComponent<Collider>().isTrigger = true;
+            weakPoint.AddComponent<ForwardingDamageable>().Bind(parentDamageable, 5);
+            Physics.SyncTransforms();
+
+            InvokePrivate(projectile, "ApplyExplosionDamage");
+
+            Assert.That(parentDamageable.TotalDamage, Is.EqualTo(10));
+        }
+        finally
+        {
+            Physics.queriesHitTriggers = previousQueriesHitTriggers;
+            Object.DestroyImmediate(projectileGo);
+            Object.DestroyImmediate(target);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void ProjectileFragmentCone_DamagesParentOnlyOnceWhenChildDamageableIsInCone()
+    {
+        bool previousQueriesHitTriggers = Physics.queriesHitTriggers;
+        GameObject projectileGo = null;
+        GameObject target = null;
+
+        try
+        {
+            Physics.queriesHitTriggers = true;
+            projectileGo = new GameObject("Projectile");
+            Projectile projectile = projectileGo.AddComponent<Projectile>();
+            projectile.ConfigurePooled(3f, 10, 0f);
+            projectile.ConfigureExplosion(0.05f, 0f);
+            InvokePrivate(projectile, "ConfigureFragmentCone", 45f, 3f, 0.5f);
+
+            target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            target.transform.position = Vector3.forward * 2f;
+            var parentDamageable = target.AddComponent<TestDamageable>();
+
+            GameObject weakPoint = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            weakPoint.name = "WeakPoint";
+            weakPoint.transform.SetParent(target.transform, false);
+            weakPoint.transform.localPosition = Vector3.zero;
+            weakPoint.transform.localScale = Vector3.one * 0.25f;
+            weakPoint.GetComponent<Collider>().isTrigger = true;
+            weakPoint.AddComponent<ForwardingDamageable>().Bind(parentDamageable, 5);
+            Physics.SyncTransforms();
+
+            InvokePrivate(projectile, "ApplyExplosionDamage");
+
+            Assert.That(parentDamageable.TotalDamage, Is.EqualTo(5));
+        }
+        finally
+        {
+            Physics.queriesHitTriggers = previousQueriesHitTriggers;
+            Object.DestroyImmediate(projectileGo);
+            Object.DestroyImmediate(target);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void ProjectileFragmentCone_DamagesEachParentWhenAnyColliderIntersectsCone()
+    {
+        bool previousQueriesHitTriggers = Physics.queriesHitTriggers;
+        GameObject projectileGo = null;
+        GameObject firstTarget = null;
+        GameObject secondTarget = null;
+
+        try
+        {
+            Physics.queriesHitTriggers = true;
+            projectileGo = new GameObject("Projectile");
+            Projectile projectile = projectileGo.AddComponent<Projectile>();
+            projectile.ConfigurePooled(3f, 10, 0f);
+            projectile.ConfigureExplosion(0.05f, 0f);
+            InvokePrivate(projectile, "ConfigureFragmentCone", 45f, 4f, 0.5f);
+
+            firstTarget = CreateTargetWithChildHitCollider(
+                "First Target",
+                new Vector3(2f, 0f, 2f),
+                new Vector3(-1.9f, 0f, 0f),
+                out TestDamageable firstDamageable);
+            secondTarget = CreateTargetWithChildHitCollider(
+                "Second Target",
+                new Vector3(-2f, 0f, 2.5f),
+                new Vector3(1.9f, 0f, 0f),
+                out TestDamageable secondDamageable);
+            Physics.SyncTransforms();
+
+            InvokePrivate(projectile, "ApplyExplosionDamage");
+
+            Assert.That(firstDamageable.TotalDamage, Is.EqualTo(5));
+            Assert.That(secondDamageable.TotalDamage, Is.EqualTo(5));
+        }
+        finally
+        {
+            Physics.queriesHitTriggers = previousQueriesHitTriggers;
+            Object.DestroyImmediate(projectileGo);
+            Object.DestroyImmediate(firstTarget);
+            Object.DestroyImmediate(secondTarget);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void ProjectileFragmentCone_DamagesColliderEdgeInsideConeWhenPivotIsOutside()
+    {
+        GameObject projectileGo = new("Projectile");
+        Projectile projectile = projectileGo.AddComponent<Projectile>();
+        projectile.ConfigurePooled(3f, 10, 0f);
+        projectile.ConfigureExplosion(0.05f, 0f);
+        InvokePrivate(projectile, "ConfigureFragmentCone", 20f, 4f, 0.5f);
+
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.transform.position = new Vector3(0.7f, 0f, 2f);
+        var damageable = target.AddComponent<TestDamageable>();
+        Physics.SyncTransforms();
+
+        InvokePrivate(projectile, "ApplyExplosionDamage");
+
+        Assert.That(damageable.TotalDamage, Is.EqualTo(5));
+        Object.DestroyImmediate(projectileGo);
+        Object.DestroyImmediate(target);
+        DestroyGeneratedVfx();
+    }
+
+    [Test]
     public void WeaponRadialDamage_ContextAppliesEliteMultiplierPerTarget()
     {
         MethodInfo contextApply = typeof(WeaponRadialDamage).GetMethod(
@@ -1910,7 +2172,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void RocketLauncherFragmentationActive_MarksOnlyOneLockedTarget()
+    public void RocketLauncherFragmentationActive_UsesDirectFireWithoutTargetLocks()
     {
         GameObject owner = new("Rocket Owner");
         GameObject spawn = new("Rocket Spawn");
@@ -1930,12 +2192,11 @@ public class WeaponUpgradeEffectTests
 
             weapon.BeginActiveAbility(Vector3.forward);
 
-            Assert.That(weapon.InitialRocketLocks, Is.EqualTo(1));
-            Assert.That(weapon.MaximumRocketLocks, Is.EqualTo(1));
-            Assert.That(weapon.CurrentRocketLocks, Is.EqualTo(1));
+            Assert.That(weapon.InitialRocketLocks, Is.Zero);
+            Assert.That(weapon.MaximumRocketLocks, Is.Zero);
+            Assert.That(weapon.CurrentRocketLocks, Is.Zero);
             RocketTargetMarkerVfx[] markers = Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None);
-            Assert.That(markers, Has.Length.EqualTo(1));
-            Assert.That(markers[0].Target, Is.EqualTo(firstTarget.transform));
+            Assert.That(markers, Is.Empty);
         }
         finally
         {
@@ -1951,7 +2212,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void RocketLauncherFragmentationActive_RelocksWhenMarkedTargetLeavesRange()
+    public void RocketLauncherFragmentationActive_DoesNotRelockWhenTargetsMove()
     {
         GameObject owner = new("Rocket Owner");
         GameObject spawn = new("Rocket Spawn");
@@ -1973,10 +2234,9 @@ public class WeaponUpgradeEffectTests
             firstTarget.transform.position = Vector3.forward * 30f;
             weapon.TickActiveAbility(0.2f, Vector3.forward);
 
-            Assert.That(weapon.CurrentRocketLocks, Is.EqualTo(1));
+            Assert.That(weapon.CurrentRocketLocks, Is.Zero);
             RocketTargetMarkerVfx[] markers = Object.FindObjectsByType<RocketTargetMarkerVfx>(FindObjectsSortMode.None);
-            Assert.That(markers, Has.Length.EqualTo(1));
-            Assert.That(markers[0].Target, Is.EqualTo(secondTarget.transform));
+            Assert.That(markers, Is.Empty);
         }
         finally
         {
@@ -2068,6 +2328,7 @@ public class WeaponUpgradeEffectTests
             data.BaseDamage = 10f;
             data.BaseRange = 12f;
             data.BaseManualAmmo = 100f;
+            data.ActiveAbilityAmmoCost = 20f;
             data.EnsureSpecificTuningForCurrentType();
             data.LevelData = new List<WeaponLevelData>
             {
@@ -2087,18 +2348,7 @@ public class WeaponUpgradeEffectTests
 
             RocketLauncherWeapon weapon = new(null, pool, spawn.transform);
             weapon.Setup(instance, owner.transform, stats, null);
-            RocketLauncherTuning tuning = data.RocketLauncher;
-            InvokePrivateWithSignature(
-                weapon,
-                "FireRocketAt",
-                new[] { typeof(Vector3), typeof(float), typeof(float), typeof(float), typeof(float), typeof(bool), typeof(bool) },
-                Vector3.forward * 6f,
-                tuning.RocketActiveDamageScale,
-                tuning.RocketActiveExplosionRadius,
-                tuning.RocketActiveExplosionFalloff,
-                tuning.RocketActiveSpeedMultiplier,
-                false,
-                true);
+            weapon.UseActiveAbility(Vector3.forward);
 
             Projectile activeRocket = null;
             foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
@@ -2111,6 +2361,8 @@ public class WeaponUpgradeEffectTests
             }
 
             Assert.That(activeRocket, Is.Not.Null);
+            Assert.That(ReadField<Vector3>(activeRocket, "_direction"), Is.EqualTo(Vector3.forward));
+            Assert.That(instance.CurrentAmmo, Is.EqualTo(80f).Within(0.0001f));
             Assert.That(ReadField<bool>(activeRocket, "_useFragmentCone"), Is.False);
             Assert.That(ReadField<bool>(activeRocket, "_useExplosionCluster"), Is.True);
             Assert.That(activeRocket.transform.localScale, Is.EqualTo(Vector3.one * 5f));
@@ -2263,6 +2515,54 @@ public class WeaponUpgradeEffectTests
         Assert.That(settings.x, Is.EqualTo(4f).Within(0.0001f));
         Assert.That(settings.y, Is.EqualTo(6f).Within(0.0001f));
         Object.DestroyImmediate(data);
+    }
+
+    [Test]
+    public void FlamethrowerJellifiedFuelActive_SpawnsPuddleAndRadialRing()
+    {
+        GameObject owner = new("Jellified Flamethrower Owner");
+        GameObject spawn = new("Jellified Flamethrower Spawn");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            spawn.transform.SetParent(owner.transform);
+            data.WeaponId = "TestFlamethrower";
+            data.DisplayName = "Test Flamethrower";
+            data.WeaponType = WeaponType.Flamethrower;
+            data.BaseDamage = 10f;
+            data.BaseRange = 6f;
+            data.BaseManualAmmo = 100f;
+            data.ActiveAbilityAmmoCost = 10f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathA,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+
+            FlamethrowerWeapon weapon = new(null, null, spawn.transform, null);
+            weapon.Setup(instance, owner.transform, null, null);
+
+            weapon.UseActiveAbility(Vector3.forward);
+
+            Assert.That(Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+            Assert.That(Object.FindObjectsByType<FlamethrowerStreamVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+        }
+        finally
+        {
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
     }
 
     [Test]
@@ -2534,7 +2834,10 @@ public class WeaponUpgradeEffectTests
             {
                 Assert.That(ReadField<int>(subShells[i], "_damage"), Is.EqualTo(10));
                 Assert.That(ReadField<bool>(ReadField<MortarUpgradePayload>(subShells[i], "_payload"), "UseGrapeshot"), Is.False);
+                Assert.That(ReadField<float>(subShells[i], "_explosionRadius"), Is.LessThanOrEqualTo(0.25f));
                 Assert.That(ReadField<Vector3>(subShells[i], "_target").y, Is.LessThan(ReadField<Vector3>(subShells[i], "_start").y));
+                Vector3 offset = ReadField<Vector3>(subShells[i], "_target") - Vector3.up * 2f;
+                Assert.That(new Vector2(offset.x, offset.z).magnitude, Is.LessThanOrEqualTo(3.001f));
                 Assert.That(ReadField<bool>(subShells[i], "_useGrapeshotVfx"), Is.True);
             }
         }
@@ -2740,7 +3043,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void MortarShellImpact_HidesTrajectoryVfxAfterDetonation()
+    public void MortarShellImpact_KeepsRepeatShellVisualAfterDetonation()
     {
         MortarShellImpact shell = null;
 
@@ -2766,7 +3069,7 @@ public class WeaponUpgradeEffectTests
             InvokePrivateWithSignature(shell, "Detonate", new[] { typeof(Vector3) }, Vector3.zero);
 
             Assert.That(line.enabled, Is.False);
-            Assert.That(GetShellVisualRenderer(shell).gameObject.activeSelf, Is.False);
+            Assert.That(GetShellVisualRenderer(shell).gameObject.activeSelf, Is.True);
         }
         finally
         {
@@ -2937,6 +3240,23 @@ public class WeaponUpgradeEffectTests
             LastDamage = amount;
             TotalDamage += amount;
             return true;
+        }
+    }
+
+    private sealed class ForwardingDamageable : MonoBehaviour, IDamageable
+    {
+        private TestDamageable _target;
+        private int _multiplier = 1;
+
+        public void Bind(TestDamageable target, int multiplier)
+        {
+            _target = target;
+            _multiplier = Mathf.Max(1, multiplier);
+        }
+
+        public bool ApplyDamage(int amount)
+        {
+            return _target != null && _target.ApplyDamage(amount * _multiplier);
         }
     }
 
@@ -3136,6 +3456,9 @@ public class WeaponUpgradeEffectTests
         foreach (FlamethrowerStreamVfx vfx in Object.FindObjectsByType<FlamethrowerStreamVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
 
+        foreach (FlamethrowerFuelPuddle puddle in Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(puddle.gameObject);
+
         foreach (WeaponStatusShardVfx vfx in Object.FindObjectsByType<WeaponStatusShardVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
 
@@ -3166,6 +3489,23 @@ public class WeaponUpgradeEffectTests
     {
         if (value is Component component && component != null)
             Object.DestroyImmediate(component.gameObject);
+    }
+
+    private static GameObject CreateTargetWithChildHitCollider(string name, Vector3 rootPosition, Vector3 childLocalPosition, out TestDamageable damageable)
+    {
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.name = name;
+        target.transform.position = rootPosition;
+        damageable = target.AddComponent<TestDamageable>();
+
+        GameObject childCollider = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        childCollider.name = "ChildHitCollider";
+        childCollider.transform.SetParent(target.transform, false);
+        childCollider.transform.localPosition = childLocalPosition;
+        childCollider.transform.localScale = Vector3.one * 0.25f;
+        childCollider.GetComponent<Collider>().isTrigger = true;
+        childCollider.AddComponent<ForwardingDamageable>().Bind(damageable, 5);
+        return target;
     }
 
     private static FlamethrowerWeapon CreateFlamethrowerWeapon(WeaponUpgradePath path, out WeaponData data)

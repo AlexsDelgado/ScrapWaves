@@ -157,8 +157,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 CreateBurnDamageContext(tuning, isAbilityDamage: true));
         }
 
-        if (!IsJellifiedFuelPath())
-            FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration, GetStreamCoreColor(), GetStreamEdgeColor());
+        FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration, GetStreamCoreColor(), GetStreamEdgeColor());
         CompleteActiveAbility();
     }
 

@@ -283,7 +283,7 @@ public class WeaponUpgradeMathTests
         float clusterDamageScale = InvokePrivate<float>(weapon, "GetFragmentClusterDamageScale");
 
         Assert.That(radius, Is.EqualTo(1f).Within(0.0001f));
-        Assert.That(knockback, Is.EqualTo(0.25f).Within(0.0001f));
+        Assert.That(knockback, Is.EqualTo(0.75f).Within(0.0001f));
         Assert.That(fragmentDamageScale, Is.EqualTo(1f).Within(0.0001f));
         Assert.That(manualConeRange, Is.EqualTo(4f).Within(0.0001f));
         Assert.That(activeFragmentDamageScale, Is.Zero);
