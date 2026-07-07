@@ -73,8 +73,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return;
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-            return;
+        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
 
         float activeRadius = GetScaledRange(GetPathAdjustedActiveRadius(tuning));
         int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(

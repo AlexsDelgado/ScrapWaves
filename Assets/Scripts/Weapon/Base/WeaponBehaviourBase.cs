@@ -104,11 +104,17 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         if (!CanBeginActiveAbility())
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-            return;
-
+        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
         FireAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1.75f, false);
         CompleteActiveAbility();
+    }
+
+    protected void SpendAbilityAmmo(float amount)
+    {
+        if (Runtime == null)
+            return;
+        float cost = Mathf.Max(0f, amount);
+        Runtime.CurrentAmmo = Mathf.Max(0f, Runtime.CurrentAmmo - cost);
     }
 
     protected bool CanBeginActiveAbility() =>

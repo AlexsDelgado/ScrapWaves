@@ -82,8 +82,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-            return;
+        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
 
         if (IsHeadHunterPath())
         {

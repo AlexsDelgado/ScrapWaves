@@ -109,8 +109,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (thrustDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-            return;
+        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         Vector3 origin = GetOwnerOrigin();

@@ -93,8 +93,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-            return;
+        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
 
         MortarTuning tuning = Runtime.Data.Mortar;
         Vector3 center = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;

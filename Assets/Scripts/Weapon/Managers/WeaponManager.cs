@@ -18,6 +18,8 @@ public class WeaponManager : MonoBehaviour
 
     [SerializeField] private float _manualCycleCooldown = 1.25f;
     [SerializeField] private float _singleWeaponCycleCooldown = 2.5f;
+    [SerializeField, Tooltip("When RunStartWeaponChoice is present, starter weapons are not auto-equipped.")]
+    private bool _deferInitialWeaponChoice;
 
     private readonly List<IWeaponBehaviour> _equipped = new();
     private int _currentManualIndex;
@@ -38,7 +40,17 @@ public class WeaponManager : MonoBehaviour
 
         _heat = HeatManager.GetInstance();
         _targeting = new ConfiguredEnemyTargeting();
+        if (_deferInitialWeaponChoice || GetComponent<RunStartWeaponChoice>() != null)
+            return;
         AddStartingWeapons();
+    }
+
+    public void ClearEquippedWeapons()
+    {
+        CancelHeldAbilities();
+        _equipped.Clear();
+        _currentManualIndex = 0;
+        _manualCooldownTimer = 0f;
     }
 
     // Updates automatic fire, manual input, and cycle cooldown.
@@ -200,9 +212,7 @@ public class WeaponManager : MonoBehaviour
         WeaponInstance weapon = GetCurrentManualWeapon();
         if (weapon?.Data == null || weapon.State != WeaponState.Manual)
             return false;
-        if (weapon.AbilityCooldownTimer > 0f)
-            return false;
-        return weapon.CurrentAmmo >= weapon.Data.ActiveAbilityAmmoCost;
+        return weapon.AbilityCooldownTimer <= 0f;
     }
 
     private static void TickAbilityCooldown(WeaponInstance weapon, float deltaTime)
@@ -273,14 +283,20 @@ public class WeaponManager : MonoBehaviour
             if (abilityHeld && holdAbility.IsActiveAbilityCharging)
                 holdAbility.TickActiveAbility(deltaTime, aimDirection);
             if (abilityReleased && holdAbility.IsActiveAbilityCharging)
+            {
                 holdAbility.ReleaseActiveAbility(aimDirection);
+                if (manual.Runtime.CurrentAmmo <= 0f)
+                    EndManualMode();
+            }
         }
         else if (abilityPressed && CanUseAbility())
         {
             manual.UseActiveAbility(aimDirection);
+            if (manual.Runtime.CurrentAmmo <= 0f)
+                EndManualMode();
         }
 
-        if (manual.Runtime.State == WeaponState.Manual && manual.Runtime.CurrentAmmo <= 0f)
+        if (manual.Runtime.State == WeaponState.Manual && manual.Runtime.CurrentAmmo <= 0f && !abilityPressed)
             EndManualMode();
     }
 

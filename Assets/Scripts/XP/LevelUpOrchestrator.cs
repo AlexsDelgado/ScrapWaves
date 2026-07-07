@@ -62,15 +62,8 @@ public class LevelUpOrchestrator : MonoBehaviour
 
     private IEnumerator ProcessSingleLevelUp(int newLevel)
     {
-        if (newLevel % 5 == 0)
-        {
-            if (_weaponHandler != null)
-                yield return _weaponHandler.PresentAndApplyCoroutine(newLevel);
-        }
-        else if (_passiveHandler != null)
-        {
+        if (_passiveHandler != null)
             yield return _passiveHandler.PresentAndApplyCoroutine(newLevel);
-        }
 
         if (_statsHandler == null)
             yield break;

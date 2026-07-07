@@ -108,9 +108,6 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (Runtime.CurrentAmmo < Mathf.Max(0f, Runtime.Data.ActiveAbilityAmmoCost))
-            return;
-
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         _isActiveAbilityCharging = true;
         _requestedActiveTargetCount = Mathf.Min(
@@ -163,11 +160,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: true))
-        {
-            ClearTargetMarkers();
-            return;
-        }
+        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
 
         for (int i = 0; i < _abilityTargets.Count; i++)
         {
