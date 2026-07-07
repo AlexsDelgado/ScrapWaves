@@ -53,9 +53,26 @@ public class SandboxWeaponUpgradeDataTests
 
         Assert.That(data, Is.Not.Null, path);
         AutomaticCannonTuning tuning = data.AutomaticCannon;
-        float automaticProjectilesPerSecond = data.BaseAttackRate * tuning.CannonAutoBurstCount;
+        float automaticProjectilesPerSecond = tuning.CannonAutoBurstsPerSecond * tuning.CannonAutoBurstCount;
         float manualProjectilesPerSecond = tuning.CannonManualBurstsPerSecond * tuning.CannonManualBurstCount;
         Assert.That(manualProjectilesPerSecond + 0.0001f, Is.GreaterThanOrEqualTo(automaticProjectilesPerSecond));
+    }
+
+    [TestCase("Assets/ScriptableObjects/WeaponSO/AutomaticCannon.asset")]
+    [TestCase("Assets/Scripts/Weapon/Testing/SO/Sandbox_AutomaticCannon.asset")]
+    public void AutomaticCannon_HeadHunterAutoCadenceIsSlowerThanContinuousFire(string path)
+    {
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>(path);
+
+        Assert.That(data, Is.Not.Null, path);
+        AutomaticCannonTuning tuning = data.AutomaticCannon;
+        Assert.That(tuning.CannonAutoBurstsPerSecond, Is.GreaterThan(0f));
+        Assert.That(tuning.ContinuousFireAutoAttackSpeedMultiplier, Is.GreaterThan(0f));
+        Assert.That(tuning.HeadHunterAutoAttackSpeedMultiplier, Is.GreaterThan(0f));
+        Assert.That(
+            tuning.HeadHunterAutoAttackSpeedMultiplier,
+            Is.LessThan(tuning.ContinuousFireAutoAttackSpeedMultiplier * 0.5f),
+            "Head Hunter auto should be much slower than Continuous Fire because its shots are high damage piercing bullets.");
     }
 
     [TestCase("Assets/ScriptableObjects/WeaponSO/Mortar.asset")]

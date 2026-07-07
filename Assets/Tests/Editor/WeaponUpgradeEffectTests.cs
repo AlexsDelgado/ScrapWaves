@@ -415,6 +415,7 @@ public class WeaponUpgradeEffectTests
             data.BaseAttackRate = 1f;
             data.BaseRange = 12f;
             data.EnsureSpecificTuningForCurrentType();
+            data.AutomaticCannon.CannonBurstShotInterval = 0.12f;
             data.LevelData = new List<WeaponLevelData>
             {
                 new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
@@ -443,7 +444,7 @@ public class WeaponUpgradeEffectTests
 
             Assert.That(pool.ActiveLeasedCount, Is.EqualTo(1));
 
-            InvokePrivate(weapon, "TickPendingLineBurst", 0.049f);
+            InvokePrivate(weapon, "TickPendingLineBurst", 0.119f);
             Assert.That(pool.ActiveLeasedCount, Is.EqualTo(1));
 
             InvokePrivate(weapon, "TickPendingLineBurst", 0.001f);
@@ -1311,6 +1312,78 @@ public class WeaponUpgradeEffectTests
             SetPrivateField(weapon, "_spinAngle", 0f);
 
             weapon.TickAutomatic(0.25f, Vector3.forward);
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            for (int i = 0; i < statDefinitions.Count; i++)
+                Object.DestroyImmediate(statDefinitions[i]);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void RotatingBladeAutomatic_DamagesEnemySweptBetweenDamageTicks()
+    {
+        GameObject owner = new("Blade Interval Owner");
+        GameObject target = new("Blade Interval Target");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+
+        try
+        {
+            owner.transform.position = Vector3.zero;
+
+            PlayerStats stats = owner.AddComponent<PlayerStats>();
+            SetPrivateField(stats, "_statDefinitions", statDefinitions);
+            InvokePrivate(stats, "Awake");
+
+            data.WeaponId = "TestRotatingBladeInterval";
+            data.DisplayName = "Test Rotating Blade Interval";
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseAttackRate = 1f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeOrbitRadius = 2.2f;
+            data.RotatingBlade.BladeHitRadius = 0.35f;
+            data.RotatingBlade.BladeAutoDamageInterval = 0.25f;
+            data.RotatingBlade.BladeBaseSpinDegreesPerSecond = 240f;
+            data.RotatingBlade.BladeVisualDuration = 0.01f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                SelectedPath = WeaponUpgradePath.None,
+                State = WeaponState.Automatic
+            };
+
+            Vector3 sweptArcPoint = Quaternion.AngleAxis(30f, Vector3.up) * Vector3.forward * data.RotatingBlade.BladeOrbitRadius;
+            target.transform.position = sweptArcPoint;
+            TestDamageable damageable = target.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            Physics.SyncTransforms();
+
+            RotatingBladeWeapon weapon = new(null, null, null);
+            weapon.Setup(instance, owner.transform, stats, null);
+            SetPrivateField(weapon, "_spinAngle", 0f);
+            SetPrivateField(weapon, "_lastAutoDamageSpinAngle", 0f);
+            SetPrivateField(weapon, "_autoDamageTimer", 0.5f);
+
+            weapon.TickAutomatic(0.25f, Vector3.forward);
+            Assert.That(damageable.TotalDamage, Is.Zero);
+
+            weapon.TickAutomatic(0.26f, Vector3.forward);
 
             Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
         }

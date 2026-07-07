@@ -8,7 +8,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private const float HeadHunterActiveMinimumRange = 1000f;
     private const float HeadHunterProjectileVisualSpeedMultiplier = 3f;
     private const float HeadHunterFallbackProjectileSpeed = 54f;
-    private const float LineBurstShotInterval = 0.05f;
+    private const float DefaultLineBurstShotInterval = 0.05f;
 
     private readonly List<Transform> _piercingTargets = new();
     private readonly List<Vector3> _piercingHitOrigins = new();
@@ -23,6 +23,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private float _lineBurstDamageScale;
     private float _lineBurstSpacing;
     private float _lineBurstScatterDegrees;
+    private float _lineBurstShotInterval;
     private bool _lineBurstEliteOrBoss;
 
     private bool _continuousFireActive;
@@ -271,6 +272,16 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return 1.25f + heatBonus;
     }
 
+    private float GetContinuousFireAutoAttackSpeedMultiplier(AutomaticCannonTuning tuning)
+    {
+        if (!IsContinuousFirePath())
+            return 1f;
+
+        float heatPercent = Heat != null ? Heat.NormalizedHeat * 100f : 0f;
+        float heatBonus = Mathf.Floor(heatPercent / 2f) * 0.01f;
+        return Mathf.Max(0.01f, tuning.ContinuousFireAutoAttackSpeedMultiplier) + heatBonus;
+    }
+
     private float GetContinuousFireManualAttackSpeedMultiplier()
     {
         return GetContinuousFireAttackSpeedMultiplier() * (IsContinuousFirePath() ? 1.5f : 1f);
@@ -287,11 +298,14 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private float GetAutomaticFireInterval(AutomaticCannonTuning tuning)
     {
-        float interval = GetFireInterval();
+        float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float weaponRate = WeaponMath.GetAttackRateMultiplier(Runtime);
+        float burstsPerSecond = Mathf.Max(0.01f, tuning.CannonAutoBurstsPerSecond);
+        float interval = 1f / Mathf.Max(0.05f, burstsPerSecond * attackSpeed * weaponRate);
         if (IsContinuousFirePath())
-            return interval / Mathf.Max(0.01f, GetContinuousFireAttackSpeedMultiplier());
+            return interval / Mathf.Max(0.01f, GetContinuousFireAutoAttackSpeedMultiplier(tuning));
         if (IsHeadHunterPath())
-            return interval / 1.75f;
+            return interval / Mathf.Max(0.01f, tuning.HeadHunterAutoAttackSpeedMultiplier);
         return interval;
     }
 
@@ -746,6 +760,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstDamageScale = damageScale;
         _lineBurstSpacing = Mathf.Max(0f, lineSpacing);
         _lineBurstScatterDegrees = Mathf.Max(0f, projectileScatterDegrees);
+        _lineBurstShotInterval = GetLineBurstShotInterval();
         _lineBurstEliteOrBoss = eliteOrBoss;
         _lineBurstIndex = 0;
         _lineBurstRemaining = Mathf.Max(0, count);
@@ -753,7 +768,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstActive = true;
         FireNextLineBurstShot();
         if (_lineBurstActive)
-            _lineBurstTimer = LineBurstShotInterval;
+            _lineBurstTimer = _lineBurstShotInterval;
     }
 
     private void TickPendingLineBurst(float deltaTime)
@@ -772,8 +787,14 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         while (_lineBurstActive && _lineBurstTimer <= 0f)
         {
             FireNextLineBurstShot();
-            _lineBurstTimer += LineBurstShotInterval;
+            _lineBurstTimer += Mathf.Max(0.001f, _lineBurstShotInterval);
         }
+    }
+
+    private float GetLineBurstShotInterval()
+    {
+        AutomaticCannonTuning tuning = Runtime?.Data != null ? Runtime.Data.AutomaticCannon : AutomaticCannonTuning.Defaults;
+        return Mathf.Max(0.001f, tuning.CannonBurstShotInterval > 0f ? tuning.CannonBurstShotInterval : DefaultLineBurstShotInterval);
     }
 
     private void FireNextLineBurstShot()

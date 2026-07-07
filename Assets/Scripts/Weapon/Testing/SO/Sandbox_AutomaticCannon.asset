@@ -90,7 +90,11 @@ MonoBehaviour:
         CannonAutoLineSpacing: 1
         CannonAutoAccuracySpreadDegrees: 6
         CannonBurstProjectileScatterDegrees: 1.5
+        CannonBurstShotInterval: 0.05
+        CannonAutoBurstsPerSecond: 5
         CannonManualBurstsPerSecond: 3
+        ContinuousFireAutoAttackSpeedMultiplier: 1.25
+        HeadHunterAutoAttackSpeedMultiplier: 0.2
         CannonActiveHeatBulletStepPercent: 5
         CannonHeatDamageThresholdStepPercent: 25
         CannonHeatDamageThresholdCount: 3

@@ -95,7 +95,11 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoLineSpacing), "Auto Line Spacing");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoAccuracySpreadDegrees), "Auto Accuracy Spread Degrees");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonBurstProjectileScatterDegrees), "Burst Projectile Scatter Degrees");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonBurstShotInterval), "Burst Shot Interval");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoBurstsPerSecond), "Auto Bursts Per Second");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonManualBurstsPerSecond), "Manual Bursts Per Second");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.ContinuousFireAutoAttackSpeedMultiplier), "Continuous Fire Auto Speed Multiplier");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.HeadHunterAutoAttackSpeedMultiplier), "Head Hunter Auto Speed Multiplier");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonActiveHeatBulletStepPercent), "Active Heat Bullet Step Percent");
@@ -220,6 +224,8 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveHeatStepPercent), "Active Heat Step Percent");
         DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveLineWidth), "Active Line Width");
         DrawSpecificProperty(nameof(RotatingBladeTuning.BladeActiveDamageScale), "Active Damage Scale");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.AtomicDashBaseRangeMultiplier), "Atomic Dash Base Range Multiplier");
+        DrawSpecificProperty(nameof(RotatingBladeTuning.AtomicDashRangePerHitMultiplier), "Atomic Dash Range Per Hit Multiplier");
         DrawSpecificProperty(nameof(RotatingBladeTuning.BladeVisualDuration), "Visual Duration");
     }
 

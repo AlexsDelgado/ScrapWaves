@@ -139,6 +139,44 @@ public class WeaponUpgradeMathTests
     }
 
     [Test]
+    public void AutomaticCannon_AutomaticFireInterval_UsesExposedAutoCadenceAndPathMultipliers()
+    {
+        AutomaticCannonWeapon baseWeapon = CreateAutomaticCannonWeapon(level: 1, WeaponUpgradePath.None);
+        NormalizeAttackRateMultipliers(baseWeapon.Runtime.Data);
+        baseWeapon.Runtime.Data.BaseAttackRate = 99f;
+        baseWeapon.Runtime.Data.AutomaticCannon.CannonAutoBurstsPerSecond = 4f;
+
+        float baseInterval = InvokePrivate<float>(
+            baseWeapon,
+            "GetAutomaticFireInterval",
+            baseWeapon.Runtime.Data.AutomaticCannon);
+
+        AutomaticCannonWeapon continuous = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
+        NormalizeAttackRateMultipliers(continuous.Runtime.Data);
+        continuous.Runtime.Data.AutomaticCannon.CannonAutoBurstsPerSecond = 4f;
+        continuous.Runtime.Data.AutomaticCannon.ContinuousFireAutoAttackSpeedMultiplier = 2f;
+
+        float continuousInterval = InvokePrivate<float>(
+            continuous,
+            "GetAutomaticFireInterval",
+            continuous.Runtime.Data.AutomaticCannon);
+
+        AutomaticCannonWeapon headHunter = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathB);
+        NormalizeAttackRateMultipliers(headHunter.Runtime.Data);
+        headHunter.Runtime.Data.AutomaticCannon.CannonAutoBurstsPerSecond = 4f;
+        headHunter.Runtime.Data.AutomaticCannon.HeadHunterAutoAttackSpeedMultiplier = 3f;
+
+        float headHunterInterval = InvokePrivate<float>(
+            headHunter,
+            "GetAutomaticFireInterval",
+            headHunter.Runtime.Data.AutomaticCannon);
+
+        Assert.That(baseInterval, Is.EqualTo(0.25f).Within(0.0001f));
+        Assert.That(continuousInterval, Is.EqualTo(0.125f).Within(0.0001f));
+        Assert.That(headHunterInterval, Is.EqualTo(1f / 12f).Within(0.0001f));
+    }
+
+    [Test]
     public void AutomaticCannon_ContinuousFire_ReplacesBurstsAndDefinesActiveBarrage()
     {
         AutomaticCannonWeapon weapon = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
@@ -352,9 +390,9 @@ public class WeaponUpgradeMathTests
         RotatingBladeWeapon levelTen = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathA);
         RotatingBladeWeapon atomic = CreateRotatingBladeWeapon(level: 10, WeaponUpgradePath.PathB);
 
-        Assert.That(InvokePrivate<int>(levelSix, "GetBladeCount"), Is.EqualTo(1));
-        Assert.That(InvokePrivate<int>(levelSeven, "GetBladeCount"), Is.EqualTo(2));
-        Assert.That(InvokePrivate<int>(levelTen, "GetBladeCount"), Is.EqualTo(5));
+        Assert.That(InvokePrivate<int>(levelSix, "GetBladeCount"), Is.EqualTo(2));
+        Assert.That(InvokePrivate<int>(levelSeven, "GetBladeCount"), Is.EqualTo(3));
+        Assert.That(InvokePrivate<int>(levelTen, "GetBladeCount"), Is.EqualTo(6));
         Assert.That(InvokePrivate<int>(atomic, "GetBladeCount"), Is.EqualTo(1));
     }
 
@@ -429,6 +467,7 @@ public class WeaponUpgradeMathTests
     public void RotatingBlade_AtomicSharpnessActive_UsesDashDamageAndIFrameWindow()
     {
         RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathB);
+        RotatingBladeTuning tuning = weapon.Runtime.Data.RotatingBlade;
         float dashSegmentSeconds = InvokePrivate<float>(weapon, "GetAtomicActiveDashSegmentSeconds");
         float dashDuration = InvokePrivate<float>(weapon, "GetAtomicDashDurationForHitCount", 3);
 
@@ -437,7 +476,23 @@ public class WeaponUpgradeMathTests
         Assert.That(dashDuration, Is.EqualTo(dashSegmentSeconds * 4f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetAtomicActivePostDashInvulnerabilitySeconds"), Is.EqualTo(0.25f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetAtomicActiveInvulnerabilityDuration", dashDuration), Is.EqualTo(dashDuration + 0.25f).Within(0.0001f));
-        Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashRangeForHitCount", 7f, 3), Is.EqualTo(28f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashRangeForHitCount", 7f, 3, tuning), Is.EqualTo(28f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetAtomicDashBaseRange", tuning), Is.EqualTo(7.2f).Within(0.0001f));
+    }
+
+    [Test]
+    public void RotatingBlade_AtomicSharpnessDashRange_UsesExposedMultipliers()
+    {
+        RotatingBladeWeapon weapon = CreateRotatingBladeWeapon(level: 6, WeaponUpgradePath.PathB);
+        RotatingBladeTuning tuning = weapon.Runtime.Data.RotatingBlade;
+        tuning.AtomicDashBaseRangeMultiplier = 2f;
+        tuning.AtomicDashRangePerHitMultiplier = 0.5f;
+
+        float baseRange = InvokePrivate<float>(weapon, "GetAtomicDashBaseRange", tuning);
+        float resetRange = InvokePrivate<float>(weapon, "GetAtomicDashRangeForHitCount", baseRange, 3, tuning);
+
+        Assert.That(baseRange, Is.EqualTo(4.8f).Within(0.0001f));
+        Assert.That(resetRange, Is.EqualTo(12f).Within(0.0001f));
     }
 
     [Test]
@@ -533,6 +588,15 @@ public class WeaponUpgradeMathTests
         RotatingBladeWeapon weapon = new(null, null, null);
         weapon.Setup(instance, owner, null, null);
         return weapon;
+    }
+
+    private static void NormalizeAttackRateMultipliers(WeaponData data)
+    {
+        for (int i = 0; i < data.LevelData.Count; i++)
+            data.LevelData[i].AttackRateMultiplier = 1f;
+
+        data.PathA.AttackRateMultiplier = 1f;
+        data.PathB.AttackRateMultiplier = 1f;
     }
 
     private HeatManager CreateHeatManager()
