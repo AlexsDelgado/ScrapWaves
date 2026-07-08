@@ -21,6 +21,7 @@ public class CraftingUI : MonoBehaviour
     private readonly List<Button> _buttons = new();
     private float _previousTimeScale = 1f;
     private Action _onClosed;
+    private ThirdPersonCamera _resolvedCamera;
 
     public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
     {
@@ -36,6 +37,7 @@ public class CraftingUI : MonoBehaviour
     {
         _previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
+        SetCameraBlocked(true);
         EnsureUi();
         _titleText.text = "Crafting Station";
         _inventoryText.text = BuildInventoryText(inventory);
@@ -48,8 +50,16 @@ public class CraftingUI : MonoBehaviour
         if (_canvas != null)
             _canvas.gameObject.SetActive(false);
         Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
+        SetCameraBlocked(false);
         _onClosed?.Invoke();
         _onClosed = null;
+    }
+
+    private void SetCameraBlocked(bool blocked)
+    {
+        if (_resolvedCamera == null)
+            _resolvedCamera = FindFirstObjectByType<ThirdPersonCamera>();
+        _resolvedCamera?.SetLookBlockedByUi(blocked);
     }
 
     private void BuildCards(WeaponCraftingService crafting, MaterialInventory inventory)
@@ -129,6 +139,11 @@ public class CraftingUI : MonoBehaviour
         int selected = -1;
         yield return choiceUi.PresentCoroutine("Advanced Tinkering", options, index => selected = index);
 
+        // El sub-panel (LevelUpChoiceUI) al cerrarse restaura timeScale y re-bloquea
+        // el cursor; el panel de crafteo sigue abierto, así que re-afirmamos su estado.
+        Time.timeScale = 0f;
+        SetCameraBlocked(true);
+
         if (selected == 0)
             crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true);
         else if (selected == 1)
@@ -152,7 +167,7 @@ public class CraftingUI : MonoBehaviour
 
         var sb = new StringBuilder("Materiales: ");
         foreach (MaterialType type in Enum.GetValues(typeof(MaterialType)))
-            sb.Append(type).Append('=').Append(inventory.GetAmount(type)).Append(' ');
+            sb.Append(MaterialCatalog.GetDisplayName(type)).Append('=').Append(inventory.GetAmount(type)).Append(' ');
         return sb.ToString();
     }
 
@@ -164,7 +179,7 @@ public class CraftingUI : MonoBehaviour
         for (int i = 0; i < costs.Count; i++)
         {
             if (i > 0) sb.Append(", ");
-            sb.Append(costs[i].Material).Append(' ').Append(costs[i].Amount);
+            sb.Append(MaterialCatalog.GetDisplayName(costs[i].Material)).Append(' ').Append(costs[i].Amount);
         }
         return sb.ToString();
     }

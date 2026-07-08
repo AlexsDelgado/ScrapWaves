@@ -58,7 +58,9 @@ public class ThirdPersonCamera : MonoBehaviour
         _pitch = NormalizeEulerPitch(euler.x);
         _yaw = euler.y;
 
-        if (_lockCursorOnPlay)
+        // No robar el cursor si una UI ya lo liberó antes de que corriera este Start()
+        // (p. ej. la selección de arma inicial que se presenta al arrancar la escena).
+        if (_lockCursorOnPlay && !_lookBlockedByUi)
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;

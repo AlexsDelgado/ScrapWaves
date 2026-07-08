@@ -20,6 +20,7 @@ GameObject:
   - component: {fileID: 1993540340262655830}
   - component: {fileID: 8462262204617861336}
   - component: {fileID: 8800000000000000004}
+  - component: {fileID: 4954205283331956749}
   m_Layer: 3
   m_Name: Drone (variant)
   m_TagString: Untagged
@@ -140,7 +141,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 56a00c9530e37c449b7f4ed4bca77e8b, type: 3}
   m_Name: 
@@ -254,6 +255,21 @@ MonoBehaviour:
   _bulletSpeed: 12
   _shootInterval: 1.5
   _droneStandoffDistance: 8
+--- !u!114 &4954205283331956749
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f592eff57bb554f4fbe0484c7e6edb51, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMaterialDrop
+  _dropConfig: {fileID: 11400000, guid: 0df7c42cab8688741bd05bb3dc9cf922, type: 2}
+  _poolOverride: {fileID: 0}
+  _dropAmount: 1
 --- !u!1 &6469779007441651627
 GameObject:
   m_ObjectHideFlags: 0

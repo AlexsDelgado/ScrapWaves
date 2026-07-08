@@ -9,7 +9,8 @@ public class MaterialPickupReceiver : MonoBehaviour
     [SerializeField] private MaterialInventory _inventory;
     [SerializeField] private PlayerXP _playerXp;
 
-    private PlayerStats _stats;
+    [SerializeField, Min(0), Tooltip("XP fija otorgada por cada drop recogido, sin importar tipo ni cantidad.")]
+    private int _xpPerDrop = 1;
 
     private void Awake()
     {
@@ -17,7 +18,6 @@ public class MaterialPickupReceiver : MonoBehaviour
             _inventory = GetComponent<MaterialInventory>();
         if (_playerXp == null)
             _playerXp = GetComponent<PlayerXP>();
-        _stats = GetComponent<PlayerStats>();
     }
 
     private void OnEnable() => Instance = this;
@@ -36,9 +36,7 @@ public class MaterialPickupReceiver : MonoBehaviour
 
         _inventory?.Add(type, amount);
 
-        int xp = MaterialCatalog.GetPickupXpValue(type);
-        float scavenging = _stats != null ? _stats.GetStat(StatType.Scavenging) : 0f;
-        int xpAmount = Mathf.Max(1, Mathf.RoundToInt(xp * amount * (1f + scavenging)));
-        _playerXp?.AddExperience(xpAmount);
+        if (_xpPerDrop > 0)
+            _playerXp?.AddExperience(_xpPerDrop);
     }
 }

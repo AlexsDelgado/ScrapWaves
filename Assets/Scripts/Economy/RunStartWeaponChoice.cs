@@ -31,6 +31,13 @@ public class RunStartWeaponChoice : MonoBehaviour
     private IEnumerator PresentInitialChoiceCoroutine()
     {
         _presented = true;
+
+        // Espera un frame para que todos los Start() se ejecuten primero (en
+        // particular ThirdPersonCamera.Start(), que bloquea/oculta el cursor).
+        // Si presentamos antes, la cámara re-bloquea el cursor después de que la
+        // UI lo liberó y el mouse queda oculto durante la selección.
+        yield return null;
+
         List<WeaponData> offer = PickTwoRandomWeapons();
         if (offer.Count == 0)
             yield break;

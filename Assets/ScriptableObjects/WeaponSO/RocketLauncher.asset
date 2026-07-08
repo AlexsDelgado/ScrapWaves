@@ -23,9 +23,53 @@ MonoBehaviour:
   BaseKnockback: 5
   BaseManualAmmo: 40
   ActiveAbilityAmmoCost: 10
+  SkillCooldown: 1
+  Icon: {fileID: 0}
   _specificTuning:
     rid: 7782109439718619137
-  LevelData: []
+  LevelData:
+  - Level: 1
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 2
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 3
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 4
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 5
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 6
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 7
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 8
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 9
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 10
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: 
     DamageMultiplier: 1

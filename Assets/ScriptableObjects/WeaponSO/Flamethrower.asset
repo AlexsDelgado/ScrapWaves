@@ -27,7 +27,49 @@ MonoBehaviour:
   Icon: {fileID: 21300000, guid: cc55a73026b8b0d438a301b935639fcd, type: 3}
   _specificTuning:
     rid: 6175396285239142401
-  LevelData: []
+  LevelData:
+  - Level: 1
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 2
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 3
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 4
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 5
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 6
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 7
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 8
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 9
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 10
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: 
     DamageMultiplier: 1

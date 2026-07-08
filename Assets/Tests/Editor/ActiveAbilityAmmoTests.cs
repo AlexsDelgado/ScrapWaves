@@ -42,7 +42,7 @@ public class ActiveAbilityAmmoTests
 
     private static void InvokeSpendAbilityAmmo(BasicProjectileWeapon behaviour, float amount)
     {
-        var method = typeof(WeaponBehaviourBase).GetMethod("SpendAbilityAmmo",
+        var method = typeof(BasicProjectileWeapon).GetMethod("SpendAbilityAmmo",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         method.Invoke(behaviour, new object[] { amount });
     }

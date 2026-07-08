@@ -52,4 +52,15 @@ public static class MaterialCatalog
 
     public static int GetPickupXpValue(MaterialType type) =>
         GetCategory(type) == MaterialCategory.Rare ? 12 : 4;
+
+    public static string GetDisplayName(MaterialType type) => type switch
+    {
+        MaterialType.SheetMetal => "Sheet Metal",
+        MaterialType.MetalPipe => "Metal Pipe",
+        MaterialType.Gears => "Gears",
+        MaterialType.JellifiedFuel => "Jellified Fuel",
+        MaterialType.PlasticExplosive => "Plastic Explosive",
+        MaterialType.Wiring => "Wiring",
+        _ => type.ToString()
+    };
 }
