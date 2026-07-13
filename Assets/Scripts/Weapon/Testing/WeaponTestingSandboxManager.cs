@@ -389,14 +389,25 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
 
     private Vector3 ResolveAimDirection()
     {
-        float fallbackDistance = CurrentManualWeapon?.Data != null ? CurrentManualWeapon.Data.BaseRange : 0f;
-        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, fallbackDistance, out Vector3 aim))
+        WeaponInstance manualWeapon = CurrentManualWeapon;
+        float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
+        bool preferDamageableAimPoint = ShouldPreferDamageableAimPoint(manualWeapon);
+        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, fallbackDistance, preferDamageableAimPoint, out Vector3 aim))
             return aim.normalized;
 
         if (Camera.main != null)
             return Camera.main.transform.forward;
 
         return PlayerTransform != null ? PlayerTransform.forward : Vector3.forward;
+    }
+
+    private static bool ShouldPreferDamageableAimPoint(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null)
+            return false;
+
+        return weapon.Data.WeaponType == WeaponType.AutomaticCannon
+            || weapon.Data.WeaponType == WeaponType.RocketLauncher;
     }
 
     private void EnsureHeatManager()

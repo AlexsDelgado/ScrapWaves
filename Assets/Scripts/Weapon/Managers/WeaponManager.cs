@@ -281,7 +281,8 @@ public class WeaponManager : MonoBehaviour
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
         WeaponInstance manualWeapon = GetCurrentManualWeapon();
         float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
-        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, fallbackDistance, out Vector3 aimDirection))
+        bool preferDamageableAimPoint = ShouldPreferDamageableAimPoint(manualWeapon);
+        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, fallbackDistance, preferDamageableAimPoint, out Vector3 aimDirection))
             return aimDirection.normalized;
 
         Camera mainCamera = Camera.main;
@@ -289,6 +290,15 @@ public class WeaponManager : MonoBehaviour
             return mainCamera.transform.forward;
 
         return transform.forward;
+    }
+
+    private static bool ShouldPreferDamageableAimPoint(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null)
+            return false;
+
+        return weapon.Data.WeaponType == WeaponType.AutomaticCannon
+            || weapon.Data.WeaponType == WeaponType.RocketLauncher;
     }
 
 
