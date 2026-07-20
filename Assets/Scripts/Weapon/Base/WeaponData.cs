@@ -22,7 +22,11 @@ public sealed class AutomaticCannonTuning : WeaponSpecificTuning
     [Min(0f)] public float CannonAutoLineSpacing = 0.45f;
     [Min(0f)] public float CannonAutoAccuracySpreadDegrees = 6f;
     [Min(0f)] public float CannonBurstProjectileScatterDegrees = 1.5f;
+    [Min(0.001f)] public float CannonBurstShotInterval = 0.05f;
+    [Min(0.01f)] public float CannonAutoBurstsPerSecond = 5f;
     [Min(0.01f)] public float CannonManualBurstsPerSecond = 2f;
+    [Min(0.01f)] public float ContinuousFireAutoAttackSpeedMultiplier = 1.25f;
+    [Min(0.01f)] public float HeadHunterAutoAttackSpeedMultiplier = 0.2f;
 
     [Min(0.01f)] public float CannonActiveHeatBulletStepPercent = 5f;
     [Min(0.01f)] public float CannonHeatDamageThresholdStepPercent = 25f;
@@ -112,10 +116,10 @@ public sealed class MortarTuning : WeaponSpecificTuning
 
     [Min(0f)] public float MortarExplosionFalloff = 0.75f;
     [Min(0f)] public float MortarArcHeight = 7f;
-    [Min(1)] public int MortarActiveShellCount = 8;
+    [Min(1)] public int MortarActiveShellCount = 5;
     [Min(0f)] public float MortarActiveDamageScale = 1.4f;
     [Min(0f)] public float MortarHeatFireRateBonusAbove50 = 0.75f;
-    [Min(0f)] public float MortarHeatManualSpeedBonus = 0.75f;
+    [Min(0f)] public float MortarHeatManualSpeedBonus = 0.5f;
 }
 
 [Serializable]
@@ -143,6 +147,8 @@ public sealed class RotatingBladeTuning : WeaponSpecificTuning
     [Min(0.01f)] public float BladeActiveHeatStepPercent = 20f;
     [FormerlySerializedAs("BladeActiveThrustWidth"), Min(0f)] public float BladeActiveLineWidth = 0.8f;
     [FormerlySerializedAs("BladeActiveDamageScale"), Min(0f)] public float BladeActiveDamageScale = 1.5f;
+    [Min(0f)] public float AtomicDashBaseRangeMultiplier = 3f;
+    [Min(0f)] public float AtomicDashRangePerHitMultiplier = 1f;
     [Min(0.01f)] public float BladeVisualDuration = 0.16f;
 }
 

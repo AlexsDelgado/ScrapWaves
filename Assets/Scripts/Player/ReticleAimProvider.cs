@@ -31,6 +31,11 @@ public class ReticleAimProvider : MonoBehaviour
 
     public bool TryGetAimDirection(Vector3 origin, float fallbackDistance, out Vector3 direction)
     {
+        return TryGetAimDirection(origin, fallbackDistance, false, out direction);
+    }
+
+    public bool TryGetAimDirection(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, out Vector3 direction)
+    {
         direction = Vector3.zero;
 
         Camera camera = ResolveCamera();
@@ -38,7 +43,7 @@ public class ReticleAimProvider : MonoBehaviour
             return false;
 
         Ray ray = camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-        Vector3 targetPoint = GetTargetPoint(ray, origin, fallbackDistance);
+        Vector3 targetPoint = GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint);
         direction = targetPoint - origin;
         return direction.sqrMagnitude > 0.0001f;
     }
@@ -101,7 +106,7 @@ public class ReticleAimProvider : MonoBehaviour
         return _aimCamera;
     }
 
-    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance)
+    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint)
     {
         int hitCount = Physics.RaycastNonAlloc(ray, _hitBuffer, _maxAimDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
         float closestDistance = float.PositiveInfinity;
@@ -117,10 +122,39 @@ public class ReticleAimProvider : MonoBehaviour
                 continue;
 
             closestDistance = hit.distance;
-            closestPoint = hit.point;
+            closestPoint = preferDamageableAimPoint ? GetReticleHitTargetPoint(hit) : hit.point;
         }
 
         return closestPoint;
+    }
+
+    private static Vector3 GetReticleHitTargetPoint(RaycastHit hit)
+    {
+        Transform targetRoot = ResolveDamageableTargetRoot(hit);
+        return targetRoot != null ? EnemyRegistry.GetAimPoint(targetRoot) : hit.point;
+    }
+
+    private static Transform ResolveDamageableTargetRoot(RaycastHit hit)
+    {
+        Transform targetRoot = ResolveDamageableTargetRoot(hit.transform);
+        if (targetRoot != null)
+            return targetRoot;
+
+        Rigidbody body = hit.rigidbody;
+        return body != null ? ResolveDamageableTargetRoot(body.transform) : null;
+    }
+
+    private static Transform ResolveDamageableTargetRoot(Transform candidate)
+    {
+        if (candidate == null)
+            return null;
+
+        EnemyRegistryMember member = candidate.GetComponentInParent<EnemyRegistryMember>();
+        if (member != null)
+            return member.transform;
+
+        IDamageable damageable = candidate.GetComponentInParent<IDamageable>();
+        return damageable is Component damageableComponent ? damageableComponent.transform : null;
     }
 
     private Vector3 GetNoHitTargetPoint(Ray ray, Vector3 origin, float fallbackDistance)

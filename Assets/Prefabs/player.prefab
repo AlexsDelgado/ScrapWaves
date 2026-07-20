@@ -518,49 +518,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerXP
   _startingLevel: 1
-  _baseXpToNextLevel: 20
-  _scalingMultiplierByLevel:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 10
-      value: 1.6
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 25
-      value: 2.8
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 50
-      value: 5
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  _firstLevelXpRequirement: 10
+  _experienceCostMultiplier: 1.2
+  _levelCap: 36
   _logLevelUps: 0
   _currentLevel: 0
   _xpTowardsNext: 0
@@ -600,6 +560,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 58321283aef974443818fb14a2f06a8a, type: 2}
   - {fileID: 11400000, guid: c17a22a8a64e4804aab1c764a41cc27c, type: 2}
   - {fileID: 11400000, guid: 1b46d750f574e004286981598dfffe29, type: 2}
+  - {fileID: 11400000, guid: 355b51167eca4b35938ee2b4ae4e0202, type: 2}
+  - {fileID: 11400000, guid: 63333ff88a5642e286a3a54e74a1c002, type: 2}
 --- !u!114 &6550663601649283624
 MonoBehaviour:
   m_ObjectHideFlags: 0

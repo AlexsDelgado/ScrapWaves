@@ -11,6 +11,8 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
 
     private readonly LineRenderer[] _beams = new LineRenderer[BeamCount];
     private LineRenderer _ring;
+    private Color _coreColor = FlameCore;
+    private Color _edgeColor = FlameEdge;
     private float _visibleTimer;
     private float _visibleDuration;
 
@@ -24,6 +26,11 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
 
     public static void SpawnRing(Vector3 center, float radius, float duration)
     {
+        SpawnRing(center, radius, duration, FlameCore, FlameEdge);
+    }
+
+    public static void SpawnRing(Vector3 center, float radius, float duration, Color coreColor, Color edgeColor)
+    {
         if (radius <= 0f)
             return;
 
@@ -31,7 +38,14 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         go.transform.position = center + Vector3.up * 0.08f;
 
         FlamethrowerStreamVfx vfx = go.AddComponent<FlamethrowerStreamVfx>();
+        vfx.SetPalette(coreColor, edgeColor);
         vfx.InitializeRing(radius, duration);
+    }
+
+    public void SetPalette(Color coreColor, Color edgeColor)
+    {
+        _coreColor = coreColor;
+        _edgeColor = edgeColor;
     }
 
     // Updates the reusable cone stream for this frame or tick.
@@ -175,7 +189,7 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
             if (_beams[i] == null)
                 continue;
 
-            Color color = i == BeamCount / 2 ? FlameCore : FlameEdge;
+            Color color = i == BeamCount / 2 ? _coreColor : _edgeColor;
             color.a *= alpha;
             _beams[i].startColor = color;
             _beams[i].endColor = new Color(color.r, color.g * 0.65f, color.b * 0.45f, 0f);
@@ -191,7 +205,7 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
             return;
 
         float alpha = 1f - expansionT;
-        Color color = new(FlameEdge.r, FlameEdge.g, FlameEdge.b, alpha);
+        Color color = new(_edgeColor.r, _edgeColor.g, _edgeColor.b, alpha * _edgeColor.a);
         _ring.startColor = color;
         _ring.endColor = color;
         _ring.widthMultiplier = Mathf.Lerp(0.22f, 0.04f, expansionT);

@@ -93,11 +93,12 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        SpendAbilityAmmo(Runtime.Data.ActiveAbilityAmmoCost);
+        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
+            return;
 
         MortarTuning tuning = Runtime.Data.Mortar;
         Vector3 center = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;
-        int shellCount = GetActiveShellCount(tuning);
+        int shellCount = IsGrapeshotPath() ? GetGrapeshotRainShellCount(tuning) : GetActiveShellCount(tuning);
         float barrageRadius = tuning.MortarBarrageRadius * GetAreaSizeMultiplier();
         for (int i = 0; i < shellCount; i++)
         {
@@ -109,10 +110,11 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
                 tuning.MortarActiveDamageScale,
                 tuning.MortarActiveExplosionRadius,
                 tuning.MortarExplosionFalloff,
-                tuning.MortarActiveTravelTime + i * 0.08f,
+                GetActiveShellTravelTime(tuning, i),
                 0f,
                 false,
-                activeAbility: true);
+                activeAbility: true,
+                isAbilityDamage: true);
         }
 
         CompleteActiveAbility();
@@ -131,13 +133,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     private float GetManualFireInterval()
     {
-        float baseInterval = GetFireInterval();
-        if (Heat == null || Heat.NormalizedHeat <= 0.5f)
-            return baseInterval;
-
-        float heatOverHalf = Mathf.InverseLerp(0.5f, 1f, Heat.NormalizedHeat);
-        float speedBonus = 1f + heatOverHalf * Mathf.Max(0f, Runtime.Data.Mortar.MortarHeatManualSpeedBonus);
-        return baseInterval / Mathf.Max(0.1f, speedBonus);
+        return GetFireIntervalWithoutHeat();
     }
 
     private float GetManualTravelTime(MortarTuning tuning)
@@ -148,7 +144,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     private int GetActiveShellCount(MortarTuning tuning)
     {
-        return Mathf.Max(1, tuning.MortarActiveShellCount);
+        int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
+        return Mathf.Max(1, 5 + heatBonus);
     }
 
     private MortarUpgradePayload GetUpgradePayload(bool activeAbility)
@@ -158,14 +155,46 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         if (Runtime.SelectedPath == WeaponUpgradePath.PathA)
         {
-            int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
-            return new MortarUpgradePayload(true, activeAbility ? 10 + heatBonus : 15, 70f, 1f, 1, 0f);
+            if (activeAbility)
+                return MortarUpgradePayload.None;
+
+            return new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f);
         }
 
         if (Runtime.SelectedPath == WeaponUpgradePath.PathB)
             return new MortarUpgradePayload(false, 0, 0f, 0f, 3, 2f);
 
         return MortarUpgradePayload.None;
+    }
+
+    private bool IsGrapeshotPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
+
+    private bool IsMultiChargedPath() =>
+        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
+
+    private int GetGrapeshotRainShellCount(MortarTuning tuning)
+    {
+        const float rainDurationSeconds = 5f;
+        int heatBonusPerSecond = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
+        int projectilesPerSecond = 10 + heatBonusPerSecond;
+        return Mathf.Max(1, Mathf.RoundToInt(projectilesPerSecond * rainDurationSeconds));
+    }
+
+    private float GetActiveShellTravelTime(MortarTuning tuning, int shellIndex)
+    {
+        float baseTravelTime = Mathf.Max(0.05f, tuning.MortarActiveTravelTime);
+        if (IsMultiChargedPath())
+            return baseTravelTime;
+
+        if (IsGrapeshotPath())
+        {
+            const float rainDurationSeconds = 5f;
+            int shellCount = Mathf.Max(1, GetGrapeshotRainShellCount(tuning));
+            return baseTravelTime + Mathf.Max(0, shellIndex) * (rainDurationSeconds / shellCount);
+        }
+
+        return baseTravelTime + Mathf.Max(0, shellIndex) * 0.08f;
     }
 
     private void FireShell(
@@ -177,12 +206,15 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         float travelTime,
         float arcHeight,
         bool eliteOrBoss,
-        bool activeAbility = false)
+        bool activeAbility = false,
+        bool isAbilityDamage = false)
     {
         MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
-        int damage = Mathf.RoundToInt(WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit()) * Mathf.Max(0f, damageScale));
-        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, damageScale);
+        MortarUpgradePayload payload = GetUpgradePayload(activeAbility);
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        int damage = damageContext.EstimateDamage(eliteOrBoss);
+        float knockback = damageContext.CalculateKnockback(damage);
         MortarShellImpact.Launch(
             launchPosition,
             impactPosition,
@@ -194,7 +226,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             knockback,
             tuning.MortarShellCollisionRadius * area,
             Owner,
-            GetUpgradePayload(activeAbility));
+            payload,
+            IsGrapeshotPath(),
+            damageContext);
     }
 
     private static Vector3 RandomPlanarOffset(float radius)

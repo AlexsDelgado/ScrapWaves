@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class RotatingBladeVfx : MonoBehaviour
@@ -11,17 +12,23 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     private static readonly Color ThrustColor = new(0.25f, 0.95f, 1f, 0.85f);
     private static Material s_lineMaterial;
 
+    private readonly List<LineRenderer> _bladeLines = new();
+    private readonly List<LineRenderer> _slashLines = new();
+    private readonly List<float> _slashTimers = new();
+    private readonly List<float> _slashDurations = new();
+    private readonly List<Color> _slashColors = new();
     private LineRenderer _orbitLine;
-    private LineRenderer _bladeLine;
-    private LineRenderer _slashLine;
     private LineRenderer _thrustLine;
 
     private float _orbitTimer;
     private float _orbitDuration;
-    private float _slashTimer;
-    private float _slashDuration;
     private float _thrustTimer;
     private float _thrustDuration;
+    private int _lastOrbitFrame = -1;
+    private int _visibleBladeLineCount;
+    private Color _orbitColor = OrbitColor;
+    private Color _bladeColor = BladeColor;
+    private Color _thrustColor = ThrustColor;
 
     public static RotatingBladeVfx Create()
     {
@@ -34,7 +41,13 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     // Shows the actual automatic contact point plus a subtle orbit guide.
     public void ShowOrbit(Vector3 ownerOrigin, Vector3 bladeCenter, float hitRadius, float duration)
     {
+        ShowOrbit(ownerOrigin, bladeCenter, hitRadius, duration, BladeColor);
+    }
+
+    public void ShowOrbit(Vector3 ownerOrigin, Vector3 bladeCenter, float hitRadius, float duration, Color bladeColor)
+    {
         Initialize();
+        BeginOrbitFrame();
 
         ownerOrigin += Vector3.up * 0.14f;
         bladeCenter.y = ownerOrigin.y;
@@ -43,6 +56,8 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             return;
 
         _orbitTimer = _orbitDuration = Mathf.Max(0.01f, duration);
+        _orbitColor = WithAlpha(bladeColor, OrbitColor.a);
+        _bladeColor = WithAlpha(bladeColor, BladeColor.a);
         _orbitLine.enabled = true;
         _orbitLine.loop = true;
         _orbitLine.positionCount = OrbitSegmentCount;
@@ -60,21 +75,27 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         if (radial.sqrMagnitude <= 0.0001f)
             radial = Vector3.forward;
 
-        Vector3 tangent = Vector3.Cross(Vector3.up, radial).normalized;
+        Vector3 radialDirection = radial.normalized;
         float halfLength = Mathf.Max(0.2f, hitRadius);
-        _bladeLine.enabled = true;
-        _bladeLine.loop = false;
-        _bladeLine.positionCount = 2;
-        _bladeLine.widthMultiplier = Mathf.Clamp(hitRadius * 0.22f, 0.05f, 0.22f);
-        _bladeLine.SetPosition(0, bladeCenter - tangent * halfLength);
-        _bladeLine.SetPosition(1, bladeCenter + tangent * halfLength);
+        LineRenderer bladeLine = GetNextBladeLine();
+        bladeLine.enabled = true;
+        bladeLine.loop = false;
+        bladeLine.positionCount = 2;
+        bladeLine.widthMultiplier = Mathf.Clamp(hitRadius * 0.22f, 0.05f, 0.55f);
+        bladeLine.SetPosition(0, bladeCenter - radialDirection * halfLength);
+        bladeLine.SetPosition(1, bladeCenter + radialDirection * halfLength);
 
-        SetLineColor(_orbitLine, OrbitColor, 1f);
-        SetLineColor(_bladeLine, BladeColor, 1f);
+        SetLineColor(_orbitLine, _orbitColor, 1f);
+        SetLineColor(bladeLine, _bladeColor, 1f);
     }
 
     // Draws the manual slash as an arc matching the damage cone.
     public void ShowSlash(Vector3 origin, Vector3 direction, float range, float coneAngle, float duration)
+    {
+        ShowSlash(origin, direction, range, coneAngle, duration, SlashColor);
+    }
+
+    public void ShowSlash(Vector3 origin, Vector3 direction, float range, float coneAngle, float duration, Color color)
     {
         Initialize();
 
@@ -83,11 +104,15 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             return;
 
         origin += Vector3.up * 0.18f;
-        _slashTimer = _slashDuration = Mathf.Max(0.01f, duration);
-        _slashLine.enabled = true;
-        _slashLine.loop = false;
-        _slashLine.positionCount = SlashSegmentCount + 1;
-        _slashLine.widthMultiplier = 0.16f;
+        LineRenderer slashLine = GetNextSlashLine(out int index);
+        float safeDuration = Mathf.Max(0.01f, duration);
+        _slashTimers[index] = safeDuration;
+        _slashDurations[index] = safeDuration;
+        _slashColors[index] = color;
+        slashLine.enabled = true;
+        slashLine.loop = false;
+        slashLine.positionCount = SlashSegmentCount + 1;
+        slashLine.widthMultiplier = 0.16f;
 
         float halfAngle = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
         for (int i = 0; i <= SlashSegmentCount; i++)
@@ -95,14 +120,19 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             float t = i / (float)SlashSegmentCount;
             float yaw = Mathf.Lerp(-halfAngle, halfAngle, t);
             Vector3 pointDirection = Quaternion.AngleAxis(yaw, Vector3.up) * direction;
-            _slashLine.SetPosition(i, origin + pointDirection * range);
+            slashLine.SetPosition(i, origin + pointDirection * range);
         }
 
-        SetLineColor(_slashLine, SlashColor, 1f);
+        SetLineColor(slashLine, color, 1f);
     }
 
     // Draws the active attack as a thick line so the gameplay hit width is readable.
     public void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration)
+    {
+        ShowThrust(origin, direction, range, lineWidth, duration, ThrustColor);
+    }
+
+    public void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color)
     {
         Initialize();
 
@@ -112,6 +142,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
 
         origin += Vector3.up * 0.2f;
         _thrustTimer = _thrustDuration = Mathf.Max(0.01f, duration);
+        _thrustColor = color;
         _thrustLine.enabled = true;
         _thrustLine.loop = false;
         _thrustLine.positionCount = 2;
@@ -119,7 +150,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         _thrustLine.SetPosition(0, origin);
         _thrustLine.SetPosition(1, origin + direction * range);
 
-        SetLineColor(_thrustLine, ThrustColor, 1f);
+        SetLineColor(_thrustLine, _thrustColor, 1f);
     }
 
     private void Initialize()
@@ -128,9 +159,46 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             return;
 
         _orbitLine = CreateLine("Blade Orbit", 0.035f);
-        _bladeLine = CreateLine("Blade Contact", 0.12f);
-        _slashLine = CreateLine("Blade Slash", 0.16f);
         _thrustLine = CreateLine("Blade Thrust", 0.6f);
+    }
+
+    private void BeginOrbitFrame()
+    {
+        int frame = Time.frameCount;
+        if (_lastOrbitFrame == frame)
+            return;
+
+        _lastOrbitFrame = frame;
+        _visibleBladeLineCount = 0;
+        SetBladeLinesEnabled(false);
+    }
+
+    private LineRenderer GetNextBladeLine()
+    {
+        if (_visibleBladeLineCount >= _bladeLines.Count)
+            _bladeLines.Add(CreateLine($"Blade Contact {_bladeLines.Count + 1}", 0.12f));
+
+        return _bladeLines[_visibleBladeLineCount++];
+    }
+
+    private LineRenderer GetNextSlashLine(out int index)
+    {
+        for (int i = 0; i < _slashLines.Count; i++)
+        {
+            if (!_slashLines[i].enabled)
+            {
+                index = i;
+                return _slashLines[i];
+            }
+        }
+
+        LineRenderer line = CreateLine($"Blade Slash {_slashLines.Count + 1}", 0.16f);
+        _slashLines.Add(line);
+        _slashTimers.Add(0f);
+        _slashDurations.Add(0f);
+        _slashColors.Add(SlashColor);
+        index = _slashLines.Count - 1;
+        return line;
     }
 
     private LineRenderer CreateLine(string childName, float width)
@@ -154,8 +222,8 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     private void Update()
     {
         TickOrbit(Time.deltaTime);
-        TickOneShot(_slashLine, SlashColor, ref _slashTimer, _slashDuration, Time.deltaTime);
-        TickOneShot(_thrustLine, ThrustColor, ref _thrustTimer, _thrustDuration, Time.deltaTime);
+        TickOneShot(_thrustLine, _thrustColor, ref _thrustTimer, _thrustDuration, Time.deltaTime);
+        TickSlashLines(Time.deltaTime);
     }
 
     private void TickOrbit(float deltaTime)
@@ -163,14 +231,14 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         if (_orbitTimer <= 0f)
         {
             SetEnabled(_orbitLine, false);
-            SetEnabled(_bladeLine, false);
+            SetBladeLinesEnabled(false);
             return;
         }
 
         _orbitTimer -= deltaTime;
         float alpha = Mathf.Clamp01(_orbitTimer / Mathf.Max(0.01f, _orbitDuration));
-        SetLineColor(_orbitLine, OrbitColor, alpha);
-        SetLineColor(_bladeLine, BladeColor, alpha);
+        SetLineColor(_orbitLine, _orbitColor, alpha);
+        SetBladeLineColors(alpha);
     }
 
     private void TickOneShot(LineRenderer line, Color color, ref float timer, float duration, float deltaTime)
@@ -192,6 +260,38 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             line.enabled = enabled;
     }
 
+    private void SetBladeLinesEnabled(bool enabled)
+    {
+        for (int i = 0; i < _bladeLines.Count; i++)
+            SetEnabled(_bladeLines[i], enabled);
+    }
+
+    private void SetBladeLineColors(float alphaMultiplier)
+    {
+        for (int i = 0; i < _bladeLines.Count; i++)
+            SetLineColor(_bladeLines[i], _bladeColor, alphaMultiplier);
+    }
+
+    private void TickSlashLines(float deltaTime)
+    {
+        for (int i = 0; i < _slashLines.Count; i++)
+        {
+            LineRenderer line = _slashLines[i];
+            if (!line.enabled)
+                continue;
+
+            _slashTimers[i] -= deltaTime;
+            if (_slashTimers[i] <= 0f)
+            {
+                SetEnabled(line, false);
+                continue;
+            }
+
+            float alpha = Mathf.Clamp01(_slashTimers[i] / Mathf.Max(0.01f, _slashDurations[i]));
+            SetLineColor(line, _slashColors[i], alpha);
+        }
+    }
+
     private static void SetLineColor(LineRenderer line, Color color, float alphaMultiplier)
     {
         if (line == null)
@@ -207,6 +307,12 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     {
         direction.y = 0f;
         return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.zero;
+    }
+
+    private static Color WithAlpha(Color color, float alpha)
+    {
+        color.a = alpha;
+        return color;
     }
 
     private static Material GetLineMaterial()

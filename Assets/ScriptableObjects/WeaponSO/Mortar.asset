@@ -17,13 +17,13 @@ MonoBehaviour:
   WeaponType: 3
   AutoTargetingMode: 1
   ManualMode: 0
-  BaseDamage: 18
+  BaseDamage: 100
   BaseAttackRate: 0.75
   BaseRange: 22
-  BaseKnockback: 4
-  BaseManualAmmo: 36
-  ActiveAbilityAmmoCost: 12
-  SkillCooldown: 1
+  BaseKnockback: 1
+  BaseManualAmmo: 15
+  ActiveAbilityAmmoCost: 5
+  SkillCooldown: 10
   Icon: {fileID: 0}
   _specificTuning:
     rid: 6797599696172314625
@@ -33,53 +33,73 @@ MonoBehaviour:
     AttackRateMultiplier: 1
     ManualAmmoMultiplier: 1
   - Level: 2
-    DamageMultiplier: 1
+    DamageMultiplier: 1.25
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.0666667
   - Level: 3
-    DamageMultiplier: 1
+    DamageMultiplier: 1.5
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.1333333
   - Level: 4
-    DamageMultiplier: 1
+    DamageMultiplier: 1.75
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.2
   - Level: 5
-    DamageMultiplier: 1
+    DamageMultiplier: 2
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 6
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 7
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 8
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 9
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 10
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  BalanceStats: []
-  UpgradeSpecificStats: []
+    ManualAmmoMultiplier: 1.3333334
   PathA:
-    PathName: 
+    PathName: Grapeshot
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 1
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.4
+    - Level: 7
+      DamageMultiplier: 1.125
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.4666667
+    - Level: 8
+      DamageMultiplier: 1.25
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.5333333
+    - Level: 9
+      DamageMultiplier: 1.375
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.6
+    - Level: 10
+      DamageMultiplier: 2
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
   PathB:
-    PathName: 
+    PathName: Multi-Charged Shells
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 2.25
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.4
+    - Level: 7
+      DamageMultiplier: 2.5
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.4666667
+    - Level: 8
+      DamageMultiplier: 2.75
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.5333333
+    - Level: 9
+      DamageMultiplier: 3
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 1.6
+    - Level: 10
+      DamageMultiplier: 4
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
   references:
     version: 2
     RefIds:
@@ -99,7 +119,7 @@ MonoBehaviour:
         MortarActiveDropHeight: 14
         MortarExplosionFalloff: 0.75
         MortarArcHeight: 7
-        MortarActiveShellCount: 8
+        MortarActiveShellCount: 5
         MortarActiveDamageScale: 1.4
         MortarHeatFireRateBonusAbove50: 0.75
-        MortarHeatManualSpeedBonus: 0.75
+        MortarHeatManualSpeedBonus: 0.5

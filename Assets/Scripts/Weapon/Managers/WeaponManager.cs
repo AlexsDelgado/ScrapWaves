@@ -18,8 +18,6 @@ public class WeaponManager : MonoBehaviour
 
     [SerializeField] private float _manualCycleCooldown = 1.25f;
     [SerializeField] private float _singleWeaponCycleCooldown = 2.5f;
-    [SerializeField, Tooltip("When RunStartWeaponChoice is present, starter weapons are not auto-equipped.")]
-    private bool _deferInitialWeaponChoice;
 
     private readonly List<IWeaponBehaviour> _equipped = new();
     private int _currentManualIndex;
@@ -40,17 +38,7 @@ public class WeaponManager : MonoBehaviour
 
         _heat = HeatManager.GetInstance();
         _targeting = new ConfiguredEnemyTargeting();
-        if (_deferInitialWeaponChoice || GetComponent<RunStartWeaponChoice>() != null)
-            return;
         AddStartingWeapons();
-    }
-
-    public void ClearEquippedWeapons()
-    {
-        CancelHeldAbilities();
-        _equipped.Clear();
-        _currentManualIndex = 0;
-        _manualCooldownTimer = 0f;
     }
 
     // Updates automatic fire, manual input, and cycle cooldown.
@@ -200,7 +188,7 @@ public class WeaponManager : MonoBehaviour
         if (weapon?.Data == null)
             return 1f;
 
-        float duration = Mathf.Max(0.01f, weapon.Data.SkillCooldown);
+        float duration = Mathf.Max(0.01f, WeaponMath.GetAbilityCooldownDuration(weapon, _stats));
         if (weapon.AbilityCooldownTimer <= 0f)
             return 1f;
 
@@ -212,7 +200,10 @@ public class WeaponManager : MonoBehaviour
         WeaponInstance weapon = GetCurrentManualWeapon();
         if (weapon?.Data == null || weapon.State != WeaponState.Manual)
             return false;
-        return weapon.AbilityCooldownTimer <= 0f;
+        if (weapon.AbilityCooldownTimer > 0f)
+            return false;
+        float ammoCost = WeaponMath.GetActiveAbilityAmmoCost(weapon);
+        return ammoCost <= 0f || weapon.CurrentAmmo > 0f;
     }
 
     private static void TickAbilityCooldown(WeaponInstance weapon, float deltaTime)
@@ -233,15 +224,7 @@ public class WeaponManager : MonoBehaviour
     private IWeaponBehaviour CreateBehaviour(WeaponData data)
     {
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
-        return data.WeaponType switch
-        {
-            WeaponType.AutomaticCannon => new AutomaticCannonWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.Flamethrower => new FlamethrowerWeapon(_targeting, _projectilePool, spawn, _movement),
-            WeaponType.RocketLauncher => new RocketLauncherWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.Mortar => new MortarWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.RotatingBlade => new RotatingBladeWeapon(_targeting, _projectilePool, spawn),
-            _ => new BasicProjectileWeapon(_targeting, _projectilePool, spawn)
-        };
+        return WeaponBehaviourFactory.Create(data, _targeting, _projectilePool, spawn, _movement);
     }
 
     // Ticks automatic mode for every non-manual equipped weapon.
@@ -249,10 +232,9 @@ public class WeaponManager : MonoBehaviour
     {
         for (int i = 0; i < _equipped.Count; i++)
         {
-            if (i == _currentManualIndex)
+            if (_equipped[i].Runtime == null || _equipped[i].Runtime.State != WeaponState.Automatic)
                 continue;
 
-            // Off-hand weapons receive reticle aim even if their automatic behavior chooses a target.
             _equipped[i].TickAutomatic(deltaTime, aimDirection);
         }
     }
@@ -283,20 +265,14 @@ public class WeaponManager : MonoBehaviour
             if (abilityHeld && holdAbility.IsActiveAbilityCharging)
                 holdAbility.TickActiveAbility(deltaTime, aimDirection);
             if (abilityReleased && holdAbility.IsActiveAbilityCharging)
-            {
                 holdAbility.ReleaseActiveAbility(aimDirection);
-                if (manual.Runtime.CurrentAmmo <= 0f)
-                    EndManualMode();
-            }
         }
         else if (abilityPressed && CanUseAbility())
         {
             manual.UseActiveAbility(aimDirection);
-            if (manual.Runtime.CurrentAmmo <= 0f)
-                EndManualMode();
         }
 
-        if (manual.Runtime.State == WeaponState.Manual && manual.Runtime.CurrentAmmo <= 0f && !abilityPressed)
+        if (manual.Runtime.State == WeaponState.Manual && manual.Runtime.CurrentAmmo <= 0f)
             EndManualMode();
     }
 
@@ -305,7 +281,8 @@ public class WeaponManager : MonoBehaviour
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
         WeaponInstance manualWeapon = GetCurrentManualWeapon();
         float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
-        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, fallbackDistance, out Vector3 aimDirection))
+        bool preferDamageableAimPoint = ShouldPreferDamageableAimPoint(manualWeapon);
+        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, fallbackDistance, preferDamageableAimPoint, out Vector3 aimDirection))
             return aimDirection.normalized;
 
         Camera mainCamera = Camera.main;
@@ -313,6 +290,15 @@ public class WeaponManager : MonoBehaviour
             return mainCamera.transform.forward;
 
         return transform.forward;
+    }
+
+    private static bool ShouldPreferDamageableAimPoint(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null)
+            return false;
+
+        return weapon.Data.WeaponType == WeaponType.AutomaticCannon
+            || weapon.Data.WeaponType == WeaponType.RocketLauncher;
     }
 
 
@@ -385,24 +371,33 @@ public class WeaponManager : MonoBehaviour
 
         CancelHeldAbilities();
         _currentManualIndex = Mathf.Clamp(index, 0, _equipped.Count - 1);
+        _manualCooldownTimer = 0f;
+
+        for (int i = 0; i < _equipped.Count; i++)
+        {
+            WeaponInstance equippedRuntime = _equipped[i].Runtime;
+            if (equippedRuntime != null)
+                equippedRuntime.State = i == _currentManualIndex ? WeaponState.Manual : WeaponState.Automatic;
+        }
+
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
-        runtime.State = WeaponState.Manual;
-        runtime.CurrentAmmo = WeaponMath.GetMaxManualAmmo(runtime, _stats);
+        if (runtime != null)
+            runtime.CurrentAmmo = WeaponMath.GetMaxManualAmmo(runtime, _stats);
     }
 
-    // Returns current manual weapon to automatic and starts cooldown.
+    // Returns current manual weapon to automatic and immediately selects the next slot.
     private void EndManualMode()
     {
         if (_equipped.Count == 0)
             return;
 
-        CancelHeldAbilities();
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
-        if (runtime.State != WeaponState.Manual)
+        if (runtime == null || runtime.State != WeaponState.Manual)
             return;
 
         runtime.State = WeaponState.Automatic;
-        _manualCooldownTimer = _equipped.Count == 1 ? _singleWeaponCycleCooldown : _manualCycleCooldown;
+        int next = (_currentManualIndex + 1) % _equipped.Count;
+        StartManualMode(next);
     }
 
     private void CancelHeldAbilities()

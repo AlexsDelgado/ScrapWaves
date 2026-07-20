@@ -13,6 +13,7 @@
 - [ ] Clear the Unity Console.
 - [ ] Enter Play Mode.
 - [ ] Confirm the sandbox debug UI is visible.
+- [ ] Select Path A or Path B and confirm the level auto-promotes to 6 with a `PATH A` or `PATH B` ring around the player.
 - [ ] Confirm damage/status/kill metrics update when a dummy is hit.
 - [ ] Confirm no Console errors appear during scene startup.
 - [ ] Optional automated safety net before manual QA:
@@ -66,6 +67,27 @@ For every row above, also check:
 - [ ] Heat changes the expected values without breaking firing.
 - [ ] Dummies can still respawn/reset after testing.
 - [ ] Weapon can be switched away from and back to without stale VFX or targeting markers.
+
+---
+
+## Showcase VFX Expectations
+
+When a row uses Level 6+ PathA or PathB, verify the path is also visually readable:
+
+| Done | Weapon Path | Expected visual marker |
+| --- | --- | --- |
+| [ ] | Automatic Cannon PathA Continuous Fire | Warm orange tracer beam during sustained bursts. |
+| [ ] | Automatic Cannon PathB Head Hunter | Cyan target pulse on selected targets; active fires cyan `WEAK` beam and hit pulses. |
+| [ ] | Rocket Launcher PathA Kinetic Explosion | Orange `KINETIC` shock ring and `VULN` pulses on caught targets. |
+| [ ] | Rocket Launcher PathB Fragmentation Cap | Cyan `FRAG` cone rays after explosion. |
+| [ ] | Flamethrower PathA Jellified Fuel | Orange `FUEL` target/puddle rings and smaller tick pulses. |
+| [ ] | Flamethrower PathB Liquid Nitrogen | Icy `SLOW` target pulses; active shows `FREEZE` pulses. |
+| [ ] | Mortar PathA Grapeshot | Gold `SHOT` shard beam plus small secondary hit rings. |
+| [ ] | Mortar PathB Repeat Explosions | Purple `BOOM` blast rings and delayed `REPEAT` warning ring. |
+| [ ] | Rotating Blade PathA Multi-Blade | Green-gold `MULTI` orbit/slash/thrust overlays. |
+| [ ] | Rotating Blade PathB Atomic Sharpness | Cyan-white `ATOM` orbit/slash/thrust overlays. |
+
+Also check that these VFX are short-lived, do not block the play view, and do not keep accumulating after switching weapons, resetting dummies, or leaving Play Mode.
 
 ---
 

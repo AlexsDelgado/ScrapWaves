@@ -183,6 +183,60 @@ public class ProjectilePool : MonoBehaviour
         return true;
     }
 
+    public bool TrySpawnProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float knockback, WeaponDamageContext damageContext)
+    {
+        GameObject go = TryGet();
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
+        projectile.ConfigureWeaponDamage(damageContext);
+        projectile.Launch(fireDirection);
+        return true;
+    }
+
+    public bool TrySpawnVisualProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, float speedMultiplier)
+    {
+        return TrySpawnVisualProjectile(position, rotation, fireDirection, speedMultiplier, out _);
+    }
+
+    public bool TrySpawnVisualProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, float speedMultiplier, out Projectile spawnedProjectile)
+    {
+        return TrySpawnVisualProjectile(position, rotation, fireDirection, speedMultiplier, false, out spawnedProjectile);
+    }
+
+    public bool TrySpawnVisualProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, float speedMultiplier, bool ignoreCollisions, out Projectile spawnedProjectile)
+    {
+        GameObject go = TryGet();
+        spawnedProjectile = null;
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigureVisualOnly(_projectileLifetime, ignoreCollisions);
+        projectile.Launch(fireDirection);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        spawnedProjectile = projectile;
+        return true;
+    }
+
     // Spawns projectile configured with explosion radius and damage falloff.
     public bool TrySpawnExplosiveProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float explosionRadius, float falloff)
     {
@@ -216,6 +270,41 @@ public class ProjectilePool : MonoBehaviour
         }
 
         projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
+        projectile.Launch(fireDirection);
+        projectile.ConfigureExplosion(explosionRadius, falloff);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
+        return true;
+    }
+
+    public bool TrySpawnExplosiveProjectile(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel,
+        WeaponDamageContext damageContext)
+    {
+        GameObject go = TryGet();
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
+        projectile.ConfigureWeaponDamage(damageContext);
         projectile.Launch(fireDirection);
         projectile.ConfigureExplosion(explosionRadius, falloff);
         projectile.ConfigureSpeedMultiplier(speedMultiplier);
@@ -260,6 +349,117 @@ public class ProjectilePool : MonoBehaviour
         projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
         projectile.ConfigureDamageAmplifierOnExplosion(amplifierMultiplier, amplifierDuration);
         projectile.ConfigureFragmentCone(fragmentConeAngle, fragmentConeRange, fragmentDamageScale);
+        return true;
+    }
+
+    public bool TrySpawnExplosiveProjectileWithAmplifier(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel,
+        float amplifierMultiplier,
+        float amplifierDuration,
+        float fragmentConeAngle,
+        float fragmentConeRange,
+        float fragmentDamageScale,
+        WeaponDamageContext damageContext)
+    {
+        GameObject go = TryGet();
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
+        projectile.ConfigureWeaponDamage(damageContext);
+        projectile.Launch(fireDirection);
+        projectile.ConfigureExplosion(explosionRadius, falloff);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
+        projectile.ConfigureDamageAmplifierOnExplosion(amplifierMultiplier, amplifierDuration);
+        projectile.ConfigureFragmentCone(fragmentConeAngle, fragmentConeRange, fragmentDamageScale);
+        return true;
+    }
+
+    public bool TrySpawnExplosiveProjectileWithAmplifierAndCluster(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel,
+        float amplifierMultiplier,
+        float amplifierDuration,
+        float fragmentConeAngle,
+        float fragmentConeRange,
+        float fragmentDamageScale,
+        int clusterProjectileCount,
+        int clusterDamage,
+        float clusterExplosionRadius,
+        float clusterFalloff,
+        float clusterKnockback,
+        float clusterSpeedMultiplier,
+        float clusterTravelDistance,
+        float clusterFragmentConeAngle,
+        float clusterFragmentConeRange,
+        float clusterFragmentDamageScale,
+        float visualScaleMultiplier = 1f,
+        WeaponDamageContext damageContext = default,
+        WeaponDamageContext clusterDamageContext = default)
+    {
+        GameObject go = TryGet();
+        if (go == null)
+            return false;
+
+        go.transform.SetPositionAndRotation(position, rotation);
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            Release(go);
+            return false;
+        }
+
+        projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
+        if (damageContext.IsValid)
+            projectile.ConfigureWeaponDamage(damageContext);
+        projectile.Launch(fireDirection);
+        projectile.ConfigureVisualScale(visualScaleMultiplier);
+        projectile.ConfigureExplosion(explosionRadius, falloff);
+        projectile.ConfigureSpeedMultiplier(speedMultiplier);
+        projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
+        projectile.ConfigureDamageAmplifierOnExplosion(amplifierMultiplier, amplifierDuration);
+        projectile.ConfigureFragmentCone(fragmentConeAngle, fragmentConeRange, fragmentDamageScale);
+        projectile.ConfigureExplosionCluster(
+            this,
+            clusterProjectileCount,
+            clusterDamage,
+            clusterExplosionRadius,
+            clusterFalloff,
+            clusterKnockback,
+            clusterSpeedMultiplier,
+            clusterTravelDistance,
+            clusterFragmentConeAngle,
+            clusterFragmentConeRange,
+            clusterFragmentDamageScale,
+            clusterDamageContext);
         return true;
     }
 

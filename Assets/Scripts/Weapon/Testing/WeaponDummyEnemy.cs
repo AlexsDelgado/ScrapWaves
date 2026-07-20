@@ -291,7 +291,7 @@ public sealed class WeaponDummyEnemy : MonoBehaviour, IDamageable, IWeaponEnemyM
 
     private float GetStatusSpeedMultiplier()
     {
-        float multiplier = 1f;
+        float multiplier = WeaponMovementSlowStatus.GetSpeedMultiplier(transform);
         for (int i = 0; i < _statuses.Count; i++)
         {
             if (_statuses[i].Name == "Freeze")

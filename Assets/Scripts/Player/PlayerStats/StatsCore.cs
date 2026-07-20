@@ -8,7 +8,9 @@ public enum StatType
     DamageMultiplier, DamageFlat, EliteDamageMultiplier, AttackSpeedMultiplier, ProjectileAreaSize, CriticalChance, CriticalDamage, Knockback, AmmoMultiplier,
     MaxHealth, HealthRegeneration, Lifesteal, DamageResistance,
     PickupRange, ExtraEliteChance, Scavenging, DoubleDrop,
-    BaseFireInterval
+    BaseFireInterval,
+    AbilityDamageMultiplier,
+    AbilityCooldownReduction
 }
 
 public enum StatCategory { Mobility, Offensive, Defensive, Miscellaneous }

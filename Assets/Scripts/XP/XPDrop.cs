@@ -47,8 +47,9 @@ public class XPDrop : MonoBehaviour
 
         Vector3 target = pickup.PickupPoint;
         float dist = Vector3.Distance(transform.position, target);
+        float pickupRadius = Mathf.Max(_pickupRadius, pickup.PickupRadius);
 
-        if (dist <= _pickupRadius)
+        if (dist <= pickupRadius)
         {
             pickup.GrantExperience(_experience);
             if (_member != null)
@@ -58,10 +59,11 @@ public class XPDrop : MonoBehaviour
             return;
         }
 
-        if (_magnetRadius <= 0f || _magnetSpeed <= 0f)
+        float magnetRadius = Mathf.Max(_magnetRadius, pickupRadius);
+        if (magnetRadius <= 0f || _magnetSpeed <= 0f)
             return;
 
-        if (dist <= _magnetRadius && dist > _pickupRadius)
+        if (dist <= magnetRadius && dist > pickupRadius)
             transform.position = Vector3.MoveTowards(transform.position, target, _magnetSpeed * Time.deltaTime);
     }
 }

@@ -17,13 +17,13 @@ MonoBehaviour:
   WeaponType: 1
   AutoTargetingMode: 2
   ManualMode: 2
-  BaseDamage: 5
+  BaseDamage: 25
   BaseAttackRate: 1
   BaseRange: 7
-  BaseKnockback: 1
+  BaseKnockback: 0
   BaseManualAmmo: 100
   ActiveAbilityAmmoCost: 40
-  SkillCooldown: 1
+  SkillCooldown: 14
   Icon: {fileID: 21300000, guid: cc55a73026b8b0d438a301b935639fcd, type: 3}
   _specificTuning:
     rid: 6175396285239142401
@@ -33,53 +33,73 @@ MonoBehaviour:
     AttackRateMultiplier: 1
     ManualAmmoMultiplier: 1
   - Level: 2
-    DamageMultiplier: 1
+    DamageMultiplier: 1.4
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.2
   - Level: 3
-    DamageMultiplier: 1
+    DamageMultiplier: 1.8
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.4
   - Level: 4
-    DamageMultiplier: 1
+    DamageMultiplier: 2.2
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.6
   - Level: 5
-    DamageMultiplier: 1
+    DamageMultiplier: 2.6
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 6
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 7
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 8
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 9
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 10
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  BalanceStats: []
-  UpgradeSpecificStats: []
+    ManualAmmoMultiplier: 1.8
   PathA:
-    PathName: 
+    PathName: Jellified Fuel
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 3
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
+    - Level: 7
+      DamageMultiplier: 3.4
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.2
+    - Level: 8
+      DamageMultiplier: 3.8
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.4
+    - Level: 9
+      DamageMultiplier: 4.2
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.6
+    - Level: 10
+      DamageMultiplier: 6
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 3
   PathB:
-    PathName: 
+    PathName: Liquid Nitrogen
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 3.2
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
+    - Level: 7
+      DamageMultiplier: 3.8
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.2
+    - Level: 8
+      DamageMultiplier: 4.4
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.4
+    - Level: 9
+      DamageMultiplier: 5
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.6
+    - Level: 10
+      DamageMultiplier: 8
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 3
   references:
     version: 2
     RefIds:

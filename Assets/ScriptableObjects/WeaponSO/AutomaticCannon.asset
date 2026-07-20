@@ -17,13 +17,13 @@ MonoBehaviour:
   WeaponType: 0
   AutoTargetingMode: 0
   ManualMode: 0
-  BaseDamage: 10
+  BaseDamage: 20
   BaseAttackRate: 5
   BaseRange: 12
-  BaseKnockback: 1
+  BaseKnockback: 0.2
   BaseManualAmmo: 200
   ActiveAbilityAmmoCost: 20
-  SkillCooldown: 1
+  SkillCooldown: 6
   Icon: {fileID: 21300000, guid: 45cfa6548cb4a0f47808fc5553f8bbfc, type: 3}
   _specificTuning:
     rid: 5516199871946686465
@@ -33,53 +33,73 @@ MonoBehaviour:
     AttackRateMultiplier: 1
     ManualAmmoMultiplier: 1
   - Level: 2
-    DamageMultiplier: 1
+    DamageMultiplier: 1.25
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.1
   - Level: 3
-    DamageMultiplier: 1
+    DamageMultiplier: 1.5
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.2
   - Level: 4
-    DamageMultiplier: 1
+    DamageMultiplier: 1.75
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
+    ManualAmmoMultiplier: 1.3
   - Level: 5
-    DamageMultiplier: 1
+    DamageMultiplier: 2
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 6
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 7
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 8
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 9
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  - Level: 10
-    DamageMultiplier: 1
-    AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1
-  BalanceStats: []
-  UpgradeSpecificStats: []
+    ManualAmmoMultiplier: 1.4
   PathA:
-    PathName: 
+    PathName: Continuous Fire
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 2.25
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2
+    - Level: 7
+      DamageMultiplier: 2.75
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.2
+    - Level: 8
+      DamageMultiplier: 3
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.4
+    - Level: 9
+      DamageMultiplier: 3.5
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 2.6
+    - Level: 10
+      DamageMultiplier: 5
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 3
   PathB:
-    PathName: 
+    PathName: Head Hunter
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData:
+    - Level: 6
+      DamageMultiplier: 15
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 0.2
+    - Level: 7
+      DamageMultiplier: 17
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 0.225
+    - Level: 8
+      DamageMultiplier: 19
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 0.25
+    - Level: 9
+      DamageMultiplier: 21
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 0.275
+    - Level: 10
+      DamageMultiplier: 30
+      AttackRateMultiplier: 1
+      ManualAmmoMultiplier: 0.4
   references:
     version: 2
     RefIds:
@@ -90,11 +110,15 @@ MonoBehaviour:
         CannonManualBurstCount: 5
         CannonActiveBaseBulletCount: 20
         CannonAbilityScatterRadius: 11
-        CannonManualLineSpacing: 6
-        CannonAutoLineSpacing: 6
+        CannonManualLineSpacing: 1
+        CannonAutoLineSpacing: 2
         CannonAutoAccuracySpreadDegrees: 25
         CannonBurstProjectileScatterDegrees: 1.5
-        CannonManualBurstsPerSecond: 2
+        CannonBurstShotInterval: 0.05
+        CannonAutoBurstsPerSecond: 5
+        CannonManualBurstsPerSecond: 3
+        ContinuousFireAutoAttackSpeedMultiplier: 1.25
+        HeadHunterAutoAttackSpeedMultiplier: 0.2
         CannonActiveHeatBulletStepPercent: 5
         CannonHeatDamageThresholdStepPercent: 25
         CannonHeatDamageThresholdCount: 3

@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 [DefaultExecutionOrder(-31)]
 public class ExplosionRadiusVfxPool : MonoBehaviour
 {
+    private static readonly Color DefaultColor = new(1f, 0.42f, 0.05f, 0.9f);
     private static ExplosionRadiusVfxPool s_Instance;
 
     [SerializeField, Min(1)] private int _initialSize = 8;
@@ -39,20 +40,25 @@ public class ExplosionRadiusVfxPool : MonoBehaviour
 
     public static bool TrySpawn(Vector3 position, float radius, float duration = 0.42f)
     {
+        return TrySpawn(position, radius, DefaultColor, duration);
+    }
+
+    public static bool TrySpawn(Vector3 position, float radius, Color color, float duration = 0.42f)
+    {
         if (radius <= 0f)
             return false;
 
         if (s_Instance == null)
             s_Instance = FindAnyObjectByType<ExplosionRadiusVfxPool>();
 
-        if (s_Instance != null && s_Instance.TrySpawnInternal(position, radius, duration))
+        if (s_Instance != null && s_Instance.TrySpawnInternal(position, radius, duration, color))
             return true;
 
-        ExplosionRadiusVfx.SpawnRuntime(position, radius, duration);
+        ExplosionRadiusVfx.SpawnRuntime(position, radius, duration, color);
         return true;
     }
 
-    private bool TrySpawnInternal(Vector3 position, float radius, float duration)
+    private bool TrySpawnInternal(Vector3 position, float radius, float duration, Color color)
     {
         ExplosionRadiusVfx vfx;
         if (_inactive.Count > 0)
@@ -62,7 +68,7 @@ public class ExplosionRadiusVfxPool : MonoBehaviour
         else
             return false;
 
-        vfx.ActivateFromPool(position, radius, duration, this);
+        vfx.ActivateFromPool(position, radius, duration, color, this);
         EnemyPoolProfiler.RegisterPoolGet();
         return true;
     }

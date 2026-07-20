@@ -66,7 +66,7 @@ public static class WeaponTestingSandboxSceneBuilder
         {
             CreateWeaponAsset(WeaponType.Flamethrower, "Sandbox_Flamethrower", "Flamethrower", WeaponTargetingMode.IgnoreCameraClosest, WeaponManualMode.Cone, 5f, 1f, 7f, 1f, 100f, 40f, "Jellified Fuel", "Liquid Nitrogen"),
             CreateWeaponAsset(WeaponType.RocketLauncher, "Sandbox_RocketLauncher", "Rocket Launcher", WeaponTargetingMode.ClosestInRange, WeaponManualMode.AimAtReticle, 20f, 1f, 20f, 5f, 40f, 10f, "Kinetic Explosion", "Fragmentation Cap"),
-            CreateWeaponAsset(WeaponType.Mortar, "Sandbox_Mortar", "Mortar", WeaponTargetingMode.RandomInRange, WeaponManualMode.AimAtReticle, 18f, 0.75f, 22f, 4f, 36f, 12f, "Grapeshot", "Multi-Charged Shells"),
+            CreateWeaponAsset(WeaponType.Mortar, "Sandbox_Mortar", "Mortar", WeaponTargetingMode.RandomInRange, WeaponManualMode.AimAtReticle, 18f, 0.75f, 22f, 4f, 36f, 5f, "Grapeshot", "Multi-Charged Shells"),
             CreateWeaponAsset(WeaponType.AutomaticCannon, "Sandbox_AutomaticCannon", "Automatic Cannon", WeaponTargetingMode.ClosestInRange, WeaponManualMode.AimAtReticle, 10f, 5f, 12f, 1f, 200f, 20f, "Continuous Fire", "Head Hunter"),
             CreateWeaponAsset(WeaponType.RotatingBlade, "Sandbox_RotatingBlade", "Rotating Blade", WeaponTargetingMode.IgnoreCameraClosest, WeaponManualMode.Cone, 12f, 1f, 2.4f, 2.5f, 50f, 8f, "Multi-Blade", "Atomic Sharpness")
         };
@@ -159,7 +159,7 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.AutomaticCannon.CannonManualLineSpacing = 1f;
                 data.AutomaticCannon.CannonAutoLineSpacing = 1f;
                 data.AutomaticCannon.CannonBurstProjectileScatterDegrees = 1.5f;
-                data.AutomaticCannon.CannonManualBurstsPerSecond = 2f;
+                data.AutomaticCannon.CannonManualBurstsPerSecond = 3f;
                 break;
             case WeaponType.RocketLauncher:
                 data.RocketLauncher.RocketActiveConeAngle = 90f;
@@ -183,6 +183,8 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.Mortar.MortarBarrageRadius = 6f;
                 data.Mortar.MortarShellCollisionRadius = 0.18f;
                 data.Mortar.MortarActiveDropHeight = 14f;
+                data.Mortar.MortarActiveShellCount = 5;
+                data.Mortar.MortarHeatManualSpeedBonus = 0.5f;
                 break;
             case WeaponType.RotatingBlade:
                 data.RotatingBlade.BladeOrbitRadius = 2.2f;
@@ -190,6 +192,10 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.RotatingBlade.BladeManualRange = 2.4f;
                 data.RotatingBlade.BladeActiveBaseRangeMultiplier = 5f;
                 data.RotatingBlade.BladeActiveMaxRangeMultiplier = 10f;
+                data.PathA.DamageMultiplier = 1f;
+                data.PathA.AttackRateMultiplier = 1f;
+                data.PathB.DamageMultiplier = 1f;
+                data.PathB.AttackRateMultiplier = 1f;
                 break;
         }
     }

@@ -136,7 +136,9 @@ public class EnemyFollow : MonoBehaviour
 
         moveDir.Normalize();
 
-        float speed = _baseMoveSpeed * _difficultySpeedMultiplier;
+        float speed = _baseMoveSpeed
+            * _difficultySpeedMultiplier
+            * WeaponMovementSlowStatus.GetSpeedMultiplier(transform);
         if (OverheatSwarmBoost.SpeedMultiplier > 1f)
             speed *= OverheatSwarmBoost.SpeedMultiplier;
 

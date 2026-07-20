@@ -60,18 +60,26 @@ public class WorldPickup : MonoBehaviour
 
         Vector3 playerPos = player.position;
         float dist = Vector3.Distance(_basePosition, playerPos);
+        float pickupRadius = GetEffectivePickupRadius(player);
 
-        if (dist <= PickupRadius)
+        if (dist <= pickupRadius)
         {
             _pickedUp = true;
             _pickable?.OnPickedUp();
             return;
         }
 
-        if (MagnetRadius > 0f && MagnetSpeed > 0f && dist <= MagnetRadius)
+        float magnetRadius = Mathf.Max(MagnetRadius, pickupRadius);
+        if (magnetRadius > 0f && MagnetSpeed > 0f && dist <= magnetRadius)
             _basePosition = Vector3.MoveTowards(_basePosition, playerPos, MagnetSpeed * Time.deltaTime);
 
         _bobPhase += BobSpeed * Time.deltaTime;
         transform.position = _basePosition + Vector3.up * (Mathf.Sin(_bobPhase) * BobAmplitude);
+    }
+
+    private float GetEffectivePickupRadius(Transform player)
+    {
+        PlayerStats stats = player != null ? player.GetComponentInParent<PlayerStats>() : null;
+        return PlayerStatMath.GetPickupRange(stats, PickupRadius);
     }
 }

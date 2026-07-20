@@ -12,6 +12,8 @@ using UnityEngine.InputSystem.UI;
 public sealed class WeaponTestingSandboxManager : MonoBehaviour
 {
     public const int WeaponSlots = 3;
+    private static readonly Color PathAFeedbackColor = new(0.95f, 1f, 0.28f, 0.95f);
+    private static readonly Color PathBFeedbackColor = new(0.35f, 0.9f, 1f, 0.95f);
 
     [Header("Asset References")]
     [SerializeField] private GameObject _playerPrefab;
@@ -157,15 +159,36 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             return;
 
         WeaponInstance weapon = _instances[slot];
-        weapon.Level = Mathf.Clamp(level, 1, 10);
+        int requestedLevel = path == WeaponUpgradePath.None ? level : Mathf.Max(level, 6);
+        weapon.Level = Mathf.Clamp(requestedLevel, 1, 10);
         weapon.SelectedPath = weapon.Level >= 6 ? path : WeaponUpgradePath.None;
+        ShowUpgradePathFeedback(weapon);
         if (weapon.State == WeaponState.Manual)
             RefillAmmo(slot);
+    }
+
+    private void ShowUpgradePathFeedback(WeaponInstance weapon)
+    {
+        if (!Application.isPlaying || weapon == null || weapon.SelectedPath == WeaponUpgradePath.None || !weapon.HasAdvancedPath)
+            return;
+
+        Vector3 center = PlayerTransform != null ? PlayerTransform.position : transform.position;
+        Color color = weapon.SelectedPath == WeaponUpgradePath.PathA ? PathAFeedbackColor : PathBFeedbackColor;
+        string label = weapon.SelectedPath == WeaponUpgradePath.PathA ? "PATH A" : "PATH B";
+        WeaponUpgradeVfx.SpawnRing(center, 2.2f, color, 1.2f, 2.25f, label);
     }
 
     public WeaponInstance GetWeaponInSlot(int slot)
     {
         return IsValidSlot(slot) ? _instances[slot] : null;
+    }
+
+    public void SelectManualSlot(int slot)
+    {
+        if (!IsValidSlot(slot) || _instances[slot] == null)
+            return;
+
+        StartManualMode(slot, true);
     }
 
     public void ForceAutomaticMode()
@@ -241,6 +264,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             if (instance?.Data == null)
                 continue;
 
+            instance.AbilityCooldownTimer = 0f;
             _behaviours[i] = CreateBehaviour(instance.Data);
             _behaviours[i].Setup(instance, PlayerTransform, _playerStats, _heatManager);
         }
@@ -271,11 +295,12 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         {
             WeaponInstance instance = _instances[i];
             IWeaponBehaviour behaviour = _behaviours[i];
-            if (instance == null || behaviour == null)
+            if (instance == null)
                 continue;
 
+            instance.AbilityCooldownTimer = Mathf.Max(0f, instance.AbilityCooldownTimer - deltaTime);
             _lastAmmo[i] = instance.CurrentAmmo;
-            if (instance.State == WeaponState.Automatic)
+            if (behaviour != null && instance.State == WeaponState.Automatic)
                 behaviour.TickAutomatic(deltaTime, _currentAimDirection);
         }
 
@@ -315,15 +340,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     private IWeaponBehaviour CreateBehaviour(WeaponData data)
     {
         Transform spawn = ProjectileSpawn != null ? ProjectileSpawn : PlayerTransform;
-        return data.WeaponType switch
-        {
-            WeaponType.AutomaticCannon => new AutomaticCannonWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.Flamethrower => new FlamethrowerWeapon(_targeting, _projectilePool, spawn, _playerMovement),
-            WeaponType.RocketLauncher => new RocketLauncherWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.Mortar => new MortarWeapon(_targeting, _projectilePool, spawn),
-            WeaponType.RotatingBlade => new RotatingBladeWeapon(_targeting, _projectilePool, spawn),
-            _ => new BasicProjectileWeapon(_targeting, _projectilePool, spawn)
-        };
+        return WeaponBehaviourFactory.Create(data, _targeting, _projectilePool, spawn, _playerMovement);
     }
 
     private void StartManualMode(int slot, bool refillAmmo)
@@ -372,14 +389,25 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
 
     private Vector3 ResolveAimDirection()
     {
-        float fallbackDistance = CurrentManualWeapon?.Data != null ? CurrentManualWeapon.Data.BaseRange : 0f;
-        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, fallbackDistance, out Vector3 aim))
+        WeaponInstance manualWeapon = CurrentManualWeapon;
+        float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
+        bool preferDamageableAimPoint = ShouldPreferDamageableAimPoint(manualWeapon);
+        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, fallbackDistance, preferDamageableAimPoint, out Vector3 aim))
             return aim.normalized;
 
         if (Camera.main != null)
             return Camera.main.transform.forward;
 
         return PlayerTransform != null ? PlayerTransform.forward : Vector3.forward;
+    }
+
+    private static bool ShouldPreferDamageableAimPoint(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null)
+            return false;
+
+        return weapon.Data.WeaponType == WeaponType.AutomaticCannon
+            || weapon.Data.WeaponType == WeaponType.RocketLauncher;
     }
 
     private void EnsureHeatManager()

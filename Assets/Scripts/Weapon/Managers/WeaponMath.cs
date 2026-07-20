@@ -8,10 +8,23 @@ public static class WeaponMath
         if (instance == null || instance.Data == null)
             return null;
 
-        for (int i = 0; i < instance.Data.LevelData.Count; i++)
+        WeaponUpgradePathData pathData = GetPathData(instance);
+        WeaponLevelData pathLevelData = FindLevelData(pathData?.LevelData, instance.Level);
+        if (pathLevelData != null)
+            return pathLevelData;
+
+        return FindLevelData(instance.Data.LevelData, instance.Level);
+    }
+
+    private static WeaponLevelData FindLevelData(System.Collections.Generic.IReadOnlyList<WeaponLevelData> levelData, int level)
+    {
+        if (levelData == null)
+            return null;
+
+        for (int i = 0; i < levelData.Count; i++)
         {
-            WeaponLevelData entry = instance.Data.LevelData[i];
-            if (entry != null && entry.Level == instance.Level)
+            WeaponLevelData entry = levelData[i];
+            if (entry != null && entry.Level == level)
                 return entry;
         }
 
@@ -63,6 +76,37 @@ public static class WeaponMath
             return 1f;
 
         return Mathf.Max(0.01f, stats.GetStat(statType));
+    }
+
+    public static float GetAbilityCooldownDuration(WeaponInstance instance, PlayerStats stats)
+    {
+        if (instance?.Data == null)
+            return 0f;
+
+        float baseCooldown = Mathf.Max(0f, instance.Data.SkillCooldown);
+        float reduction = GetAbilityCooldownReduction(stats);
+        return baseCooldown * (1f - reduction);
+    }
+
+    public static float GetActiveAbilityAmmoCost(WeaponInstance instance)
+    {
+        if (instance?.Data == null)
+            return 0f;
+
+        if (instance.HasAdvancedPath
+            && instance.Data.WeaponType == WeaponType.AutomaticCannon
+            && instance.SelectedPath == WeaponUpgradePath.PathA)
+            return 80f;
+
+        return Mathf.Max(0f, instance.Data.ActiveAbilityAmmoCost);
+    }
+
+    public static float GetAbilityCooldownReduction(PlayerStats stats)
+    {
+        if (stats == null || stats.GetDefinition(StatType.AbilityCooldownReduction) == null)
+            return 0f;
+
+        return Mathf.Clamp(stats.GetStat(StatType.AbilityCooldownReduction), 0f, 0.95f);
     }
 
     // Calculates a gameplay-friendly impulse from weapon tuning, damage, player stat, and caller scale.

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 [DisallowMultipleComponent]
 public class ReticleHud : MonoBehaviour
@@ -18,6 +19,8 @@ public class ReticleHud : MonoBehaviour
     [SerializeField] private Color _shadowColor = new Color(0f, 0f, 0f, 0.65f);
     [SerializeField] private Vector2 _shadowOffset = new Vector2(2f, -2f);
     [SerializeField] private int _sortingOrder = 650;
+    [SerializeField] private Color _weakPointFlashColor = new Color(1f, 0f, 0f, 1f);
+    [SerializeField, Min(0.01f)] private float _weakPointFlashDuration = 0.18f;
 
     [Header("Blade / Flamethrower")]
     [SerializeField] private Vector2 _wideBracketFrameSize = new Vector2(250f, 70f);
@@ -62,8 +65,12 @@ public class ReticleHud : MonoBehaviour
 
     private Texture2D _circleRingTexture;
     private Sprite _circleRingSprite;
+    private readonly List<Image> _reticleTintImages = new();
+    private readonly Dictionary<Image, Color> _reticleBaseColors = new();
     private bool _isVisible;
     private bool _sandboxLookupComplete;
+    private bool _weakPointFlashActive;
+    private float _weakPointFlashTimer;
     private static Sprite s_whiteSprite;
 
     private void Awake()
@@ -72,6 +79,17 @@ public class ReticleHud : MonoBehaviour
         BuildUi();
         BuildMortarMarker();
         SetVisible(_visibleOnStart);
+    }
+
+    private void OnEnable()
+    {
+        WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
+        WeaponWeakPointFeedback.WeakPointHit += HandleWeakPointHit;
+    }
+
+    private void OnDisable()
+    {
+        WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
     }
 
     private void Update()
@@ -109,10 +127,13 @@ public class ReticleHud : MonoBehaviour
             _mortarPredictionTimer = 0f;
             SetMortarMarkerVisible(false);
         }
+
+        TickWeakPointFlash();
     }
 
     private void OnDestroy()
     {
+        WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
         DestroyOwnedObject(_mortarMarkerRoot);
         DestroyOwnedObject(_mortarLineMaterial);
         DestroyOwnedObject(_mortarDotMaterial);
@@ -240,7 +261,8 @@ public class ReticleHud : MonoBehaviour
             Vector2.zero,
             new Vector2(_circleDiameter, _circleDiameter),
             _lineColor,
-            _circleRingSprite);
+            _circleRingSprite,
+            tintWithWeakPointFlash: true);
 
         CreateImage(
             _circleDotRoot,
@@ -255,7 +277,8 @@ public class ReticleHud : MonoBehaviour
             Vector2.zero,
             Vector2.one * _centerDotDiameter,
             _lineColor,
-            GetWhiteSprite());
+            GetWhiteSprite(),
+            tintWithWeakPointFlash: true);
     }
 
     private void BuildMortarVReticle()
@@ -506,7 +529,8 @@ public class ReticleHud : MonoBehaviour
             size,
             _lineColor,
             GetWhiteSprite(),
-            rotation);
+            rotation,
+            tintWithWeakPointFlash: true);
     }
 
     private void CreateStyledAnchoredLine(
@@ -529,7 +553,8 @@ public class ReticleHud : MonoBehaviour
             anchor,
             anchoredPosition,
             size,
-            _lineColor);
+            _lineColor,
+            tintWithWeakPointFlash: true);
     }
 
     private static void SetRootActive(RectTransform root, bool active)
@@ -538,14 +563,15 @@ public class ReticleHud : MonoBehaviour
             root.gameObject.SetActive(active);
     }
 
-    private static Image CreateImage(
+    private Image CreateImage(
         Transform parent,
         string name,
         Vector2 anchoredPosition,
         Vector2 size,
         Color color,
         Sprite sprite,
-        float rotation = 0f)
+        float rotation = 0f,
+        bool tintWithWeakPointFlash = false)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
@@ -562,16 +588,18 @@ public class ReticleHud : MonoBehaviour
         image.sprite = sprite;
         image.color = color;
         image.raycastTarget = false;
+        RegisterReticleTintImage(image, color, tintWithWeakPointFlash);
         return image;
     }
 
-    private static Image CreateAnchoredImage(
+    private Image CreateAnchoredImage(
         Transform parent,
         string name,
         Vector2 anchor,
         Vector2 anchoredPosition,
         Vector2 size,
-        Color color)
+        Color color,
+        bool tintWithWeakPointFlash = false)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
@@ -587,7 +615,60 @@ public class ReticleHud : MonoBehaviour
         image.sprite = GetWhiteSprite();
         image.color = color;
         image.raycastTarget = false;
+        RegisterReticleTintImage(image, color, tintWithWeakPointFlash);
         return image;
+    }
+
+    private void RegisterReticleTintImage(Image image, Color baseColor, bool tintWithWeakPointFlash)
+    {
+        if (!tintWithWeakPointFlash || image == null)
+            return;
+
+        _reticleTintImages.Add(image);
+        _reticleBaseColors[image] = baseColor;
+    }
+
+    private void HandleWeakPointHit()
+    {
+        _weakPointFlashActive = true;
+        _weakPointFlashTimer = Mathf.Max(0.01f, _weakPointFlashDuration);
+        ApplyWeakPointFlashColor();
+    }
+
+    private void TickWeakPointFlash()
+    {
+        if (!_weakPointFlashActive)
+            return;
+
+        _weakPointFlashTimer -= Time.unscaledDeltaTime;
+        if (_weakPointFlashTimer > 0f)
+        {
+            ApplyWeakPointFlashColor();
+            return;
+        }
+
+        _weakPointFlashActive = false;
+        RestoreReticleTintColors();
+    }
+
+    private void ApplyWeakPointFlashColor()
+    {
+        for (int i = 0; i < _reticleTintImages.Count; i++)
+        {
+            Image image = _reticleTintImages[i];
+            if (image != null)
+                image.color = _weakPointFlashColor;
+        }
+    }
+
+    private void RestoreReticleTintColors()
+    {
+        for (int i = 0; i < _reticleTintImages.Count; i++)
+        {
+            Image image = _reticleTintImages[i];
+            if (image != null && _reticleBaseColors.TryGetValue(image, out Color baseColor))
+                image.color = baseColor;
+        }
     }
 
     private Sprite CreateRingSprite()

@@ -7,7 +7,11 @@ public static class WeaponDamageApplier
         if (damageable == null || damage <= 0)
             return false;
 
-        int modifiedDamage = WeaponDamageAmplifierStatus.ModifyDamage(damageable, damage);
-        return damageable.ApplyDamage(Mathf.Max(1, modifiedDamage));
+        int modifiedDamage = Mathf.Max(1, WeaponDamageAmplifierStatus.ModifyDamage(damageable, damage));
+        bool applied = damageable.ApplyDamage(modifiedDamage);
+        if (applied)
+            PlayerCombatHooks.TryLifesteal(modifiedDamage);
+
+        return applied;
     }
 }

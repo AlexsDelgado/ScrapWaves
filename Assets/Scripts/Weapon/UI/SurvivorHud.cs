@@ -208,7 +208,9 @@ public class SurvivorHud : MonoBehaviour
         }
 
         _levelText.text = $"Level: {_playerXp.CurrentLevel}";
-        _expText.text = $"EXP: {_playerXp.XpTowardsNext} / {_playerXp.XpRequiredForCurrentLevel}";
+        _expText.text = _playerXp.IsAtLevelCap
+            ? "EXP: MAX"
+            : $"EXP: {_playerXp.XpTowardsNext} / {_playerXp.XpRequiredForCurrentLevel}";
     }
 
     private void RefreshKills()

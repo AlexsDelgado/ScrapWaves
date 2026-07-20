@@ -19,6 +19,9 @@ public class OrbitalSpawner : MonoBehaviour
     [SerializeField, Tooltip("Vacío = PlayerMovement.PlayerTransform.")]
     private Transform _player;
 
+    [SerializeField, Tooltip("Vacio = se resuelve desde el player.")]
+    private PlayerStats _playerStats;
+
     [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Escala intervalo y cantidad.")]
     private DifficultyManager _difficultyManager;
 
@@ -158,7 +161,7 @@ public class OrbitalSpawner : MonoBehaviour
 
     private void SpawnRouletteWave()
     {
-        EnemySpawnRollResult roll = _roulette.Roll(RunTimeSeconds);
+        EnemySpawnRollResult roll = _roulette.Roll(RunTimeSeconds, ResolvePlayerStats());
         if (roll.Prefab == null)
             return;
 
@@ -232,5 +235,19 @@ public class OrbitalSpawner : MonoBehaviour
             if (_spawned[i] == null)
                 _spawned.RemoveAt(i);
         }
+    }
+
+    private PlayerStats ResolvePlayerStats()
+    {
+        if (_playerStats != null)
+            return _playerStats;
+
+        if (_player != null)
+            _playerStats = _player.GetComponentInParent<PlayerStats>();
+
+        if (_playerStats == null && PlayerMovement.PlayerTransform != null)
+            _playerStats = PlayerMovement.PlayerTransform.GetComponentInParent<PlayerStats>();
+
+        return _playerStats;
     }
 }

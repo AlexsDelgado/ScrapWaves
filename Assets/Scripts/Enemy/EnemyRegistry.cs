@@ -4,6 +4,7 @@ using UnityEngine;
 public static class EnemyRegistry
 {
     private static readonly List<Transform> _activeEnemies = new List<Transform>(256);
+    private static readonly List<Collider> _candidateColliders = new List<Collider>(8);
     private static readonly HashSet<Transform> _excludeScratch = new HashSet<Transform>();
 
     public static int ActiveCount => _activeEnemies.Count;
@@ -35,6 +36,39 @@ public static class EnemyRegistry
                 return;
             }
         }
+    }
+
+    public static int CollectActiveEnemyColliders(List<Collider> results, bool includeTriggers = false)
+    {
+        results.Clear();
+
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Transform enemy = _activeEnemies[i];
+            if (enemy == null)
+            {
+                _activeEnemies.RemoveAt(i);
+                continue;
+            }
+
+            _candidateColliders.Clear();
+            enemy.GetComponentsInChildren(false, _candidateColliders);
+            for (int c = 0; c < _candidateColliders.Count; c++)
+            {
+                Collider collider = _candidateColliders[c];
+                if (collider == null || !collider.enabled)
+                    continue;
+
+                if (!includeTriggers && collider.isTrigger)
+                    continue;
+
+                if (!results.Contains(collider))
+                    results.Add(collider);
+            }
+        }
+
+        _candidateColliders.Clear();
+        return results.Count;
     }
 
     public static bool TryGetClosestOnPlane(Vector3 from, float range, out Transform closest)
@@ -98,6 +132,60 @@ public static class EnemyRegistry
         }
 
         return random != null;
+    }
+
+    public static Vector3 GetAimPoint(Transform target)
+    {
+        if (target == null)
+            return Vector3.zero;
+
+        _candidateColliders.Clear();
+        target.GetComponentsInChildren(false, _candidateColliders);
+
+        Bounds bodyBounds = default;
+        Bounds fallbackBounds = default;
+        bool hasBodyBounds = false;
+        bool hasFallbackBounds = false;
+
+        for (int i = 0; i < _candidateColliders.Count; i++)
+        {
+            Collider collider = _candidateColliders[i];
+            if (collider == null || !collider.enabled)
+                continue;
+
+            if (!hasFallbackBounds)
+            {
+                fallbackBounds = collider.bounds;
+                hasFallbackBounds = true;
+            }
+            else
+            {
+                fallbackBounds.Encapsulate(collider.bounds);
+            }
+
+            if (collider.isTrigger)
+                continue;
+
+            if (!hasBodyBounds)
+            {
+                bodyBounds = collider.bounds;
+                hasBodyBounds = true;
+            }
+            else
+            {
+                bodyBounds.Encapsulate(collider.bounds);
+            }
+        }
+
+        _candidateColliders.Clear();
+
+        if (hasBodyBounds)
+            return bodyBounds.center;
+
+        if (hasFallbackBounds)
+            return fallbackBounds.center;
+
+        return target.position;
     }
 
     // Finds the closest active enemy inside a horizontal cone.
@@ -411,7 +499,7 @@ public static class EnemyRegistry
                 if (_excludeScratch.Contains(candidate))
                     continue;
 
-                float distanceSqr = DistanceSqrToPolyline(candidate.position, points, pointCount, out Vector3 closestPoint);
+                float distanceSqr = DistanceSqrToCandidate(candidate, points, pointCount, out Vector3 closestPoint);
                 if (distanceSqr > radiusSqr || distanceSqr >= bestDistanceSqr)
                     continue;
 
@@ -428,6 +516,33 @@ public static class EnemyRegistry
         }
 
         return results.Count;
+    }
+
+    private static float DistanceSqrToCandidate(Transform candidate, Vector3[] points, int pointCount, out Vector3 closestPoint)
+    {
+        float bestSqr = DistanceSqrToPolyline(candidate.position, points, pointCount, out closestPoint);
+
+        _candidateColliders.Clear();
+        candidate.GetComponentsInChildren(false, _candidateColliders);
+        for (int i = 0; i < _candidateColliders.Count; i++)
+        {
+            Collider collider = _candidateColliders[i];
+            if (collider == null || !collider.enabled)
+                continue;
+
+            Vector3 colliderAnchor = collider.bounds.center;
+            DistanceSqrToPolyline(colliderAnchor, points, pointCount, out Vector3 linePoint);
+            Vector3 colliderPoint = collider.ClosestPoint(linePoint);
+            float sqr = (linePoint - colliderPoint).sqrMagnitude;
+            if (sqr >= bestSqr)
+                continue;
+
+            bestSqr = sqr;
+            closestPoint = linePoint;
+        }
+
+        _candidateColliders.Clear();
+        return bestSqr;
     }
 
     private static bool IsInsideHorizontalCone(Vector3 delta, Vector3 forward, float coneAngle)
