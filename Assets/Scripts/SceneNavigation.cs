@@ -70,6 +70,17 @@ public static class SceneNavigation
         return Load(SceneDestination.EnemiesTesting);
     }
 
+    public static void QuitApplication()
+    {
+        PrepareForSceneChange();
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+
     private static string GetScenePath(SceneDestination destination)
     {
         return destination switch

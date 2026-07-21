@@ -140,10 +140,13 @@ public class WeaponManager : MonoBehaviour
         return AddWeapon(data);
     }
 
-    // Applies selected advanced path when level requirement is met.
+    // Applies selected advanced path when level requirement is met (Lv6+),
+    // or when advancing from Lv5 via Advanced Tinkering (caller upgrades first).
     public void ApplyUpgradePath(WeaponInstance weapon, WeaponUpgradePath path)
     {
-        if (weapon == null || weapon.Level < 6 || path == WeaponUpgradePath.None)
+        if (weapon == null || path == WeaponUpgradePath.None)
+            return;
+        if (weapon.Level < 6)
             return;
         weapon.SelectedPath = path;
     }
@@ -214,10 +217,28 @@ public class WeaponManager : MonoBehaviour
     }
 
     // Creates starter inventory from configured weapon assets.
+    // When RunStartWeaponChoice is present, the first weapon comes only from that menu.
     private void AddStartingWeapons()
     {
+        if (HasRunStartWeaponChoice())
+            return;
+
         for (int i = 0; i < _startingWeapons.Count && i < MaxWeaponSlots; i++)
             AddWeapon(_startingWeapons[i]);
+    }
+
+    private bool HasRunStartWeaponChoice()
+    {
+        RunStartWeaponChoice choice = GetComponent<RunStartWeaponChoice>();
+        return choice != null && choice.isActiveAndEnabled;
+    }
+
+    // Removes every equipped weapon so a run can start from an empty loadout.
+    public void ClearEquippedWeapons()
+    {
+        _equipped.Clear();
+        _currentManualIndex = 0;
+        _manualCooldownTimer = 0f;
     }
 
     // Creates concrete behavior for each weapon type.

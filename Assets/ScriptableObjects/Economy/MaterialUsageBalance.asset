@@ -1,0 +1,241 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31d5bdb59d235eb4cbcfb014ecdc8ffe, type: 3}
+  m_Name: MaterialUsageBalance
+  m_EditorClassIdentifier: Assembly-CSharp::MaterialUsageBalanceSO
+  _roleAssignments:
+  - Column: 1
+    Material: 0
+    Role: 2
+  - Column: 3
+    Material: 0
+    Role: 2
+  - Column: 4
+    Material: 0
+    Role: 1
+  - Column: 7
+    Material: 0
+    Role: 2
+  - Column: 8
+    Material: 0
+    Role: 2
+  - Column: 9
+    Material: 0
+    Role: 3
+  - Column: 11
+    Material: 0
+    Role: 2
+  - Column: 12
+    Material: 0
+    Role: 2
+  - Column: 13
+    Material: 0
+    Role: 4
+  - Column: 14
+    Material: 0
+    Role: 1
+  - Column: 0
+    Material: 1
+    Role: 2
+  - Column: 1
+    Material: 1
+    Role: 1
+  - Column: 2
+    Material: 1
+    Role: 1
+  - Column: 5
+    Material: 1
+    Role: 2
+  - Column: 6
+    Material: 1
+    Role: 2
+  - Column: 7
+    Material: 1
+    Role: 1
+  - Column: 8
+    Material: 1
+    Role: 1
+  - Column: 9
+    Material: 1
+    Role: 1
+  - Column: 10
+    Material: 1
+    Role: 1
+  - Column: 12
+    Material: 1
+    Role: 3
+  - Column: 0
+    Material: 2
+    Role: 1
+  - Column: 2
+    Material: 2
+    Role: 2
+  - Column: 3
+    Material: 2
+    Role: 1
+  - Column: 4
+    Material: 2
+    Role: 2
+  - Column: 5
+    Material: 2
+    Role: 1
+  - Column: 6
+    Material: 2
+    Role: 1
+  - Column: 8
+    Material: 2
+    Role: 3
+  - Column: 9
+    Material: 2
+    Role: 2
+  - Column: 10
+    Material: 2
+    Role: 2
+  - Column: 11
+    Material: 2
+    Role: 1
+  - Column: 12
+    Material: 2
+    Role: 1
+  - Column: 13
+    Material: 2
+    Role: 2
+  - Column: 14
+    Material: 2
+    Role: 2
+  - Column: 5
+    Material: 3
+    Role: 3
+  - Column: 11
+    Material: 3
+    Role: 3
+  - Column: 7
+    Material: 4
+    Role: 3
+  - Column: 10
+    Material: 4
+    Role: 3
+  - Column: 6
+    Material: 5
+    Role: 3
+  - Column: 14
+    Material: 5
+    Role: 3
+  _roleTotals:
+  - Role: 1
+    Level: 1
+    Total: 15
+  - Role: 1
+    Level: 2
+    Total: 15
+  - Role: 1
+    Level: 3
+    Total: 25
+  - Role: 1
+    Level: 4
+    Total: 50
+  - Role: 1
+    Level: 5
+    Total: 100
+  - Role: 1
+    Level: 7
+    Total: 100
+  - Role: 1
+    Level: 8
+    Total: 125
+  - Role: 1
+    Level: 9
+    Total: 150
+  - Role: 1
+    Level: 10
+    Total: 225
+  - Role: 2
+    Level: 1
+    Total: 10
+  - Role: 2
+    Level: 2
+    Total: 0
+  - Role: 2
+    Level: 3
+    Total: 10
+  - Role: 2
+    Level: 4
+    Total: 20
+  - Role: 2
+    Level: 5
+    Total: 40
+  - Role: 2
+    Level: 7
+    Total: 50
+  - Role: 2
+    Level: 8
+    Total: 60
+  - Role: 2
+    Level: 9
+    Total: 80
+  - Role: 2
+    Level: 10
+    Total: 120
+  - Role: 3
+    Level: 1
+    Total: 10
+  - Role: 3
+    Level: 2
+    Total: 0
+  - Role: 3
+    Level: 3
+    Total: 0
+  - Role: 3
+    Level: 4
+    Total: 0
+  - Role: 3
+    Level: 5
+    Total: 0
+  - Role: 3
+    Level: 7
+    Total: 10
+  - Role: 3
+    Level: 8
+    Total: 20
+  - Role: 3
+    Level: 9
+    Total: 40
+  - Role: 3
+    Level: 10
+    Total: 100
+  - Role: 4
+    Level: 1
+    Total: 10
+  - Role: 4
+    Level: 2
+    Total: 0
+  - Role: 4
+    Level: 3
+    Total: 0
+  - Role: 4
+    Level: 4
+    Total: 0
+  - Role: 4
+    Level: 5
+    Total: 0
+  - Role: 4
+    Level: 7
+    Total: 20
+  - Role: 4
+    Level: 8
+    Total: 40
+  - Role: 4
+    Level: 9
+    Total: 80
+  - Role: 4
+    Level: 10
+    Total: 275

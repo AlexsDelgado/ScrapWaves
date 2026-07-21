@@ -85,7 +85,6 @@ public class ZoneSpawner : MonoBehaviour
         if (_overheatManager != null)
         {
             _overheatManager.OnOverheatStarted += Rearm;
-            _overheatManager.OnOverheatFinished += OnOverheatFinished;
         }
     }
 
@@ -94,13 +93,7 @@ public class ZoneSpawner : MonoBehaviour
         if (_overheatManager != null)
         {
             _overheatManager.OnOverheatStarted -= Rearm;
-            _overheatManager.OnOverheatFinished -= OnOverheatFinished;
         }
-    }
-
-    private void OnOverheatFinished(OverheatEndReason reason)
-    {
-        ClearSpawned();
     }
 
     private void OnTriggerEnter(Collider other)

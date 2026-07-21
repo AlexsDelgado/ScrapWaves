@@ -173,8 +173,38 @@ public class WeaponData : ScriptableObject
     [SerializeReference] private WeaponSpecificTuning _specificTuning;
 
     public List<WeaponLevelData> LevelData = new();
+    public List<WeaponBalanceStatRow> BalanceStats = new();
+    public List<WeaponUpgradeSpecificStatRow> UpgradeSpecificStats = new();
     public WeaponUpgradePathData PathA;
     public WeaponUpgradePathData PathB;
+
+    public float TryGetBalanceStat(string statId, int level, WeaponUpgradePath path, float fallback = 0f)
+    {
+        WeaponBalanceZone zone = level >= 6 && path != WeaponUpgradePath.None
+            ? path == WeaponUpgradePath.PathA ? WeaponBalanceZone.PathA : WeaponBalanceZone.PathB
+            : WeaponBalanceZone.Basic;
+
+        for (int i = 0; i < BalanceStats.Count; i++)
+        {
+            WeaponBalanceStatRow row = BalanceStats[i];
+            if (row != null && row.StatId == statId && row.Level == level && row.Zone == zone)
+                return row.Value;
+        }
+
+        return fallback;
+    }
+
+    public float TryGetUpgradeSpecificStat(string statId, WeaponUpgradePath path, int level, float fallback = 0f)
+    {
+        for (int i = 0; i < UpgradeSpecificStats.Count; i++)
+        {
+            WeaponUpgradeSpecificStatRow row = UpgradeSpecificStats[i];
+            if (row != null && row.StatId == statId && row.Path == path && row.Level == level)
+                return row.Value;
+        }
+
+        return fallback;
+    }
 
     public AutomaticCannonTuning AutomaticCannon => _specificTuning as AutomaticCannonTuning ?? AutomaticCannonTuning.Defaults;
     public RocketLauncherTuning RocketLauncher => _specificTuning as RocketLauncherTuning ?? RocketLauncherTuning.Defaults;

@@ -20,6 +20,7 @@ GameObject:
   - component: {fileID: 1993540340262655830}
   - component: {fileID: 8462262204617861336}
   - component: {fileID: 8800000000000000002}
+  - component: {fileID: 2985575814757232890}
   m_Layer: 3
   m_Name: Chaser
   m_TagString: Untagged
@@ -140,7 +141,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 56a00c9530e37c449b7f4ed4bca77e8b, type: 3}
   m_Name: 
@@ -250,6 +251,21 @@ MonoBehaviour:
   _dischargeDamage: 8
   _stunSeconds: 1
   _postCrashCooldown: 1.5
+--- !u!114 &2985575814757232890
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f592eff57bb554f4fbe0484c7e6edb51, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMaterialDrop
+  _dropConfig: {fileID: 11400000, guid: 46bdae47e903fd14186077de3b10024b, type: 2}
+  _poolOverride: {fileID: 0}
+  _dropAmount: 1
 --- !u!1 &8136348376047465627
 GameObject:
   m_ObjectHideFlags: 0

@@ -25,8 +25,11 @@ public class OrbitalSpawner : MonoBehaviour
     [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Escala intervalo y cantidad.")]
     private DifficultyManager _difficultyManager;
 
-    [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Al terminar el Overheat limpia los enemigos del orbital (reset del ciclo).")]
+    [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Usado para pausar spawn tras Overheat.")]
     private OverheatManager _overheatManager;
+
+    [SerializeField, Tooltip("Vacío = HeatManager.GetInstance().")]
+    private HeatManager _heatManager;
 
     [Header("Cadencia (SpawnCooldown * dificultad * overheat)")]
     [SerializeField, Min(0.05f)] private float _spawnInterval = 1.5f;
@@ -35,6 +38,10 @@ public class OrbitalSpawner : MonoBehaviour
     private bool _spawnOnStart = true;
 
     [SerializeField, Min(1)] private int _maxActiveEnemies = 300;
+
+    [Header("Pausa post-Overheat")]
+    [SerializeField, Tooltip("Si true, no spawnea mientras heat >= umbral (primer tramo / 80% visual).")]
+    private bool _pauseSpawnWhileHeatElevated = true;
 
     [Header("Colocación orbital")]
     [SerializeField, Min(0f)] private float _minSpawnRadius = 10f;
@@ -108,19 +115,12 @@ public class OrbitalSpawner : MonoBehaviour
 
         if (_overheatManager == null)
             _overheatManager = FindAnyObjectByType<OverheatManager>();
-        if (_overheatManager != null)
-            _overheatManager.OnOverheatFinished += OnOverheatFinished;
+        if (_heatManager == null)
+            _heatManager = HeatManager.GetInstance();
     }
 
     private void OnDisable()
     {
-        if (_overheatManager != null)
-            _overheatManager.OnOverheatFinished -= OnOverheatFinished;
-    }
-
-    private void OnOverheatFinished(OverheatEndReason reason)
-    {
-        ClearSpawned();
     }
 
     private void OnValidate()
@@ -144,11 +144,35 @@ public class OrbitalSpawner : MonoBehaviour
         if (_player == null)
             return;
 
+        if (!CanSpawnByHeat())
+            return;
+
         if (Time.time < _nextSpawnTime)
             return;
 
         _nextSpawnTime = Time.time + EffectiveSpawnInterval();
         SpawnRouletteWave();
+    }
+
+    /// <summary>
+    /// Tras Overheat el heat queda residual y decae; no spawneamos hasta bajar del primer tramo.
+    /// </summary>
+    private bool CanSpawnByHeat()
+    {
+        if (!_pauseSpawnWhileHeatElevated)
+            return true;
+
+        if (_heatManager == null)
+            _heatManager = HeatManager.GetInstance();
+        if (_heatManager == null)
+            return true;
+
+        // Solo pausar mientras el cooldown post-Overheat está activo (decay corriendo).
+        // Si el heat está alto por otra razón (p. ej. kills) pero no hay cooldown, no bloquear spawn.
+        if (!_heatManager.IsPostOverheatDecayActive)
+            return true;
+
+        return _heatManager.CurrentHeat < _heatManager.PointsFirstSegment;
     }
 
     private float EffectiveSpawnInterval()

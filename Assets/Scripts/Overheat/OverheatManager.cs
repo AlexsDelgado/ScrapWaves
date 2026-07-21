@@ -35,8 +35,11 @@ public class OverheatManager : MonoBehaviour
     [SerializeField, Min(0.01f), Tooltip("Fire-rate multiplier during Overheat (2 = double speed, roughly half interval).")]
     private float _fireRateMultiplier = 1.5f;
 
-    [SerializeField, Min(0f), Tooltip("Heat after Overheat ends (0 = empty; rises again with kills).")]
+    [SerializeField, Min(0f), Tooltip("Heat mínimo residual al terminar Overheat. Si es 0, se usa el primer tramo (80% visual) para pausar spawns.")]
     private float _heatAfterOverheat = 0f;
+
+    [SerializeField, Tooltip("Si true, limpia todo el swarm al terminar Overheat (legacy). Por defecto false: los enemigos comunes quedan.")]
+    private bool _clearSwarmOnOverheatEnd;
 
     [SerializeField, Tooltip("Log Overheat start and end.")]
     private bool _logState;
@@ -118,6 +121,7 @@ public class OverheatManager : MonoBehaviour
 
         _isOverheating = true;
         OverheatSwarmBoost.SetIntensity(false);
+        _heatManager?.StopPostOverheatDecay();
 
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(_fireRateMultiplier);
@@ -137,6 +141,7 @@ public class OverheatManager : MonoBehaviour
 
         _isOverheating = true;
         OverheatSwarmBoost.SetIntensity(false);
+        _heatManager?.StopPostOverheatDecay();
 
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(_fireRateMultiplier);
@@ -161,7 +166,10 @@ public class OverheatManager : MonoBehaviour
         if (_swarmEnemyPool == null)
             _swarmEnemyPool = FindAnyObjectByType<SwarmEnemyPool>();
 
-        EnemyLifecycleCoordinator.OnOverheatEnded();
+        if (_clearSwarmOnOverheatEnd)
+            EnemyLifecycleCoordinator.ClearAllForQa();
+        else
+            EnemyLifecycleCoordinator.OnOverheatEnded();
 
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(1f);
@@ -169,12 +177,17 @@ public class OverheatManager : MonoBehaviour
         if (_heatManager != null)
         {
             _heatManager.ApplyEscalationAfterOverheat();
-            float cap = _heatManager.MaxHeat;
-            _heatManager.SetHeat(Mathf.Clamp(_heatAfterOverheat, 0f, cap));
+            // Residual por encima del primer tramo: OrbitalSpawner pausa hasta que decay baje del umbral.
+            // Si _heatAfterOverheat > 0 se respeta; si no, ~90% de la barra (mitad del 2.º tramo).
+            float residual = _heatAfterOverheat > 0f
+                ? _heatAfterOverheat
+                : _heatManager.PointsFirstSegment + _heatManager.PointsSecondSegment * 0.5f;
+            residual = Mathf.Clamp(residual, 0f, _heatManager.MaxHeat);
+            _heatManager.BeginPostOverheatCooldown(residual);
         }
 
         if (_logState)
-            Debug.Log($"Overheat terminado ({reason}); escalado de heat aplicado; enemigos del pool devueltos.", this);
+            Debug.Log($"Overheat terminado ({reason}); escalado aplicado; swarm no limpio; heat residual con decay.", this);
 
         OnOverheatFinished?.Invoke(reason);
     }
