@@ -12,6 +12,7 @@ public class TitleScreenController : MonoBehaviour
     [SerializeField] private Button _playButton;
     [SerializeField] private Button _weaponSandboxButton;
     [SerializeField] private Button _enemiesTestingButton;
+    [SerializeField] private Button _quitButton;
 
     private GameObject _canvasRoot;
 
@@ -116,6 +117,7 @@ public class TitleScreenController : MonoBehaviour
         _playButton ??= FindSceneButton("PlayButton", "Play");
         _weaponSandboxButton ??= FindSceneButton("WeaponSandboxButton", "Weapon Sandbox");
         _enemiesTestingButton ??= FindSceneButton("EnemiesTestingButton", "Enemies Testing");
+        _quitButton ??= FindSceneButton("Quit", "Quit");
     }
 
     private Button FindSceneButton(string buttonName, string label)
@@ -144,6 +146,7 @@ public class TitleScreenController : MonoBehaviour
         WireButton(_playButton, LoadPlay);
         WireButton(_weaponSandboxButton, LoadWeaponSandbox);
         WireButton(_enemiesTestingButton, LoadEnemiesTesting);
+        WireButton(_quitButton, QuitGame);
     }
 
     private static void WireButton(Button button, UnityAction action)
@@ -178,6 +181,11 @@ public class TitleScreenController : MonoBehaviour
     private void LoadEnemiesTesting()
     {
         SceneNavigation.LoadEnemiesTesting();
+    }
+
+    private static void QuitGame()
+    {
+        SceneNavigation.QuitApplication();
     }
 
     private static void EnsureEventSystemWithInputSystemUi()

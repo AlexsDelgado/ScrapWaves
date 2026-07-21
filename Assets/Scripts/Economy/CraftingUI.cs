@@ -16,7 +16,6 @@ public class CraftingUI : MonoBehaviour
 
     private Canvas _canvas;
     private TextMeshProUGUI _titleText;
-    private TextMeshProUGUI _inventoryText;
     private TextMeshProUGUI _statusText;
     private RectTransform _cardsRow;
     private readonly List<Button> _buttons = new();
@@ -42,7 +41,6 @@ public class CraftingUI : MonoBehaviour
         EnsureUi();
         _titleText.text = "Crafting Station";
         _statusText.text = string.Empty;
-        _inventoryText.text = BuildInventoryText(inventory);
         BuildCards(crafting, inventory);
         _canvas.gameObject.SetActive(true);
     }
@@ -203,7 +201,6 @@ public class CraftingUI : MonoBehaviour
 
     private void Refresh(WeaponCraftingService crafting, MaterialInventory inventory)
     {
-        _inventoryText.text = BuildInventoryText(inventory);
         BuildCards(crafting, inventory);
     }
 
@@ -211,17 +208,6 @@ public class CraftingUI : MonoBehaviour
     {
         if (_statusText != null)
             _statusText.text = message ?? string.Empty;
-    }
-
-    private static string BuildInventoryText(MaterialInventory inventory)
-    {
-        if (inventory == null)
-            return string.Empty;
-
-        var sb = new StringBuilder("Materiales: ");
-        foreach (MaterialType type in Enum.GetValues(typeof(MaterialType)))
-            sb.Append(MaterialCatalog.GetDisplayName(type)).Append('=').Append(inventory.GetAmount(type)).Append(' ');
-        return sb.ToString();
     }
 
     private static string BuildCostText(IReadOnlyList<MaterialCost> costs)
@@ -328,9 +314,9 @@ public class CraftingUI : MonoBehaviour
 
         _titleText = CreateLabel(panel.transform, "Crafting", 30, FontStyles.Bold, new Vector2(0f, 0.88f), new Vector2(1f, 1f));
         _titleText.alignment = TextAlignmentOptions.Center;
-        _inventoryText = CreateLabel(panel.transform, string.Empty, 16, FontStyles.Normal, new Vector2(0f, 0.8f), new Vector2(1f, 0.88f));
-        _inventoryText.alignment = TextAlignmentOptions.Center;
-        _statusText = CreateLabel(panel.transform, string.Empty, 15, FontStyles.Italic, new Vector2(0f, 0.72f), new Vector2(1f, 0.8f));
+
+        // Inventario lo muestra MaterialInventoryHUD; acá solo status + cards.
+        _statusText = CreateLabel(panel.transform, string.Empty, 15, FontStyles.Italic, new Vector2(0f, 0.78f), new Vector2(1f, 0.86f));
         _statusText.alignment = TextAlignmentOptions.Center;
         _statusText.color = new Color(1f, 0.85f, 0.4f);
 

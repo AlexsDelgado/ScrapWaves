@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 public static class MaterialCatalog
 {
@@ -62,5 +63,16 @@ public static class MaterialCatalog
         MaterialType.PlasticExplosive => "Plastic Explosive",
         MaterialType.Wiring => "Wiring",
         _ => type.ToString()
+    };
+
+    public static Color GetUiColor(MaterialType type) => type switch
+    {
+        MaterialType.SheetMetal => new Color(0.72f, 0.76f, 0.82f, 1f),
+        MaterialType.MetalPipe => new Color(0.52f, 0.58f, 0.64f, 1f),
+        MaterialType.Gears => new Color(0.86f, 0.64f, 0.22f, 1f),
+        MaterialType.JellifiedFuel => new Color(0.28f, 0.82f, 0.42f, 1f),
+        MaterialType.PlasticExplosive => new Color(0.94f, 0.34f, 0.24f, 1f),
+        MaterialType.Wiring => new Color(0.95f, 0.78f, 0.18f, 1f),
+        _ => new Color(0.55f, 0.58f, 0.62f, 1f)
     };
 }

@@ -129,8 +129,18 @@ public class TitleScreenControllerTests
         Assert.That(eventSystem, Is.Not.Null, "TitleScreen scene should contain an editable EventSystem.");
         Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
         CollectionAssert.AreEqual(
-            new[] { "Play", "Weapon Sandbox", "Enemies Testing" },
+            new[] { "Play", "Weapon Sandbox", "Enemies Testing", "Quit" },
             labels);
+
+        Component controller = roots[0].GetComponent(controllerType);
+        MethodInfo awake = controllerType.GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.That(awake, Is.Not.Null);
+        awake.Invoke(controller, null);
+
+        Button quitButton = buttons.Single(current => GetButtonLabel(current) == "Quit");
+        CollectionAssert.Contains(
+            GetRuntimeListenerMethodNames(quitButton.onClick).ToArray(),
+            nameof(SceneNavigation.QuitApplication));
     }
 
     [Test]

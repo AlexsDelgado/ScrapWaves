@@ -1,13 +1,9 @@
-using System;
-using System.Text;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// HUD pequeña que muestra la cantidad de cada material del inventario
-/// (formato "Nombre: cantidad") para consulta rápida durante el crafteo.
-/// Construye su propio canvas en runtime y se refresca por evento.
+/// con iconos de color y cantidad numérica.
 /// </summary>
 [DisallowMultipleComponent]
 public class MaterialInventoryHUD : MonoBehaviour
@@ -15,11 +11,12 @@ public class MaterialInventoryHUD : MonoBehaviour
     [SerializeField] private MaterialInventory _inventory;
     [SerializeField, Tooltip("Posición anclada respecto de la esquina superior izquierda.")]
     private Vector2 _anchoredPosition = new Vector2(16f, -16f);
-    [SerializeField, Min(8f)] private float _fontSize = 18f;
+    [SerializeField, Min(12f)] private float _iconSize = 22f;
+    [SerializeField, Min(8f)] private float _fontSize = 16f;
     [SerializeField, Tooltip("Si está activo, muestra todos los materiales; si no, solo los que tengas (>0).")]
     private bool _showEmpty = true;
 
-    private TextMeshProUGUI _text;
+    private MaterialInventoryDisplayView _display;
 
     private void Awake() => ResolveInventory();
 
@@ -51,27 +48,13 @@ public class MaterialInventoryHUD : MonoBehaviour
 
     private void Refresh()
     {
-        if (_text == null)
-            return;
-
-        var sb = new StringBuilder();
-        foreach (MaterialType type in Enum.GetValues(typeof(MaterialType)))
-        {
-            int amount = _inventory != null ? _inventory.GetAmount(type) : 0;
-            if (!_showEmpty && amount <= 0)
-                continue;
-
-            if (sb.Length > 0)
-                sb.Append('\n');
-            sb.Append(MaterialCatalog.GetDisplayName(type)).Append(": ").Append(amount);
-        }
-
-        _text.text = sb.ToString();
+        if (_display != null)
+            _display.Refresh(_inventory);
     }
 
     private void EnsureUi()
     {
-        if (_text != null)
+        if (_display != null)
             return;
 
         var canvasGo = new GameObject("MaterialInventoryHUDCanvas", typeof(RectTransform));
@@ -93,24 +76,29 @@ public class MaterialInventoryHUD : MonoBehaviour
         panelRt.anchorMax = new Vector2(0f, 1f);
         panelRt.pivot = new Vector2(0f, 1f);
         panelRt.anchoredPosition = _anchoredPosition;
-        panelRt.sizeDelta = new Vector2(220f, 180f);
         var panelImg = panel.AddComponent<Image>();
         panelImg.sprite = HudUiFactory.WhiteSprite;
         panelImg.color = new Color(0f, 0f, 0f, 0.45f);
         panelImg.raycastTarget = false;
 
-        var textGo = new GameObject("Text", typeof(RectTransform));
-        textGo.transform.SetParent(panel.transform, false);
-        var textRt = textGo.GetComponent<RectTransform>();
-        textRt.anchorMin = Vector2.zero;
-        textRt.anchorMax = Vector2.one;
-        textRt.offsetMin = new Vector2(10f, 8f);
-        textRt.offsetMax = new Vector2(-10f, -8f);
-        _text = textGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(_text);
-        _text.fontSize = _fontSize;
-        _text.alignment = TextAlignmentOptions.TopLeft;
-        _text.color = Color.white;
-        _text.raycastTarget = false;
+        var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+        panelLayout.padding = new RectOffset(10, 10, 8, 8);
+        panelLayout.childAlignment = TextAnchor.UpperLeft;
+        panelLayout.childControlWidth = false;
+        panelLayout.childControlHeight = false;
+        panelLayout.childForceExpandWidth = false;
+        panelLayout.childForceExpandHeight = false;
+
+        var panelFitter = panel.AddComponent<ContentSizeFitter>();
+        panelFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        panelFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        _display = MaterialInventoryDisplayView.Create(
+            panel.transform,
+            MaterialDisplayLayout.Vertical,
+            _showEmpty,
+            showNames: true,
+            iconSize: _iconSize,
+            fontSize: _fontSize);
     }
 }
