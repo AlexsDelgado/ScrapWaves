@@ -66,8 +66,74 @@ public static class EconomySceneSetupMenu
         Undo.RegisterCreatedObjectUndo(station, "Create Crafting Station");
     }
 
-    private const string MaterialOrbPrefabPath = "Assets/Prefabs/material drop.prefab";
+  private const string MaterialOrbPrefabPath = "Assets/Prefabs/material drop.prefab";
     private const string MaterialOrbMaterialPath = "Assets/Prefabs/MaterialDropOrb.mat";
+    private const string VisualCatalogPath = "Assets/ScriptableObjects/Economy/MaterialDropVisualCatalog.asset";
+    private const string PickupsFolder = "Assets/Prefabs/Pickups";
+
+    [MenuItem("ScrapWaves/Economy/Wire Material Drop Art Models")]
+    public static void WireMaterialDropArtModels()
+    {
+        MaterialDropVisualCatalog catalog = AssetDatabase.LoadAssetAtPath<MaterialDropVisualCatalog>(VisualCatalogPath);
+        if (catalog == null)
+        {
+            catalog = ScriptableObject.CreateInstance<MaterialDropVisualCatalog>();
+            AssetDatabase.CreateAsset(catalog, VisualCatalogPath);
+        }
+
+        AssignPickup(catalog, MaterialType.SheetMetal, "MetalSheet.prefab");
+        AssignPickup(catalog, MaterialType.MetalPipe, "Tube.prefab");
+        AssignPickup(catalog, MaterialType.Gears, "Gear.prefab");
+        AssignPickup(catalog, MaterialType.JellifiedFuel, "LiquidFuel.prefab");
+        AssignPickup(catalog, MaterialType.PlasticExplosive, "PlasticExplosive.prefab");
+        AssignPickup(catalog, MaterialType.Wiring, "Wires.prefab");
+
+        EditorUtility.SetDirty(catalog);
+
+        GameObject orbPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MaterialOrbPrefabPath);
+        if (orbPrefab != null)
+        {
+            GameObject contents = PrefabUtility.LoadPrefabContents(MaterialOrbPrefabPath);
+            contents.transform.localScale = Vector3.one;
+            MeshRenderer renderer = contents.GetComponent<MeshRenderer>();
+            if (renderer != null)
+                renderer.enabled = false;
+            MeshFilter filter = contents.GetComponent<MeshFilter>();
+            if (filter != null)
+                filter.sharedMesh = null;
+            PrefabUtility.SaveAsPrefabAsset(contents, MaterialOrbPrefabPath);
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+
+        int wiredPools = 0;
+        MaterialPool[] pools = Object.FindObjectsByType<MaterialPool>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < pools.Length; i++)
+        {
+            SerializedObject so = new SerializedObject(pools[i]);
+            so.FindProperty("_visualCatalog").objectReferenceValue = catalog;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(pools[i]);
+            wiredPools++;
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Selection.activeObject = catalog;
+        Debug.Log($"Material drop visuals wired from {PickupsFolder}. Catalog={VisualCatalogPath}. MaterialPools={wiredPools}.");
+    }
+
+    private static void AssignPickup(MaterialDropVisualCatalog catalog, MaterialType type, string fileName)
+    {
+        string path = $"{PickupsFolder}/{fileName}";
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"No se encontró el prefab de drop en {path}");
+            return;
+        }
+
+        catalog.SetVisual(type, prefab);
+    }
 
     [MenuItem("ScrapWaves/Economy/Create Material Orb Prefab")]
     public static GameObject CreateMaterialOrbPrefab()
@@ -124,12 +190,17 @@ public static class EconomySceneSetupMenu
         }
 
         GameObject orbPrefab = CreateMaterialOrbPrefab();
+        MaterialDropVisualCatalog catalog = AssetDatabase.LoadAssetAtPath<MaterialDropVisualCatalog>(VisualCatalogPath);
+        if (catalog == null)
+            WireMaterialDropArtModels();
+        catalog = AssetDatabase.LoadAssetAtPath<MaterialDropVisualCatalog>(VisualCatalogPath);
 
         var poolGo = new GameObject("MaterialPool");
         MaterialPool pool = poolGo.AddComponent<MaterialPool>();
 
         SerializedObject so = new SerializedObject(pool);
         so.FindProperty("_materialOrbPrefab").objectReferenceValue = orbPrefab;
+        so.FindProperty("_visualCatalog").objectReferenceValue = catalog;
         so.FindProperty("_initialPoolSize").intValue = 128;
         so.FindProperty("_allowPoolGrowth").boolValue = true;
         so.FindProperty("_maxPoolSize").intValue = 612;

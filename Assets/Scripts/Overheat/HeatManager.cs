@@ -30,7 +30,14 @@ public class HeatManager : MonoBehaviour
 
     [SerializeField] private float _currentHeat;
 
+    [SerializeField, Min(0f), Tooltip("Decay de heat por segundo tras Overheat (pausa de spawn). 0 = usar default runtime (12).")]
+    private float _postOverheatDecayPerSecond = 12f;
+
     private bool _intermediateBoostActive;
+    private bool _postOverheatDecayActive;
+    private float _activeDecayPerSecond;
+
+    private const float DefaultPostOverheatDecayPerSecond = 12f;
 
     /// <summary>Puntos actuales de heat.</summary>
     public float CurrentHeat => _currentHeat;
@@ -103,6 +110,47 @@ public class HeatManager : MonoBehaviour
             Instance = null;
     }
 
+    private void Update()
+    {
+        if (!_postOverheatDecayActive || _activeDecayPerSecond <= 0f)
+            return;
+
+        if (_currentHeat <= 0f)
+        {
+            _postOverheatDecayActive = false;
+            return;
+        }
+
+        // unscaled: la pausa de spawn no debe colgarse si timeScale cambia
+        float next = _currentHeat - _activeDecayPerSecond * Time.unscaledDeltaTime;
+        if (next <= 0f)
+        {
+            _postOverheatDecayActive = false;
+            SetHeat(0f);
+            return;
+        }
+
+        SetHeat(next);
+    }
+
+    /// <summary>
+    /// Tras Overheat: deja heat residual y activa decay hasta vaciar (el spawn se reanuda
+    /// cuando heat cae bajo el umbral del primer tramo).
+    /// </summary>
+    public void BeginPostOverheatCooldown(float residualHeat)
+    {
+        _activeDecayPerSecond = _postOverheatDecayPerSecond > 0f
+            ? _postOverheatDecayPerSecond
+            : DefaultPostOverheatDecayPerSecond;
+
+        SetHeat(residualHeat);
+        _postOverheatDecayActive = residualHeat > 0f && _activeDecayPerSecond > 0f;
+    }
+
+    public bool IsPostOverheatDecayActive => _postOverheatDecayActive;
+
+    public void StopPostOverheatDecay() => _postOverheatDecayActive = false;
+
     public void RegisterKill()
     {
         AddHeat(_heatPerKill);
@@ -124,6 +172,7 @@ public class HeatManager : MonoBehaviour
 
         if (wasBelowMax && _currentHeat >= cap - 0.0001f)
         {
+            _postOverheatDecayActive = false;
             if (_logOverheat)
                 Debug.Log("Heat al máximo → Overheat", this);
 

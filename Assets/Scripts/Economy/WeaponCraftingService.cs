@@ -29,6 +29,7 @@ public class WeaponCraftingService : MonoBehaviour
     [SerializeField] private List<WeaponData> _weaponPool = new();
 
     private readonly Dictionary<string, bool> _advancedRejected = new();
+    private readonly Dictionary<string, WeaponUpgradePath> _guaranteedPath = new();
 
     private void Awake()
     {
@@ -126,13 +127,15 @@ public class WeaponCraftingService : MonoBehaviour
 
         if (accept)
         {
-            _weaponManager.ApplyUpgradePath(instance, path);
             _weaponManager.UpgradeWeapon(instance);
+            _weaponManager.ApplyUpgradePath(instance, path);
             _advancedRejected.Remove(weapon.WeaponId);
-            return new CraftingActionResult(true, $"Path {path} aplicado. Nivel 6.");
+            _guaranteedPath.Remove(weapon.WeaponId);
+            return new CraftingActionResult(true, $"Path {path} aplicado. Nivel {instance.Level}.");
         }
 
         _advancedRejected[weapon.WeaponId] = true;
+        _guaranteedPath[weapon.WeaponId] = GetGuaranteedAlternatePath(weapon, path);
         return new CraftingActionResult(true, "Oferta rechazada. Costo de re-tinkering +50%.");
     }
 
@@ -155,6 +158,14 @@ public class WeaponCraftingService : MonoBehaviour
     public WeaponUpgradePath GetGuaranteedAlternatePath(WeaponData weapon, WeaponUpgradePath offered)
     {
         return offered == WeaponUpgradePath.PathA ? WeaponUpgradePath.PathB : WeaponUpgradePath.PathA;
+    }
+
+    public bool TryGetGuaranteedPath(WeaponData weapon, out WeaponUpgradePath path)
+    {
+        path = WeaponUpgradePath.None;
+        if (weapon == null)
+            return false;
+        return _guaranteedPath.TryGetValue(weapon.WeaponId, out path) && path != WeaponUpgradePath.None;
     }
 
     public bool WasAdvancedRejected(WeaponData weapon) =>

@@ -54,6 +54,8 @@ public class RunStartWeaponChoice : MonoBehaviour
         if (selected < 0 || selected >= offer.Count)
             selected = 0;
 
+        // Solo el arma elegida: limpia cualquier starter residual y equipa una.
+        _weaponManager.ClearEquippedWeapons();
         _weaponManager.AddWeapon(offer[selected]);
     }
 

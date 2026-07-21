@@ -17,6 +17,7 @@ public class CraftingUI : MonoBehaviour
     private Canvas _canvas;
     private TextMeshProUGUI _titleText;
     private TextMeshProUGUI _inventoryText;
+    private TextMeshProUGUI _statusText;
     private RectTransform _cardsRow;
     private readonly List<Button> _buttons = new();
     private float _previousTimeScale = 1f;
@@ -40,6 +41,7 @@ public class CraftingUI : MonoBehaviour
         SetCameraBlocked(true);
         EnsureUi();
         _titleText.text = "Crafting Station";
+        _statusText.text = string.Empty;
         _inventoryText.text = BuildInventoryText(inventory);
         BuildCards(crafting, inventory);
         _canvas.gameObject.SetActive(true);
@@ -85,16 +87,35 @@ public class CraftingUI : MonoBehaviour
                 int next = runtime.Level + 1;
                 if (runtime.Level == 5 && runtime.SelectedPath == WeaponUpgradePath.None)
                 {
-                    AddCard($"Advanced: {data.DisplayName}", BuildCostText(crafting.GetAdvancedTinkeringCost(data)),
-                        () => PresentAdvancedChoice(crafting, data));
+                    IReadOnlyList<MaterialCost> advCost = crafting.GetAdvancedTinkeringCost(data);
+                    bool canAffordAdv = inventory != null && inventory.CanAfford(advCost);
+                    AddCard(
+                        $"Advanced: {data.DisplayName}",
+                        BuildCostText(advCost),
+                        canAffordAdv,
+                        () =>
+                        {
+                            if (!canAffordAdv)
+                            {
+                                SetStatus("Materiales insuficientes para Advanced Tinkering.");
+                                return;
+                            }
+
+                            PresentAdvancedChoice(crafting, data);
+                        });
                 }
                 else
                 {
-                    AddCard($"Upgrade {data.DisplayName} → {next}",
-                        BuildCostText(crafting.GetUpgradeCost(data, runtime.SelectedPath, next)),
+                    IReadOnlyList<MaterialCost> upgradeCost = crafting.GetUpgradeCost(data, runtime.SelectedPath, next);
+                    bool canAffordUpgrade = inventory != null && inventory.CanAfford(upgradeCost);
+                    AddCard(
+                        $"Upgrade {data.DisplayName} → {next}",
+                        BuildCostText(upgradeCost),
+                        canAffordUpgrade,
                         () =>
                         {
-                            crafting.TryUpgradeWeapon(data, next);
+                            CraftingActionResult result = crafting.TryUpgradeWeapon(data, next);
+                            SetStatus(result.Message);
                             Refresh(crafting, inventory);
                         });
                 }
@@ -104,24 +125,39 @@ public class CraftingUI : MonoBehaviour
         if (weaponManager != null && weaponManager.CanAddWeapon())
         {
             int slot = equipped.Count + 1;
-            AddCard($"Tinker arma slot {slot}", BuildCostText(crafting.GetTinkeringCost(slot)), () =>
-            {
-                crafting.TryTinkerRandomWeapon();
-                Refresh(crafting, inventory);
-            });
+            IReadOnlyList<MaterialCost> tinkerCost = crafting.GetTinkeringCost(slot);
+            bool canAffordTinker = inventory != null && inventory.CanAfford(tinkerCost);
+            AddCard(
+                $"Tinker arma slot {slot}",
+                BuildCostText(tinkerCost),
+                canAffordTinker,
+                () =>
+                {
+                    CraftingActionResult result = crafting.TryTinkerRandomWeapon();
+                    SetStatus(result.Message);
+                    Refresh(crafting, inventory);
+                });
         }
 
-        AddCard("Cerrar", string.Empty, Hide);
+        AddCard("Cerrar", string.Empty, true, Hide);
     }
 
     private void PresentAdvancedChoice(WeaponCraftingService crafting, WeaponData weapon)
     {
-        var options = new List<LevelUpChoiceOption>
+        var options = new List<LevelUpChoiceOption>();
+        if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
         {
-            new(weapon.PathA?.PathName ?? "Path A", "Aceptar path A"),
-            new(weapon.PathB?.PathName ?? "Path B", "Aceptar path B"),
-            new("Rechazar", "+50% costo, garantiza path alternativo")
-        };
+            string name = guaranteed == WeaponUpgradePath.PathA
+                ? (weapon.PathA?.PathName ?? "Path A")
+                : (weapon.PathB?.PathName ?? "Path B");
+            options.Add(new LevelUpChoiceOption(name, "Path garantizado tras rechazo"));
+        }
+        else
+        {
+            options.Add(new(weapon.PathA?.PathName ?? "Path A", "Aceptar path A"));
+            options.Add(new(weapon.PathB?.PathName ?? "Path B", "Aceptar path B"));
+            options.Add(new("Rechazar", "+50% costo, garantiza path alternativo"));
+        }
 
         LevelUpChoiceUI choiceUi = FindAnyObjectByType<LevelUpChoiceUI>();
         if (choiceUi == null)
@@ -139,25 +175,42 @@ public class CraftingUI : MonoBehaviour
         int selected = -1;
         yield return choiceUi.PresentCoroutine("Advanced Tinkering", options, index => selected = index);
 
-        // El sub-panel (LevelUpChoiceUI) al cerrarse restaura timeScale y re-bloquea
-        // el cursor; el panel de crafteo sigue abierto, así que re-afirmamos su estado.
         Time.timeScale = 0f;
         SetCameraBlocked(true);
 
-        if (selected == 0)
-            crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true);
-        else if (selected == 1)
-            crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true);
-        else if (selected == 2)
-            crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false);
+        MaterialInventory inventory = FindAnyObjectByType<MaterialInventory>();
+        CraftingActionResult result;
 
-        Refresh(crafting, FindAnyObjectByType<MaterialInventory>());
+        if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
+        {
+            if (selected == 0)
+                result = crafting.TryAdvancedTinkering(weapon, guaranteed, true);
+            else
+                result = new CraftingActionResult(false, "Selección cancelada.");
+        }
+        else if (selected == 0)
+            result = crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true);
+        else if (selected == 1)
+            result = crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true);
+        else if (selected == 2)
+            result = crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false);
+        else
+            result = new CraftingActionResult(false, "Selección cancelada.");
+
+        SetStatus(result.Message);
+        Refresh(crafting, inventory);
     }
 
     private void Refresh(WeaponCraftingService crafting, MaterialInventory inventory)
     {
         _inventoryText.text = BuildInventoryText(inventory);
         BuildCards(crafting, inventory);
+    }
+
+    private void SetStatus(string message)
+    {
+        if (_statusText != null)
+            _statusText.text = message ?? string.Empty;
     }
 
     private static string BuildInventoryText(MaterialInventory inventory)
@@ -184,9 +237,9 @@ public class CraftingUI : MonoBehaviour
         return sb.ToString();
     }
 
-    private void AddCard(string title, string description, Action onClick)
+    private void AddCard(string title, string description, bool interactable, Action onClick)
     {
-        Button btn = CreateCard(title, description);
+        Button btn = CreateCard(title, description, interactable);
         btn.onClick.AddListener(() => onClick?.Invoke());
         _buttons.Add(btn);
     }
@@ -201,18 +254,24 @@ public class CraftingUI : MonoBehaviour
         _buttons.Clear();
     }
 
-    private Button CreateCard(string title, string description)
+    private Button CreateCard(string title, string description, bool interactable)
     {
         var cardGo = new GameObject("CraftCard", typeof(RectTransform));
         cardGo.transform.SetParent(_cardsRow, false);
         cardGo.GetComponent<RectTransform>().sizeDelta = new Vector2(_cardWidth, _cardHeight);
         var bg = cardGo.AddComponent<Image>();
         bg.sprite = HudUiFactory.WhiteSprite;
-        bg.color = HudUiFactory.BorderColor;
+        bg.color = interactable ? HudUiFactory.BorderColor : new Color(0.25f, 0.25f, 0.25f, 0.85f);
         var btn = cardGo.AddComponent<Button>();
+        btn.interactable = interactable;
 
-        var titleText = CreateLabel(cardGo.transform, title, 18, FontStyles.Bold, new Vector2(0f, 0.55f), new Vector2(1f, 1f));
-        CreateLabel(cardGo.transform, description, 14, FontStyles.Normal, new Vector2(0f, 0f), new Vector2(1f, 0.55f));
+        var colors = btn.colors;
+        colors.disabledColor = new Color(0.35f, 0.35f, 0.35f, 0.9f);
+        btn.colors = colors;
+
+        CreateLabel(cardGo.transform, title, 18, FontStyles.Bold, new Vector2(0f, 0.55f), new Vector2(1f, 1f));
+        string desc = interactable ? description : description + "\n(Sin materiales)";
+        CreateLabel(cardGo.transform, desc, 14, FontStyles.Normal, new Vector2(0f, 0f), new Vector2(1f, 0.55f));
         return btn;
     }
 
@@ -267,10 +326,13 @@ public class CraftingUI : MonoBehaviour
         panelRt.offsetMax = Vector2.zero;
         panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
-        _titleText = CreateLabel(panel.transform, "Crafting", 30, FontStyles.Bold, new Vector2(0f, 0.8f), new Vector2(1f, 1f));
+        _titleText = CreateLabel(panel.transform, "Crafting", 30, FontStyles.Bold, new Vector2(0f, 0.88f), new Vector2(1f, 1f));
         _titleText.alignment = TextAlignmentOptions.Center;
-        _inventoryText = CreateLabel(panel.transform, string.Empty, 16, FontStyles.Normal, new Vector2(0f, 0.72f), new Vector2(1f, 0.8f));
+        _inventoryText = CreateLabel(panel.transform, string.Empty, 16, FontStyles.Normal, new Vector2(0f, 0.8f), new Vector2(1f, 0.88f));
         _inventoryText.alignment = TextAlignmentOptions.Center;
+        _statusText = CreateLabel(panel.transform, string.Empty, 15, FontStyles.Italic, new Vector2(0f, 0.72f), new Vector2(1f, 0.8f));
+        _statusText.alignment = TextAlignmentOptions.Center;
+        _statusText.color = new Color(1f, 0.85f, 0.4f);
 
         var rowGo = new GameObject("CardsRow", typeof(RectTransform));
         rowGo.transform.SetParent(panel.transform, false);

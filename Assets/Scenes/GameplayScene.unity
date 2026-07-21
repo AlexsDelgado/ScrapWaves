@@ -1860,6 +1860,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MaterialPool
   _materialOrbPrefab: {fileID: 3820090598475832186, guid: 40214390c0d8d9641b3ffd30a42ac531, type: 3}
+  _visualCatalog: {fileID: 11400000, guid: d4e5f6a7b8c9d0e1f203142536475869, type: 2}
   _container: {fileID: 0}
   _initialPoolSize: 128
   _allowPoolGrowth: 1
@@ -5647,11 +5648,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OrbitalSpawner
   _config: {fileID: 11400000, guid: f8a2b3c4d5e6478990abcdef12345678, type: 2}
   _player: {fileID: 0}
+  _playerStats: {fileID: 0}
   _difficultyManager: {fileID: 1443009583}
   _overheatManager: {fileID: 0}
+  _heatManager: {fileID: 2026883592}
   _spawnInterval: 1.5
   _spawnOnStart: 1
   _maxActiveEnemies: 300
+  _pauseSpawnWhileHeatElevated: 1
   _minSpawnRadius: 25
   _maxSpawnRadius: 35
   _spawnHeightOffset: 0
@@ -6465,7 +6469,7 @@ Transform:
   m_GameObject: {fileID: 1869298944}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 2.03, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -6970,6 +6974,7 @@ MonoBehaviour:
   _logOverheat: 0
   _heatRequirementEscalation: 1
   _currentHeat: 0
+  _postOverheatDecayPerSecond: 12
 --- !u!4 &2026883593
 Transform:
   m_ObjectHideFlags: 0
@@ -7719,17 +7724,9 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 800208824}
     - target: {fileID: 8802695284123346318, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
-      propertyPath: '_startingWeapons.Array.data[0]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
-    - target: {fileID: 8802695284123346318, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
-      propertyPath: '_startingWeapons.Array.data[1]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
-    - target: {fileID: 8802695284123346318, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
-      propertyPath: '_startingWeapons.Array.data[2]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
+      propertyPath: _startingWeapons.Array.size
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

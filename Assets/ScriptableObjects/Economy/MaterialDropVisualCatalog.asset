@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7e4c1a92f6d4e8a9b0c1d2e3f405162, type: 3}
+  m_Name: MaterialDropVisualCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::MaterialDropVisualCatalog
+  _entries:
+  - Type: 0
+    VisualPrefab: {fileID: 4921063791146269789, guid: 63055fe1ce2137743980e0a92b38a967, type: 3}
+  - Type: 1
+    VisualPrefab: {fileID: 5634731253957010339, guid: e9eed559cd45e444e8993c3959835c64, type: 3}
+  - Type: 2
+    VisualPrefab: {fileID: 1980893243210190684, guid: 78637246669eaed48b0fe43feed851f0, type: 3}
+  - Type: 3
+    VisualPrefab: {fileID: 2682187201995476299, guid: 36700101eb843854f9ef2a02cdee60e7, type: 3}
+  - Type: 4
+    VisualPrefab: {fileID: 4801234367297095810, guid: 0fd864420925d4548808ccf30784a6eb, type: 3}
+  - Type: 5
+    VisualPrefab: {fileID: 370089389556622000, guid: aaa7527586d886744a3ebb1612d4d091, type: 3}

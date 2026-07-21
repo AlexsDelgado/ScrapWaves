@@ -6,6 +6,7 @@ using UnityEngine.SceneManagement;
 public class MaterialPool : MonoBehaviour
 {
     [SerializeField] private GameObject _materialOrbPrefab;
+    [SerializeField] private MaterialDropVisualCatalog _visualCatalog;
     [SerializeField] private Transform _container;
     [SerializeField, Min(1)] private int _initialPoolSize = 128;
     [SerializeField] private bool _allowPoolGrowth = true;
@@ -18,6 +19,9 @@ public class MaterialPool : MonoBehaviour
     private int _leasedCount;
 
     public static MaterialPool Instance { get; private set; }
+    public MaterialDropVisualCatalog VisualCatalog => _visualCatalog;
+
+    public void SetVisualCatalog(MaterialDropVisualCatalog catalog) => _visualCatalog = catalog;
 
     public static MaterialPool GetInstance()
     {

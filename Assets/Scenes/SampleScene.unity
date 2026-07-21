@@ -7396,17 +7396,9 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 800208824}
     - target: {fileID: 8802695284123346318, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
-      propertyPath: '_startingWeapons.Array.data[0]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
-    - target: {fileID: 8802695284123346318, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
-      propertyPath: '_startingWeapons.Array.data[1]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
-    - target: {fileID: 8802695284123346318, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
-      propertyPath: '_startingWeapons.Array.data[2]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
+      propertyPath: _startingWeapons.Array.size
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

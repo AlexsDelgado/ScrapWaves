@@ -9,8 +9,8 @@ public class MaterialPickupReceiver : MonoBehaviour
     [SerializeField] private MaterialInventory _inventory;
     [SerializeField] private PlayerXP _playerXp;
 
-    [SerializeField, Min(0), Tooltip("XP fija otorgada por cada drop recogido, sin importar tipo ni cantidad.")]
-    private int _xpPerDrop = 1;
+    [SerializeField, Min(0), Tooltip("Si > 0, XP fija por pickup (ignora rareza). 0 = usar MaterialCatalog por tipo.")]
+    private int _xpPerDropOverride;
 
     private void Awake()
     {
@@ -36,7 +36,10 @@ public class MaterialPickupReceiver : MonoBehaviour
 
         _inventory?.Add(type, amount);
 
-        if (_xpPerDrop > 0)
-            _playerXp?.AddExperience(_xpPerDrop);
+        int xp = _xpPerDropOverride > 0
+            ? _xpPerDropOverride
+            : MaterialCatalog.GetPickupXpValue(type) * Mathf.Max(1, amount);
+        if (xp > 0)
+            _playerXp?.AddExperience(xp);
     }
 }

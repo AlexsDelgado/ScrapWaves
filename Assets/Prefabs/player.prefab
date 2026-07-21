@@ -579,6 +579,7 @@ MonoBehaviour:
   _overheatDuration: 75
   _fireRateMultiplier: 1.5
   _heatAfterOverheat: 0
+  _clearSwarmOnOverheatEnd: 0
   _logState: 0
   _swarmEnemyPool: {fileID: 0}
 --- !u!54 &5549646721490838355
@@ -620,15 +621,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 82cbce0dab044364c933c4f7f6c13b38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WeaponManager
-  _startingWeapons:
-  - {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
+  _startingWeapons: []
   _projectileSpawn: {fileID: 123637993059655878}
   _projectilePool: {fileID: 0}
   _reticleAimProvider: {fileID: 3355374661182279101}
   _aimFacingHoldTime: 0.08
   _manualCycleCooldown: 1.25
   _singleWeaponCycleCooldown: 2.5
-  _deferInitialWeaponChoice: 0
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -849,7 +848,7 @@ MonoBehaviour:
   _pickupPoint: {fileID: 0}
   _inventory: {fileID: 0}
   _playerXp: {fileID: 0}
-  _xpPerDrop: 1
+  _xpPerDropOverride: 0
 --- !u!114 &623964915430657628
 MonoBehaviour:
   m_ObjectHideFlags: 0
