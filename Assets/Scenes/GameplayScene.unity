@@ -4817,7 +4817,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 5
-      value: 0.23095092
+      value: 0.212854
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -4825,8 +4825,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 10.125
-      value: 0.5023834
+      time: 9.997177
+      value: 0.39984435
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -4845,12 +4845,13 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _maxSpawnCountMultiplier: 3
+  _difficultyRampSpeedMultiplier: 1.5
+  _maxSpawnCountMultiplier: 4
   _spawnIntervalScaleAtMaxIntensity: 0.45
   _scaleEnemyHealth: 1
-  _maxEnemyHealthMultiplier: 2.5
+  _maxEnemyHealthMultiplier: 200
   _scaleEnemyMoveSpeed: 1
-  _maxEnemySpeedMultiplier: 4
+  _maxEnemySpeedMultiplier: 10
 --- !u!4 &1443009584
 Transform:
   m_ObjectHideFlags: 0
@@ -5652,7 +5653,7 @@ MonoBehaviour:
   _difficultyManager: {fileID: 1443009583}
   _overheatManager: {fileID: 0}
   _heatManager: {fileID: 2026883592}
-  _spawnInterval: 1.5
+  _spawnInterval: 5
   _spawnOnStart: 1
   _maxActiveEnemies: 300
   _pauseSpawnWhileHeatElevated: 1
@@ -6967,8 +6968,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0f8ea6dadc441a346bd00f1de6b9df6f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HeatManager
-  _pointsToReachDisplay80: 50
-  _pointsFromDisplay80To100: 50
+  _pointsToReachDisplay80: 100
+  _pointsFromDisplay80To100: 100
   _escalationPerOverheatCycle: 1.5
   _heatPerKill: 2
   _logOverheat: 0

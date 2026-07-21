@@ -10,6 +10,8 @@ public class MaterialDrop : MonoBehaviour
     private float _spawnHeightOffset = 0.5f;
     [SerializeField, Min(0f), Tooltip("Rotación lenta del drop (grados/segundo) sobre el visual.")]
     private float _spinDegreesPerSecond = 45f;
+    [SerializeField, Range(0.1f, 1f), Tooltip("Visual scale of dropped materials. Does not affect pickup range.")]
+    private float _visualScale = 0.6f;
 
     private MaterialPool _pool;
     private MaterialPoolMember _member;
@@ -86,22 +88,24 @@ public class MaterialDrop : MonoBehaviour
 
     private void EnsureVisualRoot()
     {
-        if (_visualRoot != null)
-            return;
-
-        Transform existing = transform.Find("Visuals");
-        if (existing != null)
+        if (_visualRoot == null)
         {
-            _visualRoot = existing;
-            return;
+            Transform existing = transform.Find("Visuals");
+            if (existing != null)
+            {
+                _visualRoot = existing;
+            }
+            else
+            {
+                var go = new GameObject("Visuals");
+                _visualRoot = go.transform;
+                _visualRoot.SetParent(transform, false);
+                _visualRoot.localPosition = Vector3.zero;
+                _visualRoot.localRotation = Quaternion.identity;
+            }
         }
 
-        var go = new GameObject("Visuals");
-        _visualRoot = go.transform;
-        _visualRoot.SetParent(transform, false);
-        _visualRoot.localPosition = Vector3.zero;
-        _visualRoot.localRotation = Quaternion.identity;
-        _visualRoot.localScale = Vector3.one;
+        _visualRoot.localScale = Vector3.one * _visualScale;
     }
 
     private void Update()

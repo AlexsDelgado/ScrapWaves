@@ -11,6 +11,7 @@ public class PauseMenuUI : MonoBehaviour
 
     [SerializeField] private PlayerStats _playerStats;
     [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
+    [SerializeField] private CraftingUI _craftingUi;
     [SerializeField] private ThirdPersonCamera _camera;
     [SerializeField] private AudioManager _audioManager;
     [SerializeField] private WeaponSandboxDebugUI _sandboxDebugUi;
@@ -59,6 +60,8 @@ public class PauseMenuUI : MonoBehaviour
             _playerStats = FindAnyObjectByType<PlayerStats>();
         if (_levelUpChoiceUi == null)
             _levelUpChoiceUi = FindAnyObjectByType<LevelUpChoiceUI>();
+        if (_craftingUi == null)
+            _craftingUi = FindAnyObjectByType<CraftingUI>();
         if (_camera == null)
             _camera = FindAnyObjectByType<ThirdPersonCamera>();
         if (_audioManager == null)
@@ -78,9 +81,21 @@ public class PauseMenuUI : MonoBehaviour
 
     private bool CanPause()
     {
-        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
+        // Player-owned UI components may be spawned after this menu's Awake.
+        // Resolve again on Escape so a modal can never be bypassed by scene order.
+        ResolveRefs();
+
+        bool modalUiVisible = (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible)
+            || (_craftingUi != null && _craftingUi.IsVisible);
+        if (modalUiVisible)
+        {
+            _camera?.SetLookBlockedByUi(true);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
             return false;
-        if (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible)
+        }
+
+        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return false;
         return true;
     }

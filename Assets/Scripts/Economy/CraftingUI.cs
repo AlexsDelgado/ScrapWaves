@@ -22,6 +22,9 @@ public class CraftingUI : MonoBehaviour
     private float _previousTimeScale = 1f;
     private Action _onClosed;
     private ThirdPersonCamera _resolvedCamera;
+    private bool _isVisible;
+
+    public bool IsVisible => _isVisible;
 
     public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
     {
@@ -35,6 +38,7 @@ public class CraftingUI : MonoBehaviour
 
     private void Show(WeaponCraftingService crafting, MaterialInventory inventory)
     {
+        _isVisible = true;
         _previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
         SetCameraBlocked(true);
@@ -47,6 +51,7 @@ public class CraftingUI : MonoBehaviour
 
     private void Hide()
     {
+        _isVisible = false;
         if (_canvas != null)
             _canvas.gameObject.SetActive(false);
         Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;

@@ -16,6 +16,9 @@ public class DifficultyManager : MonoBehaviour
     [SerializeField, Tooltip("Intensidad 0–1 en función de minutos transcurridos desde que empezó el escalado (X=0 es el primer frame tras el retraso).")]
     private AnimationCurve _intensityOverMinutesAfterStart = DefaultIntensityCurve();
 
+    [SerializeField, Min(0.1f), Tooltip("Velocidad a la que se recorre la curva de intensidad. 3.5 alcanza cada punto 3.5 veces antes.")]
+    private float _difficultyRampSpeedMultiplier = 1f;
+
     [SerializeField, Min(1f), Tooltip("Multiplicador de enemigos por oleada cuando la intensidad es 1.")]
     private float _maxSpawnCountMultiplier = 2.5f;
 
@@ -72,7 +75,7 @@ public class DifficultyManager : MonoBehaviour
             if (Time.timeSinceLevelLoad < _scalingStartDelaySeconds)
                 return 0f;
 
-            float minutes = MinutesSinceScalingStarted;
+            float minutes = MinutesSinceScalingStarted * _difficultyRampSpeedMultiplier;
             float lastKey = _intensityOverMinutesAfterStart.length > 0
                 ? _intensityOverMinutesAfterStart.keys[_intensityOverMinutesAfterStart.length - 1].time
                 : 30f;
@@ -141,6 +144,8 @@ public class DifficultyManager : MonoBehaviour
     {
         if (_maxSpawnCountMultiplier < 1f)
             _maxSpawnCountMultiplier = 1f;
+        if (_difficultyRampSpeedMultiplier < 0.1f)
+            _difficultyRampSpeedMultiplier = 0.1f;
         if (_spawnIntervalScaleAtMaxIntensity < 0.15f)
             _spawnIntervalScaleAtMaxIntensity = 0.15f;
         if (_maxEnemyHealthMultiplier < 1f)
