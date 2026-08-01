@@ -25,6 +25,7 @@ MonoBehaviour:
   ActiveAbilityAmmoCost: 20
   SkillCooldown: 6
   Icon: {fileID: 21300000, guid: 45cfa6548cb4a0f47808fc5553f8bbfc, type: 3}
+  PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
   _specificTuning:
     rid: 5516199871946686465
   LevelData:
@@ -33,21 +34,43 @@ MonoBehaviour:
     AttackRateMultiplier: 1
     ManualAmmoMultiplier: 1
   - Level: 2
-    DamageMultiplier: 1.25
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.1
+    ManualAmmoMultiplier: 1
   - Level: 3
-    DamageMultiplier: 1.5
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.2
+    ManualAmmoMultiplier: 1
   - Level: 4
-    DamageMultiplier: 1.75
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.3
+    ManualAmmoMultiplier: 1
   - Level: 5
-    DamageMultiplier: 2
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.4
+    ManualAmmoMultiplier: 1
+  - Level: 6
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 7
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 8
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 9
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 10
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: Continuous Fire
     DamageMultiplier: 1
@@ -112,8 +135,8 @@ MonoBehaviour:
         CannonAbilityScatterRadius: 11
         CannonManualLineSpacing: 1
         CannonAutoLineSpacing: 2
-        CannonAutoAccuracySpreadDegrees: 25
-        CannonBurstProjectileScatterDegrees: 1.5
+        CannonAutoAccuracySpreadDegrees: 0
+        CannonBurstProjectileScatterDegrees: 0
         CannonBurstShotInterval: 0.05
         CannonAutoBurstsPerSecond: 5
         CannonManualBurstsPerSecond: 3

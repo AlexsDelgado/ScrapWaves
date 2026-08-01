@@ -20,8 +20,8 @@ public sealed class AutomaticCannonTuning : WeaponSpecificTuning
     [Min(0f)] public float CannonAbilityScatterRadius = 22f;
     [Min(0f)] public float CannonManualLineSpacing = 0.45f;
     [Min(0f)] public float CannonAutoLineSpacing = 0.45f;
-    [Min(0f)] public float CannonAutoAccuracySpreadDegrees = 6f;
-    [Min(0f)] public float CannonBurstProjectileScatterDegrees = 1.5f;
+    [Min(0f)] public float CannonAutoAccuracySpreadDegrees = 0f;
+    [Min(0f)] public float CannonBurstProjectileScatterDegrees = 0f;
     [Min(0.001f)] public float CannonBurstShotInterval = 0.05f;
     [Min(0.01f)] public float CannonAutoBurstsPerSecond = 5f;
     [Min(0.01f)] public float CannonManualBurstsPerSecond = 2f;
@@ -169,6 +169,7 @@ public class WeaponData : ScriptableObject
     public float ActiveAbilityAmmoCost = 20f;
     [Min(0f)] public float SkillCooldown = 1f;
     public Sprite Icon;
+    public WeaponPresentationProfile PresentationProfile;
 
     [SerializeReference] private WeaponSpecificTuning _specificTuning;
 

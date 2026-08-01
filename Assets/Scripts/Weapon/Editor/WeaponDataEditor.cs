@@ -39,6 +39,10 @@ public sealed class WeaponDataEditor : Editor
         EditorGUILayout.LabelField("UI", EditorStyles.boldLabel);
         DrawProperty(nameof(WeaponData.Icon));
         DrawProperty(nameof(WeaponData.SkillCooldown));
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Presentation", EditorStyles.boldLabel);
+        DrawProperty(nameof(WeaponData.PresentationProfile));
     }
 
     private void DrawBaseCombatFields()

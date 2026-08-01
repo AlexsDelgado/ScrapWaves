@@ -23,6 +23,7 @@ MonoBehaviour:
   BaseKnockback: 1
   BaseManualAmmo: 200
   ActiveAbilityAmmoCost: 20
+  PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
   _specificTuning:
     rid: 5516199936037486594
   LevelData:
@@ -88,8 +89,8 @@ MonoBehaviour:
         CannonAbilityScatterRadius: 11
         CannonManualLineSpacing: 1
         CannonAutoLineSpacing: 1
-        CannonAutoAccuracySpreadDegrees: 6
-        CannonBurstProjectileScatterDegrees: 1.5
+        CannonAutoAccuracySpreadDegrees: 0
+        CannonBurstProjectileScatterDegrees: 0
         CannonBurstShotInterval: 0.05
         CannonAutoBurstsPerSecond: 5
         CannonManualBurstsPerSecond: 3

@@ -7,9 +7,10 @@ public static class WeaponBehaviourFactory
         IWeaponTargeting targeting,
         ProjectilePool projectilePool,
         Transform spawn,
-        PlayerMovement movement)
+        PlayerMovement movement,
+        IWeaponPresentationSink presentationSink = null)
     {
-        return data.WeaponType switch
+        IWeaponBehaviour behaviour = data.WeaponType switch
         {
             WeaponType.AutomaticCannon => new AutomaticCannonWeapon(targeting, projectilePool, spawn),
             WeaponType.Flamethrower => new FlamethrowerWeapon(targeting, projectilePool, spawn, movement),
@@ -18,5 +19,10 @@ public static class WeaponBehaviourFactory
             WeaponType.RotatingBlade => new RotatingBladeWeapon(targeting, projectilePool, spawn),
             _ => new BasicProjectileWeapon(targeting, projectilePool, spawn)
         };
+
+        if (behaviour is IWeaponPresentationReceiver presentationReceiver)
+            presentationReceiver.SetPresentationSink(presentationSink);
+
+        return behaviour;
     }
 }

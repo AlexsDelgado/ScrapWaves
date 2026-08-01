@@ -158,7 +158,8 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.AutomaticCannon.CannonAbilityScatterRadius = 11f;
                 data.AutomaticCannon.CannonManualLineSpacing = 1f;
                 data.AutomaticCannon.CannonAutoLineSpacing = 1f;
-                data.AutomaticCannon.CannonBurstProjectileScatterDegrees = 1.5f;
+                data.AutomaticCannon.CannonAutoAccuracySpreadDegrees = 0f;
+                data.AutomaticCannon.CannonBurstProjectileScatterDegrees = 0f;
                 data.AutomaticCannon.CannonManualBurstsPerSecond = 3f;
                 break;
             case WeaponType.RocketLauncher:
@@ -445,6 +446,10 @@ public static class WeaponTestingSandboxSceneBuilder
         LevelUpOrchestrator levelUpOrchestrator = player.GetComponent<LevelUpOrchestrator>();
         if (levelUpOrchestrator != null)
             levelUpOrchestrator.enabled = false;
+
+        RunStartWeaponChoice runStartWeaponChoice = player.GetComponent<RunStartWeaponChoice>();
+        if (runStartWeaponChoice != null)
+            runStartWeaponChoice.enabled = false;
 
         OverheatManager overheatManager = player.GetComponent<OverheatManager>();
         if (overheatManager != null)

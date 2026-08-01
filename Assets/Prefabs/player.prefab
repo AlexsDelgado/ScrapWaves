@@ -276,6 +276,7 @@ GameObject:
   - component: {fileID: 901000005}
   - component: {fileID: 901000006}
   - component: {fileID: 901000007}
+  - component: {fileID: 901000008}
   - component: {fileID: 4494072351083282055}
   - component: {fileID: 7451048668054844177}
   - component: {fileID: 623964915430657628}
@@ -629,9 +630,27 @@ MonoBehaviour:
   _projectileSpawn: {fileID: 123637993059655878}
   _projectilePool: {fileID: 0}
   _reticleAimProvider: {fileID: 3355374661182279101}
+  _presentationController: {fileID: 901000008}
   _aimFacingHoldTime: 0.08
   _manualCycleCooldown: 1.25
   _singleWeaponCycleCooldown: 2.5
+--- !u!114 &901000008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8fb0b58ed264d8399a3a65c5f24f6da, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationController
+  _profile: {fileID: 0}
+  _camera: {fileID: 0}
+  _audioManager: {fileID: 0}
+  _audioVoiceCount: 16
+  _audioSpatialBlend: 1
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0
