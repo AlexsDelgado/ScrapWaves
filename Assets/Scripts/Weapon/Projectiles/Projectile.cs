@@ -53,6 +53,14 @@ public class Projectile : MonoBehaviour
     private float _clusterFragmentConeRange;
     private float _clusterFragmentDamageScale;
     private WeaponDamageContext _clusterDamageContext;
+    private IWeaponPresentationSink _presentationSink;
+    private WeaponInstance _presentationWeapon;
+    private WeaponPresentationCue _impactCue;
+    private WeaponPresentationCue _criticalImpactCue;
+    private WeaponPresentationCue _weakPointImpactCue;
+    private bool _presentationIsAbility;
+    private bool _presentationAllowWeakPoint;
+    private bool _presentationImpactEmitted;
     private readonly HashSet<IDamageable> _explosionDamageables = new();
     private readonly HashSet<IDamageable> _fragmentConeDamageables = new();
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
@@ -62,6 +70,7 @@ public class Projectile : MonoBehaviour
     private readonly RaycastHit[] _sweepHits = new RaycastHit[12];
 
     public float ActiveSpeed => _activeSpeed;
+    public bool HasPresentationContext => _presentationSink != null;
 
     private void Awake()
     {
@@ -93,6 +102,7 @@ public class Projectile : MonoBehaviour
 
     public void ConfigurePooled(float maxLifetimeSeconds)
     {
+        ClearPresentation();
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = false;
@@ -119,6 +129,7 @@ public class Projectile : MonoBehaviour
 
     public void ConfigureVisualOnly(float maxLifetimeSeconds, bool ignoreCollisions)
     {
+        ClearPresentation();
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = true;
@@ -130,6 +141,37 @@ public class Projectile : MonoBehaviour
     {
         _weaponDamageContext = context;
         _useWeaponDamageContext = context.IsValid;
+    }
+
+    public void ConfigurePresentation(
+        IWeaponPresentationSink presentationSink,
+        WeaponInstance weapon,
+        WeaponPresentationCue impactCue,
+        WeaponPresentationCue criticalImpactCue,
+        WeaponPresentationCue weakPointImpactCue,
+        bool isAbility,
+        bool allowWeakPoint)
+    {
+        _presentationSink = presentationSink ?? NullWeaponPresentationSink.Instance;
+        _presentationWeapon = weapon;
+        _impactCue = impactCue;
+        _criticalImpactCue = criticalImpactCue;
+        _weakPointImpactCue = weakPointImpactCue;
+        _presentationIsAbility = isAbility;
+        _presentationAllowWeakPoint = allowWeakPoint;
+        _presentationImpactEmitted = false;
+    }
+
+    public void ClearPresentation()
+    {
+        _presentationSink = null;
+        _presentationWeapon = null;
+        _impactCue = WeaponPresentationCue.None;
+        _criticalImpactCue = WeaponPresentationCue.None;
+        _weakPointImpactCue = WeaponPresentationCue.None;
+        _presentationIsAbility = false;
+        _presentationAllowWeakPoint = false;
+        _presentationImpactEmitted = false;
     }
 
     // Launches projectile and resets runtime damage mode state.
@@ -292,7 +334,10 @@ public class Projectile : MonoBehaviour
             else if (_useExplosion)
                 ConsumeAtCurrentPosition(detonate: true);
             else
+            {
+                EmitPresentationImpact(other, damageable: null, worldImpact: true);
                 DespawnOrDestroy();
+            }
 
             return;
         }
@@ -323,14 +368,21 @@ public class Projectile : MonoBehaviour
         if (damageable != null)
         {
             int finalDamage = ResolveDamage(damageable, other);
-            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+            bool damageApplied = WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
+            if (damageApplied)
+            {
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage));
+                EmitPresentationImpact(other, damageable, worldImpact: false);
+            }
             DespawnOrDestroy();
             return;
         }
 
         if (IsSolidWorldCollider(other))
+        {
+            EmitPresentationImpact(other, damageable: null, worldImpact: true);
             DespawnOrDestroy();
+        }
     }
 
     // Keeps projectiles from detonating on the player or non-target trigger volumes.
@@ -417,8 +469,12 @@ public class Projectile : MonoBehaviour
             else
             {
                 int finalDamage = ResolveDamage(damageable, closestCollider);
-                if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+                bool damageApplied = WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
+                if (damageApplied)
+                {
                     EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
+                    EmitPresentationImpact(closestCollider, damageable, worldImpact: false);
+                }
                 DespawnOrDestroy();
             }
 
@@ -430,7 +486,10 @@ public class Projectile : MonoBehaviour
         else if (_useExplosion)
             ConsumeAtCurrentPosition(detonate: true);
         else
+        {
+            EmitPresentationImpact(closestCollider, damageable: null, worldImpact: true);
             DespawnOrDestroy();
+        }
 
         return true;
     }
@@ -623,6 +682,54 @@ public class Projectile : MonoBehaviour
         }
 
         return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+    }
+
+    private void EmitPresentationImpact(
+        Collider hitCollider,
+        IDamageable damageable,
+        bool worldImpact)
+    {
+        if (_presentationSink == null || _presentationImpactEmitted)
+            return;
+
+        bool weakPoint = !worldImpact &&
+            _presentationAllowWeakPoint &&
+            IsWeakPointCollider(hitCollider);
+        bool critical = !worldImpact &&
+            _useWeaponDamageContext &&
+            _weaponDamageContext.IsCritical;
+
+        WeaponPresentationCue cue = weakPoint && _weakPointImpactCue != WeaponPresentationCue.None
+            ? _weakPointImpactCue
+            : critical && _criticalImpactCue != WeaponPresentationCue.None
+                ? _criticalImpactCue
+                : _impactCue;
+        if (cue == WeaponPresentationCue.None)
+            return;
+
+        Transform target = damageable is Component component
+            ? component.transform
+            : hitCollider != null ? hitCollider.transform : null;
+        WeaponPresentationContext context = new(
+            cue,
+            _presentationWeapon,
+            transform.position,
+            _direction,
+            target: target,
+            isAbility: _presentationIsAbility,
+            isCritical: critical,
+            isWeakPoint: weakPoint);
+        _presentationSink.Emit(in context);
+        _presentationImpactEmitted = true;
+    }
+
+    private static bool IsWeakPointCollider(Collider collider)
+    {
+        if (collider == null)
+            return false;
+
+        return collider.name.Contains("WeakPoint", System.StringComparison.OrdinalIgnoreCase)
+            || collider.transform.name.Contains("WeakPoint", System.StringComparison.OrdinalIgnoreCase);
     }
 
     private void SpawnExplosionCluster()

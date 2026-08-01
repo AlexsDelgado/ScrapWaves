@@ -41,6 +41,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     private PlayerStats _playerStats;
     private PlayerMovement _playerMovement;
     private ReticleAimProvider _aimProvider;
+    private WeaponPresentationController _presentationController;
     private ProjectilePool _projectilePool;
     private HeatManager _heatManager;
     private IWeaponTargeting _targeting;
@@ -340,7 +341,19 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     private IWeaponBehaviour CreateBehaviour(WeaponData data)
     {
         Transform spawn = ProjectileSpawn != null ? ProjectileSpawn : PlayerTransform;
-        return WeaponBehaviourFactory.Create(data, _targeting, _projectilePool, spawn, _playerMovement);
+        if (data?.PresentationProfile != null)
+            _presentationController?.SetProfile(data.PresentationProfile);
+
+        IWeaponPresentationSink presentationSink = _presentationController != null
+            ? _presentationController
+            : NullWeaponPresentationSink.Instance;
+        return WeaponBehaviourFactory.Create(
+            data,
+            _targeting,
+            _projectilePool,
+            spawn,
+            _playerMovement,
+            presentationSink);
     }
 
     private void StartManualMode(int slot, bool refillAmmo)
@@ -465,6 +478,9 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         _playerStats = playerGo.GetComponent<PlayerStats>();
         _playerMovement = playerGo.GetComponent<PlayerMovement>();
         _aimProvider = playerGo.GetComponent<ReticleAimProvider>();
+        _presentationController = playerGo.GetComponent<WeaponPresentationController>();
+        if (_presentationController == null)
+            _presentationController = playerGo.AddComponent<WeaponPresentationController>();
         DisableProductionRuntimeComponents(playerGo);
 
         ProjectileSpawn = FindChildByNameContains(playerGo.transform, "Fire");
@@ -655,6 +671,10 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         LevelUpOrchestrator levelUpOrchestrator = playerGo.GetComponent<LevelUpOrchestrator>();
         if (levelUpOrchestrator != null)
             levelUpOrchestrator.enabled = false;
+
+        RunStartWeaponChoice runStartWeaponChoice = playerGo.GetComponent<RunStartWeaponChoice>();
+        if (runStartWeaponChoice != null)
+            runStartWeaponChoice.enabled = false;
 
         OverheatManager overheatManager = playerGo.GetComponent<OverheatManager>();
         if (overheatManager != null)

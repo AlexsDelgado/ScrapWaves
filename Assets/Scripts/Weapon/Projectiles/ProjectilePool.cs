@@ -132,6 +132,9 @@ public class ProjectilePool : MonoBehaviour
         if (member == null || !member.BelongsTo(this))
             return;
 
+        if (instance.TryGetComponent(out Projectile projectile))
+            projectile.ClearPresentation();
+
         instance.SetActive(false);
         instance.transform.SetParent(GetPoolParent(), false);
         _leasedCount--;
@@ -185,7 +188,27 @@ public class ProjectilePool : MonoBehaviour
 
     public bool TrySpawnProjectile(Vector3 position, Quaternion rotation, Vector3 fireDirection, int damage, float knockback, WeaponDamageContext damageContext)
     {
+        return TrySpawnProjectile(
+            position,
+            rotation,
+            fireDirection,
+            damage,
+            knockback,
+            damageContext,
+            out _);
+    }
+
+    public bool TrySpawnProjectile(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float knockback,
+        WeaponDamageContext damageContext,
+        out Projectile spawnedProjectile)
+    {
         GameObject go = TryGet();
+        spawnedProjectile = null;
         if (go == null)
             return false;
 
@@ -201,6 +224,7 @@ public class ProjectilePool : MonoBehaviour
         projectile.ConfigurePooled(_projectileLifetime, damage, knockback);
         projectile.ConfigureWeaponDamage(damageContext);
         projectile.Launch(fireDirection);
+        spawnedProjectile = projectile;
         return true;
     }
 

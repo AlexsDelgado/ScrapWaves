@@ -9,6 +9,7 @@ using UnityEngine;
 public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
+    public static float EffectiveSfxVolume => Instance != null ? Instance.SfxVolume : 1f;
 
     [Header("Fuentes (3 AudioSource en este u otros hijos)")]
     [SerializeField, Tooltip("SFX: disparos, golpes, UI corta.")]

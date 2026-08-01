@@ -10,6 +10,12 @@ public interface IWeaponBehaviour
     bool CanCrit();
 }
 
+public interface IWeaponPresentationReceiver
+{
+    IWeaponPresentationSink PresentationSink { get; }
+    void SetPresentationSink(IWeaponPresentationSink presentationSink);
+}
+
 public interface IHoldActiveAbilityBehaviour
 {
     bool IsActiveAbilityCharging { get; }
@@ -35,7 +41,7 @@ public interface IMortarReticleStatus
     float ArcHeight { get; }
 }
 
-public class BasicProjectileWeapon : IWeaponBehaviour
+public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiver
 {
     protected readonly IWeaponTargeting Targeting;
     protected readonly ProjectilePool Pool;
@@ -45,14 +51,21 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     protected PlayerStats Stats;
     protected HeatManager Heat;
     protected float FireTimer;
+    protected IWeaponPresentationSink Presentation { get; private set; } = NullWeaponPresentationSink.Instance;
 
     public WeaponInstance Runtime { get; protected set; }
+    public IWeaponPresentationSink PresentationSink => Presentation;
 
     public BasicProjectileWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
     {
         Targeting = targeting;
         Pool = pool;
         Spawn = spawn;
+    }
+
+    public void SetPresentationSink(IWeaponPresentationSink presentationSink)
+    {
+        Presentation = presentationSink ?? NullWeaponPresentationSink.Instance;
     }
 
     // Stores runtime dependencies required by weapon behavior.
@@ -169,13 +182,13 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     }
 
     // Spawns explosive projectile with configurable radius and falloff behavior.
-    protected void FireExplosiveAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, float explosionRadius, float falloff)
+    protected bool FireExplosiveAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, float explosionRadius, float falloff)
     {
-        FireExplosiveAt(targetPosition, damageScale, eliteOrBoss, explosionRadius, falloff, 1f, 0f, false);
+        return FireExplosiveAt(targetPosition, damageScale, eliteOrBoss, explosionRadius, falloff, 1f, 0f, false);
     }
 
     // Spawns explosive projectile with speed and max-range detonation options.
-    protected void FireExplosiveAt(
+    protected bool FireExplosiveAt(
         Vector3 targetPosition,
         float damageScale,
         bool eliteOrBoss,
@@ -187,18 +200,18 @@ public class BasicProjectileWeapon : IWeaponBehaviour
         bool isAbilityDamage = false)
     {
         if (Pool == null || Spawn == null)
-            return;
+            return false;
 
         Vector3 direction = (targetPosition - Spawn.position).normalized;
         if (direction.sqrMagnitude <= 0.0001f)
-            return;
+            return false;
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
         WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
         int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(finalDamage);
-        Pool.TrySpawnExplosiveProjectile(
+        return Pool.TrySpawnExplosiveProjectile(
             Spawn.position,
             rotation,
             direction,
@@ -213,38 +226,69 @@ public class BasicProjectileWeapon : IWeaponBehaviour
     }
 
     // Spawns one projectile toward position and resolves final scaled damage.
-    protected void FireAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
+    protected bool FireAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
     {
         if (Spawn == null)
-            return;
+            return false;
 
-        FireInDirection(targetPosition - Spawn.position, damageScale, eliteOrBoss, isAbilityDamage);
+        return FireInDirection(targetPosition - Spawn.position, damageScale, eliteOrBoss, isAbilityDamage);
     }
 
     // Spawns one projectile in a known direction and resolves final scaled damage.
-    protected void FireInDirection(Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
+    protected bool FireInDirection(Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
     {
         if (Spawn == null)
-            return;
+            return false;
 
-        FireFromPositionInDirection(Spawn.position, direction, damageScale, eliteOrBoss, isAbilityDamage);
+        return FireFromPositionInDirection(Spawn.position, direction, damageScale, eliteOrBoss, isAbilityDamage);
     }
 
     // Spawns one projectile from a specific position in a known direction.
-    protected void FireFromPositionInDirection(Vector3 position, Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
+    protected bool FireFromPositionInDirection(
+        Vector3 position,
+        Vector3 direction,
+        float damageScale,
+        bool eliteOrBoss,
+        bool isAbilityDamage = false)
     {
+        return FireFromPositionInDirection(
+            position,
+            direction,
+            damageScale,
+            eliteOrBoss,
+            out _,
+            isAbilityDamage);
+    }
+
+    // Spawns one projectile and returns the configured pooled instance when successful.
+    protected bool FireFromPositionInDirection(
+        Vector3 position,
+        Vector3 direction,
+        float damageScale,
+        bool eliteOrBoss,
+        out Projectile spawnedProjectile,
+        bool isAbilityDamage = false)
+    {
+        spawnedProjectile = null;
         if (Pool == null)
-            return;
+            return false;
 
         if (direction.sqrMagnitude <= 0.0001f)
-            return;
+            return false;
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
         int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(finalDamage);
-        Pool.TrySpawnProjectile(position, rotation, direction, finalDamage, knockback, damageContext);
+        return Pool.TrySpawnProjectile(
+            position,
+            rotation,
+            direction,
+            finalDamage,
+            knockback,
+            damageContext,
+            out spawnedProjectile);
     }
 
     protected WeaponDamageContext CreateDamageContext(float damageScale, bool isAbilityDamage, float knockbackScale = -1f)

@@ -24,13 +24,22 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private float _lineBurstSpacing;
     private float _lineBurstScatterDegrees;
     private float _lineBurstShotInterval;
+    private float _lineBurstAccuracySpreadDegrees;
+    private Vector2 _lineBurstAccuracySample;
+    private Vector3 _lineBurstLiveAimDirection;
+    private Transform _lineBurstTrackingTarget;
+    private bool _lineBurstFollowsLiveAim;
     private bool _lineBurstEliteOrBoss;
+    private WeaponPresentationCue _lineBurstShotCue;
+    private WeaponPresentationCue _lineBurstEventCue;
+    private bool _lineBurstEventEmitted;
 
     private bool _continuousFireActive;
     private float _continuousFireActiveRemainingDuration;
     private float _continuousFireActiveShotAccumulator;
     private int _continuousFireActiveShotsRemaining;
     private Vector3 _continuousFireActiveDirection;
+    private bool _continuousFireActivePresentationStarted;
 
     private HeadHunterChargeVfx _headHunterChargeVfx;
     private bool _headHunterActiveCharging;
@@ -47,6 +56,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         TickHeadHunterPendingImpacts(deltaTime);
+        _lineBurstLiveAimDirection = aimDirection;
         TickPendingLineBurst(deltaTime);
         if (_headHunterActiveCharging)
         {
@@ -83,20 +93,29 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
         }
 
-        FireLineBurst(
+        BeginPresentationLineBurst(
             targetPoint - Spawn.position,
             GetAutomaticShotCount(tuning),
             GetHeatDamageMultiplier() * GetHeadHunterScale(target),
             tuning.CannonAutoLineSpacing,
             tuning.CannonAutoAccuracySpreadDegrees,
             tuning.CannonBurstProjectileScatterDegrees,
-            WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
+            WeaponEnemyClassifier.CountsAsEliteOrBoss(target),
+            IsContinuousFirePath()
+                ? WeaponPresentationCue.AutomaticCannonContinuousShot
+                : WeaponPresentationCue.AutomaticCannonAutoShot,
+            IsContinuousFirePath()
+                ? WeaponPresentationCue.None
+                : WeaponPresentationCue.AutomaticCannonAutoBurst,
+            trackingTarget: target,
+            followsLiveAim: false);
     }
 
     // Fires five-round burst in manual mode.
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
         TickHeadHunterPendingImpacts(deltaTime);
+        _lineBurstLiveAimDirection = aimDirection;
         TickPendingLineBurst(deltaTime);
 
         if (Runtime.State != WeaponState.Manual)
@@ -158,14 +177,22 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
         }
 
-        FireLineBurst(
+        BeginPresentationLineBurst(
             aimDirection,
             bulletsToFire,
             1f,
             tuning.CannonManualLineSpacing,
             0f,
             tuning.CannonBurstProjectileScatterDegrees,
-            false);
+            false,
+            IsContinuousFirePath()
+                ? WeaponPresentationCue.AutomaticCannonContinuousShot
+                : WeaponPresentationCue.AutomaticCannonManualShot,
+            IsContinuousFirePath()
+                ? WeaponPresentationCue.None
+                : WeaponPresentationCue.AutomaticCannonManualVolley,
+            trackingTarget: null,
+            followsLiveAim: true);
     }
 
     private bool ConsumeHeadHunterManualClick(bool isFiring)
@@ -213,7 +240,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             aimDirection,
             Mathf.Max(1, tuning.CannonActiveBaseBulletCount) + extra,
             Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB ? 1.25f : 1f,
-            tuning.CannonAbilityScatterRadius);
+            tuning.CannonAbilityScatterRadius,
+            WeaponPresentationCue.None,
+            WeaponPresentationCue.AutomaticCannonBaseActive);
         CompleteActiveAbility();
     }
 
@@ -433,6 +462,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _continuousFireActiveShotsRemaining = GetContinuousFireActiveBulletCount();
         _continuousFireActiveShotAccumulator = 1f;
         _continuousFireActiveDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Vector3.forward;
+        _continuousFireActivePresentationStarted = false;
         CompleteActiveAbility();
     }
 
@@ -460,11 +490,17 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         {
             _continuousFireActiveShotAccumulator -= shotsToFire;
             _continuousFireActiveShotsRemaining -= shotsToFire;
-            FireScatterBurst(
+            int successfulShots = FireScatterBurst(
                 _continuousFireActiveDirection,
                 shotsToFire,
                 1f,
-                Runtime.Data.AutomaticCannon.CannonAbilityScatterRadius);
+                Runtime.Data.AutomaticCannon.CannonAbilityScatterRadius,
+                WeaponPresentationCue.AutomaticCannonContinuousShot,
+                _continuousFireActivePresentationStarted
+                    ? WeaponPresentationCue.None
+                    : WeaponPresentationCue.AutomaticCannonContinuousActive);
+            if (successfulShots > 0)
+                _continuousFireActivePresentationStarted = true;
         }
 
         if (_continuousFireActiveShotsRemaining <= 0 || _continuousFireActiveRemainingDuration <= 0f)
@@ -480,6 +516,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _continuousFireActiveShotAccumulator = 0f;
         _continuousFireActiveShotsRemaining = 0;
         _continuousFireActiveDirection = Vector3.zero;
+        _continuousFireActivePresentationStarted = false;
     }
 
     private void BeginHeadHunterActiveCharge(Vector3 aimDirection)
@@ -577,7 +614,15 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Vector3 direction = aimDirection.normalized;
         _piercingLine[0] = origin;
         _piercingLine[1] = origin + direction * Mathf.Max(0.01f, range);
-        float projectileSpeed = SpawnHeadHunterProjectileVisual(origin, direction);
+        bool visualSpawned = TrySpawnHeadHunterProjectileVisual(origin, direction, out float projectileSpeed);
+        if (visualSpawned)
+        {
+            EmitPresentationCue(
+                GetHeadHunterFireCue(isAbilityDamage),
+                origin,
+                direction,
+                isAbilityDamage);
+        }
 
         int hitCount = EnemyRegistry.CollectClosestNearPolyline(
             _piercingLine,
@@ -596,7 +641,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             WeaponEnemyKind kind = WeaponEnemyClassifier.GetKind(_piercingTargets[i]);
             bool eliteOrBoss = kind == WeaponEnemyKind.Elite || kind == WeaponEnemyKind.Boss;
             bool weakPointHit = allowWeakPointHits && IsWeakPointHit(_piercingTargets[i], _piercingLine[0], _piercingLine[1]);
-            float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), GetCritMultiplierOverride(), isAbilityDamage: isAbilityDamage);
+            WeaponDamageContext damageContext = CreateDamageContext(1f, isAbilityDamage);
+            float damage = damageContext.CalculateDamageValue(eliteOrBoss);
             float scale = GetHeadHunterDamageScale(kind, i, weakPointHit, isAbilityDamage);
 
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * scale));
@@ -606,15 +652,23 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 _piercingTargets[i],
                 finalDamage,
                 weakPointHit,
+                damageContext.IsCritical,
+                isAbilityDamage,
                 impactOrigin,
+                hitPoint,
+                direction,
                 GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed));
         }
     }
 
-    private float SpawnHeadHunterProjectileVisual(Vector3 origin, Vector3 direction)
+    private bool TrySpawnHeadHunterProjectileVisual(
+        Vector3 origin,
+        Vector3 direction,
+        out float projectileSpeed)
     {
+        projectileSpeed = HeadHunterFallbackProjectileSpeed;
         if (Pool == null || direction.sqrMagnitude <= 0.0001f)
-            return HeadHunterFallbackProjectileSpeed;
+            return false;
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
@@ -626,9 +680,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             true,
             out Projectile projectile)
             && projectile != null)
-            return Mathf.Max(0.01f, projectile.ActiveSpeed);
+        {
+            projectileSpeed = Mathf.Max(0.01f, projectile.ActiveSpeed);
+            return true;
+        }
 
-        return HeadHunterFallbackProjectileSpeed;
+        return false;
     }
 
     private float GetHeadHunterImpactDelay(Vector3 origin, Vector3 direction, int hitIndex, float projectileSpeed)
@@ -640,7 +697,16 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return distanceAlongShot / Mathf.Max(0.01f, projectileSpeed);
     }
 
-    private void QueueHeadHunterImpact(Transform target, int damage, bool weakPointHit, Vector3 impactOrigin, float delay)
+    private void QueueHeadHunterImpact(
+        Transform target,
+        int damage,
+        bool weakPointHit,
+        bool criticalHit,
+        bool isAbility,
+        Vector3 impactOrigin,
+        Vector3 impactPosition,
+        Vector3 direction,
+        float delay)
     {
         if (target == null || damage <= 0)
             return;
@@ -650,7 +716,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             Target = target,
             Damage = damage,
             WeakPointHit = weakPointHit,
+            CriticalHit = criticalHit,
+            IsAbility = isAbility,
             ImpactOrigin = impactOrigin,
+            ImpactPosition = impactPosition,
+            Direction = direction,
             RemainingDelay = Mathf.Max(0f, delay)
         });
     }
@@ -690,6 +760,20 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             ApplyKnockback(damageable, impact.ImpactOrigin, impact.Damage, 1f);
             if (impact.WeakPointHit)
                 WeaponWeakPointFeedback.NotifyWeakPointHit();
+
+            WeaponPresentationCue impactCue = impact.WeakPointHit
+                ? WeaponPresentationCue.AutomaticCannonWeakPointImpact
+                : impact.CriticalHit
+                    ? WeaponPresentationCue.AutomaticCannonCriticalImpact
+                    : WeaponPresentationCue.AutomaticCannonImpact;
+            EmitPresentationCue(
+                impactCue,
+                impact.ImpactPosition,
+                impact.Direction,
+                impact.IsAbility,
+                impact.Target,
+                impact.CriticalHit,
+                impact.WeakPointHit);
         }
     }
 
@@ -737,7 +821,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public Transform Target;
         public int Damage;
         public bool WeakPointHit;
+        public bool CriticalHit;
+        public bool IsAbility;
         public Vector3 ImpactOrigin;
+        public Vector3 ImpactPosition;
+        public Vector3 Direction;
         public float RemainingDelay;
     }
 
@@ -751,17 +839,53 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         float projectileScatterDegrees,
         bool eliteOrBoss)
     {
+        BeginPresentationLineBurst(
+            aimDirection,
+            count,
+            damageScale,
+            lineSpacing,
+            accuracySpreadDegrees,
+            projectileScatterDegrees,
+            eliteOrBoss,
+            WeaponPresentationCue.None,
+            WeaponPresentationCue.None);
+    }
+
+    private void BeginPresentationLineBurst(
+        Vector3 aimDirection,
+        int count,
+        float damageScale,
+        float lineSpacing,
+        float accuracySpreadDegrees,
+        float projectileScatterDegrees,
+        bool eliteOrBoss,
+        WeaponPresentationCue shotCue,
+        WeaponPresentationCue eventCue,
+        Transform trackingTarget = null,
+        bool followsLiveAim = false)
+    {
         if (Spawn == null || count <= 0)
             return;
 
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
-        baseDirection = ApplyAccuracySpread(baseDirection, accuracySpreadDegrees);
+        _lineBurstAccuracySpreadDegrees = Mathf.Max(0f, accuracySpreadDegrees);
+        _lineBurstAccuracySample = UnityEngine.Random.insideUnitCircle;
+        baseDirection = ApplyAccuracySpread(
+            baseDirection,
+            _lineBurstAccuracySpreadDegrees,
+            _lineBurstAccuracySample);
         _lineBurstDirection = baseDirection;
+        _lineBurstLiveAimDirection = aimDirection;
+        _lineBurstTrackingTarget = trackingTarget;
+        _lineBurstFollowsLiveAim = followsLiveAim;
         _lineBurstDamageScale = damageScale;
         _lineBurstSpacing = Mathf.Max(0f, lineSpacing);
         _lineBurstScatterDegrees = Mathf.Max(0f, projectileScatterDegrees);
         _lineBurstShotInterval = GetLineBurstShotInterval();
         _lineBurstEliteOrBoss = eliteOrBoss;
+        _lineBurstShotCue = shotCue;
+        _lineBurstEventCue = eventCue;
+        _lineBurstEventEmitted = false;
         _lineBurstIndex = 0;
         _lineBurstRemaining = Mathf.Max(0, count);
         _lineBurstTimer = 0f;
@@ -778,11 +902,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         if (Spawn == null)
         {
-            _lineBurstActive = false;
-            _lineBurstRemaining = 0;
+            CompleteLineBurst();
             return;
         }
 
+        RefreshPendingLineBurstDirection();
         _lineBurstTimer -= Mathf.Max(0f, deltaTime);
         while (_lineBurstActive && _lineBurstTimer <= 0f)
         {
@@ -801,8 +925,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     {
         if (!_lineBurstActive || _lineBurstRemaining <= 0)
         {
-            _lineBurstActive = false;
-            _lineBurstRemaining = 0;
+            CompleteLineBurst();
             return;
         }
 
@@ -811,37 +934,192 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             _lineBurstDirection,
             _lineBurstScatterDegrees,
             UnityEngine.Random.insideUnitCircle);
-        FireFromPositionInDirection(position, shotDirection, _lineBurstDamageScale, _lineBurstEliteOrBoss);
+        bool spawned = TryFireCannonProjectile(
+            position,
+            shotDirection,
+            _lineBurstDamageScale,
+            _lineBurstEliteOrBoss,
+            _lineBurstShotCue,
+            isAbilityDamage: false);
+        if (spawned && !_lineBurstEventEmitted && _lineBurstEventCue != WeaponPresentationCue.None)
+        {
+            EmitPresentationCue(
+                _lineBurstEventCue,
+                position,
+                shotDirection,
+                isAbility: false);
+            _lineBurstEventEmitted = true;
+        }
 
         _lineBurstIndex++;
         _lineBurstRemaining--;
         if (_lineBurstRemaining <= 0)
-            _lineBurstActive = false;
+            CompleteLineBurst();
     }
 
-    // Medium automatic accuracy offsets the whole burst while keeping bullets in a clean line.
-    private Vector3 ApplyAccuracySpread(Vector3 direction, float spreadDegrees)
+    private void RefreshPendingLineBurstDirection()
+    {
+        Vector3 liveDirection;
+        if (_lineBurstTrackingTarget != null)
+        {
+            liveDirection = EnemyRegistry.GetAimPoint(_lineBurstTrackingTarget) - Spawn.position;
+        }
+        else if (_lineBurstFollowsLiveAim)
+        {
+            liveDirection = _lineBurstLiveAimDirection;
+        }
+        else
+        {
+            return;
+        }
+
+        if (liveDirection.sqrMagnitude <= 0.0001f)
+            return;
+
+        _lineBurstDirection = ApplyAccuracySpread(
+            liveDirection.normalized,
+            _lineBurstAccuracySpreadDegrees,
+            _lineBurstAccuracySample);
+    }
+
+    private void CompleteLineBurst()
+    {
+        _lineBurstActive = false;
+        _lineBurstRemaining = 0;
+        _lineBurstTrackingTarget = null;
+        _lineBurstFollowsLiveAim = false;
+    }
+
+    // Applies one stable accuracy sample to the whole burst while allowing its live aim axis to move.
+    private Vector3 ApplyAccuracySpread(
+        Vector3 direction,
+        float spreadDegrees,
+        Vector2 unitCircleSample)
     {
         if (spreadDegrees <= 0f)
             return direction;
 
         Quaternion aimRotation = Quaternion.LookRotation(direction, GetStableUp(direction));
-        Vector2 spread = UnityEngine.Random.insideUnitCircle * spreadDegrees;
+        Vector2 spread = Vector2.ClampMagnitude(unitCircleSample, 1f) * spreadDegrees;
         return (aimRotation * Quaternion.Euler(spread.y, spread.x, 0f) * Vector3.forward).normalized;
     }
 
     // Spawns active ability burst with shotgun-style two-axis angular spread.
-    private void FireScatterBurst(Vector3 aimDirection, int count, float damageScale, float spreadDegrees)
+    private int FireScatterBurst(
+        Vector3 aimDirection,
+        int count,
+        float damageScale,
+        float spreadDegrees,
+        WeaponPresentationCue shotCue,
+        WeaponPresentationCue eventCue)
     {
+        if (Spawn == null || count <= 0)
+            return 0;
+
         Vector3 baseDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
         Quaternion aimRotation = Quaternion.LookRotation(baseDirection, GetStableUp(baseDirection));
+        int successfulShots = 0;
+        bool eventEmitted = false;
 
         for (int i = 0; i < count; i++)
         {
             Vector2 spread = spreadDegrees > 0f ? UnityEngine.Random.insideUnitCircle * spreadDegrees : Vector2.zero;
             Vector3 shotDirection = aimRotation * Quaternion.Euler(spread.y, spread.x, 0f) * Vector3.forward;
-            FireInDirection(shotDirection, damageScale, false, isAbilityDamage: true);
+            bool spawned = TryFireCannonProjectile(
+                Spawn.position,
+                shotDirection,
+                damageScale,
+                eliteOrBoss: false,
+                shotCue: shotCue,
+                isAbilityDamage: true);
+            if (!spawned)
+                continue;
+
+            successfulShots++;
+            if (!eventEmitted && eventCue != WeaponPresentationCue.None)
+            {
+                EmitPresentationCue(
+                    eventCue,
+                    Spawn.position,
+                    shotDirection,
+                    isAbility: true);
+                eventEmitted = true;
+            }
         }
+
+        return successfulShots;
+    }
+
+    private bool TryFireCannonProjectile(
+        Vector3 position,
+        Vector3 direction,
+        float damageScale,
+        bool eliteOrBoss,
+        WeaponPresentationCue shotCue,
+        bool isAbilityDamage)
+    {
+        bool spawned = FireFromPositionInDirection(
+            position,
+            direction,
+            damageScale,
+            eliteOrBoss,
+            out Projectile projectile,
+            isAbilityDamage);
+        if (!spawned || projectile == null)
+            return false;
+
+        projectile.ConfigurePresentation(
+            Presentation,
+            Runtime,
+            WeaponPresentationCue.AutomaticCannonImpact,
+            WeaponPresentationCue.AutomaticCannonCriticalImpact,
+            WeaponPresentationCue.AutomaticCannonWeakPointImpact,
+            isAbilityDamage,
+            allowWeakPoint: false);
+
+        EmitPresentationCue(
+            shotCue,
+            Spawn != null ? Spawn.position : position,
+            direction,
+            isAbilityDamage,
+            anchor: Spawn);
+        return true;
+    }
+
+    private WeaponPresentationCue GetHeadHunterFireCue(bool isAbility)
+    {
+        if (isAbility)
+            return WeaponPresentationCue.AutomaticCannonHeadHunterActive;
+
+        return Runtime != null && Runtime.State == WeaponState.Manual
+            ? WeaponPresentationCue.AutomaticCannonHeadHunterManual
+            : WeaponPresentationCue.AutomaticCannonHeadHunterAutomatic;
+    }
+
+    private void EmitPresentationCue(
+        WeaponPresentationCue cue,
+        Vector3 position,
+        Vector3 direction,
+        bool isAbility,
+        Transform target = null,
+        bool isCritical = false,
+        bool isWeakPoint = false,
+        Transform anchor = null)
+    {
+        if (cue == WeaponPresentationCue.None)
+            return;
+
+        WeaponPresentationContext context = new(
+            cue,
+            Runtime,
+            position,
+            direction,
+            target: target,
+            isAbility: isAbility,
+            isCritical: isCritical,
+            isWeakPoint: isWeakPoint,
+            anchor: anchor);
+        Presentation.Emit(in context);
     }
 
     // Avoids LookRotation instability if the shot direction points almost straight up/down.

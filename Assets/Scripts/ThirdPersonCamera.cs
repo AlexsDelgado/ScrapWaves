@@ -45,9 +45,17 @@ public class ThirdPersonCamera : MonoBehaviour
 
     [SerializeField] private bool _lockCursorOnPlay = true;
 
+    [Header("Presentation feedback")]
+    [SerializeField, Range(0f, 1f)] private float _cameraFeedbackScale = 1f;
+    [SerializeField, Min(0f)] private float _presentationImpulseDecay = 12f;
+    [SerializeField, Min(0f)] private float _maximumPresentationPositionImpulse = 0.35f;
+    [SerializeField, Min(0f)] private float _maximumPresentationRotationImpulse = 5f;
+
     private readonly RaycastHit[] _cameraHitBuffer = new RaycastHit[12];
     private float _yaw;
     private float _pitch;
+    private Vector3 _presentationPositionImpulse;
+    private Vector3 _presentationRotationImpulse;
 
     /// <summary>When true, look input is blocked and the cursor is released for UI.</summary>
     private bool _lookBlockedByUi;
@@ -110,6 +118,44 @@ public class ThirdPersonCamera : MonoBehaviour
         set => _invertVertical = value;
     }
 
+    public float CameraFeedbackScale
+    {
+        get => _cameraFeedbackScale;
+        set
+        {
+            _cameraFeedbackScale = Mathf.Clamp01(value);
+            if (_cameraFeedbackScale <= 0f)
+                ClearPresentationImpulses();
+        }
+    }
+
+    public Vector3 CurrentPresentationPositionImpulse => _presentationPositionImpulse;
+    public Vector3 CurrentPresentationRotationImpulse => _presentationRotationImpulse;
+
+    public bool AddPresentationImpulse(Vector3 positionImpulse, Vector3 rotationImpulse)
+    {
+        if (!isActiveAndEnabled ||
+            _cameraFeedbackScale <= 0f ||
+            (positionImpulse.sqrMagnitude <= 0.000001f && rotationImpulse.sqrMagnitude <= 0.000001f))
+        {
+            return false;
+        }
+
+        _presentationPositionImpulse = Vector3.ClampMagnitude(
+            _presentationPositionImpulse + positionImpulse,
+            _maximumPresentationPositionImpulse);
+        _presentationRotationImpulse = Vector3.ClampMagnitude(
+            _presentationRotationImpulse + rotationImpulse,
+            _maximumPresentationRotationImpulse);
+        return true;
+    }
+
+    public void ClearPresentationImpulses()
+    {
+        _presentationPositionImpulse = Vector3.zero;
+        _presentationRotationImpulse = Vector3.zero;
+    }
+
     public void ApplyMainGameOrbitDefaults()
     {
         _pivotHeight = 1.6f;
@@ -158,10 +204,22 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 back = orbit * Vector3.back;
         Vector3 desiredPosition = anchor + back * _cameraDistance;
 
-        transform.position = ResolveCameraPosition(anchor, desiredPosition);
+        Vector3 resolvedPosition = ResolveCameraPosition(anchor, desiredPosition);
+        Quaternion resolvedRotation = Quaternion.LookRotation(orbit * Vector3.forward, Vector3.up);
 
-        // Mirar hacia adelante (en la dirección del orbit), no hacia el personaje.
-        transform.rotation = Quaternion.LookRotation(orbit * Vector3.forward, Vector3.up);
+        // Presentation feedback is added after gameplay orbit and collision are resolved.
+        // It never feeds back into yaw, pitch, follow placement, or gameplay aim.
+        transform.position = resolvedPosition +
+            orbit * (_presentationPositionImpulse * _cameraFeedbackScale);
+        transform.rotation = resolvedRotation *
+            Quaternion.Euler(_presentationRotationImpulse * _cameraFeedbackScale);
+
+        DecayPresentationImpulses();
+    }
+
+    private void OnDisable()
+    {
+        ClearPresentationImpulses();
     }
 
     private Vector3 ResolveCameraPosition(Vector3 anchor, Vector3 desiredPosition)
@@ -223,5 +281,20 @@ public class ThirdPersonCamera : MonoBehaviour
         if (x > 180f)
             x -= 360f;
         return x;
+    }
+
+    private void DecayPresentationImpulses()
+    {
+        if (_presentationImpulseDecay <= 0f)
+            return;
+
+        float decay = Mathf.Exp(-_presentationImpulseDecay * Time.unscaledDeltaTime);
+        _presentationPositionImpulse *= decay;
+        _presentationRotationImpulse *= decay;
+
+        if (_presentationPositionImpulse.sqrMagnitude < 0.000001f)
+            _presentationPositionImpulse = Vector3.zero;
+        if (_presentationRotationImpulse.sqrMagnitude < 0.000001f)
+            _presentationRotationImpulse = Vector3.zero;
     }
 }

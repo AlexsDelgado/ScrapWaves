@@ -12,6 +12,7 @@ public class WeaponManager : MonoBehaviour
     [SerializeField] private ProjectilePool _projectilePool;
     [SerializeField, Tooltip("Center-screen aim resolver. Empty uses a ReticleAimProvider on the same player if one exists.")]
     private ReticleAimProvider _reticleAimProvider;
+    [SerializeField] private WeaponPresentationController _presentationController;
 
     [SerializeField, Min(0f), Tooltip("How long the body briefly faces reticle aim when manual fire starts.")]
     private float _aimFacingHoldTime = 0.08f;
@@ -35,6 +36,8 @@ public class WeaponManager : MonoBehaviour
         _movement = GetComponent<PlayerMovement>();
         if (_reticleAimProvider == null)
             _reticleAimProvider = GetComponent<ReticleAimProvider>();
+        if (_presentationController == null)
+            _presentationController = GetComponent<WeaponPresentationController>();
 
         _heat = HeatManager.GetInstance();
         _targeting = new ConfiguredEnemyTargeting();
@@ -84,6 +87,8 @@ public class WeaponManager : MonoBehaviour
             return false;
 
         WeaponInstance instance = new() { Data = data, State = WeaponState.Automatic };
+        if (data.PresentationProfile != null)
+            _presentationController?.SetProfile(data.PresentationProfile);
         IWeaponBehaviour behaviour = CreateBehaviour(data);
         behaviour.Setup(instance, transform, _stats, _heat);
         _equipped.Add(behaviour);
@@ -245,7 +250,16 @@ public class WeaponManager : MonoBehaviour
     private IWeaponBehaviour CreateBehaviour(WeaponData data)
     {
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
-        return WeaponBehaviourFactory.Create(data, _targeting, _projectilePool, spawn, _movement);
+        IWeaponPresentationSink presentationSink = _presentationController != null
+            ? _presentationController
+            : NullWeaponPresentationSink.Instance;
+        return WeaponBehaviourFactory.Create(
+            data,
+            _targeting,
+            _projectilePool,
+            spawn,
+            _movement,
+            presentationSink);
     }
 
     // Ticks automatic mode for every non-manual equipped weapon.
