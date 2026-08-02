@@ -23,6 +23,9 @@ MonoBehaviour:
   BaseKnockback: 1
   BaseManualAmmo: 100
   ActiveAbilityAmmoCost: 40
+  SkillCooldown: 1
+  Icon: {fileID: 0}
+  PresentationProfile: {fileID: 11400000, guid: 61907abd96477234988db620c95824a6, type: 2}
   _specificTuning:
     rid: 5516199936037486595
   LevelData:
@@ -66,16 +69,20 @@ MonoBehaviour:
     DamageMultiplier: 2.08
     AttackRateMultiplier: 1.405
     ManualAmmoMultiplier: 1.495
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: Jellified Fuel
     DamageMultiplier: 1.22
     AttackRateMultiplier: 1.12
     ManualAmmoOverride: -1
+    LevelData: []
   PathB:
     PathName: Liquid Nitrogen
     DamageMultiplier: 1.36
     AttackRateMultiplier: 0.92
     ManualAmmoOverride: -1
+    LevelData: []
   references:
     version: 2
     RefIds:

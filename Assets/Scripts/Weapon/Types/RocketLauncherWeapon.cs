@@ -11,6 +11,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     private bool _isActiveAbilityCharging;
     private int _requestedActiveTargetCount;
     private float _activeTargetLockTimer;
+    private int _lastPresentedLockCount;
 
     public bool IsActiveAbilityCharging => _isActiveAbilityCharging;
     public bool IsTargetingActive => _isActiveAbilityCharging;
@@ -113,6 +114,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         _isActiveAbilityCharging = true;
+        _lastPresentedLockCount = 0;
         if (IsFragmentationCapPath())
         {
             _requestedActiveTargetCount = 0;
@@ -123,9 +125,18 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
+        WeaponFeedbackContext feedback = CreateRocketFeedback(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            aimDirection,
+            tuning.RocketActiveExplosionRadius,
+            true,
+            anchor: Spawn);
+        Feedback.OnChargeStarted(in feedback);
         _requestedActiveTargetCount = GetInitialActiveTargetCount(tuning);
         _activeTargetLockTimer = Mathf.Max(0.01f, tuning.RocketActiveTargetLockInterval);
         RefreshActiveTargets(aimDirection, tuning);
+        UpdateTargetingFeedback(aimDirection, tuning);
     }
 
     // Adds one target slot at each interval while Q remains held and refreshes locks with current aim.
@@ -161,6 +172,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         }
 
         RefreshActiveTargets(aimDirection, tuning);
+        UpdateTargetingFeedback(aimDirection, tuning);
     }
 
     // Fires the currently marked volley when Q is released.
@@ -198,51 +210,35 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
         if (_abilityTargets.Count <= 0)
         {
+            CancelTargetingFeedback(aimDirection, tuning);
             ClearTargetMarkers();
             return;
         }
 
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
         {
+            CancelTargetingFeedback(aimDirection, tuning);
             ClearTargetMarkers();
             return;
         }
 
-        if (IsFragmentationCapPath())
-        {
-            Transform target = GetFirstActiveTarget();
-            if (target != null)
-            {
-                FireRocketAt(
-                    target.position,
-                    tuning.RocketActiveDamageScale,
-                    GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius, activeAbility: true),
-                    GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
-                    tuning.RocketActiveSpeedMultiplier,
-                    WeaponEnemyClassifier.CountsAsEliteOrBoss(target),
-                    isAbilityDamage: true);
-            }
-
-            ClearTargetMarkers();
-            _abilityTargets.Clear();
-            CompleteActiveAbility();
-            return;
-        }
-
+        bool emittedLaunchFeedback = false;
         for (int i = 0; i < _abilityTargets.Count; i++)
         {
             Transform target = _abilityTargets[i];
             if (target == null)
                 continue;
 
-            FireRocketAt(
+            bool fired = FireRocketAt(
                 target.position,
                 tuning.RocketActiveDamageScale,
                 GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius, activeAbility: true),
                 GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
                 tuning.RocketActiveSpeedMultiplier,
                 WeaponEnemyClassifier.CountsAsEliteOrBoss(target),
-                isAbilityDamage: true);
+                isAbilityDamage: true,
+                emitShotFeedback: !emittedLaunchFeedback);
+            emittedLaunchFeedback |= fired;
         }
 
         ClearTargetMarkers();
@@ -252,6 +248,8 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
     public void CancelActiveAbility()
     {
+        if (_isActiveAbilityCharging && !IsFragmentationCapPath() && Runtime?.Data != null && Spawn != null)
+            CancelTargetingFeedback(Spawn.forward, Runtime.Data.RocketLauncher);
         _isActiveAbilityCharging = false;
         _requestedActiveTargetCount = 0;
         _abilityTargets.Clear();
@@ -351,8 +349,39 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     // Spawns explosive rocket volley at the same target point.
     private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
     {
+        bool emittedLaunchFeedback = false;
         for (int i = 0; i < count; i++)
-            FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier, eliteOrBoss);
+        {
+            Vector3 launchOffset = GetVolleyLaunchOffset(i, count, targetPosition - Spawn.position);
+            bool fired = FireRocketAt(
+                targetPosition,
+                damageScale,
+                explosionRadius,
+                falloff,
+                speedMultiplier,
+                eliteOrBoss,
+                isAbilityDamage: false,
+                emitShotFeedback: !emittedLaunchFeedback,
+                launchOffset: launchOffset);
+            emittedLaunchFeedback |= fired;
+        }
+    }
+
+    private static Vector3 GetVolleyLaunchOffset(int index, int count, Vector3 direction)
+    {
+        if (count <= 1)
+            return Vector3.zero;
+
+        Vector3 forward = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
+        if (right.sqrMagnitude <= 0.0001f)
+            right = Vector3.right;
+        else
+            right.Normalize();
+        Vector3 up = Vector3.Cross(forward, right).normalized;
+        float angle = index / (float)count * Mathf.PI * 2f;
+        float radius = count <= 3 ? 0.13f : 0.2f;
+        return right * (Mathf.Cos(angle) * radius) + up * (Mathf.Sin(angle) * radius);
     }
 
     private int GetMaximumActiveRocketCount(RocketLauncherTuning tuning)
@@ -417,6 +446,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         }
 
         SyncTargetMarkers(tuning);
+        EmitNewLockFeedback(aimDirection);
     }
 
     private void SyncTargetMarkers(RocketLauncherTuning tuning)
@@ -454,9 +484,19 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             }
 
             if (alreadyMarked)
+            {
+                for (int j = 0; j < _targetMarkers.Count; j++)
+                {
+                    if (_targetMarkers[j] != null && _targetMarkers[j].Target == target)
+                        _targetMarkers[j].SetLockCount(GetTargetLockCount(target));
+                }
                 continue;
+            }
 
-            RocketTargetMarkerVfx marker = RocketTargetMarkerVfx.Create(target, tuning.RocketActiveTargetMarkerRadius);
+            RocketTargetMarkerVfx marker = RocketTargetMarkerVfx.Create(
+                target,
+                tuning.RocketActiveTargetMarkerRadius,
+                GetTargetLockCount(target));
             if (marker != null)
                 _targetMarkers.Add(marker);
         }
@@ -485,6 +525,17 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         return null;
     }
 
+    private int GetTargetLockCount(Transform target)
+    {
+        int count = 0;
+        for (int i = 0; i < _abilityTargets.Count; i++)
+        {
+            if (_abilityTargets[i] == target)
+                count++;
+        }
+        return Mathf.Max(1, count);
+    }
+
     // Uses current prefab naming until a dedicated elite/boss metadata component exists.
     private int GetMaxActiveRocketsForTarget(Transform target)
     {
@@ -505,14 +556,24 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         FireRocketAt(targetPosition, damageScale, explosionRadius, falloff, speedMultiplier, false);
     }
 
-    private void FireRocketAt(Vector3 targetPosition, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss, bool isAbilityDamage = false)
+    private bool FireRocketAt(
+        Vector3 targetPosition,
+        float damageScale,
+        float explosionRadius,
+        float falloff,
+        float speedMultiplier,
+        bool eliteOrBoss,
+        bool isAbilityDamage = false,
+        bool emitShotFeedback = true,
+        Vector3 launchOffset = default)
     {
         if (Pool == null || Spawn == null)
-            return;
+            return false;
 
-        Vector3 direction = targetPosition - Spawn.position;
+        Vector3 launchPosition = Spawn.position + launchOffset;
+        Vector3 direction = targetPosition - launchPosition;
         if (direction.sqrMagnitude <= 0.0001f)
-            return;
+            return false;
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
@@ -539,8 +600,8 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 damageScale * GetPathAdjustedKnockbackScale(false));
             int clusterDamage = clusterDamageContext.EstimateDamage(eliteOrBoss);
             float clusterKnockback = clusterDamageContext.CalculateKnockback(clusterDamage);
-            Pool.TrySpawnExplosiveProjectileWithAmplifierAndCluster(
-                Spawn.position,
+            bool spawned = Pool.TrySpawnExplosiveProjectileWithAmplifierAndCluster(
+                launchPosition,
                 rotation,
                 direction,
                 finalDamage,
@@ -567,12 +628,15 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 GetFragmentDamageScale(activeAbility: false),
                 5f,
                 damageContext,
-                clusterDamageContext);
-            return;
+                clusterDamageContext,
+                out Projectile clusterRocket);
+            if (spawned)
+                ConfigureRocketPresentation(clusterRocket, direction, scaledExplosionRadius, true, emitShotFeedback, true);
+            return spawned;
         }
 
-        Pool.TrySpawnExplosiveProjectileWithAmplifier(
-            Spawn.position,
+        bool rocketSpawned = Pool.TrySpawnExplosiveProjectileWithAmplifier(
+            launchPosition,
             rotation,
             direction,
             finalDamage,
@@ -587,6 +651,130 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             fragmentConeAngle,
             fragmentConeRange,
             fragmentDamageScale,
-            damageContext);
+            damageContext,
+            out Projectile rocket);
+        if (rocketSpawned)
+            ConfigureRocketPresentation(rocket, direction, scaledExplosionRadius, isAbilityDamage, emitShotFeedback, false);
+        return rocketSpawned;
+    }
+
+    private void ConfigureRocketPresentation(
+        Projectile projectile,
+        Vector3 direction,
+        float explosionRadius,
+        bool isAbilityDamage,
+        bool emitShotFeedback,
+        bool clusterRocket)
+    {
+        if (projectile == null)
+            return;
+
+        WeaponFeedbackContext feedback = CreateRocketFeedback(
+            GetFeedbackMode(isAbilityDamage),
+            projectile.transform.position,
+            direction,
+            explosionRadius,
+            isAbilityDamage);
+        IWeaponFeedbackSink semantic = Feedback;
+        projectile.ConfigureFeedback(
+            semantic,
+            in feedback,
+            allowWeakPoint: false,
+            replaceExplosionVfx: Runtime?.Data?.PresentationProfile != null,
+            impactCueOverride: clusterRocket
+                ? WeaponPresentationCue.RocketClusterDetonation
+                : WeaponPresentationCue.None);
+        semantic.ConfigureProjectile(
+            projectile,
+            clusterRocket ? ProjectilePresentationArchetypeId.ClusterRocket : ProjectilePresentationArchetypeId.Rocket,
+            in feedback);
+        if (emitShotFeedback)
+            semantic.OnShotFired(in feedback);
+    }
+
+    private WeaponFeedbackMode GetFeedbackMode(bool isAbilityDamage)
+    {
+        if (isAbilityDamage)
+            return WeaponFeedbackMode.Active;
+        return Runtime != null && Runtime.State == WeaponState.Manual
+            ? WeaponFeedbackMode.Manual
+            : WeaponFeedbackMode.Automatic;
+    }
+
+    private WeaponFeedbackContext CreateRocketFeedback(
+        WeaponFeedbackMode mode,
+        Vector3 origin,
+        Vector3 direction,
+        float explosionRadius,
+        bool isAbilityDamage,
+        float intensity = 1f,
+        Transform target = null,
+        Transform anchor = null)
+    {
+        return new WeaponFeedbackContext(
+            Runtime,
+            mode,
+            Heat != null ? Heat.NormalizedHeat : 0f,
+            origin,
+            direction,
+            isAbilityDamage: isAbilityDamage,
+            explosionRadius: explosionRadius,
+            eventIntensity: intensity,
+            target: target,
+            anchor: anchor);
+    }
+
+    private void UpdateTargetingFeedback(Vector3 aimDirection, RocketLauncherTuning tuning)
+    {
+        float progress = MaximumRocketLocks <= 0 ? 0f : CurrentRocketLocks / (float)MaximumRocketLocks;
+        WeaponFeedbackContext feedback = CreateRocketFeedback(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            aimDirection,
+            tuning.RocketActiveExplosionRadius,
+            true,
+            intensity: Mathf.Lerp(0.65f, 1.25f, progress),
+            anchor: Spawn);
+        Feedback.OnChargeUpdated(in feedback, progress);
+    }
+
+    private void EmitNewLockFeedback(Vector3 aimDirection)
+    {
+        int current = _abilityTargets.Count;
+        if (current <= _lastPresentedLockCount || Spawn == null)
+        {
+            _lastPresentedLockCount = current;
+            return;
+        }
+
+        Transform newestTarget = _abilityTargets[current - 1];
+        float progress = MaximumRocketLocks <= 0 ? 1f : current / (float)MaximumRocketLocks;
+        WeaponPresentationContext cue = new(
+            WeaponPresentationCue.RocketLockAcquired,
+            Runtime,
+            newestTarget != null ? newestTarget.position : Spawn.position,
+            aimDirection,
+            Mathf.Lerp(0.75f, 1.3f, progress),
+            newestTarget,
+            isAbility: true,
+            anchor: newestTarget,
+            mode: WeaponFeedbackMode.Active,
+            upgradePath: Runtime != null && Runtime.HasAdvancedPath ? Runtime.SelectedPath : WeaponUpgradePath.None,
+            weaponLevel: Runtime?.Level ?? 1,
+            normalizedHeat: Heat != null ? Heat.NormalizedHeat : 0f);
+        Presentation.Emit(in cue);
+        _lastPresentedLockCount = current;
+    }
+
+    private void CancelTargetingFeedback(Vector3 direction, RocketLauncherTuning tuning)
+    {
+        WeaponFeedbackContext feedback = CreateRocketFeedback(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            direction,
+            tuning.RocketActiveExplosionRadius,
+            true,
+            anchor: Spawn);
+        Feedback.OnChargeCancelled(in feedback);
     }
 }

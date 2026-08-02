@@ -5,10 +5,16 @@ public interface IWeaponVfxPrewarm
     void Prewarm();
 }
 
+public interface IWeaponVfxContextReceiver
+{
+    void ApplyContext(in WeaponPresentationContext context);
+}
+
 [DisallowMultipleComponent]
 public sealed class PooledWeaponVfx : MonoBehaviour
 {
     private ParticleSystem[] _particleSystems;
+    private IWeaponVfxContextReceiver[] _contextReceivers;
     private Transform _poolParent;
 
     public bool IsActive { get; private set; }
@@ -27,6 +33,14 @@ public sealed class PooledWeaponVfx : MonoBehaviour
         }
 
         _particleSystems = GetComponentsInChildren<ParticleSystem>(true);
+        MonoBehaviour[] contextBehaviours = GetComponentsInChildren<MonoBehaviour>(true);
+        System.Collections.Generic.List<IWeaponVfxContextReceiver> contextReceivers = new();
+        for (int i = 0; i < contextBehaviours.Length; i++)
+        {
+            if (contextBehaviours[i] is IWeaponVfxContextReceiver receiver)
+                contextReceivers.Add(receiver);
+        }
+        _contextReceivers = contextReceivers.ToArray();
         for (int i = 0; i < _particleSystems.Length; i++)
         {
             ParticleSystem.MainModule main = _particleSystems[i].main;
@@ -39,6 +53,12 @@ public sealed class PooledWeaponVfx : MonoBehaviour
     public void Play(in WeaponPresentationContext context, float duration, float now, bool loop)
     {
         ApplyTransform(in context);
+
+        if (_contextReceivers != null)
+        {
+            for (int i = 0; i < _contextReceivers.Length; i++)
+                _contextReceivers[i].ApplyContext(in context);
+        }
 
         gameObject.SetActive(true);
         IsActive = true;
@@ -62,6 +82,11 @@ public sealed class PooledWeaponVfx : MonoBehaviour
             return;
 
         ApplyTransform(in context);
+        if (_contextReceivers != null)
+        {
+            for (int i = 0; i < _contextReceivers.Length; i++)
+                _contextReceivers[i].ApplyContext(in context);
+        }
     }
 
     public bool ShouldRelease(float now)
@@ -96,8 +121,10 @@ public sealed class PooledWeaponVfx : MonoBehaviour
             return;
         }
 
-        if (transform.parent != _poolParent)
-            transform.SetParent(_poolParent, worldPositionStays: false);
+        // World impacts must not inherit motion from the presentation controller,
+        // which normally lives under the moving player hierarchy.
+        if (transform.parent != null)
+            transform.SetParent(null, worldPositionStays: false);
         transform.SetPositionAndRotation(context.Position, rotation);
     }
 

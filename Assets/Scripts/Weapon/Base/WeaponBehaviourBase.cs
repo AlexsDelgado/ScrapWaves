@@ -52,6 +52,7 @@ public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiv
     protected HeatManager Heat;
     protected float FireTimer;
     protected IWeaponPresentationSink Presentation { get; private set; } = NullWeaponPresentationSink.Instance;
+    protected IWeaponFeedbackSink Feedback => WeaponFeedbackEmitter.Resolve(Presentation);
 
     public WeaponInstance Runtime { get; protected set; }
     public IWeaponPresentationSink PresentationSink => Presentation;

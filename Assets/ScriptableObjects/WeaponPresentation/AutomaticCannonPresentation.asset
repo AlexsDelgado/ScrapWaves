@@ -13,207 +13,1518 @@ MonoBehaviour:
   m_Name: AutomaticCannonPresentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationProfile
   _weaponType: 0
+  _displayColor:
+    serializedVersion: 2
+    key0: {r: 1, g: 0.3, b: 0.03, a: 1}
+    key1: {r: 1, g: 0.82, b: 0.2, a: 1}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 65535
+    ctime2: 0
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 2
+    m_NumAlphaKeys: 2
+  _defaultQuality: 2
+  _feedbackBindings:
+  - Event: 3
+    Mode: 1
+    UpgradePath: 3
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 8
+  - Event: 3
+    Mode: 2
+    UpgradePath: 3
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 9
+  - Event: 3
+    Mode: 3
+    UpgradePath: 3
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 11
+  - Event: 3
+    Mode: 1
+    UpgradePath: 2
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 6
+  - Event: 3
+    Mode: 2
+    UpgradePath: 2
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 6
+  - Event: 3
+    Mode: 3
+    UpgradePath: 2
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 7
+  - Event: 3
+    Mode: 1
+    UpgradePath: 1
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 2
+  - Event: 3
+    Mode: 2
+    UpgradePath: 1
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 4
+  - Event: 3
+    Mode: 3
+    UpgradePath: 1
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 5
+  - Event: 4
+    Mode: 0
+    UpgradePath: 2
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 15
+  - Event: 5
+    Mode: 0
+    UpgradePath: 2
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 16
+  - Event: 0
+    Mode: 3
+    UpgradePath: 3
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 10
+  - Event: 6
+    Mode: 0
+    UpgradePath: 0
+    Critical: 0
+    WeakPoint: 1
+    Kill: 0
+    Surface: 0
+    Cue: 14
+  - Event: 6
+    Mode: 0
+    UpgradePath: 0
+    Critical: 1
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 13
+  - Event: 6
+    Mode: 0
+    UpgradePath: 0
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 12
+  - Event: 7
+    Mode: 0
+    UpgradePath: 0
+    Critical: 0
+    WeakPoint: 0
+    Kill: 1
+    Surface: 0
+    Cue: 17
+  - Event: 9
+    Mode: 0
+    UpgradePath: 0
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 19
+  - Event: 10
+    Mode: 0
+    UpgradePath: 0
+    Critical: 0
+    WeakPoint: 0
+    Kill: 0
+    Surface: 0
+    Cue: 18
   _cues:
   - Cue: 1
     VfxPrefab: {fileID: 0}
-    AudioClips: []
-    Volume: 0.8
-    PitchMin: 0.98
-    PitchMax: 1.02
-    Duration: 0.15
-    MinReplayInterval: 0
-    PrewarmCount: 1
-    MaxSimultaneous: 4
-    CameraPositionImpulse: {x: 0, y: 0, z: 0}
-    CameraRotationImpulse: {x: 0, y: 0, z: 0}
-    Loop: 0
-  - Cue: 2
-    VfxPrefab: {fileID: 100000, guid: 71e7c2dcfb254c5e9fa90ea04e86f862, type: 3}
     AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 0.4
+    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.28
     PitchMin: 0.96
-    PitchMax: 1.04
-    Duration: 0.05
+    PitchMax: 1.02
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.12
     MinReplayInterval: 0.02
-    PrewarmCount: 8
-    MaxSimultaneous: 16
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.025}
-    CameraRotationImpulse: {x: -0.08, y: 0, z: 0}
+    PrewarmCount: 2
+    MaxSimultaneous: 4
     Loop: 0
-  - Cue: 3
-    VfxPrefab: {fileID: 0}
-    AudioClips: []
-    Volume: 1
-    PitchMin: 0.94
-    PitchMax: 1
-    Duration: 0.2
-    MinReplayInterval: 0
-    PrewarmCount: 1
-    MaxSimultaneous: 3
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.06}
-    CameraRotationImpulse: {x: -0.2, y: 0, z: 0}
-    Loop: 0
-  - Cue: 4
-    VfxPrefab: {fileID: 100000, guid: 4f0d1e77fa1d4578b87d9ebd6fdff62d, type: 3}
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.045}
+    CameraRotationImpulse: {x: -0.14, y: 0, z: 0}
+    CameraFovKick: 0.25
+    CameraMinReplayInterval: 0.02
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 2
+    VfxPrefab: {fileID: 1979006635075329663, guid: f34f68930893b3448b535ff4a29655ba, type: 3}
     AudioClips:
     - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 0.5
-    PitchMin: 0.94
-    PitchMax: 1.02
-    Duration: 0.05
-    MinReplayInterval: 0.02
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.38
+    PitchMin: 0.95
+    PitchMax: 1.05
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.1
+    MinReplayInterval: 0.018
     PrewarmCount: 10
     MaxSimultaneous: 20
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.03}
-    CameraRotationImpulse: {x: -0.1, y: 0, z: 0}
     Loop: 0
-  - Cue: 5
-    VfxPrefab: {fileID: 100000, guid: 4bbff3b279414b77b397fdf0faeeb551, type: 3}
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.018}
+    CameraRotationImpulse: {x: -0.055, y: 0, z: 0}
+    CameraFovKick: 0.12
+    CameraMinReplayInterval: 0.018
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 3
+    VfxPrefab: {fileID: 0}
     AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 1
+    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.36
     PitchMin: 0.92
     PitchMax: 1
-    Duration: 0.5
-    MinReplayInterval: 0.1
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.18
+    MinReplayInterval: 0.04
     PrewarmCount: 2
     MaxSimultaneous: 4
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.14}
-    CameraRotationImpulse: {x: -0.5, y: 0, z: 0}
     Loop: 0
-  - Cue: 6
-    VfxPrefab: {fileID: 0}
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.06}
+    CameraRotationImpulse: {x: -0.18, y: 0, z: 0}
+    CameraFovKick: 0.35
+    CameraMinReplayInterval: 0.04
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 4
+    VfxPrefab: {fileID: 1969690063993796940, guid: b3a390f39d566944ca76a60f2f741954, type: 3}
     AudioClips:
     - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 0.18
-    PitchMin: 1
-    PitchMax: 1.08
-    Duration: 0.08
-    MinReplayInterval: 0.08
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.48
+    PitchMin: 0.92
+    PitchMax: 1.02
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.15
+    MinReplayInterval: 0.025
     PrewarmCount: 12
     MaxSimultaneous: 24
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.015}
-    CameraRotationImpulse: {x: -0.05, y: 0, z: 0}
     Loop: 0
-  - Cue: 7
-    VfxPrefab: {fileID: 0}
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.028}
+    CameraRotationImpulse: {x: -0.085, y: 0, z: 0}
+    CameraFovKick: 0.18
+    CameraMinReplayInterval: 0.025
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 5
+    VfxPrefab: {fileID: 8309615569160951159, guid: 430f0b0a4dccefd45ab5c28ee01e1839, type: 3}
     AudioClips:
     - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 1
-    PitchMin: 0.98
-    PitchMax: 1.04
-    Duration: 0.3
-    MinReplayInterval: 0.1
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.8
+    PitchMin: 0.88
+    PitchMax: 0.98
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.52
+    MinReplayInterval: 0.12
     PrewarmCount: 2
     MaxSimultaneous: 4
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.1}
-    CameraRotationImpulse: {x: -0.35, y: 0, z: 0}
     Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.14}
+    CameraRotationImpulse: {x: -0.5, y: 0, z: 0}
+    CameraFovKick: 1.2
+    CameraMinReplayInterval: 0.12
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 6
+    VfxPrefab: {fileID: 1979006635075329663, guid: f34f68930893b3448b535ff4a29655ba, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.2
+    PitchMin: 1
+    PitchMax: 1.08
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.08
+    MinReplayInterval: 0.045
+    PrewarmCount: 10
+    MaxSimultaneous: 20
+    Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.01}
+    CameraRotationImpulse: {x: -0.035, y: 0, z: 0}
+    CameraFovKick: 0.08
+    CameraMinReplayInterval: 0.045
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 7
+    VfxPrefab: {fileID: 8309615569160951159, guid: 430f0b0a4dccefd45ab5c28ee01e1839, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.62
+    PitchMin: 1
+    PitchMax: 1.06
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.34
+    MinReplayInterval: 0.12
+    PrewarmCount: 1
+    MaxSimultaneous: 3
+    Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.08}
+    CameraRotationImpulse: {x: -0.26, y: 0, z: 0}
+    CameraFovKick: 0.65
+    CameraMinReplayInterval: 0.12
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 8
-    VfxPrefab: {fileID: 0}
+    VfxPrefab: {fileID: 2870120867463318081, guid: 11d9297d8019ff74b8310469a7072afa, type: 3}
     AudioClips:
     - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 0.8
-    PitchMin: 0.98
-    PitchMax: 1.02
-    Duration: 0.18
-    MinReplayInterval: 0.08
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.58
+    PitchMin: 1.02
+    PitchMax: 1.08
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.2
+    MinReplayInterval: 0.07
     PrewarmCount: 4
     MaxSimultaneous: 8
+    Loop: 0
     CameraPositionImpulse: {x: 0, y: 0, z: -0.06}
-    CameraRotationImpulse: {x: -0.22, y: 0, z: 0}
-    Loop: 0
+    CameraRotationImpulse: {x: -0.2, y: 0, z: 0}
+    CameraFovKick: 0.5
+    CameraMinReplayInterval: 0.07
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 9
-    VfxPrefab: {fileID: 0}
+    VfxPrefab: {fileID: 2870120867463318081, guid: 11d9297d8019ff74b8310469a7072afa, type: 3}
     AudioClips:
     - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 1
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.72
     PitchMin: 0.96
-    PitchMax: 1
-    Duration: 0.22
+    PitchMax: 1.02
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.24
     MinReplayInterval: 0.08
     PrewarmCount: 4
     MaxSimultaneous: 8
-    CameraPositionImpulse: {x: 0, y: 0, z: -0.1}
-    CameraRotationImpulse: {x: -0.35, y: 0, z: 0}
     Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.1}
+    CameraRotationImpulse: {x: -0.34, y: 0, z: 0}
+    CameraFovKick: 0.75
+    CameraMinReplayInterval: 0.08
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 10
-    VfxPrefab: {fileID: 0}
-    AudioClips: []
-    Volume: 0.75
-    PitchMin: 0.98
-    PitchMax: 1.02
-    Duration: 1
+    VfxPrefab: {fileID: 1792245225171590579, guid: 9223f325bc9783f458aa3b9c4b7b35f4, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.36
+    PitchMin: 0.82
+    PitchMax: 0.92
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 1.1
     MinReplayInterval: 0.1
     PrewarmCount: 1
     MaxSimultaneous: 1
+    Loop: 1
     CameraPositionImpulse: {x: 0, y: 0, z: 0}
     CameraRotationImpulse: {x: 0, y: 0, z: 0}
-    Loop: 1
+    CameraFovKick: 0
+    CameraMinReplayInterval: 0.1
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 11
-    VfxPrefab: {fileID: 0}
+    VfxPrefab: {fileID: 2633442558105760506, guid: f830b89afb3ebaf4197fcfb340e88bbf, type: 3}
     AudioClips:
     - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    Volume: 1
-    PitchMin: 0.94
-    PitchMax: 0.98
-    Duration: 0.45
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.92
+    PitchMin: 0.88
+    PitchMax: 0.96
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.62
     MinReplayInterval: 0.2
-    PrewarmCount: 2
-    MaxSimultaneous: 4
+    PrewarmCount: 1
+    MaxSimultaneous: 3
+    Loop: 0
     CameraPositionImpulse: {x: 0, y: 0, z: -0.22}
     CameraRotationImpulse: {x: -0.8, y: 0, z: 0}
-    Loop: 0
+    CameraFovKick: 1.8
+    CameraMinReplayInterval: 0.2
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 12
-    VfxPrefab: {fileID: 100000, guid: 2db9bc1702e9471690aafd6989990005, type: 3}
-    AudioClips: []
-    Volume: 0.45
+    VfxPrefab: {fileID: 3692133962450142167, guid: 34f4ba1234a7a7f40a678577630fda9f, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.25
     PitchMin: 0.96
-    PitchMax: 1.06
-    Duration: 0.36
+    PitchMax: 1.08
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.34
     MinReplayInterval: 0.02
     PrewarmCount: 12
-    MaxSimultaneous: 24
+    MaxSimultaneous: 28
+    Loop: 0
     CameraPositionImpulse: {x: 0, y: 0, z: 0}
     CameraRotationImpulse: {x: 0, y: 0, z: 0}
-    Loop: 0
+    CameraFovKick: 0
+    CameraMinReplayInterval: 0.02
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 13
-    VfxPrefab: {fileID: 100000, guid: 8439d2821c48456f8f1fa6f0f872a567, type: 3}
-    AudioClips: []
-    Volume: 0.75
+    VfxPrefab: {fileID: 651072511476963014, guid: 2bf411acfd025254f86e989ad898bf88, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.55
     PitchMin: 1
-    PitchMax: 1.08
-    Duration: 0.5
+    PitchMax: 1.1
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.48
     MinReplayInterval: 0.04
-    PrewarmCount: 6
-    MaxSimultaneous: 12
-    CameraPositionImpulse: {x: 0, y: 0, z: 0}
-    CameraRotationImpulse: {x: 0, y: 0, z: 0}
+    PrewarmCount: 7
+    MaxSimultaneous: 14
     Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.018}
+    CameraRotationImpulse: {x: -0.06, y: 0, z: 0}
+    CameraFovKick: 0.2
+    CameraMinReplayInterval: 0.04
+    HitStopDuration: 0.014
+    HitStopPriority: 1
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 14
-    VfxPrefab: {fileID: 100000, guid: 8181305d7bdf4f39bcd2f25a52e77484, type: 3}
-    AudioClips: []
-    Volume: 1
-    PitchMin: 1
-    PitchMax: 1.04
-    Duration: 0.5
-    MinReplayInterval: 0.06
-    PrewarmCount: 4
-    MaxSimultaneous: 8
-    CameraPositionImpulse: {x: 0, y: 0, z: 0}
-    CameraRotationImpulse: {x: 0, y: 0, z: 0}
+    VfxPrefab: {fileID: 2874892845527950556, guid: b18ebc9178196db4fb044b250e423c52, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.75
+    PitchMin: 1.02
+    PitchMax: 1.12
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 70
+    Duration: 0.52
+    MinReplayInterval: 0.055
+    PrewarmCount: 5
+    MaxSimultaneous: 10
     Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.035}
+    CameraRotationImpulse: {x: -0.12, y: 0, z: 0}
+    CameraFovKick: 0.35
+    CameraMinReplayInterval: 0.055
+    HitStopDuration: 0.024
+    HitStopPriority: 2
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - Cue: 15
-    VfxPrefab: {fileID: 0}
-    AudioClips: []
-    Volume: 0.7
-    PitchMin: 1
+    VfxPrefab: {fileID: 2540161201891136756, guid: b79ae30e1a1af864483a6de3afb42d87, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.22
+    PitchMin: 0.96
     PitchMax: 1.08
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
     Duration: 0
     MinReplayInterval: 0.1
     PrewarmCount: 1
     MaxSimultaneous: 1
+    Loop: 1
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.02}
+    CameraRotationImpulse: {x: -0.06, y: 0, z: 0}
+    CameraFovKick: 0.15
+    CameraMinReplayInterval: 0.1
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 16
+    VfxPrefab: {fileID: 5981759617362177980, guid: d488880441d2b514799a7c0ce2db128e, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 1
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 1
+    Volume: 0.4
+    PitchMin: 0.86
+    PitchMax: 0.96
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.36
+    MinReplayInterval: 0.08
+    PrewarmCount: 2
+    MaxSimultaneous: 4
+    Loop: 0
     CameraPositionImpulse: {x: 0, y: 0, z: 0}
     CameraRotationImpulse: {x: 0, y: 0, z: 0}
-    Loop: 1
+    CameraFovKick: 0
+    CameraMinReplayInterval: 0.08
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 17
+    VfxPrefab: {fileID: 417851320821599406, guid: ddfc6a8b68a0e5e4abed5256a5df2941, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.82
+    PitchMin: 0.88
+    PitchMax: 1
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 70
+    Duration: 0.68
+    MinReplayInterval: 0.09
+    PrewarmCount: 5
+    MaxSimultaneous: 10
+    Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: -0.06}
+    CameraRotationImpulse: {x: -0.16, y: 0, z: 0}
+    CameraFovKick: 0.55
+    CameraMinReplayInterval: 0.09
+    HitStopDuration: 0.04
+    HitStopPriority: 3
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 18
+    VfxPrefab: {fileID: 8702847180111277836, guid: ed1081b7e154ef54f8a256a33feef6cc, type: 3}
+    AudioClips:
+    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.35
+    PitchMin: 1
+    PitchMax: 1.12
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.45
+    MinReplayInterval: 0.15
+    PrewarmCount: 1
+    MaxSimultaneous: 3
+    Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: 0}
+    CameraRotationImpulse: {x: 0, y: 0, z: 0}
+    CameraFovKick: 0.12
+    CameraMinReplayInterval: 0.15
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 0
+    SecondaryEffect: 1
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - Cue: 19
+    VfxPrefab: {fileID: 0}
+    AudioClips:
+    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    LayerAudioClips: 0
+    MechanicalLayerVolume: 0.72
+    ApplyHeatStrainToMechanicalLayer: 0
+    Volume: 0.55
+    PitchMin: 0.72
+    PitchMax: 0.82
+    SpatialBlend: 0.75
+    MinimumDistance: 1
+    MaximumDistance: 35
+    AudioPriority: 120
+    Duration: 0.12
+    MinReplayInterval: 0.2
+    PrewarmCount: 1
+    MaxSimultaneous: 2
+    Loop: 0
+    CameraPositionImpulse: {x: 0, y: 0, z: 0}
+    CameraRotationImpulse: {x: 0, y: 0, z: 0}
+    CameraFovKick: 0
+    CameraMinReplayInterval: 0.2
+    HitStopDuration: 0
+    HitStopPriority: 0
+    EssentialGameplayCue: 1
+    SecondaryEffect: 0
+    MinimumQuality: 0
+    HeatMultiplier:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  _projectileArchetypes:
+  - Archetype: 1
+    Mesh: {fileID: 4300000, guid: afd89cb7cffa65e47b3e6532d1b50276, type: 2}
+    Material: {fileID: 2100000, guid: 482da51a0cd1bb144902d5cd28f84432, type: 2}
+    TrailMaterial: {fileID: 2100000, guid: fbccc58ad08d7df45a5982781a95f774, type: 2}
+    LocalScale: {x: 0.24, y: 0.24, z: 0.72}
+    LocalEulerAngles: {x: 0, y: 0, z: 0}
+    TrailLifetime: 0.028
+    TrailStartWidth: 0.026
+    TrailEndWidth: 0.004
+    LightIntensity: 0.32
+    LightRange: 2.4
+    TrailColor:
+      serializedVersion: 2
+      key0: {r: 1, g: 0.85, b: 0.3, a: 1}
+      key1: {r: 1, g: 0.18, b: 0.02, a: 0}
+      key2: {r: 0, g: 0, b: 0, a: 0}
+      key3: {r: 0, g: 0, b: 0, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 0
+      ctime1: 65535
+      ctime2: 0
+      ctime3: 0
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 2
+      m_NumAlphaKeys: 2
+    BaseEmission: 1.2
+  - Archetype: 2
+    Mesh: {fileID: 4300000, guid: afd89cb7cffa65e47b3e6532d1b50276, type: 2}
+    Material: {fileID: 2100000, guid: b345e2b59cd2b6d4a9448bef02a1df70, type: 2}
+    TrailMaterial: {fileID: 2100000, guid: e9f2668abc998954793fdf68423ec56e, type: 2}
+    LocalScale: {x: 0.25, y: 0.25, z: 0.92}
+    LocalEulerAngles: {x: 0, y: 0, z: 0}
+    TrailLifetime: 0.075
+    TrailStartWidth: 0.045
+    TrailEndWidth: 0
+    LightIntensity: 0.65
+    LightRange: 2.4
+    TrailColor:
+      serializedVersion: 2
+      key0: {r: 1, g: 0.85, b: 0.3, a: 1}
+      key1: {r: 1, g: 0.18, b: 0.02, a: 0}
+      key2: {r: 0, g: 0, b: 0, a: 0}
+      key3: {r: 0, g: 0, b: 0, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 0
+      ctime1: 65535
+      ctime2: 0
+      ctime3: 0
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 2
+      m_NumAlphaKeys: 2
+    BaseEmission: 1.2
+  - Archetype: 3
+    Mesh: {fileID: 4300000, guid: 188df1091ddaa06459d40b7299e1f054, type: 2}
+    Material: {fileID: 2100000, guid: 143543fc139209c49a64bd6fc3219c63, type: 2}
+    TrailMaterial: {fileID: 2100000, guid: 8c9da19352ebbf24d8befe2e8698cbc6, type: 2}
+    LocalScale: {x: 0.18, y: 0.18, z: 1.7}
+    LocalEulerAngles: {x: 0, y: 0, z: 0}
+    TrailLifetime: 0.22
+    TrailStartWidth: 0.16
+    TrailEndWidth: 0.015
+    LightIntensity: 1.25
+    LightRange: 2.4
+    TrailColor:
+      serializedVersion: 2
+      key0: {r: 1, g: 0.85, b: 0.3, a: 1}
+      key1: {r: 1, g: 0.18, b: 0.02, a: 0}
+      key2: {r: 0, g: 0, b: 0, a: 0}
+      key3: {r: 0, g: 0, b: 0, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 0
+      ctime1: 65535
+      ctime2: 0
+      ctime3: 0
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 2
+      m_NumAlphaKeys: 2
+    BaseEmission: 1.2
+  _heat:
+    Color:
+      serializedVersion: 2
+      key0: {r: 1, g: 0.32, b: 0.04, a: 1}
+      key1: {r: 1, g: 0.68, b: 0.12, a: 1}
+      key2: {r: 1, g: 0.95, b: 0.72, a: 0}
+      key3: {r: 0, g: 0, b: 0, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 0
+      ctime1: 49151
+      ctime2: 65535
+      ctime3: 0
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 3
+      m_NumAlphaKeys: 2
+    Emission:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.75
+        inSlope: 0
+        outSlope: 1.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 2.25
+        inSlope: 1.5
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    SmokeRate:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.35
+        inSlope: 0
+        outSlope: 1.4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1.75
+        inSlope: 1.4
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    SparkRate:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.5
+        inSlope: 0
+        outSlope: 1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1.5
+        inSlope: 1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AudioPitch:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.96
+        inSlope: 0
+        outSlope: 0.120000064
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1.08
+        inSlope: 0.120000064
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    MechanicalStrainVolume:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    TrailWidth:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.85
+        inSlope: 0
+        outSlope: 0.44999993
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1.3
+        inSlope: 0.44999993
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    CameraVibration:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.85
+        inSlope: 0
+        outSlope: 0.35000002
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1.2
+        inSlope: 0.35000002
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  _density:
+    LowQualitySecondaryLimit: 12
+    MediumQualitySecondaryLimit: 28
+    HighQualitySecondaryLimit: 56
+    DenseCombatThreshold: 40
+    DistantSecondaryCutoff: 28
+  _automaticCannon:
+    BaseTracerFrequency: 3
+    ContinuousTracerFrequency: 5
+    MaximumPiercingAccents: 6
+    SustainedFeedbackGrace: 0.14
+  _qualitySettings: {fileID: 11400000, guid: 64b5ca0913ab2c541b8b88552f8334d3, type: 2}
+  _reducedFlashColor: {r: 1, g: 0.58, b: 0.16, a: 0.55}
+  _reducedFlashIntensity: 0.35

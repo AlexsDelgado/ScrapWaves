@@ -1,285 +1,498 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
+public enum FlamethrowerStreamStyle
+{
+    Flame,
+    JellifiedFuel,
+    LiquidNitrogen
+}
+
+[DisallowMultipleComponent]
 public sealed class FlamethrowerStreamVfx : MonoBehaviour
 {
-    private const int BeamCount = 5;
-    private const int RingSegmentCount = 72;
-    private static readonly Color FlameCore = new(1f, 0.75f, 0.15f, 0.95f);
-    private static readonly Color FlameEdge = new(1f, 0.18f, 0.02f, 0.75f);
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+    private static readonly int EmissionIntensityId = Shader.PropertyToID("_EmissionIntensity");
+    private static readonly int HeatId = Shader.PropertyToID("_Heat");
+    private static readonly int PulseId = Shader.PropertyToID("_Pulse");
+    private static readonly int DissolveId = Shader.PropertyToID("_Dissolve");
+    private static readonly int NoiseScaleId = Shader.PropertyToID("_NoiseScale");
+    private static readonly int NoiseSpeedId = Shader.PropertyToID("_NoiseSpeed");
 
-    private static Material s_lineMaterial;
+    private static readonly Color FlameCore = new(1f, 0.82f, 0.24f, 0.98f);
+    private static readonly Color FlameBody = new(1f, 0.16f, 0.015f, 0.78f);
+    private static readonly Color FuelCore = new(0.74f, 0.92f, 0.14f, 0.94f);
+    private static readonly Color FuelBody = new(0.025f, 0.22f, 0.055f, 0.86f);
+    private static readonly Color NitrogenCore = new(0.96f, 1f, 1f, 0.96f);
+    private static readonly Color NitrogenBody = new(0.43f, 0.68f, 0.84f, 0.82f);
 
-    private readonly LineRenderer[] _beams = new LineRenderer[BeamCount];
-    private LineRenderer _ring;
+    [Header("Procedural ribbons")]
+    [SerializeField] private MeshFilter _bodyFilter;
+    [SerializeField] private MeshRenderer _bodyRenderer;
+    [SerializeField] private MeshFilter _coreFilter;
+    [SerializeField] private MeshRenderer _coreRenderer;
+    [SerializeField, Range(2, 48)] private int _maximumSegments = 48;
+    [SerializeField] private AnimationCurve _ribbonWidth = new(
+        new Keyframe(0f, 0.42f),
+        new Keyframe(0.22f, 1f),
+        new Keyframe(0.78f, 0.72f),
+        new Keyframe(1f, 0.08f));
+    [SerializeField, Range(0.05f, 1f)] private float _coreWidthMultiplier = 0.34f;
+
+    [Header("Surface motion")]
+    [SerializeField, Min(0.1f)] private float _noiseScale = 6.5f;
+    [SerializeField, Min(0f)] private float _noiseSpeed = 3.8f;
+    [SerializeField, Min(0f)] private float _erosionSpeed = 1.7f;
+    [SerializeField, Min(0f)] private float _baseEmission = 2.6f;
+    [SerializeField, Min(0f)] private float _heatEmissionMultiplier = 1.25f;
+
+    [Header("Secondary layers")]
+    [SerializeField] private ParticleSystem _embers;
+    [SerializeField] private ParticleSystem _smoke;
+    [SerializeField] private Renderer _nozzleGlow;
+    [SerializeField] private Light _nozzleLight;
+    [SerializeField, Min(0f)] private float _emberRate = 26f;
+    [SerializeField, Min(0f)] private float _smokeRate = 13f;
+
+    private Mesh _bodyMesh;
+    private Mesh _coreMesh;
+    private MaterialPropertyBlock _propertyBlock;
+    private FlamethrowerStreamStyle _style;
     private Color _coreColor = FlameCore;
-    private Color _edgeColor = FlameEdge;
+    private Color _bodyColor = FlameBody;
+    private float _heat;
     private float _visibleTimer;
-    private float _visibleDuration;
+    private float _visibleDuration = 0.18f;
+    private bool _ringMode;
+    private float _ringRadius;
+    private float _ringElapsed;
+    private bool _initialized;
 
-    public static FlamethrowerStreamVfx Create()
+    public int MaximumSegments => _maximumSegments;
+    public int BodyVertexCount => _bodyMesh != null ? _bodyMesh.vertexCount : 0;
+    public int CoreVertexCount => _coreMesh != null ? _coreMesh.vertexCount : 0;
+    public Mesh BodyMesh => _bodyMesh;
+    public Mesh CoreMesh => _coreMesh;
+    public int ParticleLayerCount => (_embers != null ? 1 : 0) + (_smoke != null ? 1 : 0);
+
+    public static FlamethrowerStreamVfx Create(GameObject authoredPrefab = null, int maximumSegments = 48)
     {
-        GameObject go = new("[FlamethrowerStreamVfx]");
-        FlamethrowerStreamVfx vfx = go.AddComponent<FlamethrowerStreamVfx>();
-        vfx.InitializeCone();
+        FlamethrowerStreamVfx vfx = null;
+        if (authoredPrefab != null)
+        {
+            GameObject instance = Instantiate(authoredPrefab);
+            instance.name = "[Flamethrower Stream]";
+            vfx = instance.GetComponent<FlamethrowerStreamVfx>();
+        }
+
+        if (vfx == null)
+        {
+            GameObject fallback = new("[Flamethrower Stream - Fallback]");
+            vfx = fallback.AddComponent<FlamethrowerStreamVfx>();
+        }
+
+        vfx._maximumSegments = Mathf.Clamp(maximumSegments, 2, 48);
+        vfx.EnsureInitialized();
         return vfx;
     }
 
-    public static void SpawnRing(Vector3 center, float radius, float duration)
-    {
-        SpawnRing(center, radius, duration, FlameCore, FlameEdge);
-    }
+    public static void SpawnRing(Vector3 center, float radius, float duration) =>
+        SpawnRing(center, radius, duration, FlameCore, FlameBody);
 
-    public static void SpawnRing(Vector3 center, float radius, float duration, Color coreColor, Color edgeColor)
+    public static void SpawnRing(Vector3 center, float radius, float duration, Color coreColor, Color bodyColor)
     {
         if (radius <= 0f)
             return;
 
-        GameObject go = new("[FlamethrowerRingVfx]");
-        go.transform.position = center + Vector3.up * 0.08f;
-
-        FlamethrowerStreamVfx vfx = go.AddComponent<FlamethrowerStreamVfx>();
-        vfx.SetPalette(coreColor, edgeColor);
-        vfx.InitializeRing(radius, duration);
+        FlamethrowerStreamVfx vfx = Create();
+        vfx.name = "[Flamethrower Active Ring - Fallback]";
+        vfx.transform.position = center + Vector3.up * 0.055f;
+        vfx.SetPalette(coreColor, bodyColor);
+        vfx._ringMode = true;
+        vfx._ringRadius = radius;
+        vfx._visibleDuration = Mathf.Max(0.05f, duration);
+        vfx._visibleTimer = vfx._visibleDuration;
+        vfx._ringElapsed = 0f;
+        vfx.BuildRing(0f);
+        vfx.SetSecondaryLayers(false);
     }
 
-    public void SetPalette(Color coreColor, Color edgeColor)
+    public void SetStyle(FlamethrowerStreamStyle style)
+    {
+        _style = style;
+        switch (style)
+        {
+            case FlamethrowerStreamStyle.JellifiedFuel:
+                SetPalette(FuelCore, FuelBody);
+                SetParticlePalette(FuelCore, FuelBody, new Color(0.08f, 0.12f, 0.035f, 0.45f));
+                break;
+            case FlamethrowerStreamStyle.LiquidNitrogen:
+                SetPalette(NitrogenCore, NitrogenBody);
+                SetParticlePalette(NitrogenCore, NitrogenBody, new Color(0.74f, 0.86f, 0.9f, 0.38f));
+                break;
+            default:
+                SetPalette(FlameCore, FlameBody);
+                SetParticlePalette(FlameCore, FlameBody, new Color(0.18f, 0.12f, 0.095f, 0.4f));
+                break;
+        }
+    }
+
+    public void SetPalette(Color coreColor, Color bodyColor)
     {
         _coreColor = coreColor;
-        _edgeColor = edgeColor;
+        _bodyColor = bodyColor;
+        ApplyMaterialProperties(1f);
     }
 
-    // Updates the reusable cone stream for this frame or tick.
+    public void SetHeat(float normalizedHeat)
+    {
+        _heat = Mathf.Clamp01(normalizedHeat);
+        ApplyMaterialProperties(1f);
+    }
+
     public void ShowCone(Vector3 origin, Vector3 direction, float range, float coneAngle, float duration)
     {
-        if (_beams[0] == null)
-            InitializeCone();
-
+        EnsureInitialized();
         if (direction.sqrMagnitude <= 0.0001f)
             direction = Vector3.forward;
-
+        direction.y = 0f;
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Vector3.forward;
         direction.Normalize();
-        range = Mathf.Max(0.01f, range);
-        float halfAngle = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
 
-        _visibleDuration = Mathf.Max(0.01f, duration);
-        _visibleTimer = _visibleDuration;
-        Quaternion rotation = Quaternion.LookRotation(direction, GetStableUp(direction));
-
-        for (int i = 0; i < BeamCount; i++)
+        transform.SetPositionAndRotation(origin, Quaternion.LookRotation(direction, Vector3.up));
+        int pointCount = Mathf.Clamp(Mathf.CeilToInt(range * 1.4f) + 2, 3, _maximumSegments);
+        Vector3[] points = new Vector3[pointCount];
+        float[] halfWidths = new float[pointCount];
+        float tangent = Mathf.Tan(Mathf.Clamp(coneAngle, 1f, 179f) * 0.5f * Mathf.Deg2Rad);
+        for (int i = 0; i < pointCount; i++)
         {
-            float t = BeamCount == 1 ? 0.5f : i / (float)(BeamCount - 1);
-            float yaw = Mathf.Lerp(-halfAngle, halfAngle, t);
-            Vector3 beamDirection = rotation * (Quaternion.AngleAxis(yaw, Vector3.up) * Vector3.forward);
-            float beamRange = range * Mathf.Lerp(0.92f, 1f, Mathf.Sin(t * Mathf.PI));
-
-            _beams[i].enabled = true;
-            _beams[i].positionCount = 2;
-            _beams[i].SetPosition(0, origin);
-            _beams[i].SetPosition(1, origin + beamDirection * beamRange);
+            float t = i / (float)(pointCount - 1);
+            float distance = Mathf.Max(0.01f, range) * t;
+            points[i] = Vector3.forward * distance;
+            float angularWidth = distance * tangent;
+            float radialWidth = Mathf.Sqrt(Mathf.Max(0f, range * range - distance * distance));
+            halfWidths[i] = i == 0 || i == pointCount - 1
+                ? 0f
+                : Mathf.Min(angularWidth, radialWidth);
         }
 
-        SetConeColor(1f);
+        BuildRibbon(points, halfWidths, pointCount, taper: false);
+        ShowFor(duration);
     }
 
-    // Updates the stream to match the simulated hose path used by damage.
-    public void ShowHose(Vector3[] points, int pointCount, float radius, float duration)
+    public void ShowHose(Vector3[] worldPoints, int pointCount, float radius, float duration)
     {
-        if (points == null || pointCount <= 1)
+        if (worldPoints == null || pointCount <= 1)
             return;
 
-        if (_beams[0] == null)
-            InitializeCone();
+        EnsureInitialized();
+        pointCount = Mathf.Clamp(Mathf.Min(pointCount, worldPoints.Length), 2, _maximumSegments);
+        Vector3 firstDirection = worldPoints[1] - worldPoints[0];
+        if (firstDirection.sqrMagnitude <= 0.0001f)
+            firstDirection = Vector3.forward;
+        transform.SetPositionAndRotation(worldPoints[0], Quaternion.LookRotation(firstDirection.normalized, GetStableUp(firstDirection)));
 
-        pointCount = Mathf.Min(pointCount, points.Length);
-        if (pointCount <= 1)
-            return;
-
-        radius = Mathf.Max(0.03f, radius);
-        _visibleDuration = Mathf.Max(0.01f, duration);
-        _visibleTimer = _visibleDuration;
-
-        for (int i = 0; i < BeamCount; i++)
+        Vector3[] points = new Vector3[pointCount];
+        float[] halfWidths = new float[pointCount];
+        for (int i = 0; i < pointCount; i++)
         {
-            LineRenderer beam = _beams[i];
-            beam.enabled = true;
-            beam.useWorldSpace = true;
-            beam.positionCount = pointCount;
-            beam.widthMultiplier = radius * (i == BeamCount / 2 ? 0.42f : 0.18f);
-
-            for (int pointIndex = 0; pointIndex < pointCount; pointIndex++)
-                beam.SetPosition(pointIndex, points[pointIndex] + GetHoseOffset(points, pointIndex, pointCount, i, radius));
+            float t = i / (float)(pointCount - 1);
+            points[i] = transform.InverseTransformPoint(worldPoints[i]);
+            halfWidths[i] = Mathf.Max(0.025f, radius * Mathf.Max(0f, _ribbonWidth.Evaluate(t)));
         }
 
-        SetConeColor(1f);
+        BuildRibbon(points, halfWidths, pointCount, taper: true);
+        ShowFor(duration);
     }
 
-    private void InitializeCone()
+    private void Awake() => EnsureInitialized();
+
+    private void OnValidate()
     {
-        for (int i = 0; i < BeamCount; i++)
-        {
-            _beams[i] = CreateLine($"Flame Beam {i}", i == BeamCount / 2 ? 0.22f : 0.13f, useWorldSpace: true);
-            _beams[i].positionCount = 2;
-            _beams[i].enabled = false;
-        }
+        _maximumSegments = Mathf.Clamp(_maximumSegments, 2, 48);
+        _coreWidthMultiplier = Mathf.Clamp(_coreWidthMultiplier, 0.05f, 1f);
+        _noiseScale = Mathf.Max(0.1f, _noiseScale);
+        _noiseSpeed = Mathf.Max(0f, _noiseSpeed);
+        _erosionSpeed = Mathf.Max(0f, _erosionSpeed);
+        _ribbonWidth ??= AnimationCurve.Linear(0f, 1f, 1f, 0.1f);
     }
 
-    private void InitializeRing(float radius, float duration)
-    {
-        _visibleDuration = Mathf.Max(0.01f, duration);
-        _visibleTimer = _visibleDuration;
-        _ring = CreateLine("Flame Ring", 0.2f, useWorldSpace: true);
-        _ring.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 1f));
-        _ring.loop = true;
-        _ring.positionCount = RingSegmentCount;
-        DrawRing(radius, 0f);
-    }
-
-    private LineRenderer CreateLine(string childName, float width, bool useWorldSpace)
-    {
-        GameObject lineObject = new(childName);
-        lineObject.transform.SetParent(transform, false);
-
-        LineRenderer line = lineObject.AddComponent<LineRenderer>();
-        line.useWorldSpace = useWorldSpace;
-        line.material = GetLineMaterial();
-        line.widthMultiplier = width;
-        line.widthCurve = new AnimationCurve(
-            new Keyframe(0f, 1f),
-            new Keyframe(0.72f, 0.72f),
-            new Keyframe(1f, 0.15f));
-        line.numCornerVertices = 2;
-        line.numCapVertices = 2;
-        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        line.receiveShadows = false;
-        return line;
-    }
-
-    // Fades stream and ring visuals without needing authored particle prefabs.
     private void Update()
     {
         if (_visibleTimer <= 0f)
         {
-            HideCone();
-            if (_ring != null)
+            SetVisible(false);
+            if (_ringMode)
                 Destroy(gameObject);
             return;
         }
 
         _visibleTimer -= Time.deltaTime;
-        float alpha = Mathf.Clamp01(_visibleTimer / _visibleDuration);
-        SetConeColor(alpha);
-
-        if (_ring != null)
-            DrawRing(GetCurrentRingRadius(), 1f - alpha);
-    }
-
-    private void HideCone()
-    {
-        for (int i = 0; i < _beams.Length; i++)
+        float normalizedLife = 1f - Mathf.Clamp01(_visibleTimer / Mathf.Max(0.01f, _visibleDuration));
+        float alpha = _ringMode ? 1f - normalizedLife : Mathf.Clamp01(_visibleTimer / 0.06f);
+        if (_ringMode)
         {
-            if (_beams[i] != null)
-                _beams[i].enabled = false;
+            _ringElapsed += Time.deltaTime;
+            BuildRing(normalizedLife);
         }
+        ApplyMaterialProperties(alpha);
     }
 
-    private void SetConeColor(float alpha)
+    private void OnDestroy()
     {
-        for (int i = 0; i < _beams.Length; i++)
-        {
-            if (_beams[i] == null)
-                continue;
-
-            Color color = i == BeamCount / 2 ? _coreColor : _edgeColor;
-            color.a *= alpha;
-            _beams[i].startColor = color;
-            _beams[i].endColor = new Color(color.r, color.g * 0.65f, color.b * 0.45f, 0f);
-        }
+        if (_bodyMesh != null)
+            DestroyRuntimeObject(_bodyMesh);
+        if (_coreMesh != null)
+            DestroyRuntimeObject(_coreMesh);
     }
 
-    private float _ringRadius;
-
-    private void DrawRing(float radius, float expansionT)
+    private void EnsureInitialized()
     {
-        _ringRadius = radius;
-        if (_ring == null)
+        if (_initialized)
             return;
+        _initialized = true;
+        _propertyBlock = new MaterialPropertyBlock();
+        EnsureRibbonLayer(ref _bodyFilter, ref _bodyRenderer, "Flame Body", false);
+        EnsureRibbonLayer(ref _coreFilter, ref _coreRenderer, "Flame Core", true);
+        _bodyMesh = new Mesh { name = "Flamethrower Body Ribbon", hideFlags = HideFlags.DontSave };
+        _coreMesh = new Mesh { name = "Flamethrower Core Ribbon", hideFlags = HideFlags.DontSave };
+        _bodyMesh.MarkDynamic();
+        _coreMesh.MarkDynamic();
+        _bodyFilter.sharedMesh = _bodyMesh;
+        _coreFilter.sharedMesh = _coreMesh;
+        SetVisible(false);
+    }
 
-        float alpha = 1f - expansionT;
-        Color color = new(_edgeColor.r, _edgeColor.g, _edgeColor.b, alpha * _edgeColor.a);
-        _ring.startColor = color;
-        _ring.endColor = color;
-        _ring.widthMultiplier = Mathf.Lerp(0.22f, 0.04f, expansionT);
-
-        float drawRadius = Mathf.Lerp(radius * 0.15f, radius, expansionT);
-        for (int i = 0; i < RingSegmentCount; i++)
+    private void EnsureRibbonLayer(ref MeshFilter filter, ref MeshRenderer renderer, string layerName, bool core)
+    {
+        if (filter == null)
         {
-            float angle = i / (float)RingSegmentCount * Mathf.PI * 2f;
-            _ring.SetPosition(i, transform.position + new Vector3(Mathf.Cos(angle) * drawRadius, 0f, Mathf.Sin(angle) * drawRadius));
+            GameObject layer = new(layerName);
+            layer.transform.SetParent(transform, false);
+            filter = layer.AddComponent<MeshFilter>();
+            renderer = layer.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = CreateFallbackMaterial(core ? FlameCore : FlameBody);
+        }
+        else if (renderer == null)
+            renderer = filter.GetComponent<MeshRenderer>();
+
+        if (renderer != null)
+        {
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
         }
     }
 
-    private float GetCurrentRingRadius() => Mathf.Max(0.01f, _ringRadius);
-
-    private static Vector3 GetHoseOffset(Vector3[] points, int pointIndex, int pointCount, int beamIndex, float radius)
+    private void BuildRibbon(Vector3[] points, float[] halfWidths, int pointCount, bool taper)
     {
-        if (beamIndex == BeamCount / 2)
-            return Vector3.zero;
-
-        Vector3 direction = GetHoseDirection(points, pointIndex, pointCount);
-        Vector3 side = Vector3.Cross(Vector3.up, direction);
-        if (side.sqrMagnitude <= 0.0001f)
-            side = Vector3.Cross(Vector3.forward, direction);
-        side.Normalize();
-
-        Vector3 vertical = Vector3.Cross(direction, side).normalized;
-        float angle = GetBeamOffsetAngle(beamIndex);
-        float t = pointCount == 1 ? 0f : pointIndex / (float)(pointCount - 1);
-        float offsetRadius = radius * 0.32f * Mathf.Lerp(1f, 0.4f, t);
-        return (side * Mathf.Cos(angle) + vertical * Mathf.Sin(angle)) * offsetRadius;
+        BuildRibbonMesh(_bodyMesh, points, halfWidths, pointCount, 1f, taper);
+        BuildRibbonMesh(_coreMesh, points, halfWidths, pointCount, _coreWidthMultiplier, taper);
     }
 
-    private static Vector3 GetHoseDirection(Vector3[] points, int pointIndex, int pointCount)
+    private static void BuildRibbonMesh(Mesh mesh, Vector3[] points, float[] halfWidths, int pointCount, float widthMultiplier, bool taper)
     {
-        Vector3 direction;
-        if (pointIndex <= 0)
-            direction = points[1] - points[0];
-        else if (pointIndex >= pointCount - 1)
-            direction = points[pointCount - 1] - points[pointCount - 2];
-        else
-            direction = points[pointIndex + 1] - points[pointIndex - 1];
-
-        return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
-    }
-
-    private static float GetBeamOffsetAngle(int beamIndex)
-    {
-        return beamIndex switch
+        Vector3[] vertices = new Vector3[pointCount * 2];
+        Vector2[] uvs = new Vector2[vertices.Length];
+        Color[] colors = new Color[vertices.Length];
+        int[] triangles = new int[(pointCount - 1) * 6];
+        for (int i = 0; i < pointCount; i++)
         {
-            0 => 0f,
-            1 => Mathf.PI * 0.5f,
-            3 => Mathf.PI,
-            4 => Mathf.PI * 1.5f,
-            _ => 0f
-        };
+            Vector3 tangent = i == 0 ? points[1] - points[0] :
+                i == pointCount - 1 ? points[i] - points[i - 1] : points[i + 1] - points[i - 1];
+            Vector3 side = Vector3.Cross(Vector3.up, tangent);
+            if (side.sqrMagnitude <= 0.0001f)
+                side = Vector3.right;
+            side.Normalize();
+            float t = i / (float)(pointCount - 1);
+            float width = halfWidths[i] * widthMultiplier;
+            vertices[i * 2] = points[i] - side * width;
+            vertices[i * 2 + 1] = points[i] + side * width;
+            uvs[i * 2] = new Vector2(0f, t);
+            uvs[i * 2 + 1] = new Vector2(1f, t);
+            float vertexAlpha = taper ? Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 5f, (1f - t) * 4f)) : Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 5f, 1f));
+            colors[i * 2] = colors[i * 2 + 1] = new Color(1f, 1f, 1f, vertexAlpha);
+            if (i >= pointCount - 1)
+                continue;
+            int vertex = i * 2;
+            int triangle = i * 6;
+            triangles[triangle] = vertex;
+            triangles[triangle + 1] = vertex + 2;
+            triangles[triangle + 2] = vertex + 1;
+            triangles[triangle + 3] = vertex + 1;
+            triangles[triangle + 4] = vertex + 2;
+            triangles[triangle + 5] = vertex + 3;
+        }
+
+        mesh.Clear();
+        mesh.vertices = vertices;
+        mesh.uv = uvs;
+        mesh.colors = colors;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
     }
 
-    private static Vector3 GetStableUp(Vector3 direction)
+    private void BuildRing(float normalizedLife)
     {
-        return Mathf.Abs(Vector3.Dot(direction.normalized, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
+        const int segments = 36;
+        Vector3[] vertices = new Vector3[(segments + 1) * 2];
+        Vector2[] uvs = new Vector2[vertices.Length];
+        Color[] colors = new Color[vertices.Length];
+        int[] triangles = new int[segments * 6];
+        float radius = Mathf.Lerp(_ringRadius * 0.12f, _ringRadius, Mathf.SmoothStep(0f, 1f, normalizedLife));
+        float thickness = Mathf.Lerp(_ringRadius * 0.16f, _ringRadius * 0.025f, normalizedLife);
+        for (int i = 0; i <= segments; i++)
+        {
+            float t = i / (float)segments;
+            float angle = t * Mathf.PI * 2f;
+            Vector3 radial = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            vertices[i * 2] = radial * Mathf.Max(0f, radius - thickness);
+            vertices[i * 2 + 1] = radial * (radius + thickness);
+            uvs[i * 2] = new Vector2(0f, t);
+            uvs[i * 2 + 1] = new Vector2(1f, t);
+            colors[i * 2] = colors[i * 2 + 1] = Color.white;
+            if (i == segments)
+                continue;
+            int vertex = i * 2;
+            int triangle = i * 6;
+            triangles[triangle] = vertex;
+            triangles[triangle + 1] = vertex + 2;
+            triangles[triangle + 2] = vertex + 1;
+            triangles[triangle + 3] = vertex + 1;
+            triangles[triangle + 4] = vertex + 2;
+            triangles[triangle + 5] = vertex + 3;
+        }
+        _bodyMesh.Clear();
+        _bodyMesh.vertices = vertices;
+        _bodyMesh.uv = uvs;
+        _bodyMesh.colors = colors;
+        _bodyMesh.triangles = triangles;
+        _bodyMesh.RecalculateNormals();
+        _bodyMesh.RecalculateBounds();
+        _coreMesh.Clear();
+        SetVisible(true);
     }
 
-    private static Material GetLineMaterial()
+    private void ShowFor(float duration)
     {
-        if (s_lineMaterial != null)
-            return s_lineMaterial;
-
-        Shader shader = Shader.Find("Sprites/Default");
-        if (shader == null)
-            shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null)
-            shader = Shader.Find("Unlit/Color");
-
-        s_lineMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-        return s_lineMaterial;
+        _ringMode = false;
+        _visibleDuration = Mathf.Max(0.02f, duration);
+        _visibleTimer = _visibleDuration;
+        SetVisible(true);
+        SetSecondaryLayers(true);
+        ApplyMaterialProperties(1f);
     }
+
+    private void SetVisible(bool visible)
+    {
+        if (_bodyRenderer != null)
+            _bodyRenderer.enabled = visible;
+        if (_coreRenderer != null)
+            _coreRenderer.enabled = visible && !_ringMode;
+        if (_nozzleGlow != null)
+            _nozzleGlow.enabled = visible;
+        if (_nozzleLight != null)
+            _nozzleLight.enabled = visible;
+        if (!visible)
+            SetSecondaryLayers(false);
+    }
+
+    private void SetSecondaryLayers(bool active)
+    {
+        SetParticles(_embers, active, _emberRate * Mathf.Lerp(0.8f, 1.5f, _heat));
+        SetParticles(_smoke, active, _smokeRate * Mathf.Lerp(0.65f, 1.6f, _heat));
+    }
+
+    private static void SetParticles(ParticleSystem particles, bool active, float rate)
+    {
+        if (particles == null)
+            return;
+        ParticleSystem.EmissionModule emission = particles.emission;
+        emission.rateOverTime = Mathf.Max(0f, rate);
+        if (active && !particles.isPlaying)
+            particles.Play();
+        else if (!active && particles.isPlaying)
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+    }
+
+    private void SetParticlePalette(Color emberStart, Color emberEnd, Color smokeEnd)
+    {
+        SetParticleGradient(_embers, emberStart, emberEnd, 0.95f);
+        SetParticleGradient(_smoke, Color.Lerp(_bodyColor, Color.white, _style == FlamethrowerStreamStyle.LiquidNitrogen ? 0.55f : 0.08f), smokeEnd, 0.5f);
+    }
+
+    private static void SetParticleGradient(ParticleSystem particles, Color start, Color end, float startAlpha)
+    {
+        if (particles == null)
+            return;
+        ParticleSystem.MainModule main = particles.main;
+        main.startColor = Color.white;
+        ParticleSystem.ColorOverLifetimeModule color = particles.colorOverLifetime;
+        color.enabled = true;
+        Gradient gradient = new();
+        gradient.SetKeys(
+            new[] { new GradientColorKey(start, 0f), new GradientColorKey(end, 1f) },
+            new[] { new GradientAlphaKey(startAlpha, 0f), new GradientAlphaKey(0f, 1f) });
+        color.color = gradient;
+    }
+
+    private void ApplyMaterialProperties(float alpha)
+    {
+        ApplyRenderer(_bodyRenderer, _bodyColor, alpha, _baseEmission);
+        ApplyRenderer(_coreRenderer, _coreColor, alpha, _baseEmission * 1.55f);
+        ApplyRenderer(_nozzleGlow, _coreColor, alpha, _baseEmission * 1.35f);
+        if (_nozzleLight != null)
+        {
+            _nozzleLight.color = _coreColor;
+            _nozzleLight.intensity = alpha * Mathf.Lerp(0.7f, 1.45f, _heat);
+        }
+    }
+
+    private void ApplyRenderer(Renderer renderer, Color color, float alpha, float emission)
+    {
+        if (renderer == null)
+            return;
+        renderer.GetPropertyBlock(_propertyBlock);
+        Color faded = color;
+        faded.a *= Mathf.Clamp01(alpha);
+        float heatEmission = emission * Mathf.Lerp(1f, _heatEmissionMultiplier, _heat);
+        renderer.GetPropertyBlock(_propertyBlock);
+        _propertyBlock.SetColor(BaseColorId, faded);
+        _propertyBlock.SetColor(EmissionColorId, color * heatEmission);
+        _propertyBlock.SetFloat(EmissionIntensityId, heatEmission);
+        _propertyBlock.SetFloat(HeatId, _heat);
+        _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(alpha));
+        _propertyBlock.SetFloat(DissolveId, Mathf.Clamp01(1f - alpha) * Mathf.Clamp01(_erosionSpeed * 0.25f));
+        _propertyBlock.SetFloat(NoiseScaleId, _noiseScale);
+        _propertyBlock.SetFloat(NoiseSpeedId, _noiseSpeed);
+        renderer.SetPropertyBlock(_propertyBlock);
+    }
+
+    private static Material CreateFallbackMaterial(Color color)
+    {
+        Shader shader = Shader.Find("ScrapWaves/GameFeel/Scrap VFX");
+        if (shader == null)
+            shader = Shader.Find("Sprites/Default");
+        Material material = new(shader) { hideFlags = HideFlags.HideAndDontSave };
+        if (material.HasProperty(BaseColorId))
+            material.SetColor(BaseColorId, color);
+        return material;
+    }
+
+    private static void DestroyRuntimeObject(Object value)
+    {
+        if (value == null)
+            return;
+        if (Application.isPlaying)
+            Destroy(value);
+        else
+            DestroyImmediate(value);
+    }
+
+    private static Vector3 GetStableUp(Vector3 direction) =>
+        Mathf.Abs(Vector3.Dot(direction.normalized, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
 }

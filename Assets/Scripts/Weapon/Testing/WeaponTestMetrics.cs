@@ -19,6 +19,7 @@ public sealed class WeaponTestMetrics : MonoBehaviour
     private int _timeToKillSamples;
     private float _lastDamage;
     private WeaponTestingSandboxManager _sandbox;
+    private float _smoothedFrameTimeMs;
 
     public float TotalDamage => _totalDamage;
     public float DamagePerSecond
@@ -42,6 +43,21 @@ public sealed class WeaponTestMetrics : MonoBehaviour
     public float AverageTimeToKill => _timeToKillSamples > 0 ? _timeToKillTotal / _timeToKillSamples : 0f;
     public float LastDamage => _lastDamage;
     public int HitCount => _hitCount;
+    public int ActiveProjectileCount => _sandbox?.ProjectilePool != null ? _sandbox.ProjectilePool.ActiveLeasedCount : 0;
+    public int ActiveEffectCount => _sandbox?.PresentationController != null ? _sandbox.PresentationController.ActiveVfxCount : 0;
+    public int TotalEffectPoolCapacity => _sandbox?.PresentationController != null ? _sandbox.PresentationController.TotalVfxCapacity : 0;
+    public int ActiveAudioVoiceCount => _sandbox?.PresentationController != null ? _sandbox.PresentationController.ActiveAudioVoiceCount : 0;
+    public int EffectSuppressionCount => _sandbox?.PresentationController != null ? _sandbox.PresentationController.SuppressionCount : 0;
+    public float FrameTimeMilliseconds => _smoothedFrameTimeMs;
+    public long ManagedMemoryBytes => System.GC.GetTotalMemory(false);
+
+    private void Update()
+    {
+        float sample = Time.unscaledDeltaTime * 1000f;
+        _smoothedFrameTimeMs = _smoothedFrameTimeMs <= 0f
+            ? sample
+            : Mathf.Lerp(_smoothedFrameTimeMs, sample, 0.08f);
+    }
 
     private void OnEnable()
     {
@@ -75,6 +91,7 @@ public sealed class WeaponTestMetrics : MonoBehaviour
         _timeToKillTotal = 0f;
         _timeToKillSamples = 0;
         _lastDamage = 0f;
+        _smoothedFrameTimeMs = 0f;
     }
 
     public void RecordDamage(float amount)
@@ -148,6 +165,15 @@ public sealed class WeaponTestMetrics : MonoBehaviour
         sb.Append("Average TTK: ").Append(AverageTimeToKill.ToString("0.###")).AppendLine("s");
         sb.Append("Status Effects Applied: ").AppendLine(StatusEffectsApplied.ToString());
         sb.Append("Average Knockback Distance: ").Append(AverageKnockbackDistance.ToString("0.###")).AppendLine("m");
+        sb.Append("Projectiles / FX / Voices: ")
+            .Append(ActiveProjectileCount).Append(" / ")
+            .Append(ActiveEffectCount).Append(" / ")
+            .AppendLine(ActiveAudioVoiceCount.ToString());
+        sb.Append("FX Pool Capacity / Suppressed: ")
+            .Append(TotalEffectPoolCapacity).Append(" / ")
+            .AppendLine(EffectSuppressionCount.ToString());
+        sb.Append("Frame Time: ").Append(FrameTimeMilliseconds.ToString("0.##")).AppendLine(" ms");
+        sb.Append("Managed Memory: ").Append((ManagedMemoryBytes / (1024f * 1024f)).ToString("0.##")).AppendLine(" MB");
         sb.Append("===========================");
         return sb.ToString();
     }

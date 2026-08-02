@@ -462,16 +462,149 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void AutomaticCannonLineBurst_EachRoundTravelsFromMuzzleAndDamagesSeparately()
+    {
+        GameObject spawn = new("Cannon Burst Muzzle");
+        GameObject poolGo = new("Cannon Burst Damage Pool");
+        GameObject poolContainer = new("Cannon Burst Damage Pool Container");
+        GameObject prefab = new("Cannon Burst Damage Projectile Prefab");
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            prefab.AddComponent<Rigidbody>();
+            prefab.AddComponent<SphereCollider>();
+            prefab.AddComponent<Projectile>();
+            prefab.SetActive(false);
+
+            poolGo.SetActive(false);
+            ProjectilePool pool = poolGo.AddComponent<ProjectilePool>();
+            SetPrivateField(pool, "_projectilePrefab", prefab);
+            SetPrivateField(pool, "_container", poolContainer.transform);
+            SetPrivateField(pool, "_initialPoolSize", 2);
+            SetPrivateField(pool, "_maxPoolSize", 2);
+            SetPrivateField(pool, "_allowPoolGrowth", true);
+            poolGo.SetActive(true);
+
+            target.name = "Separate Burst Damage Target";
+            target.transform.position = Vector3.forward * 6f;
+            TestDamageable damageable = target.AddComponent<TestDamageable>();
+            Physics.SyncTransforms();
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.AutomaticCannon.CannonBurstShotInterval = 0.08f;
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 1,
+                State = WeaponState.Automatic
+            };
+            AutomaticCannonWeapon weapon = new(null, pool, spawn.transform);
+            weapon.Setup(instance, owner: null, stats: null, heat: null);
+
+            InvokePrivate(
+                weapon,
+                "FireLineBurst",
+                Vector3.forward,
+                2,
+                1f,
+                1.4f,
+                0f,
+                0f,
+                false);
+
+            Projectile leadingRound = null;
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate.gameObject.activeSelf)
+                    leadingRound = candidate;
+            }
+            Assert.That(leadingRound, Is.Not.Null);
+            Assert.That(Vector3.Distance(leadingRound.transform.position, spawn.transform.position), Is.LessThan(0.01f));
+
+            Vector3 simulatedLeadPosition = Vector3.forward * 1.44f;
+            leadingRound.transform.position = simulatedLeadPosition;
+            leadingRound.GetComponent<Rigidbody>().position = simulatedLeadPosition;
+            InvokePrivate(weapon, "TickPendingLineBurst", 0.08f);
+
+            List<Projectile> activeRounds = new();
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate.gameObject.activeSelf)
+                    activeRounds.Add(candidate);
+            }
+
+            Assert.That(activeRounds, Has.Count.EqualTo(2));
+            float nearestToMuzzle = float.PositiveInfinity;
+            float furthestFromMuzzle = 0f;
+            for (int i = 0; i < activeRounds.Count; i++)
+            {
+                float distance = Vector3.Distance(activeRounds[i].transform.position, spawn.transform.position);
+                nearestToMuzzle = Mathf.Min(nearestToMuzzle, distance);
+                furthestFromMuzzle = Mathf.Max(furthestFromMuzzle, distance);
+            }
+            Assert.That(nearestToMuzzle, Is.LessThan(0.01f), "The next round must visibly begin at the muzzle.");
+            Assert.That(furthestFromMuzzle, Is.GreaterThan(1f), "The leading round must remain visibly ahead.");
+
+            leadingRound.ConfigureSpeedMultiplier(20f);
+            InvokePrivate(leadingRound, "FixedUpdate");
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
+            Assert.That(pool.ActiveLeasedCount, Is.EqualTo(1), "Only the leading bullet should have dealt damage.");
+            int firstBulletDamage = damageable.TotalDamage;
+
+            Projectile trailingRound = null;
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate.gameObject.activeSelf)
+                    trailingRound = candidate;
+            }
+            Assert.That(trailingRound, Is.Not.Null);
+            trailingRound.ConfigureSpeedMultiplier(20f);
+            InvokePrivate(trailingRound, "FixedUpdate");
+
+            Assert.That(damageable.TotalDamage, Is.GreaterThan(firstBulletDamage), "The trailing bullet must apply its own later damage event.");
+            Assert.That(pool.ActiveLeasedCount, Is.Zero);
+        }
+        finally
+        {
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(poolGo);
+            Object.DestroyImmediate(poolContainer);
+            Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
     public void AutomaticCannonHeadHunter_SpawnsProjectileVisualWithoutBlueBeam()
     {
         GameObject spawn = new("Head Hunter Spawn");
         GameObject poolGo = new("Head Hunter Pool");
         GameObject poolContainer = new("Head Hunter Pool Container");
         GameObject prefab = new("Head Hunter Projectile Prefab");
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
 
         try
         {
+            wall.name = "Head Hunter Map Wall";
+            wall.transform.position = Vector3.forward * 6f;
+            Physics.SyncTransforms();
+
             prefab.AddComponent<Rigidbody>();
             prefab.AddComponent<SphereCollider>();
             prefab.AddComponent<Projectile>();
@@ -539,7 +672,7 @@ public class WeaponUpgradeEffectTests
             Assert.That(activeProjectile, Is.Not.Null);
             Assert.That(ReadField<bool>(activeProjectile, "_visualOnly"), Is.True);
             Assert.That(ReadField<bool>(activeProjectile, "_visualOnlyIgnoresCollisions"), Is.True);
-            Assert.That(ReadField<float>(activeProjectile, "_maxTravelDistance"), Is.Zero);
+            Assert.That(ReadField<float>(activeProjectile, "_maxTravelDistance"), Is.EqualTo(5.5f).Within(0.01f));
         }
         finally
         {
@@ -547,6 +680,84 @@ public class WeaponUpgradeEffectTests
             Object.DestroyImmediate(poolGo);
             Object.DestroyImmediate(poolContainer);
             Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(wall);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
+    public void AutomaticCannonHeadHunter_PiercesEnemiesButStopsAtMapGeometry()
+    {
+        GameObject spawn = new("Head Hunter Wall Test Spawn");
+        GameObject frontTarget = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject backTarget = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+
+        try
+        {
+            spawn.transform.position = Vector3.zero;
+            frontTarget.name = "Head Hunter Target Before Wall";
+            frontTarget.transform.position = Vector3.forward * 2.5f;
+            TestDamageable frontDamageable = frontTarget.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(frontTarget.transform);
+
+            wall.name = "Solid Map Wall";
+            wall.transform.position = Vector3.forward * 5f;
+            wall.transform.localScale = new Vector3(4f, 4f, 0.25f);
+
+            backTarget.name = "Head Hunter Target Behind Wall";
+            backTarget.transform.position = Vector3.forward * 8f;
+            TestDamageable backDamageable = backTarget.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(backTarget.transform);
+            Physics.SyncTransforms();
+
+            data.WeaponId = "TestAutomaticCannon";
+            data.DisplayName = "Test Automatic Cannon";
+            data.WeaponType = WeaponType.AutomaticCannon;
+            data.BaseDamage = 10f;
+            data.BaseRange = 12f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.LevelData = new List<WeaponLevelData>
+            {
+                new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+                new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+            };
+            data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f };
+
+            WeaponInstance instance = new()
+            {
+                Data = data,
+                Level = 6,
+                SelectedPath = WeaponUpgradePath.PathB,
+                State = WeaponState.Manual
+            };
+            AutomaticCannonWeapon weapon = new(null, null, spawn.transform);
+            weapon.Setup(instance, owner: null, stats: null, heat: null);
+
+            InvokePrivate(
+                weapon,
+                "FireHeadHunterPiercingLine",
+                Vector3.forward,
+                10,
+                12f,
+                false,
+                false,
+                null);
+            InvokePrivate(weapon, "TickHeadHunterPendingImpacts", 1f);
+
+            Assert.That(frontDamageable.TotalDamage, Is.GreaterThan(0), "Enemies before the wall should still be pierced.");
+            Assert.That(backDamageable.TotalDamage, Is.Zero, "Solid map geometry must block enemies behind it.");
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(frontTarget.transform);
+            EnemyRegistry.Unregister(backTarget.transform);
+            Object.DestroyImmediate(spawn);
+            Object.DestroyImmediate(frontTarget);
+            Object.DestroyImmediate(backTarget);
+            Object.DestroyImmediate(wall);
             Object.DestroyImmediate(data);
             DestroyGeneratedVfx();
         }
@@ -2387,7 +2598,7 @@ public class WeaponUpgradeEffectTests
             SetPrivateField(pool, "_projectilePrefab", prefab);
             SetPrivateField(pool, "_container", poolContainer.transform);
             SetPrivateField(pool, "_initialPoolSize", 1);
-            SetPrivateField(pool, "_maxPoolSize", 4);
+            SetPrivateField(pool, "_maxPoolSize", 25);
             SetPrivateField(pool, "_allowPoolGrowth", true);
             poolGo.SetActive(true);
 
@@ -2444,6 +2655,23 @@ public class WeaponUpgradeEffectTests
             Assert.That(ReadField<float>(activeRocket, "_clusterFragmentConeAngle"), Is.EqualTo(45f).Within(0.0001f));
             Assert.That(ReadField<float>(activeRocket, "_clusterFragmentDamageScale"), Is.EqualTo(1f).Within(0.0001f));
             Assert.That(ReadField<float>(activeRocket, "_clusterFragmentConeRange"), Is.GreaterThan(0f));
+
+            InvokePrivate(activeRocket, "SpawnExplosionCluster");
+            List<Projectile> fragmentRockets = new();
+            foreach (Projectile candidate in Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject != prefab && candidate != activeRocket && candidate.gameObject.activeSelf)
+                    fragmentRockets.Add(candidate);
+            }
+
+            Assert.That(fragmentRockets, Has.Count.EqualTo(20));
+            for (int i = 0; i < fragmentRockets.Count; i++)
+            {
+                Assert.That(ReadField<bool>(fragmentRockets[i], "_useFragmentCone"), Is.True);
+                Assert.That(ReadField<WeaponPresentationCue>(fragmentRockets[i], "_feedbackImpactCueOverride"),
+                    Is.EqualTo(WeaponPresentationCue.RocketFragmentChildImpact),
+                    $"Ability child rocket {i + 1} must emit its own Fragmentation impact effect.");
+            }
         }
         finally
         {

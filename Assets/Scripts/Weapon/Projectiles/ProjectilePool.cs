@@ -394,7 +394,47 @@ public class ProjectilePool : MonoBehaviour
         float fragmentDamageScale,
         WeaponDamageContext damageContext)
     {
+        return TrySpawnExplosiveProjectileWithAmplifier(
+            position,
+            rotation,
+            fireDirection,
+            damage,
+            explosionRadius,
+            falloff,
+            knockback,
+            speedMultiplier,
+            maxTravelDistance,
+            explodeOnMaxTravel,
+            amplifierMultiplier,
+            amplifierDuration,
+            fragmentConeAngle,
+            fragmentConeRange,
+            fragmentDamageScale,
+            damageContext,
+            out _);
+    }
+
+    public bool TrySpawnExplosiveProjectileWithAmplifier(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel,
+        float amplifierMultiplier,
+        float amplifierDuration,
+        float fragmentConeAngle,
+        float fragmentConeRange,
+        float fragmentDamageScale,
+        WeaponDamageContext damageContext,
+        out Projectile spawnedProjectile)
+    {
         GameObject go = TryGet();
+        spawnedProjectile = null;
         if (go == null)
             return false;
 
@@ -415,6 +455,7 @@ public class ProjectilePool : MonoBehaviour
         projectile.ConfigureMaxTravel(maxTravelDistance, explodeOnMaxTravel);
         projectile.ConfigureDamageAmplifierOnExplosion(amplifierMultiplier, amplifierDuration);
         projectile.ConfigureFragmentCone(fragmentConeAngle, fragmentConeRange, fragmentDamageScale);
+        spawnedProjectile = projectile;
         return true;
     }
 
@@ -448,7 +489,71 @@ public class ProjectilePool : MonoBehaviour
         WeaponDamageContext damageContext = default,
         WeaponDamageContext clusterDamageContext = default)
     {
+        return TrySpawnExplosiveProjectileWithAmplifierAndCluster(
+            position,
+            rotation,
+            fireDirection,
+            damage,
+            explosionRadius,
+            falloff,
+            knockback,
+            speedMultiplier,
+            maxTravelDistance,
+            explodeOnMaxTravel,
+            amplifierMultiplier,
+            amplifierDuration,
+            fragmentConeAngle,
+            fragmentConeRange,
+            fragmentDamageScale,
+            clusterProjectileCount,
+            clusterDamage,
+            clusterExplosionRadius,
+            clusterFalloff,
+            clusterKnockback,
+            clusterSpeedMultiplier,
+            clusterTravelDistance,
+            clusterFragmentConeAngle,
+            clusterFragmentConeRange,
+            clusterFragmentDamageScale,
+            visualScaleMultiplier,
+            damageContext,
+            clusterDamageContext,
+            out _);
+    }
+
+    public bool TrySpawnExplosiveProjectileWithAmplifierAndCluster(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 fireDirection,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float speedMultiplier,
+        float maxTravelDistance,
+        bool explodeOnMaxTravel,
+        float amplifierMultiplier,
+        float amplifierDuration,
+        float fragmentConeAngle,
+        float fragmentConeRange,
+        float fragmentDamageScale,
+        int clusterProjectileCount,
+        int clusterDamage,
+        float clusterExplosionRadius,
+        float clusterFalloff,
+        float clusterKnockback,
+        float clusterSpeedMultiplier,
+        float clusterTravelDistance,
+        float clusterFragmentConeAngle,
+        float clusterFragmentConeRange,
+        float clusterFragmentDamageScale,
+        float visualScaleMultiplier,
+        WeaponDamageContext damageContext,
+        WeaponDamageContext clusterDamageContext,
+        out Projectile spawnedProjectile)
+    {
         GameObject go = TryGet();
+        spawnedProjectile = null;
         if (go == null)
             return false;
 
@@ -484,6 +589,7 @@ public class ProjectilePool : MonoBehaviour
             clusterFragmentConeRange,
             clusterFragmentDamageScale,
             clusterDamageContext);
+        spawnedProjectile = projectile;
         return true;
     }
 

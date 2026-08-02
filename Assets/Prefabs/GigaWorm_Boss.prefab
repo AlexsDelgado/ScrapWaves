@@ -18,6 +18,8 @@ GameObject:
   - component: {fileID: 200008}
   - component: {fileID: 200009}
   - component: {fileID: 200010}
+  - component: {fileID: 6389671565212194889}
+  - component: {fileID: 4644802206773651966}
   m_Layer: 3
   m_Name: GigaWorm_Boss
   m_TagString: Untagged
@@ -157,7 +159,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
   _maxHealth: 500
 --- !u!114 &200007
@@ -170,7 +172,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a77242de664775447a0327cab31aa0a9, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
   _contactDamage: 8
   _logDebug: 0
@@ -184,7 +186,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f0b1398d8c9bf59499175b30247ce06e, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyRegistryMember
 --- !u!114 &200009
 MonoBehaviour:
@@ -196,7 +198,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0b7d4e5f6081b293a4b5c6d7e8f9a0b1, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::BossKeyDrop
   _keyPickupPrefab: {fileID: 100000, guid: 0f900dc561470bf4a90ba616d230ea75, type: 3}
 --- !u!114 &200010
@@ -209,7 +211,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f6a70819293a4b5c6d7e8f9a0b1c2d30, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::GigaWormBehavior
   _buryDepth: 2.5
   _undergroundMoveSpeed: 5
@@ -242,6 +244,65 @@ MonoBehaviour:
   _spitCollisionRadius: 0.25
   _spitLandingRadius: 3
   _corrosiveSlimeAreaPrefab: {fileID: 720000, guid: 7c95f9e9b646e004aab589670ff97196, type: 3}
+--- !u!114 &6389671565212194889
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d8476f98f77f7f4e992393cae3995d7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHitFeedback
+  _visualRoot: {fileID: 0}
+  _renderers: []
+  _regularHitColor: {r: 1, g: 0.48, b: 0.12, a: 1}
+  _criticalHitColor: {r: 1, g: 0.96, b: 0.55, a: 1}
+  _weakPointHitColor: {r: 1, g: 1, b: 1, a: 1}
+  _flashDuration: 0.09
+  _visualDisplacement: 0.08
+  _squashAmount: 0.08
+  _responseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _eliteResponseScale: 0.8
+  _bossResponseScale: 0.45
+--- !u!114 &4644802206773651966
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 359fb3d484157514e879832e366cae99, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyDeathFeedback
+  _effectIntensity: 1
 --- !u!1 &510637435832321228
 GameObject:
   m_ObjectHideFlags: 0

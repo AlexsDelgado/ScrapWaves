@@ -22,6 +22,7 @@ public sealed class WeaponAudioVoicePool
         public bool Active;
         public bool Loop;
         public float ReleaseTime;
+        public float BasePitch = 1f;
         public int Generation;
     }
 
@@ -74,13 +75,38 @@ public sealed class WeaponAudioVoicePool
         float now,
         out WeaponAudioVoiceHandle handle)
     {
+        if (!TrySelectClip(cueData, out AudioClip clip))
+        {
+            handle = default;
+            return false;
+        }
+
+        return TryPlayOneShotClip(cueData, clip, position, globalVolume, 1f, now, out handle);
+    }
+
+    public bool TryPlayOneShotClip(
+        WeaponPresentationCueData cueData,
+        AudioClip clip,
+        Vector3 position,
+        float globalVolume,
+        float layerVolume,
+        float now,
+        out WeaponAudioVoiceHandle handle)
+    {
         handle = default;
-        if (!TrySelectClip(cueData, out AudioClip clip) || !TryAcquire(out int voiceIndex))
+        if (cueData == null || clip == null || !TryAcquire(out int voiceIndex))
             return false;
 
         VoiceSlot voice = _voices[voiceIndex];
         float pitch = Random.Range(cueData.PitchMin, cueData.PitchMax);
-        ConfigureVoice(voice, clip, position, cueData.Volume * globalVolume, pitch, loop: false);
+        ConfigureVoice(
+            voice,
+            clip,
+            position,
+            cueData.Volume * globalVolume * Mathf.Clamp01(layerVolume),
+            pitch,
+            loop: false);
+        ConfigureCue(voice.Source, cueData);
         voice.ReleaseTime = now + Mathf.Max(0.01f, clip.length / Mathf.Max(0.01f, Mathf.Abs(pitch)));
         voice.Source.Play();
 
@@ -101,6 +127,7 @@ public sealed class WeaponAudioVoicePool
         VoiceSlot voice = _voices[voiceIndex];
         float pitch = Random.Range(cueData.PitchMin, cueData.PitchMax);
         ConfigureVoice(voice, clip, position, cueData.Volume * globalVolume, pitch, loop: true);
+        ConfigureCue(voice.Source, cueData);
         voice.ReleaseTime = float.PositiveInfinity;
         voice.Source.Play();
 
@@ -129,6 +156,14 @@ public sealed class WeaponAudioVoicePool
 
         voice.Source.transform.position = position;
         voice.Source.volume = Mathf.Clamp01(cueVolume * globalVolume);
+    }
+
+    public void SetPitchMultiplier(WeaponAudioVoiceHandle handle, float multiplier)
+    {
+        if (!TryGetVoice(handle, out VoiceSlot voice))
+            return;
+
+        voice.Source.pitch = Mathf.Clamp(voice.BasePitch * Mathf.Max(0.01f, multiplier), 0.01f, 3f);
     }
 
     public void Release(WeaponAudioVoiceHandle handle)
@@ -167,7 +202,17 @@ public sealed class WeaponAudioVoicePool
         voice.Source.clip = clip;
         voice.Source.volume = Mathf.Clamp01(volume);
         voice.Source.pitch = Mathf.Clamp(pitch, 0.01f, 3f);
+        voice.BasePitch = voice.Source.pitch;
         voice.Source.loop = loop;
+    }
+
+    private static void ConfigureCue(AudioSource source, WeaponPresentationCueData cueData)
+    {
+        source.spatialBlend = Mathf.Clamp01(cueData.SpatialBlend);
+        source.minDistance = Mathf.Max(0f, cueData.MinimumDistance);
+        source.maxDistance = Mathf.Max(Mathf.Max(0.1f, source.minDistance), cueData.MaximumDistance);
+        source.priority = Mathf.Clamp(cueData.AudioPriority, 0, 256);
+        source.rolloffMode = AudioRolloffMode.Logarithmic;
     }
 
     private WeaponAudioVoiceHandle CreateHandle(int voiceIndex, VoiceSlot voice)

@@ -53,6 +53,7 @@ public class Projectile : MonoBehaviour
     private float _clusterFragmentConeRange;
     private float _clusterFragmentDamageScale;
     private WeaponDamageContext _clusterDamageContext;
+    private Collider _detonationCollider;
     private IWeaponPresentationSink _presentationSink;
     private WeaponInstance _presentationWeapon;
     private WeaponPresentationCue _impactCue;
@@ -61,6 +62,13 @@ public class Projectile : MonoBehaviour
     private bool _presentationIsAbility;
     private bool _presentationAllowWeakPoint;
     private bool _presentationImpactEmitted;
+    private IWeaponFeedbackSink _feedbackSink;
+    private WeaponFeedbackContext _feedbackTemplate;
+    private bool _feedbackImpactEmitted;
+    private bool _feedbackAllowWeakPoint;
+    private bool _replaceExplosionVfx;
+    private WeaponPresentationCue _feedbackImpactCueOverride;
+    private ProjectileVisualController _visualController;
     private readonly HashSet<IDamageable> _explosionDamageables = new();
     private readonly HashSet<IDamageable> _fragmentConeDamageables = new();
     private static readonly Color ExplosionGizmoColor = new(1f, 0.42f, 0.05f, 0.85f);
@@ -162,6 +170,21 @@ public class Projectile : MonoBehaviour
         _presentationImpactEmitted = false;
     }
 
+    public void ConfigureFeedback(
+        IWeaponFeedbackSink feedbackSink,
+        in WeaponFeedbackContext template,
+        bool allowWeakPoint = false,
+        bool replaceExplosionVfx = false,
+        WeaponPresentationCue impactCueOverride = WeaponPresentationCue.None)
+    {
+        _feedbackSink = feedbackSink ?? NullWeaponPresentationSink.Instance;
+        _feedbackTemplate = template;
+        _feedbackImpactEmitted = false;
+        _feedbackAllowWeakPoint = allowWeakPoint;
+        _replaceExplosionVfx = replaceExplosionVfx;
+        _feedbackImpactCueOverride = impactCueOverride;
+    }
+
     public void ClearPresentation()
     {
         _presentationSink = null;
@@ -172,6 +195,15 @@ public class Projectile : MonoBehaviour
         _presentationIsAbility = false;
         _presentationAllowWeakPoint = false;
         _presentationImpactEmitted = false;
+        _feedbackSink = null;
+        _feedbackTemplate = default;
+        _feedbackImpactEmitted = false;
+        _feedbackAllowWeakPoint = false;
+        _replaceExplosionVfx = false;
+        _feedbackImpactCueOverride = WeaponPresentationCue.None;
+        if (_visualController == null)
+            _visualController = GetComponent<ProjectileVisualController>();
+        _visualController?.ResetVisual();
     }
 
     // Launches projectile and resets runtime damage mode state.
@@ -215,6 +247,7 @@ public class Projectile : MonoBehaviour
         _clusterFragmentConeRange = 0f;
         _clusterFragmentDamageScale = 0f;
         _clusterDamageContext = default;
+        _detonationCollider = null;
     }
 
 
@@ -321,6 +354,8 @@ public class Projectile : MonoBehaviour
         if (_consumed)
             return;
 
+        Vector3 impactPosition = ResolveImpactPosition(other);
+
         // World impact: explosive shots detonate, normal bullets despawn.
         int terrainLayer = LayerMask.NameToLayer("Terrain");
         bool hitTerrain = terrainLayer >= 0 && other.gameObject.layer == terrainLayer;
@@ -332,10 +367,15 @@ public class Projectile : MonoBehaviour
             if (_visualOnly)
                 DespawnOrDestroy();
             else if (_useExplosion)
+            {
+                MoveToImpactPoint(impactPosition);
+                _detonationCollider = other;
                 ConsumeAtCurrentPosition(detonate: true);
+            }
             else
             {
-                EmitPresentationImpact(other, damageable: null, worldImpact: true);
+                EmitFeedbackImpact(other, damageable: null, worldImpact: true, impactPosition, 0, false, false);
+                EmitPresentationImpact(other, damageable: null, worldImpact: true, impactPosition);
                 DespawnOrDestroy();
             }
 
@@ -360,7 +400,11 @@ public class Projectile : MonoBehaviour
         if (_useExplosion)
         {
             if (damageable != null || IsSolidWorldCollider(other))
+            {
+                MoveToImpactPoint(impactPosition);
+                _detonationCollider = other;
                 ConsumeAtCurrentPosition(detonate: true);
+            }
 
             return;
         }
@@ -368,11 +412,14 @@ public class Projectile : MonoBehaviour
         if (damageable != null)
         {
             int finalDamage = ResolveDamage(damageable, other);
+            int healthBefore = GetRemainingHealth(damageable);
             bool damageApplied = WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
             if (damageApplied)
             {
-                EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage));
-                EmitPresentationImpact(other, damageable, worldImpact: false);
+                EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
+                bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+                EmitFeedbackImpact(other, damageable, worldImpact: false, impactPosition, finalDamage, true, kill);
+                EmitPresentationImpact(other, damageable, worldImpact: false, impactPosition);
             }
             DespawnOrDestroy();
             return;
@@ -380,7 +427,8 @@ public class Projectile : MonoBehaviour
 
         if (IsSolidWorldCollider(other))
         {
-            EmitPresentationImpact(other, damageable: null, worldImpact: true);
+            EmitFeedbackImpact(other, damageable: null, worldImpact: true, impactPosition, 0, false, false);
+            EmitPresentationImpact(other, damageable: null, worldImpact: true, impactPosition);
             DespawnOrDestroy();
         }
     }
@@ -429,6 +477,7 @@ public class Projectile : MonoBehaviour
 
         Collider closestCollider = null;
         float closestDistance = float.PositiveInfinity;
+        Vector3 closestImpactPoint = default;
         for (int i = 0; i < hitCount; i++)
         {
             Collider hitCollider = _sweepHits[i].collider;
@@ -447,6 +496,7 @@ public class Projectile : MonoBehaviour
 
             closestDistance = _sweepHits[i].distance;
             closestCollider = hitCollider;
+            closestImpactPoint = _sweepHits[i].point;
         }
 
         if (closestCollider == null)
@@ -460,6 +510,7 @@ public class Projectile : MonoBehaviour
         transform.position = impactPosition;
 
         IDamageable damageable = closestCollider.GetComponentInParent<IDamageable>();
+        _detonationCollider = closestCollider;
         if (damageable != null)
         {
             if (_visualOnly)
@@ -469,11 +520,14 @@ public class Projectile : MonoBehaviour
             else
             {
                 int finalDamage = ResolveDamage(damageable, closestCollider);
+                int healthBefore = GetRemainingHealth(damageable);
                 bool damageApplied = WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
                 if (damageApplied)
                 {
                     EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
-                    EmitPresentationImpact(closestCollider, damageable, worldImpact: false);
+                    bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+                    EmitFeedbackImpact(closestCollider, damageable, worldImpact: false, closestImpactPoint, finalDamage, true, kill);
+                    EmitPresentationImpact(closestCollider, damageable, worldImpact: false, closestImpactPoint);
                 }
                 DespawnOrDestroy();
             }
@@ -487,7 +541,8 @@ public class Projectile : MonoBehaviour
             ConsumeAtCurrentPosition(detonate: true);
         else
         {
-            EmitPresentationImpact(closestCollider, damageable: null, worldImpact: true);
+            EmitFeedbackImpact(closestCollider, damageable: null, worldImpact: true, closestImpactPoint, 0, false, false);
+            EmitPresentationImpact(closestCollider, damageable: null, worldImpact: true, closestImpactPoint);
             DespawnOrDestroy();
         }
 
@@ -527,18 +582,26 @@ public class Projectile : MonoBehaviour
     // Applies area damage around impact point with distance-based falloff.
     private void ApplyExplosionDamage()
     {
-        if (_applyDamageAmplifierOnExplosion)
-            ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius, AmplifierVfxColor);
-        else if (_useFragmentCone || _useExplosionCluster)
-            ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius, FragmentVfxColor);
-        else
-            ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius);
-        if (_applyDamageAmplifierOnExplosion)
-            WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.15f, AmplifierVfxColor, 0.65f, 2f, "KINETIC");
-        if (_useFragmentCone)
-            WeaponUpgradeVfx.SpawnCone(transform.position, GetFragmentForward(), _fragmentConeRange, _fragmentConeAngle, FragmentVfxColor, 0.55f, 7, "FRAG");
+        if (!_replaceExplosionVfx)
+        {
+            if (_applyDamageAmplifierOnExplosion)
+                ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius, AmplifierVfxColor);
+            else if (_useFragmentCone || _useExplosionCluster)
+                ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius, FragmentVfxColor);
+            else
+                ExplosionRadiusVfx.Spawn(transform.position, _explosionRadius);
+            if (_applyDamageAmplifierOnExplosion)
+                WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.15f, AmplifierVfxColor, 0.65f, 2f, "KINETIC");
+            if (_useFragmentCone)
+                WeaponUpgradeVfx.SpawnCone(transform.position, GetFragmentForward(), _fragmentConeRange, _fragmentConeAngle, FragmentVfxColor, 0.55f, 7, "FRAG");
+        }
 
         _explosionDamageables.Clear();
+        int totalDamage = 0;
+        bool anyDamageApplied = false;
+        bool anyKill = false;
+        IDamageable feedbackDamageable = null;
+        Collider feedbackCollider = null;
         Collider[] hits = Physics.OverlapSphere(transform.position, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
         {
@@ -556,15 +619,85 @@ public class Projectile : MonoBehaviour
             if (_applyDamageAmplifierOnExplosion)
             {
                 WeaponDamageAmplifierStatus.Apply(damageable, _damageAmplifierMultiplier, _damageAmplifierDuration);
-                WeaponUpgradeVfx.SpawnTargetPulse(targetTransform, AmplifierVfxColor, 0.45f, "VULN");
+                if (!_replaceExplosionVfx)
+                    WeaponUpgradeVfx.SpawnTargetPulse(targetTransform, AmplifierVfxColor, 0.45f, "VULN");
             }
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
+            int healthBefore = GetRemainingHealth(damageable);
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+            {
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage, falloffScale));
+                totalDamage += finalDamage;
+                anyDamageApplied = true;
+                anyKill |= healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+                feedbackDamageable ??= damageable;
+                feedbackCollider ??= hits[i];
+            }
         }
 
         ApplyFragmentConeDamage();
+        EmitExplosionFeedback(_detonationCollider != null ? _detonationCollider : feedbackCollider, feedbackDamageable, totalDamage, anyDamageApplied, anyKill);
         SpawnExplosionCluster();
+    }
+
+    private void EmitExplosionFeedback(
+        Collider hitCollider,
+        IDamageable damageable,
+        int totalDamage,
+        bool damageApplied,
+        bool kill)
+    {
+        if (_feedbackSink == null || _feedbackImpactEmitted)
+            return;
+
+        Transform target = damageable is Component component
+            ? component.transform
+            : hitCollider != null ? hitCollider.transform : null;
+        ImpactSurfaceType surface = ImpactSurfaceResolver.Resolve(hitCollider, damageable);
+        WeaponFeedbackContext impact = _feedbackTemplate.WithImpact(
+            transform.position,
+            -_direction,
+            totalDamage,
+            _useWeaponDamageContext && _weaponDamageContext.IsCritical,
+            false,
+            kill,
+            target,
+            WeaponEnemyClassifier.GetKind(target),
+            surface);
+        if (_useFragmentCone)
+            impact = impact.WithDirection(GetFragmentForward());
+
+        if (_feedbackImpactCueOverride != WeaponPresentationCue.None)
+        {
+            WeaponPresentationContext explicitImpact = new(
+                _feedbackImpactCueOverride,
+                impact.Weapon,
+                impact.ImpactPosition,
+                impact.Direction,
+                impact.EventIntensity,
+                impact.Target,
+                impact.IsAbilityDamage,
+                impact.IsCritical,
+                impact.IsWeakPoint,
+                mode: impact.Mode,
+                upgradePath: impact.UpgradePath,
+                weaponLevel: impact.WeaponLevel,
+                normalizedHeat: impact.NormalizedHeat,
+                impactNormal: impact.ImpactNormal,
+                damageAmount: impact.DamageAmount,
+                isKill: impact.IsKill,
+                targetClass: impact.TargetClass,
+                surfaceType: impact.SurfaceType,
+                explosionRadius: impact.ExplosionRadius);
+            _feedbackSink.Emit(in explicitImpact);
+        }
+        else
+            _feedbackSink.OnProjectileImpact(in impact);
+        if (damageApplied)
+            _feedbackSink.OnDamageConfirmed(in impact);
+        if (_applyDamageAmplifierOnExplosion && damageApplied)
+            _feedbackSink.OnStatusApplied(in impact);
+        _feedbackImpactEmitted = true;
     }
 
     private void ApplyFragmentConeDamage()
@@ -687,7 +820,8 @@ public class Projectile : MonoBehaviour
     private void EmitPresentationImpact(
         Collider hitCollider,
         IDamageable damageable,
-        bool worldImpact)
+        bool worldImpact,
+        Vector3 impactPosition)
     {
         if (_presentationSink == null || _presentationImpactEmitted)
             return;
@@ -713,7 +847,7 @@ public class Projectile : MonoBehaviour
         WeaponPresentationContext context = new(
             cue,
             _presentationWeapon,
-            transform.position,
+            impactPosition,
             _direction,
             target: target,
             isAbility: _presentationIsAbility,
@@ -721,6 +855,77 @@ public class Projectile : MonoBehaviour
             isWeakPoint: weakPoint);
         _presentationSink.Emit(in context);
         _presentationImpactEmitted = true;
+    }
+
+    private void EmitFeedbackImpact(
+        Collider hitCollider,
+        IDamageable damageable,
+        bool worldImpact,
+        Vector3 impactPosition,
+        int damageAmount,
+        bool damageApplied,
+        bool kill)
+    {
+        if (_feedbackSink == null || _feedbackImpactEmitted)
+            return;
+
+        bool weakPoint = !worldImpact && _feedbackAllowWeakPoint && IsWeakPointCollider(hitCollider);
+        bool critical = !worldImpact && _useWeaponDamageContext && _weaponDamageContext.IsCritical;
+        Transform target = damageable is Component component
+            ? component.transform
+            : hitCollider != null ? hitCollider.transform : null;
+        WeaponEnemyKind targetClass = worldImpact
+            ? WeaponEnemyKind.Normal
+            : WeaponEnemyClassifier.GetKind(target);
+        ImpactSurfaceType surface = ImpactSurfaceResolver.Resolve(hitCollider, damageable);
+        WeaponFeedbackContext impact = _feedbackTemplate.WithImpact(
+            impactPosition,
+            -_direction,
+            damageAmount,
+            critical,
+            weakPoint,
+            kill,
+            target,
+            targetClass,
+            surface);
+
+        _feedbackSink.OnProjectileImpact(in impact);
+        if (damageApplied)
+            _feedbackSink.OnDamageConfirmed(in impact);
+        _feedbackImpactEmitted = true;
+    }
+
+    private Vector3 ResolveImpactPosition(Collider hitCollider)
+    {
+        return hitCollider != null
+            ? hitCollider.ClosestPoint(transform.position)
+            : transform.position;
+    }
+
+    private void MoveToImpactPoint(Vector3 impactPosition)
+    {
+        transform.position = impactPosition;
+        if (_rigidbody != null)
+            _rigidbody.position = impactPosition;
+    }
+
+    private static int GetRemainingHealth(IDamageable damageable)
+    {
+        if (damageable is EnemyHealth enemyHealth)
+            return enemyHealth.CurrentHealth;
+        if (damageable is WeaponDummyEnemy dummy)
+            return dummy.CurrentHealth;
+        if (damageable is Component component)
+        {
+            EnemyHealth parentHealth = component.GetComponentInParent<EnemyHealth>();
+            if (parentHealth != null)
+                return parentHealth.CurrentHealth;
+            WeaponDummyEnemy parentDummy = component.GetComponentInParent<WeaponDummyEnemy>();
+            if (parentDummy != null)
+                return parentDummy.CurrentHealth;
+        }
+
+        return -1;
     }
 
     private static bool IsWeakPointCollider(Collider collider)
@@ -737,13 +942,14 @@ public class Projectile : MonoBehaviour
         if (!_useExplosionCluster || _clusterPool == null || _clusterProjectileCount <= 0)
             return;
 
-        WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.25f, ClusterVfxColor, 0.55f, 1.4f, "CLUSTER");
+        if (!_replaceExplosionVfx)
+            WeaponUpgradeVfx.SpawnRing(transform.position, _explosionRadius * 1.25f, ClusterVfxColor, 0.55f, 1.4f, "CLUSTER");
         for (int i = 0; i < _clusterProjectileCount; i++)
         {
             float angle = i / (float)_clusterProjectileCount * Mathf.PI * 2f;
             Vector3 direction = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
             Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-            _clusterPool.TrySpawnExplosiveProjectileWithAmplifier(
+            bool spawned = _clusterPool.TrySpawnExplosiveProjectileWithAmplifier(
                 transform.position + direction * 0.15f + Vector3.up * 0.15f,
                 rotation,
                 direction,
@@ -759,7 +965,22 @@ public class Projectile : MonoBehaviour
                 _clusterFragmentConeAngle,
                 _clusterFragmentConeRange,
                 _clusterFragmentDamageScale,
-                _clusterDamageContext);
+                _clusterDamageContext,
+                out Projectile clusterProjectile);
+            if (!spawned || clusterProjectile == null || _feedbackSink == null)
+                continue;
+
+            WeaponFeedbackContext clusterFeedback = _feedbackTemplate.WithExplosionRadius(_clusterExplosionRadius);
+            clusterProjectile.ConfigureFeedback(
+                _feedbackSink,
+                in clusterFeedback,
+                allowWeakPoint: false,
+                replaceExplosionVfx: _replaceExplosionVfx,
+                impactCueOverride: WeaponPresentationCue.RocketFragmentChildImpact);
+            _feedbackSink.ConfigureProjectile(
+                clusterProjectile,
+                ProjectilePresentationArchetypeId.FragmentRocket,
+                in clusterFeedback);
         }
     }
 

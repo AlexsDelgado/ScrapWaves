@@ -14,6 +14,8 @@ GameObject:
   - component: {fileID: 7763566047430575715}
   - component: {fileID: 5706561329999298689}
   - component: {fileID: 431358332882788828}
+  - component: {fileID: 3416338287950910835}
+  - component: {fileID: 5692180590547222004}
   m_Layer: 0
   m_Name: WeaponDummyEnemy
   m_TagString: Untagged
@@ -97,7 +99,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f0b1398d8c9bf59499175b30247ce06e, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyRegistryMember
 --- !u!114 &5706561329999298689
 MonoBehaviour:
@@ -109,7 +111,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f9c252617504fd4aeec09beefefc8d3, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyKnockbackReceiver
   _drag: 14
   _maxPlanarSpeed: 18
@@ -123,7 +125,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7b1cbf8014ef73c40beded82a9aa6b9c, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDummyEnemy
   _maxHealth: 500
   _damageResistance: 0
@@ -132,6 +134,65 @@ MonoBehaviour:
   _movementPattern: 0
   _movementSpeed: 2
   _weakPointDamageMultiplier: 1.5
+--- !u!114 &3416338287950910835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 803838481292363997}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d8476f98f77f7f4e992393cae3995d7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHitFeedback
+  _visualRoot: {fileID: 0}
+  _renderers: []
+  _regularHitColor: {r: 1, g: 0.48, b: 0.12, a: 1}
+  _criticalHitColor: {r: 1, g: 0.96, b: 0.55, a: 1}
+  _weakPointHitColor: {r: 1, g: 1, b: 1, a: 1}
+  _flashDuration: 0.09
+  _visualDisplacement: 0.08
+  _squashAmount: 0.08
+  _responseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _eliteResponseScale: 0.8
+  _bossResponseScale: 0.45
+--- !u!114 &5692180590547222004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 803838481292363997}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 359fb3d484157514e879832e366cae99, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyDeathFeedback
+  _effectIntensity: 1
 --- !u!1 &840128333937112952
 GameObject:
   m_ObjectHideFlags: 0

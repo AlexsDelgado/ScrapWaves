@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc373c1f9226fd44ab0411492d007bc3, type: 3}
+  m_Name: GameFeelQuality_PC
+  m_EditorClassIdentifier: Assembly-CSharp::GameFeelQualitySettings
+  _lowParticleMultiplier: 0.35
+  _mediumParticleMultiplier: 0.7
+  _highParticleMultiplier: 1
+  _lowQualityLights: 0
+  _mediumQualityLights: 1
+  _highQualityLights: 1
+  _lowDecalLifetimeMultiplier: 0.35
+  _mediumDecalLifetimeMultiplier: 0.7
+  _highDecalLifetimeMultiplier: 1

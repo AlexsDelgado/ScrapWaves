@@ -25,6 +25,7 @@ MonoBehaviour:
   ActiveAbilityAmmoCost: 5
   SkillCooldown: 10
   Icon: {fileID: 0}
+  PresentationProfile: {fileID: 0}
   _specificTuning:
     rid: 6797599696172314625
   LevelData:
@@ -33,21 +34,43 @@ MonoBehaviour:
     AttackRateMultiplier: 1
     ManualAmmoMultiplier: 1
   - Level: 2
-    DamageMultiplier: 1.25
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.0666667
+    ManualAmmoMultiplier: 1
   - Level: 3
-    DamageMultiplier: 1.5
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.1333333
+    ManualAmmoMultiplier: 1
   - Level: 4
-    DamageMultiplier: 1.75
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.2
+    ManualAmmoMultiplier: 1
   - Level: 5
-    DamageMultiplier: 2
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.3333334
+    ManualAmmoMultiplier: 1
+  - Level: 6
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 7
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 8
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 9
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 10
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: Grapeshot
     DamageMultiplier: 1

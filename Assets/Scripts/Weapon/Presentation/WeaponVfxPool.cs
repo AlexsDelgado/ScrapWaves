@@ -24,6 +24,7 @@ public sealed class WeaponVfxPool
     }
 
     public int Count => _instances.Count;
+    public int Capacity => _cueData != null ? _cueData.MaxSimultaneous : 0;
 
     public int ActiveCount
     {

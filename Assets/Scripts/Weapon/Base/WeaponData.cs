@@ -18,11 +18,13 @@ public sealed class AutomaticCannonTuning : WeaponSpecificTuning
     [Min(1)] public int CannonActiveBaseBulletCount = 20;
 
     [Min(0f)] public float CannonAbilityScatterRadius = 22f;
-    [Min(0f)] public float CannonManualLineSpacing = 0.45f;
-    [Min(0f)] public float CannonAutoLineSpacing = 0.45f;
+    [Min(0f), Tooltip("Minimum in-flight separation between sequential manual burst rounds. Every round still launches at the muzzle.")]
+    public float CannonManualLineSpacing = 0.45f;
+    [Min(0f), Tooltip("Minimum in-flight separation between sequential automatic burst rounds. Every round still launches at the muzzle.")]
+    public float CannonAutoLineSpacing = 0.45f;
     [Min(0f)] public float CannonAutoAccuracySpreadDegrees = 0f;
     [Min(0f)] public float CannonBurstProjectileScatterDegrees = 0f;
-    [Min(0.001f)] public float CannonBurstShotInterval = 0.05f;
+    [Min(0.001f)] public float CannonBurstShotInterval = 0.08f;
     [Min(0.01f)] public float CannonAutoBurstsPerSecond = 5f;
     [Min(0.01f)] public float CannonManualBurstsPerSecond = 2f;
     [Min(0.01f)] public float ContinuousFireAutoAttackSpeedMultiplier = 1.25f;

@@ -50,18 +50,28 @@ public class ThirdPersonCamera : MonoBehaviour
     [SerializeField, Min(0f)] private float _presentationImpulseDecay = 12f;
     [SerializeField, Min(0f)] private float _maximumPresentationPositionImpulse = 0.35f;
     [SerializeField, Min(0f)] private float _maximumPresentationRotationImpulse = 5f;
+    [SerializeField, Min(0f)] private float _maximumPresentationFovKick = 5f;
 
     private readonly RaycastHit[] _cameraHitBuffer = new RaycastHit[12];
     private float _yaw;
     private float _pitch;
     private Vector3 _presentationPositionImpulse;
     private Vector3 _presentationRotationImpulse;
+    private float _presentationFovKick;
+    private Camera _camera;
+    private float _baseFieldOfView;
 
     /// <summary>When true, look input is blocked and the cursor is released for UI.</summary>
     private bool _lookBlockedByUi;
 
+    private void OnEnable()
+    {
+        CacheCamera();
+    }
+
     private void Start()
     {
+        CacheCamera();
         Vector3 euler = transform.eulerAngles;
         _pitch = NormalizeEulerPitch(euler.x);
         _yaw = euler.y;
@@ -131,12 +141,20 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public Vector3 CurrentPresentationPositionImpulse => _presentationPositionImpulse;
     public Vector3 CurrentPresentationRotationImpulse => _presentationRotationImpulse;
+    public float CurrentPresentationFovKick => _presentationFovKick;
 
     public bool AddPresentationImpulse(Vector3 positionImpulse, Vector3 rotationImpulse)
     {
+        return AddPresentationImpulse(positionImpulse, rotationImpulse, 0f);
+    }
+
+    public bool AddPresentationImpulse(Vector3 positionImpulse, Vector3 rotationImpulse, float fovKick)
+    {
         if (!isActiveAndEnabled ||
             _cameraFeedbackScale <= 0f ||
-            (positionImpulse.sqrMagnitude <= 0.000001f && rotationImpulse.sqrMagnitude <= 0.000001f))
+            (positionImpulse.sqrMagnitude <= 0.000001f &&
+             rotationImpulse.sqrMagnitude <= 0.000001f &&
+             Mathf.Abs(fovKick) <= 0.0001f))
         {
             return false;
         }
@@ -147,6 +165,10 @@ public class ThirdPersonCamera : MonoBehaviour
         _presentationRotationImpulse = Vector3.ClampMagnitude(
             _presentationRotationImpulse + rotationImpulse,
             _maximumPresentationRotationImpulse);
+        _presentationFovKick = Mathf.Clamp(
+            _presentationFovKick + fovKick,
+            -_maximumPresentationFovKick,
+            _maximumPresentationFovKick);
         return true;
     }
 
@@ -154,6 +176,9 @@ public class ThirdPersonCamera : MonoBehaviour
     {
         _presentationPositionImpulse = Vector3.zero;
         _presentationRotationImpulse = Vector3.zero;
+        _presentationFovKick = 0f;
+        if (_camera != null)
+            _camera.fieldOfView = _baseFieldOfView;
     }
 
     public void ApplyMainGameOrbitDefaults()
@@ -213,6 +238,8 @@ public class ThirdPersonCamera : MonoBehaviour
             orbit * (_presentationPositionImpulse * _cameraFeedbackScale);
         transform.rotation = resolvedRotation *
             Quaternion.Euler(_presentationRotationImpulse * _cameraFeedbackScale);
+        if (_camera != null)
+            _camera.fieldOfView = _baseFieldOfView + _presentationFovKick * _cameraFeedbackScale;
 
         DecayPresentationImpulses();
     }
@@ -291,10 +318,21 @@ public class ThirdPersonCamera : MonoBehaviour
         float decay = Mathf.Exp(-_presentationImpulseDecay * Time.unscaledDeltaTime);
         _presentationPositionImpulse *= decay;
         _presentationRotationImpulse *= decay;
+        _presentationFovKick *= decay;
 
         if (_presentationPositionImpulse.sqrMagnitude < 0.000001f)
             _presentationPositionImpulse = Vector3.zero;
         if (_presentationRotationImpulse.sqrMagnitude < 0.000001f)
             _presentationRotationImpulse = Vector3.zero;
+        if (Mathf.Abs(_presentationFovKick) < 0.0001f)
+            _presentationFovKick = 0f;
+    }
+
+    private void CacheCamera()
+    {
+        if (_camera == null)
+            _camera = GetComponent<Camera>();
+        if (_camera != null)
+            _baseFieldOfView = _camera.fieldOfView;
     }
 }

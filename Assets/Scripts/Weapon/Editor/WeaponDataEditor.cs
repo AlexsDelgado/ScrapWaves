@@ -95,8 +95,8 @@ public sealed class WeaponDataEditor : Editor
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAbilityScatterRadius), "Ability Scatter Radius");
-        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonManualLineSpacing), "Manual Line Spacing");
-        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoLineSpacing), "Auto Line Spacing");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonManualLineSpacing), "Manual Projectile Separation");
+        DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoLineSpacing), "Auto Projectile Separation");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonAutoAccuracySpreadDegrees), "Auto Accuracy Spread Degrees");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonBurstProjectileScatterDegrees), "Burst Projectile Scatter Degrees");
         DrawSpecificProperty(nameof(AutomaticCannonTuning.CannonBurstShotInterval), "Burst Shot Interval");

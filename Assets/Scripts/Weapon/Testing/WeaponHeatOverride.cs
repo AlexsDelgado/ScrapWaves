@@ -19,7 +19,11 @@ public sealed class WeaponHeatOverride : MonoBehaviour
             return;
 
         float normalized = Mathf.Clamp01(percent / 100f);
-        _heatManager.SetHeat(_heatManager.MaxHeat * normalized);
+        float heatPoints = normalized <= 0.8f
+            ? _heatManager.PointsFirstSegment * (normalized / 0.8f)
+            : _heatManager.PointsFirstSegment +
+              _heatManager.PointsSecondSegment * ((normalized - 0.8f) / 0.2f);
+        _heatManager.SetHeat(heatPoints);
     }
 
     public void SetNormalizedHeat(float normalized)

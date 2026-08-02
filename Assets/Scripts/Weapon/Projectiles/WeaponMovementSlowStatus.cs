@@ -27,10 +27,21 @@ public sealed class WeaponMovementSlowStatus : MonoBehaviour
 
     public void RefreshRamp(float startMultiplier, float endMultiplier, int ticksToFull, float duration, string label)
     {
+        if (duration <= 0f)
+            return;
+
+        if (_remainingDuration <= 0f)
+        {
+            _speedMultiplier = 1f;
+            _rampStacks = 0;
+        }
+
         int maxTicks = Mathf.Max(1, ticksToFull);
         _rampStacks = Mathf.Clamp(_rampStacks + 1, 1, maxTicks);
         float t = maxTicks <= 1 ? 1f : (_rampStacks - 1) / (float)(maxTicks - 1);
-        Refresh(Mathf.Lerp(startMultiplier, endMultiplier, t), duration, label);
+        _speedMultiplier = Mathf.Min(_speedMultiplier, Mathf.Clamp01(Mathf.Lerp(startMultiplier, endMultiplier, t)));
+        _remainingDuration = Mathf.Max(_remainingDuration, duration);
+        TryApplyDummyStatus(label, duration);
     }
 
     public static void Apply(Transform target, float speedMultiplier, float duration, string label)

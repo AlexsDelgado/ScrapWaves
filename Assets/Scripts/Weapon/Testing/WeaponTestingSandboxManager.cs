@@ -61,6 +61,8 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     public WeaponInstance CurrentManualWeapon => IsValidSlot(_manualSlot) ? _instances[_manualSlot] : null;
     public IWeaponBehaviour CurrentManualBehaviour => IsValidSlot(_manualSlot) ? _behaviours[_manualSlot] : null;
     public IReadOnlyList<WeaponData> WeaponData => _weaponData;
+    public WeaponPresentationController PresentationController => _presentationController;
+    public ProjectilePool ProjectilePool => _projectilePool;
 
     private void Awake()
     {

@@ -1,15 +1,13 @@
 using UnityEngine;
 
+/// <summary>
+/// Debug/accessibility fallback used only when no production feedback sink is installed.
+/// Production Head Hunter charge presentation is an authored pooled prefab.
+/// </summary>
 public sealed class HeadHunterChargeVfx : MonoBehaviour
 {
     private const int SegmentCount = 72;
-    private const float StartRadius = 0.045f;
-    private const float EndRadius = 0.78f;
-    private const float StartWidth = 0.018f;
-    private const float EndWidth = 0.095f;
-
-    private static readonly Color ChargeColor = new(1f, 1f, 1f, 0.98f);
-    private static Material s_lineMaterial;
+    private static Material s_debugLineMaterial;
 
     private Transform _firePoint;
     private LineRenderer _ring;
@@ -22,8 +20,8 @@ public sealed class HeadHunterChargeVfx : MonoBehaviour
         if (firePoint == null)
             return null;
 
-        GameObject go = new("[HeadHunterChargeVfx]");
-        HeadHunterChargeVfx vfx = go.AddComponent<HeadHunterChargeVfx>();
+        GameObject fallback = new("[Debug HeadHunter Charge]");
+        HeadHunterChargeVfx vfx = fallback.AddComponent<HeadHunterChargeVfx>();
         vfx.Initialize(firePoint, direction, chargeDuration);
         return vfx;
     }
@@ -32,14 +30,16 @@ public sealed class HeadHunterChargeVfx : MonoBehaviour
     {
         if (direction.sqrMagnitude > 0.0001f)
             _direction = direction.normalized;
-
         UpdateTransform();
         DrawRing(Mathf.Clamp01(progress));
     }
 
     public void Dismiss()
     {
-        DestroySelf();
+        if (Application.isPlaying)
+            Destroy(gameObject);
+        else
+            DestroyImmediate(gameObject);
     }
 
     private void Initialize(Transform firePoint, Vector3 direction, float chargeDuration)
@@ -49,32 +49,25 @@ public sealed class HeadHunterChargeVfx : MonoBehaviour
         if (direction.sqrMagnitude > 0.0001f)
             _direction = direction.normalized;
 
-        _ring = CreateRing();
-        SetChargeProgress(0f, _direction);
-    }
-
-    private LineRenderer CreateRing()
-    {
-        GameObject child = new("Head Hunter Charge Ring");
+        GameObject child = new("Debug Charge Radius");
         child.transform.SetParent(transform, false);
-
-        LineRenderer ring = child.AddComponent<LineRenderer>();
-        ring.useWorldSpace = false;
-        ring.loop = true;
-        ring.positionCount = SegmentCount;
-        ring.material = GetLineMaterial();
-        ring.numCornerVertices = 3;
-        ring.numCapVertices = 3;
-        ring.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        ring.receiveShadows = false;
-        return ring;
+        _ring = child.AddComponent<LineRenderer>();
+        _ring.useWorldSpace = false;
+        _ring.loop = true;
+        _ring.positionCount = SegmentCount;
+        _ring.sharedMaterial = GetDebugMaterial();
+        _ring.numCornerVertices = 2;
+        _ring.numCapVertices = 2;
+        _ring.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        _ring.receiveShadows = false;
+        SetChargeProgress(0f, _direction);
     }
 
     private void Update()
     {
         if (_firePoint == null)
         {
-            DestroySelf();
+            Dismiss();
             return;
         }
 
@@ -86,7 +79,6 @@ public sealed class HeadHunterChargeVfx : MonoBehaviour
     {
         if (_firePoint == null)
             return;
-
         transform.position = _firePoint.position;
         Vector3 up = Mathf.Abs(Vector3.Dot(_direction, Vector3.up)) > 0.95f ? Vector3.right : Vector3.up;
         transform.rotation = Quaternion.LookRotation(_direction, up);
@@ -94,18 +86,12 @@ public sealed class HeadHunterChargeVfx : MonoBehaviour
 
     private void DrawRing(float progress)
     {
-        if (_ring == null)
-            return;
-
         float eased = 1f - Mathf.Pow(1f - progress, 3f);
-        float radius = Mathf.Lerp(StartRadius, EndRadius, eased);
-        _ring.widthMultiplier = Mathf.Lerp(StartWidth, EndWidth, progress);
-
-        Color color = ChargeColor;
-        color.a *= Mathf.Lerp(0.55f, 1f, progress);
+        float radius = Mathf.Lerp(0.045f, 0.78f, eased);
+        _ring.widthMultiplier = Mathf.Lerp(0.018f, 0.095f, progress);
+        Color color = new(1f, 1f, 1f, Mathf.Lerp(0.55f, 0.98f, progress));
         _ring.startColor = color;
         _ring.endColor = color;
-
         for (int i = 0; i < SegmentCount; i++)
         {
             float angle = i / (float)SegmentCount * Mathf.PI * 2f;
@@ -113,29 +99,19 @@ public sealed class HeadHunterChargeVfx : MonoBehaviour
         }
     }
 
-    private void DestroySelf()
+    private static Material GetDebugMaterial()
     {
-        if (Application.isPlaying)
-            Destroy(gameObject);
-        else
-            DestroyImmediate(gameObject);
-    }
-
-    private static Material GetLineMaterial()
-    {
-        if (s_lineMaterial != null)
-            return s_lineMaterial;
+        if (s_debugLineMaterial != null)
+            return s_debugLineMaterial;
 
         Shader shader = Shader.Find("Sprites/Default");
         if (shader == null)
             shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null)
-            shader = Shader.Find("Unlit/Color");
-
-        s_lineMaterial = new Material(shader)
+        s_debugLineMaterial = new Material(shader)
         {
+            name = "Head Hunter Debug Radius",
             hideFlags = HideFlags.HideAndDontSave
         };
-        return s_lineMaterial;
+        return s_debugLineMaterial;
     }
 }

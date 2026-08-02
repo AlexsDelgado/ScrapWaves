@@ -134,10 +134,10 @@ MonoBehaviour:
         CannonActiveBaseBulletCount: 20
         CannonAbilityScatterRadius: 11
         CannonManualLineSpacing: 1
-        CannonAutoLineSpacing: 2
+        CannonAutoLineSpacing: 1.4
         CannonAutoAccuracySpreadDegrees: 0
         CannonBurstProjectileScatterDegrees: 0
-        CannonBurstShotInterval: 0.05
+        CannonBurstShotInterval: 0.08
         CannonAutoBurstsPerSecond: 5
         CannonManualBurstsPerSecond: 3
         ContinuousFireAutoAttackSpeedMultiplier: 1.25

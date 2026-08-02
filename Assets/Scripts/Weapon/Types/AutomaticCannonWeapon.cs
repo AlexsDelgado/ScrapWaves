@@ -3,16 +3,19 @@ using UnityEngine;
 
 public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 {
+    private static readonly float[] PresentationHeatThresholds = { 0.25f, 0.5f, 0.75f, 0.8f, 1f };
     private const float ContinuousFireActiveBulletsPerSecond = 40f;
     private const float HeadHunterPierceRadius = 0.45f;
     private const float HeadHunterActiveMinimumRange = 1000f;
     private const float HeadHunterProjectileVisualSpeedMultiplier = 3f;
     private const float HeadHunterFallbackProjectileSpeed = 54f;
-    private const float DefaultLineBurstShotInterval = 0.05f;
+    private const float CannonBaseProjectileSpeed = 18f;
+    private const float DefaultLineBurstShotInterval = 0.08f;
 
     private readonly List<Transform> _piercingTargets = new();
     private readonly List<Vector3> _piercingHitOrigins = new();
     private readonly List<PendingHeadHunterImpact> _pendingHeadHunterImpacts = new();
+    private readonly List<PendingHeadHunterWorldImpact> _pendingHeadHunterWorldImpacts = new();
     private readonly Vector3[] _piercingLine = new Vector3[2];
 
     private bool _lineBurstActive;
@@ -21,7 +24,6 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private float _lineBurstTimer;
     private Vector3 _lineBurstDirection;
     private float _lineBurstDamageScale;
-    private float _lineBurstSpacing;
     private float _lineBurstScatterDegrees;
     private float _lineBurstShotInterval;
     private float _lineBurstAccuracySpreadDegrees;
@@ -40,12 +42,17 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private int _continuousFireActiveShotsRemaining;
     private Vector3 _continuousFireActiveDirection;
     private bool _continuousFireActivePresentationStarted;
+    private bool _continuousBurstFeedbackActive;
+    private WeaponPresentationLoopHandle _legacyContinuousLoopHandle;
 
-    private HeadHunterChargeVfx _headHunterChargeVfx;
+    private WeaponPresentationLoopHandle _legacyHeadHunterChargeLoop;
+    private HeadHunterChargeVfx _debugHeadHunterChargeVfx;
     private bool _headHunterActiveCharging;
     private float _headHunterActiveChargeTimer;
     private Vector3 _headHunterChargedDirection;
     private bool _headHunterManualFireHeld;
+    private int _presentationShotIndex;
+    private float _lastPresentedHeat;
 
     public AutomaticCannonWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
         : base(targeting, pool, spawn)
@@ -58,6 +65,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         TickHeadHunterPendingImpacts(deltaTime);
         _lineBurstLiveAimDirection = aimDirection;
         TickPendingLineBurst(deltaTime);
+        if (_lineBurstActive)
+            return;
         if (_headHunterActiveCharging)
         {
             TickHeadHunterActiveCharge(deltaTime, aimDirection);
@@ -134,6 +143,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (TickContinuousFireActive(deltaTime, aimDirection))
             return;
 
+        if (_lineBurstActive)
+            return;
+
         FireTimer = Mathf.Max(0f, FireTimer - deltaTime);
         bool isHeadHunter = IsHeadHunterPath();
         if (isHeadHunter)
@@ -158,7 +170,10 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         int manualShotCount = GetManualShotCount(tuning);
         int bulletsToFire = Mathf.Clamp(Mathf.CeilToInt(Runtime.CurrentAmmo), 1, manualShotCount);
         if (!TrySpendManualAmmo(bulletsToFire, requireFullAmount: false))
+        {
+            EmitAmmoEmptyFeedback(aimDirection);
             return;
+        }
 
         FireTimer = AutomaticCannonFireLogic.GetManualBurstInterval(
             tuning.CannonManualBurstsPerSecond,
@@ -220,7 +235,10 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
 
         if (!TrySpendManualAmmo(GetActiveAbilityAmmoCost(), requireFullAmount: false))
+        {
+            EmitAmmoEmptyFeedback(aimDirection);
             return;
+        }
 
         if (IsHeadHunterPath())
         {
@@ -313,7 +331,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private float GetContinuousFireManualAttackSpeedMultiplier()
     {
-        return GetContinuousFireAttackSpeedMultiplier() * (IsContinuousFirePath() ? 1.5f : 1f);
+        if (!IsContinuousFirePath())
+            return 1f;
+
+        AutomaticCannonTuning tuning = Runtime?.Data != null
+            ? Runtime.Data.AutomaticCannon
+            : AutomaticCannonTuning.Defaults;
+        return GetContinuousFireAttackSpeedMultiplier() * Mathf.Max(1, tuning.CannonManualBurstCount);
     }
 
     private float GetManualAttackSpeedPathMultiplier()
@@ -332,7 +356,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         float burstsPerSecond = Mathf.Max(0.01f, tuning.CannonAutoBurstsPerSecond);
         float interval = 1f / Mathf.Max(0.05f, burstsPerSecond * attackSpeed * weaponRate);
         if (IsContinuousFirePath())
-            return interval / Mathf.Max(0.01f, GetContinuousFireAutoAttackSpeedMultiplier(tuning));
+        {
+            float replacedBurstRounds = Mathf.Max(1, tuning.CannonAutoBurstCount);
+            float continuousMultiplier = GetContinuousFireAutoAttackSpeedMultiplier(tuning) * replacedBurstRounds;
+            return interval / Mathf.Max(0.01f, continuousMultiplier);
+        }
         if (IsHeadHunterPath())
             return interval / Mathf.Max(0.01f, tuning.HeadHunterAutoAttackSpeedMultiplier);
         return interval;
@@ -463,6 +491,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _continuousFireActiveShotAccumulator = 1f;
         _continuousFireActiveDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Vector3.forward;
         _continuousFireActivePresentationStarted = false;
+        BeginSustainedFeedback(_continuousFireActiveDirection, isAbility: true);
         CompleteActiveAbility();
     }
 
@@ -511,6 +540,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private void EndContinuousFireActive()
     {
+        if (_continuousFireActive)
+            EndSustainedFeedback(_continuousFireActiveDirection, isAbility: true);
         _continuousFireActive = false;
         _continuousFireActiveRemainingDuration = 0f;
         _continuousFireActiveShotAccumulator = 0f;
@@ -525,7 +556,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _headHunterActiveCharging = true;
         _headHunterActiveChargeTimer = GetHeadHunterActiveChargeSeconds();
         _headHunterChargedDirection = direction;
-        BeginHeadHunterChargeVfx(GetCurrentHeadHunterChargedDirection());
+        BeginHeadHunterChargeFeedback(GetCurrentHeadHunterChargedDirection());
         PlayerMovement movement = Owner != null ? Owner.GetComponent<PlayerMovement>() : null;
         if (movement != null)
             movement.ApplyMomentumPreservingStun(
@@ -541,12 +572,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         UpdateHeadHunterChargedDirection(aimDirection);
         _headHunterActiveChargeTimer -= deltaTime;
-        UpdateHeadHunterChargeVfx();
+        UpdateHeadHunterChargeFeedback();
         if (_headHunterActiveChargeTimer > 0f)
             return true;
 
         _headHunterActiveCharging = false;
-        DismissHeadHunterChargeVfx();
+        DismissHeadHunterChargeFeedback();
         FireHeadHunterPiercingLine(
             GetCurrentHeadHunterChargedDirection(),
             GetHeadHunterActivePierceLimit(),
@@ -571,32 +602,98 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             : Vector3.forward;
     }
 
-    private void BeginHeadHunterChargeVfx(Vector3 aimDirection)
+    private void BeginHeadHunterChargeFeedback(Vector3 aimDirection)
     {
-        DismissHeadHunterChargeVfx();
+        DismissHeadHunterChargeFeedback();
         if (Spawn == null)
             return;
 
-        _headHunterChargeVfx = HeadHunterChargeVfx.Spawn(Spawn, aimDirection, GetHeadHunterActiveChargeSeconds());
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            aimDirection,
+            isAbility: true,
+            anchor: Spawn);
+        if (object.ReferenceEquals(Presentation, NullWeaponPresentationSink.Instance))
+        {
+            _debugHeadHunterChargeVfx = HeadHunterChargeVfx.Spawn(
+                Spawn,
+                aimDirection,
+                GetHeadHunterActiveChargeSeconds());
+            return;
+        }
+
+        if (Presentation is IWeaponFeedbackSink semantic)
+        {
+            semantic.OnChargeStarted(in feedback);
+            return;
+        }
+
+        WeaponPresentationContext legacy = CreateLegacyContext(
+            WeaponPresentationCue.AutomaticCannonHeadHunterCharge,
+            in feedback);
+        _legacyHeadHunterChargeLoop = Presentation.BeginLoop(in legacy);
     }
 
-    private void UpdateHeadHunterChargeVfx()
+    private void UpdateHeadHunterChargeFeedback()
     {
-        if (_headHunterChargeVfx == null)
+        if (Spawn == null)
             return;
 
         float duration = GetHeadHunterActiveChargeSeconds();
         float progress = 1f - Mathf.Clamp01(_headHunterActiveChargeTimer / Mathf.Max(0.01f, duration));
-        _headHunterChargeVfx.SetChargeProgress(progress, GetCurrentHeadHunterChargedDirection());
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            GetCurrentHeadHunterChargedDirection(),
+            isAbility: true,
+            intensity: progress,
+            anchor: Spawn);
+        if (_debugHeadHunterChargeVfx != null)
+        {
+            _debugHeadHunterChargeVfx.SetChargeProgress(progress, GetCurrentHeadHunterChargedDirection());
+            return;
+        }
+
+        if (Presentation is IWeaponFeedbackSink semantic)
+        {
+            semantic.OnChargeUpdated(in feedback, progress);
+            return;
+        }
+
+        WeaponPresentationContext legacy = CreateLegacyContext(
+            WeaponPresentationCue.AutomaticCannonHeadHunterCharge,
+            in feedback);
+        Presentation.UpdateLoop(_legacyHeadHunterChargeLoop, in legacy);
     }
 
-    private void DismissHeadHunterChargeVfx()
+    private void DismissHeadHunterChargeFeedback()
     {
-        if (_headHunterChargeVfx == null)
+        if (Spawn == null)
             return;
 
-        _headHunterChargeVfx.Dismiss();
-        _headHunterChargeVfx = null;
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            GetCurrentHeadHunterChargedDirection(),
+            isAbility: true,
+            anchor: Spawn);
+        if (_debugHeadHunterChargeVfx != null)
+        {
+            _debugHeadHunterChargeVfx.Dismiss();
+            _debugHeadHunterChargeVfx = null;
+        }
+        else if (Presentation is IWeaponFeedbackSink semantic)
+            semantic.OnChargeCancelled(in feedback);
+        else
+        {
+            WeaponPresentationContext legacy = CreateLegacyContext(
+                WeaponPresentationCue.AutomaticCannonHeadHunterCharge,
+                in feedback);
+            Presentation.EndLoop(_legacyHeadHunterChargeLoop, in legacy);
+        }
+
+        _legacyHeadHunterChargeLoop = default;
     }
 
     private void FireHeadHunterPiercingLine(
@@ -612,16 +709,41 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         Vector3 origin = Spawn.position;
         Vector3 direction = aimDirection.normalized;
+        float shotDistance = Mathf.Max(0.01f, range);
+        bool blockedByWorld = TryGetHeadHunterWorldImpact(
+            origin,
+            direction,
+            shotDistance,
+            out RaycastHit worldImpact);
+        if (blockedByWorld)
+            shotDistance = Mathf.Max(0.01f, worldImpact.distance);
+
         _piercingLine[0] = origin;
-        _piercingLine[1] = origin + direction * Mathf.Max(0.01f, range);
-        bool visualSpawned = TrySpawnHeadHunterProjectileVisual(origin, direction, out float projectileSpeed);
+        _piercingLine[1] = origin + direction * shotDistance;
+        bool visualSpawned = TrySpawnHeadHunterProjectileVisual(
+            origin,
+            direction,
+            isAbilityDamage,
+            shotDistance,
+            out float projectileSpeed);
         if (visualSpawned)
         {
-            EmitPresentationCue(
+            EmitShotFeedback(
                 GetHeadHunterFireCue(isAbilityDamage),
                 origin,
                 direction,
-                isAbilityDamage);
+                isAbilityDamage,
+                target: null,
+                anchor: Spawn);
+        }
+
+        if (blockedByWorld)
+        {
+            QueueHeadHunterWorldImpact(
+                worldImpact,
+                direction,
+                isAbilityDamage,
+                shotDistance / Mathf.Max(0.01f, projectileSpeed));
         }
 
         int hitCount = EnemyRegistry.CollectClosestNearPolyline(
@@ -657,6 +779,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 impactOrigin,
                 hitPoint,
                 direction,
+                i,
                 GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed));
         }
     }
@@ -664,6 +787,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private bool TrySpawnHeadHunterProjectileVisual(
         Vector3 origin,
         Vector3 direction,
+        bool isAbility,
+        float maxTravelDistance,
         out float projectileSpeed)
     {
         projectileSpeed = HeadHunterFallbackProjectileSpeed;
@@ -682,10 +807,74 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             && projectile != null)
         {
             projectileSpeed = Mathf.Max(0.01f, projectile.ActiveSpeed);
+            projectile.ConfigureMaxTravel(Mathf.Max(0.01f, maxTravelDistance), explodeOnMaxTravel: false);
+            if (Presentation is IWeaponFeedbackSink semantic)
+            {
+                WeaponFeedbackContext feedback = CreateFeedbackContext(
+                    GetFeedbackMode(isAbility),
+                    origin,
+                    direction,
+                    isAbility,
+                    anchor: Spawn);
+                semantic.ConfigureProjectile(
+                    projectile,
+                    ProjectilePresentationArchetypeId.HeadHunterBolt,
+                    in feedback);
+            }
             return true;
         }
 
         return false;
+    }
+
+    // Head Hunter pierces enemies, but the first solid non-enemy collider terminates the shot.
+    private bool TryGetHeadHunterWorldImpact(
+        Vector3 origin,
+        Vector3 direction,
+        float maxDistance,
+        out RaycastHit closestWorldImpact)
+    {
+        closestWorldImpact = default;
+        if (direction.sqrMagnitude <= 0.0001f || maxDistance <= 0f)
+            return false;
+
+        RaycastHit[] hits = Physics.RaycastAll(
+            origin,
+            direction.normalized,
+            maxDistance,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Ignore);
+        float closestDistance = float.PositiveInfinity;
+        bool found = false;
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider collider = hits[i].collider;
+            if (!IsHeadHunterWorldBlocker(collider) || hits[i].distance >= closestDistance)
+                continue;
+
+            closestDistance = hits[i].distance;
+            closestWorldImpact = hits[i];
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool IsHeadHunterWorldBlocker(Collider collider)
+    {
+        if (collider == null || collider.isTrigger)
+            return false;
+
+        Transform collisionTransform = collider.transform;
+        if (Owner != null && (collisionTransform == Owner || collisionTransform.IsChildOf(Owner)))
+            return false;
+        if (Spawn != null && (collisionTransform == Spawn || collisionTransform.IsChildOf(Spawn)))
+            return false;
+        if (collider.GetComponentInParent<PlayerHealth>() != null)
+            return false;
+
+        // Enemy colliders are intentionally transparent to this piercing weapon.
+        return collider.GetComponentInParent<IDamageable>() == null;
     }
 
     private float GetHeadHunterImpactDelay(Vector3 origin, Vector3 direction, int hitIndex, float projectileSpeed)
@@ -706,6 +895,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Vector3 impactOrigin,
         Vector3 impactPosition,
         Vector3 direction,
+        int pierceIndex,
         float delay)
     {
         if (target == null || damage <= 0)
@@ -721,15 +911,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             ImpactOrigin = impactOrigin,
             ImpactPosition = impactPosition,
             Direction = direction,
+            PierceIndex = Mathf.Max(0, pierceIndex),
             RemainingDelay = Mathf.Max(0f, delay)
         });
     }
 
     private void TickHeadHunterPendingImpacts(float deltaTime)
     {
-        if (_pendingHeadHunterImpacts.Count == 0)
-            return;
-
         float elapsed = Mathf.Max(0f, deltaTime);
         for (int i = _pendingHeadHunterImpacts.Count - 1; i >= 0; i--)
         {
@@ -744,6 +932,70 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             ApplyHeadHunterImpact(impact);
             _pendingHeadHunterImpacts.RemoveAt(i);
         }
+
+        for (int i = _pendingHeadHunterWorldImpacts.Count - 1; i >= 0; i--)
+        {
+            PendingHeadHunterWorldImpact impact = _pendingHeadHunterWorldImpacts[i];
+            impact.RemainingDelay -= elapsed;
+            if (impact.RemainingDelay > 0f)
+            {
+                _pendingHeadHunterWorldImpacts[i] = impact;
+                continue;
+            }
+
+            EmitHeadHunterWorldImpact(impact);
+            _pendingHeadHunterWorldImpacts.RemoveAt(i);
+        }
+    }
+
+    private void QueueHeadHunterWorldImpact(
+        RaycastHit hit,
+        Vector3 direction,
+        bool isAbility,
+        float delay)
+    {
+        _pendingHeadHunterWorldImpacts.Add(new PendingHeadHunterWorldImpact
+        {
+            Target = hit.collider != null ? hit.collider.transform : null,
+            ImpactPosition = hit.point,
+            ImpactNormal = hit.normal,
+            Direction = direction,
+            SurfaceType = ImpactSurfaceResolver.Resolve(hit.collider),
+            IsAbility = isAbility,
+            RemainingDelay = Mathf.Max(0f, delay)
+        });
+    }
+
+    private void EmitHeadHunterWorldImpact(PendingHeadHunterWorldImpact impact)
+    {
+        if (Presentation is IWeaponFeedbackSink semantic)
+        {
+            WeaponFeedbackContext baseFeedback = CreateFeedbackContext(
+                GetFeedbackMode(impact.IsAbility),
+                impact.ImpactPosition,
+                impact.Direction,
+                impact.IsAbility,
+                target: impact.Target);
+            WeaponFeedbackContext feedback = baseFeedback.WithImpact(
+                impact.ImpactPosition,
+                impact.ImpactNormal,
+                0,
+                false,
+                false,
+                false,
+                impact.Target,
+                WeaponEnemyKind.Normal,
+                impact.SurfaceType);
+            semantic.OnProjectileImpact(in feedback);
+            return;
+        }
+
+        EmitPresentationCue(
+            WeaponPresentationCue.AutomaticCannonImpact,
+            impact.ImpactPosition,
+            impact.Direction,
+            impact.IsAbility,
+            impact.Target);
     }
 
     private void ApplyHeadHunterImpact(PendingHeadHunterImpact impact)
@@ -755,25 +1007,53 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (damageable == null)
             return;
 
+        int healthBefore = GetRemainingHealth(damageable);
         if (WeaponDamageApplier.TryApplyDamage(damageable, impact.Damage))
         {
             ApplyKnockback(damageable, impact.ImpactOrigin, impact.Damage, 1f);
             if (impact.WeakPointHit)
                 WeaponWeakPointFeedback.NotifyWeakPointHit();
 
-            WeaponPresentationCue impactCue = impact.WeakPointHit
-                ? WeaponPresentationCue.AutomaticCannonWeakPointImpact
-                : impact.CriticalHit
-                    ? WeaponPresentationCue.AutomaticCannonCriticalImpact
-                    : WeaponPresentationCue.AutomaticCannonImpact;
-            EmitPresentationCue(
-                impactCue,
-                impact.ImpactPosition,
-                impact.Direction,
-                impact.IsAbility,
-                impact.Target,
-                impact.CriticalHit,
-                impact.WeakPointHit);
+            bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+            if (Presentation is IWeaponFeedbackSink semantic)
+            {
+                Collider surfaceCollider = impact.Target.GetComponentInChildren<Collider>();
+                WeaponFeedbackContext baseFeedback = CreateFeedbackContext(
+                    GetFeedbackMode(impact.IsAbility),
+                    impact.ImpactOrigin,
+                    impact.Direction,
+                    impact.IsAbility,
+                    intensity: GetHeadHunterImpactIntensity(impact.PierceIndex),
+                    target: impact.Target);
+                WeaponFeedbackContext feedback = baseFeedback.WithImpact(
+                    impact.ImpactPosition,
+                    -impact.Direction,
+                    impact.Damage,
+                    impact.CriticalHit,
+                    impact.WeakPointHit,
+                    kill,
+                    impact.Target,
+                    WeaponEnemyClassifier.GetKind(impact.Target),
+                    ImpactSurfaceResolver.Resolve(surfaceCollider, damageable));
+                semantic.OnProjectileImpact(in feedback);
+                semantic.OnDamageConfirmed(in feedback);
+            }
+            else
+            {
+                WeaponPresentationCue impactCue = impact.WeakPointHit
+                    ? WeaponPresentationCue.AutomaticCannonWeakPointImpact
+                    : impact.CriticalHit
+                        ? WeaponPresentationCue.AutomaticCannonCriticalImpact
+                        : WeaponPresentationCue.AutomaticCannonImpact;
+                EmitPresentationCue(
+                    impactCue,
+                    impact.ImpactPosition,
+                    impact.Direction,
+                    impact.IsAbility,
+                    impact.Target,
+                    impact.CriticalHit,
+                    impact.WeakPointHit);
+            }
         }
     }
 
@@ -826,7 +1106,32 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public Vector3 ImpactOrigin;
         public Vector3 ImpactPosition;
         public Vector3 Direction;
+        public int PierceIndex;
         public float RemainingDelay;
+    }
+
+    private struct PendingHeadHunterWorldImpact
+    {
+        public Transform Target;
+        public Vector3 ImpactPosition;
+        public Vector3 ImpactNormal;
+        public Vector3 Direction;
+        public ImpactSurfaceType SurfaceType;
+        public bool IsAbility;
+        public float RemainingDelay;
+    }
+
+    private float GetHeadHunterImpactIntensity(int pierceIndex)
+    {
+        int maximumAccents = Runtime?.Data?.PresentationProfile?.AutomaticCannon?.MaximumPiercingAccents ?? 6;
+        maximumAccents = Mathf.Max(1, maximumAccents);
+        if (pierceIndex <= 0)
+            return 1f;
+        if (pierceIndex >= maximumAccents)
+            return 0.12f;
+
+        float normalized = pierceIndex / Mathf.Max(1f, maximumAccents - 1f);
+        return Mathf.Lerp(0.65f, 0.25f, normalized);
     }
 
     // Spawns normal cannon bursts as a straight line of projectiles.
@@ -879,9 +1184,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstTrackingTarget = trackingTarget;
         _lineBurstFollowsLiveAim = followsLiveAim;
         _lineBurstDamageScale = damageScale;
-        _lineBurstSpacing = Mathf.Max(0f, lineSpacing);
         _lineBurstScatterDegrees = Mathf.Max(0f, projectileScatterDegrees);
-        _lineBurstShotInterval = GetLineBurstShotInterval();
+        _lineBurstShotInterval = GetLineBurstShotInterval(lineSpacing);
         _lineBurstEliteOrBoss = eliteOrBoss;
         _lineBurstShotCue = shotCue;
         _lineBurstEventCue = eventCue;
@@ -890,6 +1194,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstRemaining = Mathf.Max(0, count);
         _lineBurstTimer = 0f;
         _lineBurstActive = true;
+        if (shotCue == WeaponPresentationCue.AutomaticCannonContinuousShot)
+        {
+            _continuousBurstFeedbackActive = true;
+            BeginSustainedFeedback(baseDirection, isAbility: false);
+        }
         FireNextLineBurstShot();
         if (_lineBurstActive)
             _lineBurstTimer = _lineBurstShotInterval;
@@ -915,10 +1224,19 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         }
     }
 
-    private float GetLineBurstShotInterval()
+    private float GetLineBurstShotInterval(float desiredProjectileSeparation)
     {
         AutomaticCannonTuning tuning = Runtime?.Data != null ? Runtime.Data.AutomaticCannon : AutomaticCannonTuning.Defaults;
-        return Mathf.Max(0.001f, tuning.CannonBurstShotInterval > 0f ? tuning.CannonBurstShotInterval : DefaultLineBurstShotInterval);
+        float authoredInterval = Mathf.Max(
+            0.001f,
+            tuning.CannonBurstShotInterval > 0f
+                ? tuning.CannonBurstShotInterval
+                : DefaultLineBurstShotInterval);
+        if (IsContinuousFirePath())
+            return authoredInterval;
+
+        float spacingInterval = Mathf.Max(0f, desiredProjectileSeparation) / CannonBaseProjectileSpeed;
+        return Mathf.Max(authoredInterval, spacingInterval);
     }
 
     private void FireNextLineBurstShot()
@@ -929,18 +1247,22 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
         }
 
-        Vector3 position = Spawn.position + _lineBurstDirection * (_lineBurstSpacing * _lineBurstIndex);
+        // A real burst launches every round at the muzzle. Advancing later spawn points
+        // cancelled the authored delay and made all bullets reach the target together.
+        Vector3 position = Spawn.position;
         Vector3 shotDirection = AutomaticCannonFireLogic.ApplyProjectileScatter(
             _lineBurstDirection,
             _lineBurstScatterDegrees,
             UnityEngine.Random.insideUnitCircle);
+        ProjectilePresentationArchetypeId projectileArchetype = GetLineBurstProjectileArchetype();
         bool spawned = TryFireCannonProjectile(
             position,
             shotDirection,
             _lineBurstDamageScale,
             _lineBurstEliteOrBoss,
             _lineBurstShotCue,
-            isAbilityDamage: false);
+            isAbilityDamage: false,
+            projectileArchetype: projectileArchetype);
         if (spawned && !_lineBurstEventEmitted && _lineBurstEventCue != WeaponPresentationCue.None)
         {
             EmitPresentationCue(
@@ -984,6 +1306,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private void CompleteLineBurst()
     {
+        if (_continuousBurstFeedbackActive)
+        {
+            EndSustainedFeedback(_lineBurstDirection, isAbility: false);
+            _continuousBurstFeedbackActive = false;
+        }
         _lineBurstActive = false;
         _lineBurstRemaining = 0;
         _lineBurstTrackingTarget = null;
@@ -1031,7 +1358,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 damageScale,
                 eliteOrBoss: false,
                 shotCue: shotCue,
-                isAbilityDamage: true);
+                isAbilityDamage: true,
+                emitSemanticShotFeedback: successfulShots == 0);
             if (!spawned)
                 continue;
 
@@ -1056,7 +1384,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         float damageScale,
         bool eliteOrBoss,
         WeaponPresentationCue shotCue,
-        bool isAbilityDamage)
+        bool isAbilityDamage,
+        bool emitSemanticShotFeedback = true,
+        ProjectilePresentationArchetypeId projectileArchetype = ProjectilePresentationArchetypeId.Default)
     {
         bool spawned = FireFromPositionInDirection(
             position,
@@ -1068,21 +1398,44 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (!spawned || projectile == null)
             return false;
 
-        projectile.ConfigurePresentation(
-            Presentation,
-            Runtime,
-            WeaponPresentationCue.AutomaticCannonImpact,
-            WeaponPresentationCue.AutomaticCannonCriticalImpact,
-            WeaponPresentationCue.AutomaticCannonWeakPointImpact,
-            isAbilityDamage,
-            allowWeakPoint: false);
+        Vector3 origin = Spawn != null ? Spawn.position : position;
+        if (Presentation is IWeaponFeedbackSink semantic)
+        {
+            WeaponFeedbackContext feedback = CreateFeedbackContext(
+                GetFeedbackMode(isAbilityDamage),
+                origin,
+                direction,
+                isAbilityDamage,
+                anchor: Spawn);
+            projectile.ConfigureFeedback(semantic, in feedback, allowWeakPoint: false);
+            ProjectilePresentationArchetypeId resolvedArchetype = projectileArchetype == ProjectilePresentationArchetypeId.Default
+                ? GetCannonProjectileArchetype()
+                : projectileArchetype;
+            semantic.ConfigureProjectile(projectile, resolvedArchetype, in feedback);
+            if (emitSemanticShotFeedback)
+            {
+                EmitHeatThresholdIfNeeded(semantic, in feedback);
+                semantic.OnShotFired(in feedback);
+            }
+        }
+        else
+        {
+            projectile.ConfigurePresentation(
+                Presentation,
+                Runtime,
+                WeaponPresentationCue.AutomaticCannonImpact,
+                WeaponPresentationCue.AutomaticCannonCriticalImpact,
+                WeaponPresentationCue.AutomaticCannonWeakPointImpact,
+                isAbilityDamage,
+                allowWeakPoint: false);
 
-        EmitPresentationCue(
-            shotCue,
-            Spawn != null ? Spawn.position : position,
-            direction,
-            isAbilityDamage,
-            anchor: Spawn);
+            EmitPresentationCue(
+                shotCue,
+                origin,
+                direction,
+                isAbilityDamage,
+                anchor: Spawn);
+        }
         return true;
     }
 
@@ -1094,6 +1447,211 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return Runtime != null && Runtime.State == WeaponState.Manual
             ? WeaponPresentationCue.AutomaticCannonHeadHunterManual
             : WeaponPresentationCue.AutomaticCannonHeadHunterAutomatic;
+    }
+
+    private ProjectilePresentationArchetypeId GetCannonProjectileArchetype()
+    {
+        AutomaticCannonPresentationSettings presentation = Runtime?.Data?.PresentationProfile?.AutomaticCannon;
+        int frequency = IsContinuousFirePath()
+            ? presentation?.ContinuousTracerFrequency ?? 5
+            : presentation?.BaseTracerFrequency ?? 3;
+        _presentationShotIndex++;
+        return _presentationShotIndex % Mathf.Max(1, frequency) == 0
+            ? ProjectilePresentationArchetypeId.CannonTracer
+            : ProjectilePresentationArchetypeId.CannonRound;
+    }
+
+    private ProjectilePresentationArchetypeId GetLineBurstProjectileArchetype()
+    {
+        if (IsContinuousFirePath())
+            return ProjectilePresentationArchetypeId.Default;
+
+        // A middle-of-burst trail hides every later round when the shooter is stationary.
+        return _lineBurstRemaining <= 1
+            ? ProjectilePresentationArchetypeId.CannonTracer
+            : ProjectilePresentationArchetypeId.CannonRound;
+    }
+
+    private WeaponFeedbackMode GetFeedbackMode(bool isAbility)
+    {
+        if (isAbility)
+            return WeaponFeedbackMode.Active;
+        return Runtime != null && Runtime.State == WeaponState.Manual
+            ? WeaponFeedbackMode.Manual
+            : WeaponFeedbackMode.Automatic;
+    }
+
+    private WeaponFeedbackContext CreateFeedbackContext(
+        WeaponFeedbackMode mode,
+        Vector3 position,
+        Vector3 direction,
+        bool isAbility,
+        float intensity = 1f,
+        Transform target = null,
+        Transform anchor = null)
+    {
+        return new WeaponFeedbackContext(
+            Runtime,
+            mode,
+            Heat != null ? Heat.NormalizedHeat : 0f,
+            position,
+            direction,
+            isAbilityDamage: isAbility,
+            eventIntensity: intensity,
+            target: target,
+            anchor: anchor);
+    }
+
+    private static WeaponPresentationContext CreateLegacyContext(
+        WeaponPresentationCue cue,
+        in WeaponFeedbackContext feedback)
+    {
+        return new WeaponPresentationContext(
+            cue,
+            feedback.Weapon,
+            feedback.Origin,
+            feedback.Direction,
+            feedback.EventIntensity,
+            feedback.Target,
+            feedback.IsAbilityDamage,
+            feedback.IsCritical,
+            feedback.IsWeakPoint,
+            feedback.Anchor,
+            feedback.Mode,
+            feedback.UpgradePath,
+            feedback.WeaponLevel,
+            feedback.NormalizedHeat,
+            feedback.ImpactNormal,
+            feedback.DamageAmount,
+            feedback.IsKill,
+            feedback.TargetClass,
+            feedback.SurfaceType,
+            feedback.ExplosionRadius);
+    }
+
+    private void EmitShotFeedback(
+        WeaponPresentationCue legacyCue,
+        Vector3 position,
+        Vector3 direction,
+        bool isAbility,
+        Transform target = null,
+        Transform anchor = null)
+    {
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            GetFeedbackMode(isAbility),
+            position,
+            direction,
+            isAbility,
+            target: target,
+            anchor: anchor);
+        if (Presentation is IWeaponFeedbackSink semantic)
+        {
+            EmitHeatThresholdIfNeeded(semantic, in feedback);
+            semantic.OnShotFired(in feedback);
+        }
+        else
+            EmitPresentationCue(legacyCue, position, direction, isAbility, target, anchor: anchor);
+    }
+
+    private void BeginSustainedFeedback(Vector3 direction, bool isAbility)
+    {
+        if (Spawn == null)
+            return;
+
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            GetFeedbackMode(isAbility),
+            Spawn.position,
+            direction,
+            isAbility,
+            anchor: Spawn);
+        if (Presentation is IWeaponFeedbackSink semantic)
+        {
+            semantic.OnSustainedFireStarted(in feedback);
+            return;
+        }
+
+        if (_legacyContinuousLoopHandle.IsValid)
+            return;
+        WeaponPresentationContext legacy = CreateLegacyContext(
+            WeaponPresentationCue.AutomaticCannonContinuousLoop,
+            in feedback);
+        _legacyContinuousLoopHandle = Presentation.BeginLoop(in legacy);
+    }
+
+    private void EndSustainedFeedback(Vector3 direction, bool isAbility)
+    {
+        if (Spawn == null)
+            return;
+
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            GetFeedbackMode(isAbility),
+            Spawn.position,
+            direction,
+            isAbility,
+            anchor: Spawn);
+        if (Presentation is IWeaponFeedbackSink semantic)
+            semantic.OnSustainedFireStopped(in feedback);
+        else if (_legacyContinuousLoopHandle.IsValid)
+        {
+            WeaponPresentationContext legacy = CreateLegacyContext(
+                WeaponPresentationCue.AutomaticCannonContinuousLoop,
+                in feedback);
+            Presentation.EndLoop(_legacyContinuousLoopHandle, in legacy);
+        }
+
+        _legacyContinuousLoopHandle = default;
+    }
+
+    private static int GetRemainingHealth(IDamageable damageable)
+    {
+        if (damageable is EnemyHealth enemyHealth)
+            return enemyHealth.CurrentHealth;
+        if (damageable is WeaponDummyEnemy dummy)
+            return dummy.CurrentHealth;
+        if (damageable is Component component)
+        {
+            EnemyHealth parentHealth = component.GetComponentInParent<EnemyHealth>();
+            if (parentHealth != null)
+                return parentHealth.CurrentHealth;
+            WeaponDummyEnemy parentDummy = component.GetComponentInParent<WeaponDummyEnemy>();
+            if (parentDummy != null)
+                return parentDummy.CurrentHealth;
+        }
+
+        return -1;
+    }
+
+    private void EmitAmmoEmptyFeedback(Vector3 direction)
+    {
+        Vector3 position = Spawn != null ? Spawn.position : Owner != null ? Owner.position : Vector3.zero;
+        WeaponFeedbackContext feedback = CreateFeedbackContext(
+            WeaponFeedbackMode.Manual,
+            position,
+            direction,
+            isAbility: false,
+            anchor: Spawn);
+        if (Presentation is IWeaponFeedbackSink semantic)
+            semantic.OnAmmoEmpty(in feedback);
+    }
+
+    private void EmitHeatThresholdIfNeeded(
+        IWeaponFeedbackSink semantic,
+        in WeaponFeedbackContext feedback)
+    {
+        float current = feedback.NormalizedHeat;
+        if (current + 0.001f < _lastPresentedHeat)
+            _lastPresentedHeat = current;
+
+        float crossed = 0f;
+        for (int i = 0; i < PresentationHeatThresholds.Length; i++)
+        {
+            if (_lastPresentedHeat < PresentationHeatThresholds[i] && current >= PresentationHeatThresholds[i])
+                crossed = PresentationHeatThresholds[i];
+        }
+
+        _lastPresentedHeat = current;
+        if (crossed > 0f)
+            semantic.OnHeatThresholdCrossed(in feedback, crossed);
     }
 
     private void EmitPresentationCue(

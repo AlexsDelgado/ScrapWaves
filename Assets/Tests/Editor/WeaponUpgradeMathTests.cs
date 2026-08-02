@@ -172,7 +172,7 @@ public class WeaponUpgradeMathTests
             headHunter.Runtime.Data.AutomaticCannon);
 
         Assert.That(baseInterval, Is.EqualTo(0.25f).Within(0.0001f));
-        Assert.That(continuousInterval, Is.EqualTo(0.125f).Within(0.0001f));
+        Assert.That(continuousInterval, Is.EqualTo(1f / 24f).Within(0.0001f));
         Assert.That(headHunterInterval, Is.EqualTo(1f / 12f).Within(0.0001f));
     }
 
@@ -184,11 +184,44 @@ public class WeaponUpgradeMathTests
 
         Assert.That(InvokePrivate<int>(weapon, "GetAutomaticShotCount", tuning), Is.EqualTo(1));
         Assert.That(InvokePrivate<int>(weapon, "GetManualShotCount", tuning), Is.EqualTo(1));
-        Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireManualAttackSpeedMultiplier"), Is.EqualTo(1.875f).Within(0.0001f));
+        Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireManualAttackSpeedMultiplier"), Is.EqualTo(6.25f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireActiveDuration"), Is.EqualTo(2f).Within(0.0001f));
         Assert.That(InvokePrivate<float>(weapon, "GetContinuousFireActiveBulletsPerSecond"), Is.EqualTo(40f).Within(0.0001f));
         Assert.That(InvokePrivate<int>(weapon, "GetContinuousFireActiveBulletCount"), Is.EqualTo(80));
         Assert.That(InvokePrivate<float>(weapon, "GetActiveAbilityAmmoCost"), Is.EqualTo(80f).Within(0.0001f));
+    }
+
+    [Test]
+    public void AutomaticCannon_ContinuousFire_EmitsMoreRoundsPerSecondThanReplacedBursts()
+    {
+        AutomaticCannonWeapon baseline = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.None);
+        AutomaticCannonWeapon continuous = CreateAutomaticCannonWeapon(level: 6, WeaponUpgradePath.PathA);
+        NormalizeAttackRateMultipliers(baseline.Runtime.Data);
+        NormalizeAttackRateMultipliers(continuous.Runtime.Data);
+
+        AutomaticCannonTuning baseTuning = baseline.Runtime.Data.AutomaticCannon;
+        AutomaticCannonTuning continuousTuning = continuous.Runtime.Data.AutomaticCannon;
+        baseTuning.CannonAutoBurstsPerSecond = 5f;
+        baseTuning.CannonAutoBurstCount = 3;
+        baseTuning.CannonManualBurstsPerSecond = 3f;
+        baseTuning.CannonManualBurstCount = 5;
+        continuousTuning.CannonAutoBurstsPerSecond = 5f;
+        continuousTuning.CannonAutoBurstCount = 3;
+        continuousTuning.CannonManualBurstsPerSecond = 3f;
+        continuousTuning.CannonManualBurstCount = 5;
+        continuousTuning.ContinuousFireAutoAttackSpeedMultiplier = 1.25f;
+        float baseInterval = InvokePrivate<float>(baseline, "GetAutomaticFireInterval", baseTuning);
+        float continuousInterval = InvokePrivate<float>(continuous, "GetAutomaticFireInterval", continuousTuning);
+        float baseRoundsPerSecond = InvokePrivate<int>(baseline, "GetAutomaticShotCount", baseTuning) / baseInterval;
+        float continuousRoundsPerSecond = InvokePrivate<int>(continuous, "GetAutomaticShotCount", continuousTuning) / continuousInterval;
+        float baseManualRoundsPerSecond = baseTuning.CannonManualBurstsPerSecond * baseTuning.CannonManualBurstCount;
+        float continuousManualRoundsPerSecond = continuousTuning.CannonManualBurstsPerSecond *
+                                                InvokePrivate<float>(continuous, "GetContinuousFireManualAttackSpeedMultiplier");
+
+        Assert.That(baseRoundsPerSecond, Is.EqualTo(15f).Within(0.001f));
+        Assert.That(continuousRoundsPerSecond, Is.EqualTo(18.75f).Within(0.001f));
+        Assert.That(continuousRoundsPerSecond, Is.GreaterThan(baseRoundsPerSecond));
+        Assert.That(continuousManualRoundsPerSecond, Is.GreaterThan(baseManualRoundsPerSecond));
     }
 
     [Test]

@@ -18,6 +18,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private FlamethrowerStreamVfx _streamVfx;
     private float _autoTickTimer;
     private float _manualTickTimer;
+    private bool _sustainedFeedbackActive;
+    private WeaponFeedbackMode _sustainedFeedbackMode;
+    private WeaponUpgradePath _sustainedFeedbackPath;
 
     public string LastManualDebugSummary { get; private set; } = "No manual tick yet";
     public int LastManualHitCount { get; private set; }
@@ -41,12 +44,16 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
+        {
+            StopSustainedFeedback(GetAutomaticFlameDirection());
             return;
+        }
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
         Vector3 flameDirection = GetAutomaticFlameDirection();
         float range = GetScaledRange(Runtime.Data.BaseRange);
         ShowAutomaticCone(flameDirection, range, tuning);
+        UpdateSustainedFeedback(WeaponFeedbackMode.Automatic, flameDirection, range);
 
         _autoTickTimer -= deltaTime;
         if (_autoTickTimer > 0f)
@@ -63,18 +70,21 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         if (Runtime.State != WeaponState.Manual)
         {
+            StopSustainedFeedback(aimDirection);
             LastManualDebugSummary = $"Skip: state {Runtime.State}";
             return;
         }
 
         if (!isFiring)
         {
+            StopSustainedFeedback(aimDirection);
             LastManualDebugSummary = "Skip: fire not held";
             return;
         }
 
         if (aimDirection.sqrMagnitude <= 0.0001f)
         {
+            StopSustainedFeedback(aimDirection);
             LastManualDebugSummary = "Skip: no aim direction";
             return;
         }
@@ -84,6 +94,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         LastManualAmmoBefore = Runtime.CurrentAmmo;
         if (!TrySpendManualAmmo(ammoCost, requireFullAmount: false))
         {
+            StopSustainedFeedback(aimDirection);
             LastManualAmmoAfter = Runtime.CurrentAmmo;
             LastManualDebugSummary = $"Skip: no ammo ({LastManualAmmoAfter:0.#})";
             return;
@@ -95,9 +106,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         LastManualHoseRadius = GetScaledHoseRadius(tuning);
         if (!ShowStream(aimDirection, range, tuning, deltaTime))
         {
+            StopSustainedFeedback(aimDirection);
             LastManualDebugSummary = "Skip: no projectile spawn";
             return;
         }
+        UpdateSustainedFeedback(WeaponFeedbackMode.Manual, aimDirection, range);
 
         LastManualPointCount = _hoseStream.PointCount;
 
@@ -127,6 +140,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
+        StopSustainedFeedback(aimDirection);
+
         float activeRadius = GetScaledRange(GetPathAdjustedActiveRadius(tuning));
         int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
             Owner.position,
@@ -140,7 +155,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             int damage = CalculateDirectDamage(tuning.FlameActiveDamageScale, _targets[i], isAbilityDamage: true);
             int burnDamage = CalculateBurnDamage(tuning, _targets[i], isAbilityDamage: true);
-            ApplyDamageToTarget(_targets[i], damage, Owner.position, tuning.FlameActiveKnockbackScale);
+            ApplyDamageToTarget(_targets[i], damage, Owner.position, tuning.FlameActiveKnockbackScale, activeAbility: true);
             ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: true);
         }
 
@@ -148,7 +163,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             Vector2 puddleSettings = GetJellifiedActivePuddleSettings(tuning, activeRadius);
             int puddleDamage = CalculateBurnDamage(tuning, null, isAbilityDamage: true);
-            FlamethrowerFuelPuddle.Spawn(
+            SpawnFuelPuddle(
                 Owner.position,
                 puddleSettings.x,
                 puddleDamage,
@@ -157,7 +172,16 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 CreateBurnDamageContext(tuning, isAbilityDamage: true));
         }
 
-        FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration, GetStreamCoreColor(), GetStreamEdgeColor());
+        Vector3 activeDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Owner.forward;
+        WeaponFeedbackContext activeFeedback = CreateFeedbackContext(
+            WeaponFeedbackMode.Active,
+            Owner.position,
+            activeDirection,
+            explosionRadius: activeRadius,
+            isAbilityDamage: true);
+        Feedback.OnShotFired(in activeFeedback);
+        if (!HasProductionPresentation())
+            FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration, GetStreamCoreColor(), GetStreamEdgeColor());
         CompleteActiveAbility();
     }
 
@@ -297,7 +321,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
 
     // Applies immediate damage to one enemy transform if it has a damage receiver.
-    private bool ApplyDamageToTarget(Transform target, int damage, Vector3 impactOrigin, float knockbackScale)
+    private bool ApplyDamageToTarget(Transform target, int damage, Vector3 impactOrigin, float knockbackScale, bool activeAbility = false)
     {
         if (target == null)
             return false;
@@ -306,6 +330,17 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (damageable != null && WeaponDamageApplier.TryApplyDamage(damageable, damage))
         {
             ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);
+            Vector3 direction = target.position - impactOrigin;
+            WeaponFeedbackContext feedback = CreateFeedbackContext(
+                activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
+                impactOrigin,
+                direction,
+                impactPosition: target.position,
+                damageAmount: damage,
+                target: target,
+                anchor: target,
+                isAbilityDamage: activeAbility);
+            Feedback.OnDamageConfirmed(in feedback);
             return true;
         }
 
@@ -339,7 +374,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             float levelScale = Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
             float radius = GetScaledHoseRadius(tuning) * levelScale;
-            FlamethrowerFuelPuddle.Spawn(
+            SpawnFuelPuddle(
                 target.position,
                 radius,
                 damagePerTick,
@@ -353,6 +388,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             dummy.ApplyStatus("Jellified Fuel", duration);
         }
+
+        EmitStatusFeedback(target, damagePerTick, activeAbility);
     }
 
     private void ApplyLiquidNitrogenStatus(Transform target, bool activeAbility)
@@ -360,14 +397,18 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (activeAbility)
         {
             const float freezeDuration = 2f;
-            WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 1.2f, frozen: true);
+            if (!HasProductionPresentation())
+                WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 1.2f, frozen: true);
             WeaponMovementSlowStatus.Apply(target, 0.1f, freezeDuration * 2f, "Deep Freeze");
             WeaponMovementFreezeStatus.Apply(target, freezeDuration);
+            EmitStatusFeedback(target, 0, activeAbility: true);
             return;
         }
 
-        WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 0.55f, frozen: false);
+        if (!HasProductionPresentation())
+            WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 0.55f, frozen: false);
         WeaponMovementSlowStatus.ApplyRamp(target, 0.5f, 0.1f, 6, 3f, "Liquid Nitrogen");
+        EmitStatusFeedback(target, 0, activeAbility: false);
     }
 
     // Keeps one reusable stream simulation and visual alive while the weapon fires.
@@ -377,9 +418,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return false;
 
         if (_streamVfx == null)
-            _streamVfx = FlamethrowerStreamVfx.Create();
+        {
+            FlamethrowerPresentationSettings settings = GetPresentationSettings();
+            _streamVfx = FlamethrowerStreamVfx.Create(settings?.StreamPrefab, settings?.MaximumStreamSegments ?? 48);
+        }
 
-        _streamVfx.SetPalette(GetStreamCoreColor(), GetStreamEdgeColor());
+        _streamVfx.SetStyle(GetStreamStyle());
+        _streamVfx.SetHeat(Heat != null ? Heat.NormalizedHeat : 0f);
         _hoseStream.Update(Spawn.position, direction, range, tuning, deltaTime);
         _streamVfx.ShowHose(_hoseStream.Points, _hoseStream.PointCount, LastManualHoseRadius > 0f ? LastManualHoseRadius : GetScaledHoseRadius(tuning), tuning.FlameVisualDuration);
         return true;
@@ -392,10 +437,130 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return;
 
         if (_streamVfx == null)
-            _streamVfx = FlamethrowerStreamVfx.Create();
+        {
+            FlamethrowerPresentationSettings settings = GetPresentationSettings();
+            _streamVfx = FlamethrowerStreamVfx.Create(settings?.StreamPrefab, settings?.MaximumStreamSegments ?? 48);
+        }
 
-        _streamVfx.SetPalette(GetStreamCoreColor(), GetStreamEdgeColor());
+        _streamVfx.SetStyle(GetStreamStyle());
+        _streamVfx.SetHeat(Heat != null ? Heat.NormalizedHeat : 0f);
         _streamVfx.ShowCone(Spawn.position, direction, range, tuning.FlameAutoConeAngle, tuning.FlameVisualDuration);
+    }
+
+    private void SpawnFuelPuddle(
+        Vector3 position,
+        float radius,
+        int damagePerTick,
+        float duration,
+        float tickInterval,
+        WeaponDamageContext damageContext)
+    {
+        FlamethrowerPresentationSettings settings = GetPresentationSettings();
+        if (settings?.FuelPuddlePrefab != null)
+        {
+            FlamethrowerFuelPuddle.SpawnAuthored(
+                settings.FuelPuddlePrefab,
+                settings.FuelPuddlePrewarmCount,
+                settings.FuelPuddlePoolCapacity,
+                position,
+                radius,
+                damagePerTick,
+                duration,
+                tickInterval,
+                damageContext);
+            return;
+        }
+
+        FlamethrowerFuelPuddle.SpawnWithContext(position, radius, damagePerTick, duration, tickInterval, damageContext);
+    }
+
+    private FlamethrowerPresentationSettings GetPresentationSettings() =>
+        Runtime?.Data?.PresentationProfile != null ? Runtime.Data.PresentationProfile.Flamethrower : null;
+
+    private bool HasProductionPresentation() => Runtime?.Data?.PresentationProfile != null;
+
+    private FlamethrowerStreamStyle GetStreamStyle()
+    {
+        if (IsJellifiedFuelPath())
+            return FlamethrowerStreamStyle.JellifiedFuel;
+        return IsLiquidNitrogenPath()
+            ? FlamethrowerStreamStyle.LiquidNitrogen
+            : FlamethrowerStreamStyle.Flame;
+    }
+
+    private void UpdateSustainedFeedback(WeaponFeedbackMode mode, Vector3 direction, float range)
+    {
+        WeaponUpgradePath path = Runtime != null && Runtime.HasAdvancedPath ? Runtime.SelectedPath : WeaponUpgradePath.None;
+        if (_sustainedFeedbackActive && (_sustainedFeedbackMode != mode || _sustainedFeedbackPath != path))
+            StopSustainedFeedback(direction);
+
+        Vector3 origin = Spawn != null ? Spawn.position : Owner.position;
+        WeaponFeedbackContext context = CreateFeedbackContext(mode, origin, direction, explosionRadius: range, anchor: Spawn);
+        Feedback.OnSustainedFireStarted(in context);
+        _sustainedFeedbackActive = true;
+        _sustainedFeedbackMode = mode;
+        _sustainedFeedbackPath = path;
+    }
+
+    private void StopSustainedFeedback(Vector3 direction)
+    {
+        if (!_sustainedFeedbackActive || Runtime == null)
+            return;
+        Vector3 origin = Spawn != null ? Spawn.position : Owner != null ? Owner.position : Vector3.zero;
+        WeaponFeedbackContext context = CreateFeedbackContext(_sustainedFeedbackMode, origin, direction, anchor: Spawn);
+        Feedback.OnSustainedFireStopped(in context);
+        _sustainedFeedbackActive = false;
+    }
+
+    private void EmitStatusFeedback(Transform target, int damageAmount, bool activeAbility)
+    {
+        if (target == null)
+            return;
+        Vector3 origin = Spawn != null ? Spawn.position : Owner != null ? Owner.position : target.position;
+        WeaponFeedbackContext context = CreateFeedbackContext(
+            activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
+            origin,
+            target.position - origin,
+            impactPosition: target.position,
+            damageAmount: damageAmount,
+            target: target,
+            anchor: target,
+            isAbilityDamage: activeAbility);
+        Feedback.OnStatusApplied(in context);
+    }
+
+    private WeaponFeedbackMode GetCurrentFeedbackMode() =>
+        Runtime != null && Runtime.State == WeaponState.Manual
+            ? WeaponFeedbackMode.Manual
+            : WeaponFeedbackMode.Automatic;
+
+    private WeaponFeedbackContext CreateFeedbackContext(
+        WeaponFeedbackMode mode,
+        Vector3 origin,
+        Vector3 direction,
+        Vector3 impactPosition = default,
+        int damageAmount = 0,
+        Transform target = null,
+        Transform anchor = null,
+        float explosionRadius = 0f,
+        bool isAbilityDamage = false)
+    {
+        return new WeaponFeedbackContext(
+            Runtime,
+            mode,
+            Heat != null ? Heat.NormalizedHeat : 0f,
+            origin,
+            direction,
+            impactPosition: impactPosition,
+            impactNormal: direction.sqrMagnitude > 0.0001f ? -direction.normalized : Vector3.back,
+            damageAmount: damageAmount,
+            isAbilityDamage: isAbilityDamage,
+            targetClass: WeaponEnemyClassifier.GetKind(target),
+            surfaceType: target != null ? ImpactSurfaceType.EnemyOrganic : ImpactSurfaceType.Default,
+            explosionRadius: explosionRadius,
+            eventIntensity: 1f,
+            target: target,
+            anchor: anchor);
     }
 
     private float GetScaledRange(float range)

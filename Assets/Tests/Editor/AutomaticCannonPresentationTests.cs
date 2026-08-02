@@ -155,7 +155,7 @@ public class AutomaticCannonPresentationTests
     }
 
     [Test]
-    public void ProductionBaseCannon_PlaysAudioPerProjectileInsteadOfPerVolley()
+    public void ProductionBaseCannon_UsesLayeredShotAndMechanicalTailAudio()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(
             "Assets/ScriptableObjects/WeaponPresentation/AutomaticCannonPresentation.asset");
@@ -174,10 +174,12 @@ public class AutomaticCannonPresentationTests
             profile.TryGetCueData(WeaponPresentationCue.AutomaticCannonManualVolley, out WeaponPresentationCueData manualVolley),
             Is.True);
 
-        Assert.That(autoShot.AudioClips, Is.Not.Empty);
-        Assert.That(manualShot.AudioClips, Is.Not.Empty);
-        Assert.That(autoBurst.AudioClips, Is.Empty);
-        Assert.That(manualVolley.AudioClips, Is.Empty);
+        Assert.That(autoShot.AudioClips, Has.Count.GreaterThanOrEqualTo(2));
+        Assert.That(manualShot.AudioClips, Has.Count.GreaterThanOrEqualTo(2));
+        Assert.That(autoShot.LayerAudioClips, Is.True);
+        Assert.That(manualShot.LayerAudioClips, Is.True);
+        Assert.That(autoBurst.AudioClips, Is.Not.Empty);
+        Assert.That(manualVolley.AudioClips, Is.Not.Empty);
     }
 
     [Test]
@@ -187,14 +189,14 @@ public class AutomaticCannonPresentationTests
             "Assets/ScriptableObjects/WeaponPresentation/AutomaticCannonPresentation.asset");
         Assert.That(profile, Is.Not.Null);
 
-        (WeaponPresentationCue Cue, AutomaticCannonVfxStyle Style, int LineCount, int ParticleCount)[] expected =
+        (WeaponPresentationCue Cue, AutomaticCannonVfxStyle Style)[] expected =
         {
-            (WeaponPresentationCue.AutomaticCannonAutoShot, AutomaticCannonVfxStyle.AutomaticShot, 0, 1),
-            (WeaponPresentationCue.AutomaticCannonManualShot, AutomaticCannonVfxStyle.ManualShot, 0, 1),
-            (WeaponPresentationCue.AutomaticCannonBaseActive, AutomaticCannonVfxStyle.BaseActive, 5, 3),
-            (WeaponPresentationCue.AutomaticCannonImpact, AutomaticCannonVfxStyle.Impact, 3, 3),
-            (WeaponPresentationCue.AutomaticCannonCriticalImpact, AutomaticCannonVfxStyle.CriticalImpact, 5, 3),
-            (WeaponPresentationCue.AutomaticCannonWeakPointImpact, AutomaticCannonVfxStyle.WeakPointImpact, 4, 3)
+            (WeaponPresentationCue.AutomaticCannonAutoShot, AutomaticCannonVfxStyle.AutomaticShot),
+            (WeaponPresentationCue.AutomaticCannonManualShot, AutomaticCannonVfxStyle.ManualShot),
+            (WeaponPresentationCue.AutomaticCannonBaseActive, AutomaticCannonVfxStyle.BaseActive),
+            (WeaponPresentationCue.AutomaticCannonImpact, AutomaticCannonVfxStyle.Impact),
+            (WeaponPresentationCue.AutomaticCannonCriticalImpact, AutomaticCannonVfxStyle.CriticalImpact),
+            (WeaponPresentationCue.AutomaticCannonWeakPointImpact, AutomaticCannonVfxStyle.WeakPointImpact)
         };
 
         for (int i = 0; i < expected.Length; i++)
@@ -213,23 +215,13 @@ public class AutomaticCannonPresentationTests
             _createdObjects.Add(instance);
             AutomaticCannonCueVfx runtimeVfx = instance.GetComponent<AutomaticCannonCueVfx>();
             runtimeVfx.Prewarm();
-            Assert.That(runtimeVfx.RuntimeLineCount, Is.EqualTo(expected[i].LineCount));
-            Assert.That(runtimeVfx.RuntimeParticleSystemCount, Is.EqualTo(expected[i].ParticleCount));
-            Assert.That(
-                instance.transform.childCount,
-                Is.EqualTo(runtimeVfx.RuntimeLineCount + runtimeVfx.RuntimeParticleSystemCount));
-
-            if (expected[i].Style is AutomaticCannonVfxStyle.AutomaticShot or AutomaticCannonVfxStyle.ManualShot)
-            {
-                ParticleSystem flash = instance.GetComponentInChildren<ParticleSystem>(true);
-                Assert.That(flash, Is.Not.Null);
-                Assert.That(flash.shape.enabled, Is.False);
-                Assert.That(flash.main.simulationSpace, Is.EqualTo(ParticleSystemSimulationSpace.Local));
-                Assert.That(
-                    flash.main.startLifetime.constantMax,
-                    Is.LessThan(0.05f),
-                    "The muzzle flash must finish before the next round in the burst.");
-            }
+            Assert.That(runtimeVfx.RuntimeLineCount, Is.Zero, "Production cannon VFX must not be authored from flat lines.");
+            Assert.That(runtimeVfx.RuntimeParticleSystemCount, Is.GreaterThanOrEqualTo(2));
+            Assert.That(instance.GetComponentsInChildren<MeshRenderer>(true), Has.Length.GreaterThanOrEqualTo(2));
+            Assert.That(instance.GetComponentsInChildren<LineRenderer>(true), Is.Empty);
+            Assert.That(instance.GetComponentInChildren<Light>(true), Is.Not.Null);
+            foreach (ParticleSystemRenderer renderer in instance.GetComponentsInChildren<ParticleSystemRenderer>(true))
+                Assert.That(renderer.renderMode, Is.EqualTo(ParticleSystemRenderMode.Mesh));
         }
     }
 
@@ -655,6 +647,134 @@ public class AutomaticCannonPresentationTests
     }
 
     [Test]
+    public void BaseCannonLineBurst_UsesTracerOnlyForFinalRound()
+    {
+        GameObject spawnObject = CreateGameObject("Final tracer cannon spawn");
+        GameObject ownerObject = CreateGameObject("Final tracer cannon owner");
+        ProjectilePool pool = CreateProjectilePool(maxPoolSize: 5);
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        data.WeaponType = WeaponType.AutomaticCannon;
+        data.BaseDamage = 10f;
+        data.BaseManualAmmo = 5f;
+        data.BaseRange = 12f;
+        data.EnsureSpecificTuningForCurrentType();
+        _createdObjects.Add(data);
+
+        WeaponInstance instance = new()
+        {
+            Data = data,
+            State = WeaponState.Manual,
+            CurrentAmmo = 5f
+        };
+        RecordingFeedbackSink feedback = new();
+        AutomaticCannonWeapon weapon = new(null, pool, spawnObject.transform);
+        weapon.SetPresentationSink(feedback);
+        weapon.Setup(instance, ownerObject.transform, stats: null, heat: null);
+
+        weapon.TickManual(0f, Vector3.forward, isFiring: true);
+        weapon.TickManual(1f, Vector3.forward, isFiring: false);
+
+        Assert.That(feedback.ProjectileArchetypes, Has.Count.EqualTo(5));
+        Assert.That(feedback.ProjectileArchetypes.GetRange(0, 4), Has.All.EqualTo(ProjectilePresentationArchetypeId.CannonRound));
+        Assert.That(feedback.ProjectileArchetypes[4], Is.EqualTo(ProjectilePresentationArchetypeId.CannonTracer));
+    }
+
+    [Test]
+    public void CannonImpactFeedback_DetachesFromMuzzleAndUsesColliderContactPoint()
+    {
+        GameObject muzzle = CreateGameObject("Impact feedback muzzle");
+        muzzle.transform.position = new Vector3(0f, 0f, -3f);
+        GameObject projectileObject = CreateGameObject("Impact feedback projectile");
+        projectileObject.AddComponent<Rigidbody>();
+        projectileObject.AddComponent<SphereCollider>();
+        Projectile projectile = projectileObject.AddComponent<Projectile>();
+        projectileObject.transform.position = new Vector3(0f, 0f, 9f);
+        projectile.ConfigurePooled(2f, 10, 0f);
+        projectile.Launch(Vector3.forward);
+
+        RecordingFeedbackSink feedback = new();
+        WeaponFeedbackContext template = new(
+            weapon: null,
+            mode: WeaponFeedbackMode.Manual,
+            normalizedHeat: 0f,
+            origin: muzzle.transform.position,
+            direction: Vector3.forward,
+            anchor: muzzle.transform);
+        projectile.ConfigureFeedback(feedback, in template);
+
+        GameObject target = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        target.name = "Impact feedback target";
+        target.transform.position = new Vector3(0f, 0f, 10f);
+        _createdObjects.Add(target);
+        target.AddComponent<PresentationTestDamageable>();
+        Collider targetCollider = target.GetComponent<Collider>();
+        Vector3 expectedContact = targetCollider.ClosestPoint(projectileObject.transform.position);
+
+        InvokePrivate(projectile, "OnTriggerEnter", targetCollider);
+
+        Assert.That(feedback.ProjectileImpacts, Has.Count.EqualTo(1));
+        WeaponFeedbackContext impact = feedback.ProjectileImpacts[0];
+        Assert.That(impact.Anchor, Is.Null, "Impact VFX must not inherit the firing muzzle anchor.");
+        Assert.That(Vector3.Distance(impact.ImpactPosition, expectedContact), Is.LessThan(0.001f));
+        Assert.That(Vector3.Distance(impact.ImpactPosition, muzzle.transform.position), Is.GreaterThan(1f));
+    }
+
+    [Test]
+    public void HeadHunterWorldImpact_UsesBlockedMapColliderAndSurfacePoint()
+    {
+        GameObject spawnObject = CreateGameObject("Head Hunter world impact spawn");
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.name = "Head Hunter world impact wall";
+        wall.transform.position = Vector3.forward * 5f;
+        _createdObjects.Add(wall);
+        Physics.SyncTransforms();
+
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        data.WeaponType = WeaponType.AutomaticCannon;
+        data.BaseDamage = 10f;
+        data.BaseRange = 12f;
+        data.EnsureSpecificTuningForCurrentType();
+        data.LevelData = new List<WeaponLevelData>
+        {
+            new() { Level = 1, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f },
+            new() { Level = 6, DamageMultiplier = 1f, AttackRateMultiplier = 1f, ManualAmmoMultiplier = 1f }
+        };
+        data.PathB = new WeaponUpgradePathData { PathName = "Head Hunter", DamageMultiplier = 1f, AttackRateMultiplier = 1f };
+        _createdObjects.Add(data);
+
+        WeaponInstance instance = new()
+        {
+            Data = data,
+            Level = 6,
+            SelectedPath = WeaponUpgradePath.PathB,
+            State = WeaponState.Manual
+        };
+        RecordingFeedbackSink feedback = new();
+        AutomaticCannonWeapon weapon = new(null, null, spawnObject.transform);
+        weapon.SetPresentationSink(feedback);
+        weapon.Setup(instance, owner: null, stats: null, heat: null);
+
+        InvokePrivate(
+            weapon,
+            "FireHeadHunterPiercingLine",
+            Vector3.forward,
+            10,
+            12f,
+            false,
+            false,
+            null);
+        InvokePrivate(weapon, "TickHeadHunterPendingImpacts", 1f);
+
+        Assert.That(feedback.ProjectileImpacts, Has.Count.EqualTo(1));
+        WeaponFeedbackContext impact = feedback.ProjectileImpacts[0];
+        Assert.That(impact.Target, Is.EqualTo(wall.transform));
+        Assert.That(impact.Anchor, Is.Null);
+        Assert.That(impact.DamageAmount, Is.Zero);
+        Assert.That(impact.ImpactPosition.z, Is.EqualTo(4.5f).Within(0.01f));
+        Assert.That(Vector3.Distance(impact.ImpactNormal, Vector3.back), Is.LessThan(0.001f));
+    }
+
+    [Test]
     public void CannonPresentation_DoesNotEmitWhenProjectileSpawnFails()
     {
         GameObject spawnObject = CreateGameObject("Failed presentation cannon spawn");
@@ -814,6 +934,37 @@ public class AutomaticCannonPresentationTests
 
             return count;
         }
+    }
+
+    private sealed class RecordingFeedbackSink : IWeaponFeedbackSink
+    {
+        public readonly List<ProjectilePresentationArchetypeId> ProjectileArchetypes = new();
+        public readonly List<WeaponFeedbackContext> ProjectileImpacts = new();
+
+        public void OnChargeStarted(in WeaponFeedbackContext context) { }
+        public void OnChargeUpdated(in WeaponFeedbackContext context, float normalizedProgress) { }
+        public void OnChargeCancelled(in WeaponFeedbackContext context) { }
+        public void OnShotFired(in WeaponFeedbackContext context) { }
+        public void OnSustainedFireStarted(in WeaponFeedbackContext context) { }
+        public void OnSustainedFireStopped(in WeaponFeedbackContext context) { }
+        public void OnProjectileImpact(in WeaponFeedbackContext context) => ProjectileImpacts.Add(context);
+        public void OnDamageConfirmed(in WeaponFeedbackContext context) { }
+        public void OnStatusApplied(in WeaponFeedbackContext context) { }
+        public void OnAmmoEmpty(in WeaponFeedbackContext context) { }
+        public void OnHeatThresholdCrossed(in WeaponFeedbackContext context, float normalizedThreshold) { }
+
+        public void ConfigureProjectile(
+            Projectile projectile,
+            ProjectilePresentationArchetypeId archetype,
+            in WeaponFeedbackContext context)
+        {
+            ProjectileArchetypes.Add(archetype);
+        }
+
+        public void Emit(in WeaponPresentationContext context) { }
+        public WeaponPresentationLoopHandle BeginLoop(in WeaponPresentationContext context) => default;
+        public void UpdateLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
+        public void EndLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
     }
 
     private sealed class PresentationTestDamageable : MonoBehaviour, IDamageable

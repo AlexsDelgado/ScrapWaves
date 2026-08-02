@@ -25,6 +25,7 @@ MonoBehaviour:
   ActiveAbilityAmmoCost: 10
   SkillCooldown: 8
   Icon: {fileID: 0}
+  PresentationProfile: {fileID: 11400000, guid: c04fe21bee051a94ca486c2982ffab06, type: 2}
   _specificTuning:
     rid: 7782109439718619137
   LevelData:
@@ -33,21 +34,43 @@ MonoBehaviour:
     AttackRateMultiplier: 1
     ManualAmmoMultiplier: 1
   - Level: 2
-    DamageMultiplier: 1.1428572
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.125
+    ManualAmmoMultiplier: 1
   - Level: 3
-    DamageMultiplier: 1.2857143
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.25
+    ManualAmmoMultiplier: 1
   - Level: 4
-    DamageMultiplier: 1.4285715
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.375
+    ManualAmmoMultiplier: 1
   - Level: 5
-    DamageMultiplier: 1.5714285
+    DamageMultiplier: 1
     AttackRateMultiplier: 1
-    ManualAmmoMultiplier: 1.5
+    ManualAmmoMultiplier: 1
+  - Level: 6
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 7
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 8
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 9
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  - Level: 10
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoMultiplier: 1
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: Kinetic Explosion
     DamageMultiplier: 1

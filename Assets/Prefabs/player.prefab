@@ -71,7 +71,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e0d1c2b3a4958677584938271605ffee, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerContactHurtbox
   _playerHealth: {fileID: 552200006}
   _logTriggerDebug: 0
@@ -126,7 +126,8 @@ Transform:
   m_LocalPosition: {x: 0.75, y: 0.215, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 8109226656808001095}
   m_Father: {fileID: 4876252261270809814}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3985011211553610823
@@ -283,6 +284,7 @@ GameObject:
   - component: {fileID: 4376590903337167936}
   - component: {fileID: 5070533248022036070}
   - component: {fileID: 6045364862485176579}
+  - component: {fileID: 1631330456484713432}
   m_Layer: 6
   m_Name: player
   m_TagString: Untagged
@@ -424,7 +426,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1f7a28c066548054b8ef255b84369e9f, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   _cameraTransform: {fileID: 0}
   _rotationSpeed: 540
@@ -458,7 +460,7 @@ MonoBehaviour:
   m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6d0c1b2a3948576a7584938271605ff4, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAutoAttack
   _firePoint: {fileID: 123637993059655878}
   _projectilePool: {fileID: 0}
@@ -474,7 +476,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b2c3d4e5f60718293a4b5c6d7e8f9a0b, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerContactDamageReceiver
   _playerHealth: {fileID: 552200006}
   _logContactDebug: 0
@@ -488,7 +490,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f1e2d3c4b5a69788796a5b4c3d2e1f09, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   _maxHealth: 100
   _playerStats: {fileID: 0}
@@ -505,7 +507,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 63c8adc1179fd2c47b1aa3c7b4fc4dbc, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::XPPickup
   _pickupPoint: {fileID: 4876252261270809814}
   _logGrants: 0
@@ -520,7 +522,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9ed9d18522ae7bc4d87d700918eb1f38, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerXP
   _startingLevel: 1
   _firstLevelXpRequirement: 10
@@ -539,7 +541,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 88903e5e238394d449fcc5309f2592ee, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
   _statDefinitions:
   - {fileID: 11400000, guid: f7497ac6701998d43b9176db6dc66dee, type: 2}
@@ -577,7 +579,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fcf706a1120998c46b770a7fa63508b4, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::OverheatManager
   _heatManager: {fileID: 0}
   _playerStats: {fileID: 2245531612050121699}
@@ -624,7 +626,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 82cbce0dab044364c933c4f7f6c13b38, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponManager
   _startingWeapons: []
   _projectileSpawn: {fileID: 123637993059655878}
@@ -634,23 +636,6 @@ MonoBehaviour:
   _aimFacingHoldTime: 0.08
   _manualCycleCooldown: 1.25
   _singleWeaponCycleCooldown: 2.5
---- !u!114 &901000008
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7499600762926182951}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e8fb0b58ed264d8399a3a65c5f24f6da, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationController
-  _profile: {fileID: 0}
-  _camera: {fileID: 0}
-  _audioManager: {fileID: 0}
-  _audioVoiceCount: 16
-  _audioSpatialBlend: 1
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -661,7 +646,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6e1ce3c3f94871e4192dd6d04fe78fba, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDebugMonitor
   _weaponManager: {fileID: 8802695284123346318}
   _showOverlay: 0
@@ -676,7 +661,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7fcd5d4d0d8b4a269c433d155d81475d, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::ReticleAimProvider
   _aimCamera: {fileID: 0}
   _ignoredRoot: {fileID: 0}
@@ -694,7 +679,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b6d5b458e2c84b248ba6ccaf3ad941c7, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::ReticleHud
   _weaponManager: {fileID: 8802695284123346318}
   _aimProvider: {fileID: 3355374661182279101}
@@ -734,7 +719,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1000001000001000001000001000001, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::LevelUpOrchestrator
   _passiveHandler: {fileID: 901000004}
   _weaponHandler: {fileID: 901000007}
@@ -750,7 +735,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1000002000002000002000002000002, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::LevelUpChoiceUI
   _pauseWhileChoosing: 1
   _cardWidth: 240
@@ -767,7 +752,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1000003000003000003000003000003, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemManager
   _playerStats: {fileID: 2245531612050121699}
 --- !u!114 &901000004
@@ -780,7 +765,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1000004000004000004000004000004, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemLevelUpHandler
   _choicesOffered: 3
   _itemPool:
@@ -803,7 +788,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 107c56c96e02a3f4c91d16158d421239, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStatsLevelUpHandler
   _playerStats: {fileID: 2245531612050121699}
   _levelCap: 36
@@ -817,7 +802,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1000005000005000005000005000005, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::LevelUpStatFeedback
   _fontSize: 22
   _textColor: {r: 0.4, g: 1, b: 0.55, a: 1}
@@ -835,7 +820,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1000006000006000006000006000006, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponLevelUpHandler
   _choicesOffered: 3
   _weaponPool:
@@ -846,6 +831,44 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 125e543fc3a34c17bca6d9436a372ad3, type: 2}
   _weaponManager: {fileID: 8802695284123346318}
   _choiceUi: {fileID: 901000002}
+--- !u!114 &901000008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8fb0b58ed264d8399a3a65c5f24f6da, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationController
+  _profile: {fileID: 0}
+  _camera: {fileID: 0}
+  _audioManager: {fileID: 0}
+  _recoilFeedback: {fileID: 1631330456484713432}
+  _audioVoiceCount: 16
+  _audioSpatialBlend: 1
+  _runtimeOptions:
+    ProductionPresentationEnabled: 1
+    VfxEnabled: 1
+    AudioEnabled: 1
+    CameraFeedbackEnabled: 1
+    HitStopEnabled: 1
+    EnemyReactionEnabled: 1
+    HeatPresentationEnabled: 1
+    DebugGeometryEnabled: 0
+    ReducedShake: 0
+    ReducedFlash: 0
+    Quality: 2
+  _cameraFeedback:
+    _masterScale: 1
+    _reducedShakeScale: 0.25
+    _minimumImpulseInterval: 0.025
+    _maximumImpactDistance: 28
+  _hitStop:
+    _minimumReplayInterval: 0.035
+    _reducedFeedbackScale: 0.5
 --- !u!114 &4494072351083282055
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -856,7 +879,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d11326779f536924ba2de2ae38ee624c, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::MaterialInventory
 --- !u!114 &7451048668054844177
 MonoBehaviour:
@@ -868,7 +891,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 202c7008ea108504cba1740eb7a15521, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::MaterialPickupReceiver
   _pickupPoint: {fileID: 0}
   _inventory: {fileID: 0}
@@ -884,7 +907,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 36d5a7437be51db4eb79973af992fe76, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponCraftingService
   _materialBalance: {fileID: 11400000, guid: b12ff77ba87068c4b9997693c743d4ee, type: 2}
   _inventory: {fileID: 0}
@@ -905,7 +928,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2b99a105122f33646bd79b45b96ed72e, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::RunStartWeaponChoice
   _weaponManager: {fileID: 0}
   _choiceUi: {fileID: 0}
@@ -925,7 +948,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 52a052e2442d8d24985767d8d1af9e42, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::CraftingUI
   _cardWidth: 260
   _cardHeight: 180
@@ -939,13 +962,86 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9b267bdbc5bf58d4697528d0d866e705, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::MaterialInventoryHUD
   _inventory: {fileID: 0}
   _anchoredPosition: {x: 16, y: -16}
   _iconSize: 22
   _fontSize: 18
   _showEmpty: 1
+--- !u!114 &1631330456484713432
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 130e2894c4a517940a546a8e4bf51a1d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponRecoilFeedback
+  _recoilRoot: {fileID: 8109226656808001095}
+  _heatRenderers: []
+  _automaticRecoilDistance: 0.06
+  _manualRecoilDistance: 0.1
+  _recoilInSpeed: 38
+  _recoverySpeed: 16
+  _recoilCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!1 &7910010443108889442
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8109226656808001095}
+  m_Layer: 0
+  m_Name: Automatic Cannon Presentation Rig
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8109226656808001095
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7910010443108889442}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 123637993059655878}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &2993499717578839351
 PrefabInstance:
   m_ObjectHideFlags: 0

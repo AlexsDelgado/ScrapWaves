@@ -172,10 +172,11 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         {
             Color pathColor = new(0.78f, 1f, 0.16f, 0.95f);
             int count = Mathf.Max(1, tuning.CannonManualBurstCount);
+            DrawRuntimeLine(origin, origin + direction * weapon.Data.BaseRange, pathColor, RuntimeLineWidth);
             for (int i = 0; i < count; i++)
             {
-                Vector3 start = origin + direction * (tuning.CannonManualLineSpacing * i);
-                DrawRuntimeLine(start, start + direction * weapon.Data.BaseRange, pathColor, RuntimeLineWidth);
+                Vector3 roundPosition = origin + direction * (tuning.CannonManualLineSpacing * i);
+                DrawRuntimeSphere(roundPosition, 0.08f, pathColor);
             }
         }
 
@@ -341,10 +342,11 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         if (ShowProjectilePaths)
         {
             Gizmos.color = new Color(0.8f, 1f, 0.2f, 0.8f);
+            Gizmos.DrawLine(origin, origin + forward * weapon.Data.BaseRange);
             for (int i = 0; i < tuning.CannonManualBurstCount; i++)
             {
-                Vector3 start = origin + forward * (tuning.CannonManualLineSpacing * i);
-                Gizmos.DrawLine(start, start + forward * weapon.Data.BaseRange);
+                Vector3 roundPosition = origin + forward * (tuning.CannonManualLineSpacing * i);
+                Gizmos.DrawWireSphere(roundPosition, 0.08f);
             }
         }
 

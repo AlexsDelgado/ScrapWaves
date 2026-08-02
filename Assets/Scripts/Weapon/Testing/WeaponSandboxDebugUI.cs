@@ -92,6 +92,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         DrawImmediateStats();
         DrawImmediateHeat();
         DrawImmediateRuntimeControls();
+        DrawImmediateGameFeelControls();
         DrawImmediateSpawner();
         DrawImmediateMetrics();
         DrawImmediateGizmos();
@@ -317,11 +318,14 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         if (GUILayout.Button("25%")) _sandbox.HeatOverride.SetHeatPercent(25f);
         if (GUILayout.Button("50%")) _sandbox.HeatOverride.SetHeatPercent(50f);
         if (GUILayout.Button("75%")) _sandbox.HeatOverride.SetHeatPercent(75f);
+        if (GUILayout.Button("80%")) _sandbox.HeatOverride.SetHeatPercent(80f);
         if (GUILayout.Button("100%")) _sandbox.HeatOverride.SetHeatPercent(100f);
         GUILayout.EndHorizontal();
 
-        float heat = GUILayout.HorizontalSlider(_sandbox.HeatOverride.NormalizedHeat * 100f, 0f, 100f);
-        _sandbox.HeatOverride.SetHeatPercent(heat);
+        float currentHeat = _sandbox.HeatOverride.NormalizedHeat * 100f;
+        float heat = GUILayout.HorizontalSlider(currentHeat, 0f, 100f);
+        if (!Mathf.Approximately(heat, currentHeat))
+            _sandbox.HeatOverride.SetHeatPercent(heat);
     }
 
     private void DrawImmediateRuntimeControls()
@@ -376,6 +380,50 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         GUILayout.EndHorizontal();
     }
 
+    private void DrawImmediateGameFeelControls()
+    {
+        WeaponPresentationController presentation = _sandbox.PresentationController;
+        if (presentation == null)
+            return;
+
+        GameFeelRuntimeOptions options = presentation.RuntimeOptions;
+        GUILayout.Space(6f);
+        GUILayout.Label("Game Feel / Accessibility");
+        bool production = GUILayout.Toggle(options.ProductionPresentationEnabled, "Production Presentation");
+        bool vfx = GUILayout.Toggle(options.VfxEnabled, "VFX Enabled");
+        bool audio = GUILayout.Toggle(options.AudioEnabled, "Audio Enabled");
+        bool camera = GUILayout.Toggle(options.CameraFeedbackEnabled, "Camera Feedback Enabled");
+        bool hitStop = GUILayout.Toggle(options.HitStopEnabled, "Hit-stop Enabled");
+        bool enemy = GUILayout.Toggle(options.EnemyReactionEnabled, "Enemy Reactions Enabled");
+        bool heat = GUILayout.Toggle(options.HeatPresentationEnabled, "Heat Presentation Enabled");
+        bool debug = GUILayout.Toggle(options.DebugGeometryEnabled, "Debug Geometry Enabled");
+        bool reducedShake = GUILayout.Toggle(options.ReducedShake, "Reduced Shake");
+        bool reducedFlash = GUILayout.Toggle(options.ReducedFlash, "Reduced Flash");
+
+        presentation.SetProductionPresentationEnabled(production);
+        presentation.SetVfxEnabled(vfx);
+        presentation.SetAudioEnabled(audio);
+        presentation.SetCameraFeedbackEnabled(camera);
+        presentation.SetHitStopEnabled(hitStop);
+        presentation.SetEnemyReactionEnabled(enemy);
+        presentation.SetHeatPresentationEnabled(heat);
+        presentation.SetDebugGeometryEnabled(debug);
+        presentation.SetReducedShake(reducedShake);
+        presentation.SetReducedFlash(reducedFlash);
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Toggle(options.Quality == GameFeelQualityLevel.Low, "Low", GUI.skin.button))
+            presentation.SetQuality(GameFeelQualityLevel.Low);
+        if (GUILayout.Toggle(options.Quality == GameFeelQualityLevel.Medium, "Medium", GUI.skin.button))
+            presentation.SetQuality(GameFeelQualityLevel.Medium);
+        if (GUILayout.Toggle(options.Quality == GameFeelQualityLevel.High, "High", GUI.skin.button))
+            presentation.SetQuality(GameFeelQualityLevel.High);
+        GUILayout.EndHorizontal();
+
+        if (_sandbox.DebugGizmos != null)
+            _sandbox.DebugGizmos.ShowRuntimeVisuals = options.DebugGeometryEnabled;
+    }
+
     private void DrawImmediateMetrics()
     {
         WeaponTestMetrics metrics = _sandbox.Metrics;
@@ -387,6 +435,8 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         GUILayout.Label($"Total Damage: {metrics.TotalDamage:0.#} | DPS: {metrics.DamagePerSecond:0.#} | Damage/Shot: {metrics.DamagePerShot:0.#}");
         GUILayout.Label($"Crits: {metrics.CriticalHits} ({metrics.CriticalHitRate:P1}) | Kills: {metrics.EnemiesKilled} | Avg TTK: {metrics.AverageTimeToKill:0.###}s");
         GUILayout.Label($"Ammo: {metrics.AmmoConsumed} | Damage/Ammo: {metrics.DamagePerAmmo:0.###} | Avg Knockback: {metrics.AverageKnockbackDistance:0.###}m");
+        GUILayout.Label($"Projectiles: {metrics.ActiveProjectileCount} | FX: {metrics.ActiveEffectCount}/{metrics.TotalEffectPoolCapacity} | Voices: {metrics.ActiveAudioVoiceCount}");
+        GUILayout.Label($"Frame: {metrics.FrameTimeMilliseconds:0.##} ms | Managed: {metrics.ManagedMemoryBytes / (1024f * 1024f):0.##} MB | Suppressed: {metrics.EffectSuppressionCount}");
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("Reset Metrics")) metrics.ResetMetrics();
         if (GUILayout.Button("Export Metrics To Console")) metrics.ExportToConsole();
@@ -606,7 +656,12 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         CreateButton(row, "Set Heat 25%", () => SetHeat(25f));
         CreateButton(row, "Set Heat 50%", () => SetHeat(50f));
         CreateButton(row, "Set Heat 75%", () => SetHeat(75f));
+        CreateButton(row, "Set Heat 80%", () => SetHeat(80f));
         CreateButton(row, "Set Heat 100%", () => SetHeat(100f));
+
+        Transform stepRow = CreateRow(section, "HeatStepButtons");
+        CreateButton(stepRow, "Heat -5%", () => AdjustHeat(-5f));
+        CreateButton(stepRow, "Heat +5%", () => AdjustHeat(5f));
 
         _heatSlider = CreateSlider(section, "Heat Slider", 0f, 100f, 0f, value =>
         {
@@ -802,6 +857,12 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         RefreshDynamicText();
     }
 
+    private void AdjustHeat(float deltaPercent)
+    {
+        float currentPercent = _sandbox.HeatOverride.NormalizedHeat * 100f;
+        SetHeat(currentPercent + deltaPercent);
+    }
+
     private void RebuildUi()
     {
         if (_canvas != null)
@@ -908,6 +969,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         Slider slider = go.AddComponent<Slider>();
         slider.minValue = min;
         slider.maxValue = max;
+        slider.wholeNumbers = false;
         slider.value = value;
         slider.onValueChanged.AddListener(onChanged);
         RectTransform rt = go.GetComponent<RectTransform>();
