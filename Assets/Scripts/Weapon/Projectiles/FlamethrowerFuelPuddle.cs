@@ -9,6 +9,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     private const float GroundProbeHeight = 4f;
     private const float GroundProbeDistance = 10f;
     private const float SurfaceOffset = 0.045f;
+    private const float MinimumVisualFadeDuration = 0.25f;
+    private const float ParticleFadePadding = 0.08f;
     private static readonly Color FuelFillColor = new(0.015f, 0.2f, 0.045f, 0.92f);
     private static readonly Color FuelEdgeColor = new(0.55f, 0.78f, 0.08f, 0.78f);
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -48,6 +50,9 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     private float _tickInterval;
     private float _tickTimer;
     private float _shapeSeed;
+    private float _visualFadeDuration;
+    private bool _bubbleEmissionStopped;
+    private bool _smokeEmissionStopped;
     private bool _useDamageContext;
     private WeaponDamageContext _damageContext;
     private Mesh _fillMesh;
@@ -59,6 +64,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     public float GameplayRadius => _radius;
     public int MeshLayerCount => (_fillRenderer != null ? 1 : 0) + (_edgeRenderer != null ? 1 : 0);
     public int ParticleLayerCount => (_bubbles != null ? 1 : 0) + (_darkSmoke != null ? 1 : 0);
+    public float VisualFadeDuration => _visualFadeDuration;
 
     public static FlamethrowerFuelPuddle Spawn(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval)
     {
@@ -151,6 +157,12 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         _center = ResolveGroundPosition(center);
         _shapeSeed = Mathf.Abs(center.x * 12.9898f + center.z * 78.233f);
         transform.SetPositionAndRotation(_center, Quaternion.identity);
+        UpdateParticleCoverage();
+        _bubbleEmissionStopped = false;
+        _smokeEmissionStopped = false;
+        _visualFadeDuration = Mathf.Max(
+            MinimumVisualFadeDuration,
+            Mathf.Max(GetParticleWindDownDuration(_bubbles), GetParticleWindDownDuration(_darkSmoke)));
         SetParticlesActive(true);
         UpdatePuddleVisual();
     }
@@ -161,15 +173,19 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     {
         _remainingDuration -= Time.deltaTime;
         _tickTimer -= Time.deltaTime;
-        while (_tickTimer <= 0f && _remainingDuration > 0f)
+        if (_tickTimer <= 0f && _remainingDuration > 0f)
         {
             if (_useDamageContext)
                 WeaponRadialDamage.Apply(_center, _radius, _damageContext, falloff: 0f, maxTargets: 64, showVfx: false);
             else
                 WeaponRadialDamage.Apply(_center, _radius, _damagePerTick, falloff: 0f, knockback: 0f, maxTargets: 64, showVfx: false);
-            _tickTimer += _tickInterval;
+            // Never stack several damage ticks in a single frame after a hitch.
+            // Besides feeling unfair, a burst of catch-up ticks would not match the
+            // single visual pulse presented by the puddle that frame.
+            _tickTimer = _tickInterval;
         }
 
+        UpdateParticleWindDown();
         UpdatePuddleVisual();
         if (_remainingDuration <= 0f)
             Release();
@@ -233,7 +249,10 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     {
         if (!_visualReady)
             return;
-        float life = Mathf.Clamp01(_remainingDuration / Mathf.Max(0.01f, _initialDuration));
+        // Stay visually solid during gameplay, then dissolve only while the
+        // already-emitted smoke and bubbles perform their final fade.
+        float fadeDuration = Mathf.Min(_initialDuration, Mathf.Max(MinimumVisualFadeDuration, _visualFadeDuration));
+        float life = Mathf.Clamp01(_remainingDuration / Mathf.Max(0.01f, fadeDuration));
         float pulse = 1f + Mathf.Sin(Time.time * _viscousPulseSpeed + _shapeSeed) * 0.018f;
         BuildPuddleShape(pulse);
         ApplyRenderer(_fillRenderer, FuelFillColor, life, 1.4f);
@@ -323,6 +342,52 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     {
         SetParticleState(_bubbles, active);
         SetParticleState(_darkSmoke, active);
+    }
+
+    private void UpdateParticleWindDown()
+    {
+        StopEmissionForWindDown(_bubbles, ref _bubbleEmissionStopped);
+        StopEmissionForWindDown(_darkSmoke, ref _smokeEmissionStopped);
+    }
+
+    private void StopEmissionForWindDown(ParticleSystem particles, ref bool emissionStopped)
+    {
+        if (particles == null || emissionStopped || _remainingDuration > GetParticleWindDownDuration(particles))
+            return;
+
+        // Preserve living particles so their authored alpha/size-over-lifetime
+        // curves can finish instead of popping out with the puddle.
+        particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        emissionStopped = true;
+    }
+
+    private static float GetParticleWindDownDuration(ParticleSystem particles)
+    {
+        if (particles == null)
+            return 0f;
+        ParticleSystem.MainModule main = particles.main;
+        return main.startLifetime.constantMax / Mathf.Max(0.01f, main.simulationSpeed) + ParticleFadePadding;
+    }
+
+    private void UpdateParticleCoverage()
+    {
+        // Authored particle radii are suitable for the small on-hit puddle, but the
+        // active ability can create a much larger pool. Fill each particle shape
+        // from the actual damage radius so bubbles and smoke cover the whole pool.
+        SetParticleCoverage(_bubbles, _radius * 0.9f, 1f);
+        SetParticleCoverage(_darkSmoke, _radius * 0.82f, 0.86f);
+    }
+
+    private static void SetParticleCoverage(ParticleSystem particles, float radius, float radiusThickness)
+    {
+        if (particles == null)
+            return;
+        ParticleSystem.ShapeModule shape = particles.shape;
+        // Unity's Circle shape is authored in its local XY plane. Rotate it onto
+        // the ground so emission covers both world X and Z and travels upward.
+        shape.rotation = new Vector3(-90f, 0f, 0f);
+        shape.radius = Mathf.Max(0.05f, radius);
+        shape.radiusThickness = Mathf.Clamp01(radiusThickness);
     }
 
     private static void SetParticleState(ParticleSystem particles, bool active)

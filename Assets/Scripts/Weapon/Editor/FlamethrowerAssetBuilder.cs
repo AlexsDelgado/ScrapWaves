@@ -44,6 +44,7 @@ public static class FlamethrowerAssetBuilder
         BuildAssets assets = BuildSharedAssets();
         GameObject stream = BuildStreamPrefab(assets);
         GameObject puddle = BuildPuddlePrefab(assets);
+        DeleteDeferredPresentationPrefabs();
         Dictionary<FlamethrowerCueStyle, GameObject> cues = BuildCuePrefabs(assets);
         WeaponPresentationProfile profile = BuildProfile(assets, stream, puddle, cues);
         AssignProfile(profile);
@@ -98,14 +99,14 @@ public static class FlamethrowerAssetBuilder
         GameObject body = CreateEmptyMeshLayer("Procedural Flame Body", root.transform, assets.Flame);
         GameObject core = CreateEmptyMeshLayer("Procedural Bright Core", root.transform, assets.FlameCore);
         GameObject nozzle = CreateMeshLayer("Nozzle Glow", root.transform, assets.Sphere, assets.FlameCore);
-        nozzle.transform.localScale = new Vector3(0.22f, 0.22f, 0.32f);
-        ParticleSystem embers = CreateParticles("Embers", root.transform, assets.Shard, assets.FlameCore, 48, true, ParticleSystemShapeType.Cone, 0.12f, 3.2f, 0.48f, 18f, new Color(1f, 0.72f, 0.18f), new Color(1f, 0.08f, 0.01f));
-        ParticleSystem smoke = CreateParticles("Heat Smoke", root.transform, assets.Sphere, assets.Smoke, 30, true, ParticleSystemShapeType.Cone, 0.18f, 1.2f, 0.75f, 24f, new Color(0.4f, 0.26f, 0.16f), new Color(0.08f, 0.07f, 0.065f));
+        nozzle.transform.localScale = new Vector3(0.12f, 0.12f, 0.2f);
+        ParticleSystem embers = CreateParticles("Fast Flame Licks", root.transform, assets.Shard, assets.FlameCore, 38, true, ParticleSystemShapeType.Cone, 0.1f, 8.5f, 0.62f, 15f, new Color(1f, 0.72f, 0.18f), new Color(1f, 0.08f, 0.01f));
+        ParticleSystem smoke = CreateParticles("Trailing Heat Smoke", root.transform, assets.Sphere, assets.Smoke, 20, true, ParticleSystemShapeType.Cone, 0.13f, 3.8f, 1.05f, 19f, new Color(0.4f, 0.26f, 0.16f), new Color(0.08f, 0.07f, 0.065f));
         Light light = root.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = new Color(1f, 0.34f, 0.04f);
-        light.range = 2.6f;
-        light.intensity = 1f;
+        light.range = 1.8f;
+        light.intensity = 0.55f;
         light.shadows = LightShadows.None;
 
         SerializedObject serialized = new(vfx);
@@ -118,6 +119,8 @@ public static class FlamethrowerAssetBuilder
         serialized.FindProperty("_nozzleGlow").objectReferenceValue = nozzle.GetComponent<MeshRenderer>();
         serialized.FindProperty("_nozzleLight").objectReferenceValue = light;
         serialized.FindProperty("_maximumSegments").intValue = 48;
+        serialized.FindProperty("_automaticWidthMultiplier").floatValue = 0.52f;
+        serialized.FindProperty("_automaticHeightMultiplier").floatValue = 0.22f;
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
         return SavePrefab(root, "GF_Flamethrower_Stream");
@@ -131,6 +134,10 @@ public static class FlamethrowerAssetBuilder
         GameObject edge = CreateEmptyMeshLayer("Irregular Fuel Edge", root.transform, assets.FuelCore);
         ParticleSystem bubbles = CreateParticles("Fuel Bubbles", root.transform, assets.Sphere, assets.FuelCore, 16, true, ParticleSystemShapeType.Circle, 0.8f, 0.22f, 0.7f, 0f, new Color(0.65f, 0.85f, 0.1f), new Color(0.08f, 0.28f, 0.04f));
         ParticleSystem smoke = CreateParticles("Dark Fuel Smoke", root.transform, assets.Sphere, assets.Smoke, 22, true, ParticleSystemShapeType.Circle, 0.72f, 0.6f, 1.4f, 0f, new Color(0.19f, 0.22f, 0.08f), new Color(0.04f, 0.05f, 0.035f));
+        ConfigureGroundCircle(bubbles);
+        ConfigureGroundCircle(smoke);
+        ConfigurePuddleParticleFade(bubbles);
+        ConfigurePuddleParticleFade(smoke);
         SerializedObject serialized = new(puddle);
         serialized.FindProperty("_fillFilter").objectReferenceValue = fill.GetComponent<MeshFilter>();
         serialized.FindProperty("_fillRenderer").objectReferenceValue = fill.GetComponent<MeshRenderer>();
@@ -142,12 +149,57 @@ public static class FlamethrowerAssetBuilder
         return SavePrefab(root, "GF_JellifiedFuel_Puddle");
     }
 
+    private static void ConfigureGroundCircle(ParticleSystem particles)
+    {
+        ParticleSystem.ShapeModule shape = particles.shape;
+        shape.rotation = new Vector3(-90f, 0f, 0f);
+    }
+
+    private static void ConfigurePuddleParticleFade(ParticleSystem particles)
+    {
+        ParticleSystem.SizeOverLifetimeModule size = particles.sizeOverLifetime;
+        size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(
+            1f,
+            new AnimationCurve(
+                new Keyframe(0f, 0.25f),
+                new Keyframe(0.16f, 1f),
+                new Keyframe(0.68f, 0.82f),
+                new Keyframe(1f, 0.03f)));
+    }
+
     private static Dictionary<FlamethrowerCueStyle, GameObject> BuildCuePrefabs(BuildAssets assets)
     {
         Dictionary<FlamethrowerCueStyle, GameObject> result = new();
-        foreach (FlamethrowerCueStyle style in Enum.GetValues(typeof(FlamethrowerCueStyle)))
+        FlamethrowerCueStyle[] presentationStyles =
+        {
+            FlamethrowerCueStyle.FlameActiveBurst,
+            FlamethrowerCueStyle.JellifiedActiveBurst,
+            FlamethrowerCueStyle.NitrogenActiveBurst,
+            FlamethrowerCueStyle.BurnCoating,
+            FlamethrowerCueStyle.JellifiedCoating,
+            FlamethrowerCueStyle.NitrogenSlow,
+            FlamethrowerCueStyle.NitrogenFreeze
+        };
+        for (int i = 0; i < presentationStyles.Length; i++)
+        {
+            FlamethrowerCueStyle style = presentationStyles[i];
             result[style] = BuildCuePrefab(assets, style);
+        }
         return result;
+    }
+
+    private static void DeleteDeferredPresentationPrefabs()
+    {
+        string[] names =
+        {
+            "GF_Flamethrower_FlameNozzleLoop.prefab",
+            "GF_Flamethrower_JellifiedNozzleLoop.prefab",
+            "GF_Flamethrower_NitrogenNozzleLoop.prefab",
+            "GF_Flamethrower_SustainedStop.prefab"
+        };
+        for (int i = 0; i < names.Length; i++)
+            AssetDatabase.DeleteAsset(PrefabRoot + "/" + names[i]);
     }
 
     private static GameObject BuildCuePrefab(BuildAssets assets, FlamethrowerCueStyle style)
@@ -178,6 +230,7 @@ public static class FlamethrowerAssetBuilder
         if (active)
         {
             GameObject radius = CreateMeshLayer("Damage Radius", visual.transform, assets.Ring, primary);
+            radius.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             radius.transform.localScale = Vector3.one * 2f;
             GameObject pressure = CreateMeshLayer("Pressure Front", visual.transform, assets.Ring, core);
             pressure.transform.localScale = Vector3.one * 1.72f;
@@ -273,19 +326,18 @@ public static class FlamethrowerAssetBuilder
         AudioClip crackAudio = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/click.wav");
         List<WeaponPresentationCueData> cues = new()
         {
-            Cue(WeaponPresentationCue.FlamethrowerAutomaticLoop, prefabs[FlamethrowerCueStyle.FlameNozzleLoop], flameAudio, 0.28f, 0.72f, 0.82f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerManualLoop, prefabs[FlamethrowerCueStyle.FlameNozzleLoop], flameAudio, 0.34f, 0.82f, 0.94f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedAutomaticLoop, prefabs[FlamethrowerCueStyle.JellifiedNozzleLoop], flameAudio, 0.28f, 0.58f, 0.68f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedManualLoop, prefabs[FlamethrowerCueStyle.JellifiedNozzleLoop], flameAudio, 0.34f, 0.66f, 0.76f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenAutomaticLoop, prefabs[FlamethrowerCueStyle.NitrogenNozzleLoop], flameAudio, 0.3f, 1.05f, 1.15f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenManualLoop, prefabs[FlamethrowerCueStyle.NitrogenNozzleLoop], flameAudio, 0.35f, 1.12f, 1.24f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerSustainedStop, prefabs[FlamethrowerCueStyle.SustainedStop], null, 0f, 1f, 1f, 0.28f, false, 4),
-            Cue(WeaponPresentationCue.FlamethrowerActiveBurst, prefabs[FlamethrowerCueStyle.FlameActiveBurst], pressureAudio, 0.84f, 0.78f, 0.9f, 0.72f, false, 5, true),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedActive, prefabs[FlamethrowerCueStyle.JellifiedActiveBurst], pressureAudio, 0.82f, 0.62f, 0.74f, 0.72f, false, 5, true),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenActive, prefabs[FlamethrowerCueStyle.NitrogenActiveBurst], pressureAudio, 0.86f, 1.05f, 1.18f, 0.72f, false, 5, true),
-            Cue(WeaponPresentationCue.FlamethrowerBurnStatus, prefabs[FlamethrowerCueStyle.BurnCoating], null, 0f, 1f, 1f, 0.75f, false, 18),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedStatus, prefabs[FlamethrowerCueStyle.JellifiedCoating], null, 0f, 1f, 1f, 0.85f, false, 18),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenSlow, prefabs[FlamethrowerCueStyle.NitrogenSlow], null, 0f, 1f, 1f, 0.75f, false, 18),
+            Cue(WeaponPresentationCue.FlamethrowerAutomaticLoop, null, flameAudio, 0.28f, 0.72f, 0.82f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerManualLoop, null, flameAudio, 0.34f, 0.82f, 0.94f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedAutomaticLoop, null, flameAudio, 0.28f, 0.58f, 0.68f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedManualLoop, null, flameAudio, 0.34f, 0.66f, 0.76f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenAutomaticLoop, null, flameAudio, 0.3f, 1.05f, 1.15f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenManualLoop, null, flameAudio, 0.35f, 1.12f, 1.24f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerActiveBurst, prefabs[FlamethrowerCueStyle.FlameActiveBurst], pressureAudio, 0.84f, 0.78f, 0.9f, 0.72f, false, 5, active: true),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedActive, prefabs[FlamethrowerCueStyle.JellifiedActiveBurst], pressureAudio, 0.82f, 0.62f, 0.74f, 0.72f, false, 5, active: true),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenActive, prefabs[FlamethrowerCueStyle.NitrogenActiveBurst], pressureAudio, 0.86f, 1.05f, 1.18f, 0.72f, false, 5, active: true),
+            Cue(WeaponPresentationCue.FlamethrowerBurnStatus, prefabs[FlamethrowerCueStyle.BurnCoating], null, 0f, 1f, 1f, 0.75f, false, 18, secondary: true),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedStatus, prefabs[FlamethrowerCueStyle.JellifiedCoating], null, 0f, 1f, 1f, 0.85f, false, 18, secondary: true),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenSlow, prefabs[FlamethrowerCueStyle.NitrogenSlow], null, 0f, 1f, 1f, 0.75f, false, 18, secondary: true),
             Cue(WeaponPresentationCue.FlamethrowerNitrogenFreeze, prefabs[FlamethrowerCueStyle.NitrogenFreeze], crackAudio, 0.68f, 0.78f, 0.9f, 1.15f, false, 18)
         };
 
@@ -297,7 +349,6 @@ public static class FlamethrowerAssetBuilder
             Binding(WeaponFeedbackEvent.SustainedFireStarted, WeaponPresentationCue.FlamethrowerJellifiedManualLoop, WeaponFeedbackModeFilter.Manual, WeaponUpgradePathFilter.PathA),
             Binding(WeaponFeedbackEvent.SustainedFireStarted, WeaponPresentationCue.FlamethrowerNitrogenAutomaticLoop, WeaponFeedbackModeFilter.Automatic, WeaponUpgradePathFilter.PathB),
             Binding(WeaponFeedbackEvent.SustainedFireStarted, WeaponPresentationCue.FlamethrowerNitrogenManualLoop, WeaponFeedbackModeFilter.Manual, WeaponUpgradePathFilter.PathB),
-            Binding(WeaponFeedbackEvent.SustainedFireStopped, WeaponPresentationCue.FlamethrowerSustainedStop),
             Binding(WeaponFeedbackEvent.ShotFired, WeaponPresentationCue.FlamethrowerJellifiedActive, WeaponFeedbackModeFilter.Active, WeaponUpgradePathFilter.PathA),
             Binding(WeaponFeedbackEvent.ShotFired, WeaponPresentationCue.FlamethrowerNitrogenActive, WeaponFeedbackModeFilter.Active, WeaponUpgradePathFilter.PathB),
             Binding(WeaponFeedbackEvent.ShotFired, WeaponPresentationCue.FlamethrowerActiveBurst, WeaponFeedbackModeFilter.Active, WeaponUpgradePathFilter.Base),
@@ -337,7 +388,8 @@ public static class FlamethrowerAssetBuilder
         float duration,
         bool loop,
         int maximum,
-        bool active = false)
+        bool active = false,
+        bool secondary = false)
     {
         WeaponPresentationCueData data = new()
         {
@@ -356,7 +408,7 @@ public static class FlamethrowerAssetBuilder
             CameraFovKick = active ? 0.85f : 0f,
             CameraMinReplayInterval = 0.05f,
             EssentialGameplayCue = true,
-            SecondaryEffect = cue == WeaponPresentationCue.FlamethrowerBurnStatus || cue == WeaponPresentationCue.FlamethrowerJellifiedStatus || cue == WeaponPresentationCue.FlamethrowerNitrogenSlow,
+            SecondaryEffect = secondary,
             MinimumQuality = GameFeelQualityLevel.Low,
             SpatialBlend = 0.9f,
             MinimumDistance = 1f,

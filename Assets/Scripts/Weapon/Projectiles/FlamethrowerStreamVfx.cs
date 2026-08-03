@@ -11,6 +11,8 @@ public enum FlamethrowerStreamStyle
 [DisallowMultipleComponent]
 public sealed class FlamethrowerStreamVfx : MonoBehaviour
 {
+    private const int BodyRadialSideCount = 8;
+    private const int CoreRadialSideCount = 6;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
     private static readonly int EmissionIntensityId = Shader.PropertyToID("_EmissionIntensity");
@@ -39,6 +41,8 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         new Keyframe(0.78f, 0.72f),
         new Keyframe(1f, 0.08f));
     [SerializeField, Range(0.05f, 1f)] private float _coreWidthMultiplier = 0.34f;
+    [SerializeField, Range(0.1f, 1f)] private float _automaticWidthMultiplier = 0.52f;
+    [SerializeField, Range(0.1f, 1f)] private float _automaticHeightMultiplier = 0.22f;
 
     [Header("Surface motion")]
     [SerializeField, Min(0.1f)] private float _noiseScale = 6.5f;
@@ -70,11 +74,15 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
     private bool _initialized;
 
     public int MaximumSegments => _maximumSegments;
+    public int BodyRadialSides => BodyRadialSideCount;
+    public int CoreRadialSides => CoreRadialSideCount;
     public int BodyVertexCount => _bodyMesh != null ? _bodyMesh.vertexCount : 0;
     public int CoreVertexCount => _coreMesh != null ? _coreMesh.vertexCount : 0;
     public Mesh BodyMesh => _bodyMesh;
     public Mesh CoreMesh => _coreMesh;
     public int ParticleLayerCount => (_embers != null ? 1 : 0) + (_smoke != null ? 1 : 0);
+    public float AutomaticWidthMultiplier => _automaticWidthMultiplier;
+    public float AutomaticHeightMultiplier => _automaticHeightMultiplier;
 
     public static FlamethrowerStreamVfx Create(GameObject authoredPrefab = null, int maximumSegments = 48)
     {
@@ -178,7 +186,13 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
                 : Mathf.Min(angularWidth, radialWidth);
         }
 
-        BuildRibbon(points, halfWidths, pointCount, taper: false);
+        BuildVolume(
+            points,
+            halfWidths,
+            pointCount,
+            taper: false,
+            crossSectionWidth: _automaticWidthMultiplier,
+            crossSectionHeight: _automaticHeightMultiplier);
         ShowFor(duration);
     }
 
@@ -203,7 +217,7 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
             halfWidths[i] = Mathf.Max(0.025f, radius * Mathf.Max(0f, _ribbonWidth.Evaluate(t)));
         }
 
-        BuildRibbon(points, halfWidths, pointCount, taper: true);
+        BuildVolume(points, halfWidths, pointCount, taper: true, crossSectionWidth: 1f, crossSectionHeight: 1f);
         ShowFor(duration);
     }
 
@@ -213,6 +227,8 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
     {
         _maximumSegments = Mathf.Clamp(_maximumSegments, 2, 48);
         _coreWidthMultiplier = Mathf.Clamp(_coreWidthMultiplier, 0.05f, 1f);
+        _automaticWidthMultiplier = Mathf.Clamp(_automaticWidthMultiplier, 0.1f, 1f);
+        _automaticHeightMultiplier = Mathf.Clamp(_automaticHeightMultiplier, 0.1f, 1f);
         _noiseScale = Mathf.Max(0.1f, _noiseScale);
         _noiseSpeed = Mathf.Max(0f, _noiseSpeed);
         _erosionSpeed = Mathf.Max(0f, _erosionSpeed);
@@ -256,8 +272,8 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         _propertyBlock = new MaterialPropertyBlock();
         EnsureRibbonLayer(ref _bodyFilter, ref _bodyRenderer, "Flame Body", false);
         EnsureRibbonLayer(ref _coreFilter, ref _coreRenderer, "Flame Core", true);
-        _bodyMesh = new Mesh { name = "Flamethrower Body Ribbon", hideFlags = HideFlags.DontSave };
-        _coreMesh = new Mesh { name = "Flamethrower Core Ribbon", hideFlags = HideFlags.DontSave };
+        _bodyMesh = new Mesh { name = "Flamethrower Volumetric Body", hideFlags = HideFlags.DontSave };
+        _coreMesh = new Mesh { name = "Flamethrower Volumetric Core", hideFlags = HideFlags.DontSave };
         _bodyMesh.MarkDynamic();
         _coreMesh.MarkDynamic();
         _bodyFilter.sharedMesh = _bodyMesh;
@@ -287,44 +303,77 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         }
     }
 
-    private void BuildRibbon(Vector3[] points, float[] halfWidths, int pointCount, bool taper)
+    private void BuildVolume(
+        Vector3[] points,
+        float[] radii,
+        int pointCount,
+        bool taper,
+        float crossSectionWidth,
+        float crossSectionHeight)
     {
-        BuildRibbonMesh(_bodyMesh, points, halfWidths, pointCount, 1f, taper);
-        BuildRibbonMesh(_coreMesh, points, halfWidths, pointCount, _coreWidthMultiplier, taper);
+        BuildTubeMesh(_bodyMesh, points, radii, pointCount, BodyRadialSideCount, 1f, 0.1f, taper, crossSectionWidth, crossSectionHeight);
+        BuildTubeMesh(_coreMesh, points, radii, pointCount, CoreRadialSideCount, _coreWidthMultiplier, 0.045f, taper, crossSectionWidth, crossSectionHeight);
     }
 
-    private static void BuildRibbonMesh(Mesh mesh, Vector3[] points, float[] halfWidths, int pointCount, float widthMultiplier, bool taper)
+    private static void BuildTubeMesh(
+        Mesh mesh,
+        Vector3[] points,
+        float[] radii,
+        int pointCount,
+        int radialSides,
+        float radiusMultiplier,
+        float irregularity,
+        bool taper,
+        float crossSectionWidth,
+        float crossSectionHeight)
     {
-        Vector3[] vertices = new Vector3[pointCount * 2];
+        radialSides = Mathf.Max(3, radialSides);
+        Vector3[] vertices = new Vector3[pointCount * radialSides];
         Vector2[] uvs = new Vector2[vertices.Length];
         Color[] colors = new Color[vertices.Length];
-        int[] triangles = new int[(pointCount - 1) * 6];
+        int[] triangles = new int[(pointCount - 1) * radialSides * 6];
         for (int i = 0; i < pointCount; i++)
         {
             Vector3 tangent = i == 0 ? points[1] - points[0] :
                 i == pointCount - 1 ? points[i] - points[i - 1] : points[i + 1] - points[i - 1];
+            if (tangent.sqrMagnitude <= 0.0001f)
+                tangent = Vector3.forward;
+            tangent.Normalize();
             Vector3 side = Vector3.Cross(Vector3.up, tangent);
             if (side.sqrMagnitude <= 0.0001f)
                 side = Vector3.right;
             side.Normalize();
+            Vector3 up = Vector3.Cross(tangent, side).normalized;
             float t = i / (float)(pointCount - 1);
-            float width = halfWidths[i] * widthMultiplier;
-            vertices[i * 2] = points[i] - side * width;
-            vertices[i * 2 + 1] = points[i] + side * width;
-            uvs[i * 2] = new Vector2(0f, t);
-            uvs[i * 2 + 1] = new Vector2(1f, t);
             float vertexAlpha = taper ? Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 5f, (1f - t) * 4f)) : Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 5f, 1f));
-            colors[i * 2] = colors[i * 2 + 1] = new Color(1f, 1f, 1f, vertexAlpha);
-            if (i >= pointCount - 1)
-                continue;
-            int vertex = i * 2;
-            int triangle = i * 6;
-            triangles[triangle] = vertex;
-            triangles[triangle + 1] = vertex + 2;
-            triangles[triangle + 2] = vertex + 1;
-            triangles[triangle + 3] = vertex + 1;
-            triangles[triangle + 4] = vertex + 2;
-            triangles[triangle + 5] = vertex + 3;
+            for (int sideIndex = 0; sideIndex < radialSides; sideIndex++)
+            {
+                float around = sideIndex / (float)radialSides;
+                float angle = around * Mathf.PI * 2f;
+                // Opposite vertices share a radius, keeping every animated ring centered
+                // exactly on the authoritative damage path while the silhouette breathes.
+                float livingNoise = Mathf.Sin(Time.time * 8.5f + i * 1.71f + angle * 2f) * 0.5f + 0.5f;
+                float radius = radii[i] * radiusMultiplier * Mathf.Lerp(1f - irregularity, 1f, livingNoise);
+                Vector3 radial =
+                    side * (Mathf.Cos(angle) * crossSectionWidth) +
+                    up * (Mathf.Sin(angle) * crossSectionHeight);
+                int vertex = i * radialSides + sideIndex;
+                vertices[vertex] = points[i] + radial * radius;
+                uvs[vertex] = new Vector2(around, t);
+                colors[vertex] = new Color(1f, 1f, 1f, vertexAlpha);
+
+                if (i >= pointCount - 1)
+                    continue;
+                int nextSide = (sideIndex + 1) % radialSides;
+                int nextRing = (i + 1) * radialSides;
+                int triangle = (i * radialSides + sideIndex) * 6;
+                triangles[triangle] = vertex;
+                triangles[triangle + 1] = nextRing + sideIndex;
+                triangles[triangle + 2] = i * radialSides + nextSide;
+                triangles[triangle + 3] = i * radialSides + nextSide;
+                triangles[triangle + 4] = nextRing + sideIndex;
+                triangles[triangle + 5] = nextRing + nextSide;
+            }
         }
 
         mesh.Clear();
