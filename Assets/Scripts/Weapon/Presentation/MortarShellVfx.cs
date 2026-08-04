@@ -41,6 +41,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
     private Vector3 _impactNormal = Vector3.up;
     private Vector3 _blastBaseScale = Vector3.one;
     private Vector3 _countdownBaseScale = Vector3.one;
+    private Quaternion _countdownBaseRotation = Quaternion.identity;
     private Vector3 _coreBaseScale = Vector3.one;
     private float _travelTime = 0.5f;
     private float _remainingRepeatTime;
@@ -103,7 +104,10 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
                 _blastBaseScale.z * diameter);
         }
         if (_countdownRing != null)
+        {
             _countdownRing.localScale = _countdownBaseScale;
+            _countdownRing.localRotation = _countdownBaseRotation;
+        }
         if (_landingCore != null)
             _landingCore.localScale = _coreBaseScale;
 
@@ -130,7 +134,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         {
             float contraction = Mathf.Lerp(1.28f, 0.64f, safeTime);
             _countdownRing.localScale = _countdownBaseScale * contraction;
-            _countdownRing.Rotate(0f, 95f * Time.unscaledDeltaTime, 0f, Space.Self);
+            _countdownRing.localRotation = _countdownBaseRotation;
         }
         if (_landingCore != null)
             _landingCore.localScale = _coreBaseScale * Mathf.Lerp(0.72f, 1.18f, pulse);
@@ -177,7 +181,10 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         float progress = 1f - Mathf.Clamp01(_remainingRepeatTime / _repeatDelay);
         float beat = 0.65f + 0.35f * Mathf.Sin((Time.unscaledTime * Mathf.Lerp(4f, 11f, progress)) * Mathf.PI * 2f);
         if (_countdownRing != null)
+        {
             _countdownRing.localScale = _countdownBaseScale * Mathf.Lerp(1.18f, 0.48f, progress);
+            _countdownRing.localRotation = _countdownBaseRotation;
+        }
         if (_landingCore != null)
             _landingCore.localScale = _coreBaseScale * Mathf.Lerp(0.8f, 1.35f, beat);
         ApplyColors(_chargedColor, Mathf.Lerp(1.1f, 2.1f, progress) * beat);
@@ -215,6 +222,11 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
             _flightSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         if (_landingRoot != null)
             _landingRoot.SetActive(false);
+        if (_countdownRing != null)
+        {
+            _countdownRing.localScale = _countdownBaseScale;
+            _countdownRing.localRotation = _countdownBaseRotation;
+        }
         if (_flightRoot != null)
             _flightRoot.SetActive(false);
         if (_shellRoot != null)
@@ -246,7 +258,10 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         if (_blastRadiusRing != null)
             _blastBaseScale = _blastRadiusRing.localScale;
         if (_countdownRing != null)
+        {
             _countdownBaseScale = _countdownRing.localScale;
+            _countdownBaseRotation = _countdownRing.localRotation;
+        }
         if (_landingCore != null)
             _coreBaseScale = _landingCore.localScale;
     }

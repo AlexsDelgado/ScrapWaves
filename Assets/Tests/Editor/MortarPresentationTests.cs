@@ -87,6 +87,26 @@ public sealed class MortarPresentationTests
     }
 
     [Test]
+    public void ManualLandingTargeter_UsesProvidedSlopeNormal()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        GameObject instance = null;
+        try
+        {
+            instance = Object.Instantiate(profile.Mortar.LandingIndicatorPrefab);
+            MortarLandingIndicatorVfx marker = instance.GetComponent<MortarLandingIndicatorVfx>();
+            Vector3 normal = new Vector3(-0.35f, 0.82f, 0.45f).normalized;
+            marker.Configure(Vector3.one, normal, 2.9f, 0.55f, WeaponUpgradePath.None);
+            Assert.That(Vector3.Dot(instance.transform.up, normal), Is.GreaterThan(0.999f));
+        }
+        finally
+        {
+            if (instance != null)
+                Object.DestroyImmediate(instance);
+        }
+    }
+
+    [Test]
     public void LandingIndicator_RemainsAtWorldImpactWhenShellMoves()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
@@ -115,6 +135,40 @@ public sealed class MortarPresentationTests
                 Object.DestroyImmediate(shell.gameObject);
             if (floor != null)
                 Object.DestroyImmediate(floor);
+        }
+    }
+
+    [Test]
+    public void ShellLandingCountdown_RemainsAlignedToResolvedSurface()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        GameObject instance = null;
+        try
+        {
+            instance = Object.Instantiate(profile.Mortar.ShellPrefab);
+            MortarShellVfx vfx = instance.GetComponent<MortarShellVfx>();
+            vfx.Configure(
+                MortarShellVisualStyle.Base,
+                Vector3.zero,
+                Vector3.up,
+                3f,
+                0.5f,
+                0.5f,
+                true,
+                true);
+
+            Transform countdownRing = GetField<Transform>(vfx, "_countdownRing");
+            Quaternion expectedRotation = countdownRing.localRotation;
+            countdownRing.localRotation *= Quaternion.Euler(0f, 67f, 0f);
+
+            vfx.UpdateFlight(Vector3.forward, 0.5f);
+
+            Assert.That(Quaternion.Angle(countdownRing.localRotation, expectedRotation), Is.LessThan(0.001f));
+        }
+        finally
+        {
+            if (instance != null)
+                Object.DestroyImmediate(instance);
         }
     }
 
@@ -280,6 +334,42 @@ public sealed class MortarPresentationTests
     }
 
     [Test]
+    public void PresentationSurface_DoesNotRotateWhenSlopeCoversMinorityOfArea()
+    {
+        GameObject floor = null;
+        GameObject ramp = null;
+        try
+        {
+            floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.transform.position = new Vector3(0f, -0.1f, 0f);
+            floor.transform.localScale = new Vector3(24f, 0.2f, 24f);
+            ramp = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ramp.transform.position = new Vector3(0f, 0.35f, 0f);
+            ramp.transform.localScale = new Vector3(2.4f, 0.3f, 2.4f);
+            ramp.transform.rotation = Quaternion.Euler(0f, 0f, 24f);
+            Physics.SyncTransforms();
+
+            Assert.That(Physics.Raycast(new Vector3(0f, 5f, 0f), Vector3.down, out RaycastHit hit, 10f), Is.True);
+            Assert.That(hit.collider, Is.EqualTo(ramp.GetComponent<Collider>()));
+            Assert.That(Vector3.Angle(hit.normal, Vector3.up), Is.GreaterThan(10f));
+            RaycastHit[] supportHits = new RaycastHit[16];
+            MortarPresentationSurface.Resolve(hit, 3f, null, supportHits, out Vector3 position, out Vector3 normal);
+
+            Assert.That(Vector3.Dot(normal, Vector3.up), Is.GreaterThan(0.999f));
+            Assert.That(position.y, Is.EqualTo(0f).Within(0.02f));
+            Assert.That(position.x, Is.EqualTo(hit.point.x).Within(0.001f));
+            Assert.That(position.z, Is.EqualTo(hit.point.z).Within(0.001f));
+        }
+        finally
+        {
+            if (ramp != null)
+                Object.DestroyImmediate(ramp);
+            if (floor != null)
+                Object.DestroyImmediate(floor);
+        }
+    }
+
+    [Test]
     public void PresentationSurface_AnchorsSmallStoneEffectsToSupportingGround()
     {
         GameObject floor = null;
@@ -430,5 +520,12 @@ public sealed class MortarPresentationTests
         FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(field, Is.Not.Null, fieldName);
         field.SetValue(target, value);
+    }
+
+    private static T GetField<T>(object target, string fieldName)
+    {
+        FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, fieldName);
+        return (T)field.GetValue(target);
     }
 }
