@@ -76,7 +76,12 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             for (int i = 0; i < hitCount; i++)
             {
                 Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : bladeCenter;
-                ApplyBladeDamage(_targets[i], GetAtomicSharpnessDamageScale(), impactOrigin, knockbackScale);
+                ApplyBladeDamage(
+                    _targets[i],
+                    GetAtomicSharpnessDamageScale(),
+                    impactOrigin,
+                    knockbackScale,
+                    WeaponFeedbackMode.Automatic);
             }
         }
 
@@ -126,8 +131,6 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             tuning,
             0,
             1);
-        if (!IsMultiBladePath())
-            ShowSlash(origin, slashDirection, range, tuning);
     }
 
     // Thrusts forward in a thick line. Heat adds range in discrete 20% steps, capped by tuning.
@@ -163,7 +166,6 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         }
 
         ExecuteActiveThrust(origin, thrustDirection, range, lineWidth, tuning.BladeActiveKnockbackScale, tuning, 0, 1);
-        ShowThrust(origin, thrustDirection, range, lineWidth, tuning);
         CompleteActiveAbility();
     }
 
@@ -374,7 +376,14 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         return Mathf.Max(0.05f, tuning.BladeActiveLineWidth) * GetAreaSizeMultiplier();
     }
 
-    private void ApplyBladeDamage(Transform target, float damageScale, Vector3 impactOrigin, float knockbackScale, bool isAbilityDamage = false)
+    private void ApplyBladeDamage(
+        Transform target,
+        float damageScale,
+        Vector3 impactOrigin,
+        float knockbackScale,
+        WeaponFeedbackMode feedbackMode,
+        bool isAbilityDamage = false,
+        bool strongImpact = false)
     {
         if (target == null)
             return;
@@ -387,8 +396,13 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale);
         int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
+        int healthBefore = GetRemainingHealth(damageable);
         if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+        {
             ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);
+            bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+            EmitImpactFeedback(target, impactOrigin, finalDamage, feedbackMode, isAbilityDamage, kill, strongImpact);
+        }
     }
 
     private bool TickPendingMultiBladeActions(float deltaTime)
@@ -469,8 +483,15 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         int swingIndex,
         int swingCount)
     {
-        if (IsMultiBladePath())
-            ShowSlash(origin, swingDirection, range, tuning);
+        ShowSlash(origin, swingDirection, range, tuning);
+        bool strongImpact = IsMultiBladePath() && swingCount > 1 && ShouldApplyMultiBladeKnockback(swingIndex, swingCount);
+        EmitShotFeedback(
+            WeaponFeedbackMode.Manual,
+            origin,
+            swingDirection,
+            range,
+            isAbilityDamage: false,
+            eventIntensity: strongImpact ? 1.2f : swingCount > 1 ? 0.58f : 0.82f);
 
         int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
             origin,
@@ -485,7 +506,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 _targets[i],
                 damageScale * GetAtomicSharpnessDamageScale(),
                 origin,
-                GetAtomicSharpnessKnockbackScale(knockbackScale));
+                GetAtomicSharpnessKnockbackScale(knockbackScale),
+                WeaponFeedbackMode.Manual,
+                strongImpact: strongImpact);
     }
 
     private void StartMultiBladeActiveThrusts(Vector3 direction, float range, float lineWidth, int thrustCount)
@@ -545,8 +568,18 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     {
         _activeLinePoints[0] = origin;
         _activeLinePoints[1] = origin + direction * range;
-        if (IsMultiBladePath())
-            WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], MultiBladeVfxColor, tuning.BladeVisualDuration, lineWidth * 0.25f, thrustIndex == 0 ? "MULTI" : null);
+        bool strongImpact = IsMultiBladePath() && thrustCount > 1 && ShouldApplyMultiBladeKnockback(thrustIndex, thrustCount);
+        Vector3 visualDirection = IsMultiBladePath()
+            ? GetMultiBladeOffsetDirection(direction, thrustIndex, thrustCount)
+            : direction;
+        ShowThrust(origin, visualDirection, range, lineWidth, tuning);
+        EmitShotFeedback(
+            WeaponFeedbackMode.Active,
+            origin,
+            visualDirection,
+            range,
+            isAbilityDamage: true,
+            eventIntensity: strongImpact ? 1.35f : thrustCount > 1 ? 0.52f : 1f);
 
         int hitCount = EnemyRegistry.CollectClosestNearPolyline(
             _activeLinePoints,
@@ -564,7 +597,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 tuning.BladeActiveDamageScale,
                 impactOrigin,
                 knockbackScale,
-                isAbilityDamage: true);
+                WeaponFeedbackMode.Active,
+                isAbilityDamage: true,
+                strongImpact: strongImpact);
         }
     }
 
@@ -578,7 +613,15 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float dashRange = GetAtomicDashRangeForHitCount(baseRange, hitCount, tuning);
         _activeLinePoints[0] = origin;
         _activeLinePoints[1] = origin + direction * dashRange;
-        WeaponUpgradeVfx.SpawnBeam(_activeLinePoints[0], _activeLinePoints[1], AtomicSharpnessVfxColor, dashDuration, lineWidth * 0.45f, "DASH");
+        EnsureVfx();
+        _vfx.ShowDash(origin, direction, dashRange, lineWidth, dashDuration, AtomicSharpnessVfxColor);
+        EmitShotFeedback(
+            WeaponFeedbackMode.Active,
+            origin,
+            direction,
+            dashRange,
+            isAbilityDamage: true,
+            eventIntensity: Mathf.Lerp(1f, 1.5f, Mathf.Clamp01(hitCount / 4f)));
 
         Owner?.GetComponent<PlayerHealth>()?.GrantInvulnerability(GetAtomicActiveInvulnerabilityDuration(dashDuration));
         Owner?.GetComponent<PlayerMovement>()?.ApplyWeaponDash(
@@ -594,8 +637,8 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 GetAtomicActiveDamageScale(),
                 impactOrigin,
                 0f,
+                WeaponFeedbackMode.Active,
                 isAbilityDamage: true);
-            WeaponUpgradeVfx.SpawnTargetPulse(_targets[i], AtomicSharpnessVfxColor, 0.35f, "DASH");
         }
     }
 
@@ -637,11 +680,11 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         EnsureVfx();
         if (IsMultiBladePath())
-            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, MultiBladeVfxColor);
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, MultiBladeVfxColor, GetNormalizedHeat());
         else if (IsAtomicSharpnessPath())
-            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, AtomicSharpnessVfxColor);
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, AtomicSharpnessVfxColor, GetNormalizedHeat());
         else
-            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration);
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, new Color(0.7f, 1f, 1f, 0.95f), GetNormalizedHeat());
     }
 
     private void ShowSlash(Vector3 origin, Vector3 direction, float range, RotatingBladeTuning tuning)
@@ -669,6 +712,104 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private void EnsureVfx()
     {
         if (_vfx == null)
-            _vfx = RotatingBladeVfx.Create();
+            _vfx = RotatingBladeVfx.Create(Runtime?.Data?.PresentationProfile?.RotatingBlade?.RuntimeVfxPrefab);
+    }
+
+    private float GetNormalizedHeat() => Heat != null ? Heat.NormalizedHeat : 0f;
+
+    private void EmitShotFeedback(
+        WeaponFeedbackMode mode,
+        Vector3 origin,
+        Vector3 direction,
+        float range,
+        bool isAbilityDamage,
+        float eventIntensity)
+    {
+        WeaponFeedbackContext context = new(
+            Runtime,
+            mode,
+            GetNormalizedHeat(),
+            origin,
+            direction,
+            isAbilityDamage: isAbilityDamage,
+            explosionRadius: range,
+            eventIntensity: eventIntensity,
+            anchor: Owner);
+        Feedback.OnShotFired(in context);
+    }
+
+    private void EmitImpactFeedback(
+        Transform target,
+        Vector3 impactOrigin,
+        int damage,
+        WeaponFeedbackMode mode,
+        bool isAbilityDamage,
+        bool kill,
+        bool strongImpact)
+    {
+        Vector3 impactPosition = EnemyRegistry.GetAimPoint(target);
+        Vector3 direction = impactPosition - impactOrigin;
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Owner != null ? Owner.forward : Vector3.forward;
+        Collider surfaceCollider = target.GetComponentInChildren<Collider>();
+        IDamageable damageable = target.GetComponentInParent<IDamageable>();
+        WeaponFeedbackContext context = new(
+            Runtime,
+            mode,
+            GetNormalizedHeat(),
+            impactOrigin,
+            direction,
+            impactPosition,
+            -direction,
+            damage,
+            isKill: kill,
+            isAbilityDamage: isAbilityDamage,
+            targetClass: WeaponEnemyClassifier.GetKind(target),
+            surfaceType: ImpactSurfaceResolver.Resolve(surfaceCollider, damageable),
+            eventIntensity: strongImpact ? 1.35f : 0.72f,
+            target: target,
+            anchor: target);
+        Feedback.OnProjectileImpact(in context);
+        Feedback.OnDamageConfirmed(in context);
+
+        if (!strongImpact || Runtime?.Data?.PresentationProfile == null)
+            return;
+        WeaponPresentationContext finalImpact = new(
+            WeaponPresentationCue.RotatingBladeMultiFinalImpact,
+            Runtime,
+            impactPosition,
+            direction,
+            1.35f,
+            target,
+            isAbilityDamage,
+            anchor: target,
+            mode: mode,
+            upgradePath: Runtime.SelectedPath,
+            weaponLevel: Runtime.Level,
+            normalizedHeat: GetNormalizedHeat(),
+            impactNormal: -direction,
+            damageAmount: damage,
+            isKill: kill,
+            targetClass: WeaponEnemyClassifier.GetKind(target),
+            surfaceType: ImpactSurfaceResolver.Resolve(surfaceCollider, damageable));
+        Presentation.Emit(in finalImpact);
+    }
+
+    private static int GetRemainingHealth(IDamageable damageable)
+    {
+        if (damageable is EnemyHealth enemyHealth)
+            return enemyHealth.CurrentHealth;
+        if (damageable is WeaponDummyEnemy dummy)
+            return dummy.CurrentHealth;
+        if (damageable is Component component)
+        {
+            EnemyHealth parentHealth = component.GetComponentInParent<EnemyHealth>();
+            if (parentHealth != null)
+                return parentHealth.CurrentHealth;
+            WeaponDummyEnemy parentDummy = component.GetComponentInParent<WeaponDummyEnemy>();
+            if (parentDummy != null)
+                return parentDummy.CurrentHealth;
+        }
+        return -1;
     }
 }

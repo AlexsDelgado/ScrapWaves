@@ -25,7 +25,7 @@ MonoBehaviour:
   ActiveAbilityAmmoCost: 5
   SkillCooldown: 10
   Icon: {fileID: 0}
-  PresentationProfile: {fileID: 0}
+  PresentationProfile: {fileID: 11400000, guid: 45f71e8e653db4f48bb8046b50279932, type: 2}
   _specificTuning:
     rid: 6797599696172314625
   LevelData:

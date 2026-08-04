@@ -23,6 +23,8 @@ public sealed class WeaponPresentationProfile : ScriptableObject
     [SerializeField] private WeaponDensitySettings _density = new();
     [SerializeField] private AutomaticCannonPresentationSettings _automaticCannon = new();
     [SerializeField] private FlamethrowerPresentationSettings _flamethrower = new();
+    [SerializeField] private RotatingBladePresentationSettings _rotatingBlade = new();
+    [SerializeField] private MortarPresentationSettings _mortar = new();
     [SerializeField] private GameFeelQualitySettings _qualitySettings;
 
     [Header("Accessibility fallbacks")]
@@ -44,6 +46,8 @@ public sealed class WeaponPresentationProfile : ScriptableObject
     public WeaponDensitySettings Density => _density;
     public AutomaticCannonPresentationSettings AutomaticCannon => _automaticCannon;
     public FlamethrowerPresentationSettings Flamethrower => _flamethrower;
+    public RotatingBladePresentationSettings RotatingBlade => _rotatingBlade;
+    public MortarPresentationSettings Mortar => _mortar;
     public GameFeelQualitySettings QualitySettings => _qualitySettings;
     public Color ReducedFlashColor => _reducedFlashColor;
     public float ReducedFlashIntensity => _reducedFlashIntensity;
@@ -119,10 +123,14 @@ public sealed class WeaponPresentationProfile : ScriptableObject
         _density ??= new WeaponDensitySettings();
         _automaticCannon ??= new AutomaticCannonPresentationSettings();
         _flamethrower ??= new FlamethrowerPresentationSettings();
+        _rotatingBlade ??= new RotatingBladePresentationSettings();
+        _mortar ??= new MortarPresentationSettings();
         _heat.Sanitize();
         _density.Sanitize();
         _automaticCannon.Sanitize();
         _flamethrower.Sanitize();
+        _rotatingBlade.Sanitize();
+        _mortar.Sanitize();
         _reducedFlashIntensity = Mathf.Clamp01(_reducedFlashIntensity);
         for (int i = 0; i < _cues.Count; i++)
         {

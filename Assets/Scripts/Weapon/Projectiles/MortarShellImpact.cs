@@ -40,6 +40,8 @@ public sealed class MortarShellImpact : MonoBehaviour
     private static Material s_shellMaterial;
     private static Material s_grapeshotShellMaterial;
     private static Material s_repeatShellMaterial;
+    private static readonly Dictionary<int, List<MortarShellImpact>> s_authoredPools = new();
+    private static Transform s_poolRoot;
 
     private Vector3 _start;
     private Vector3 _target;
@@ -56,6 +58,8 @@ public sealed class MortarShellImpact : MonoBehaviour
     private GameObject _shellVisual;
     private readonly Vector3[] _arcPoints = new Vector3[ArcSegments + 1];
     private readonly RaycastHit[] _collisionHits = new RaycastHit[CollisionBufferSize];
+    private readonly RaycastHit[] _predictionHits = new RaycastHit[32];
+    private readonly RaycastHit[] _presentationSupportHits = new RaycastHit[16];
     private readonly List<IDamageable> _damagedThisExplosion = new();
     private MortarUpgradePayload _payload = MortarUpgradePayload.None;
     private bool _useWeaponDamageContext;
@@ -65,6 +69,25 @@ public sealed class MortarShellImpact : MonoBehaviour
     private int _remainingRepeatExplosions;
     private float _repeatExplosionTimer;
     private bool _detonated;
+    private MortarShellVfx _authoredVfx;
+    private GameObject _authoredPrefab;
+    private int _poolCapacity;
+    private bool _usesAuthoredPool;
+    private bool _detailedPresentation = true;
+    private bool _showLandingIndicator = true;
+    private IWeaponPresentationSink _presentationSink = NullWeaponPresentationSink.Instance;
+    private IWeaponFeedbackSink _feedbackSink = NullWeaponPresentationSink.Instance;
+    private WeaponFeedbackContext _feedbackTemplate;
+    private bool _hasFeedbackTemplate;
+    private Vector3 _impactNormal = Vector3.up;
+    private Collider _impactCollider;
+    private Vector3 _presentationImpactPoint;
+    private Vector3 _presentationImpactNormal = Vector3.up;
+    private bool _hasPresentationImpactSurface;
+    private int _repeatExplosionIndex;
+
+    public bool HasPredictedPresentationCollision { get; private set; }
+    public Vector3 PredictedPresentationCollisionPoint { get; private set; }
 
     public static MortarShellImpact Launch(
         Vector3 start,
@@ -135,14 +158,78 @@ public sealed class MortarShellImpact : MonoBehaviour
         bool useGrapeshotVfx,
         WeaponDamageContext damageContext = default)
     {
-        GameObject go = new GameObject("MortarShellImpact");
-        MortarShellImpact shell = go.AddComponent<MortarShellImpact>();
+        return LaunchAuthored(
+            start,
+            target,
+            travelTime,
+            arcHeight,
+            damage,
+            explosionRadius,
+            falloff,
+            knockback,
+            collisionRadius,
+            ignoredRoot,
+            payload,
+            useGrapeshotVfx,
+            damageContext,
+            null,
+            0,
+            true,
+            true,
+            null,
+            default);
+    }
+
+    public static MortarShellImpact LaunchAuthored(
+        Vector3 start,
+        Vector3 target,
+        float travelTime,
+        float arcHeight,
+        int damage,
+        float explosionRadius,
+        float falloff,
+        float knockback,
+        float collisionRadius,
+        Transform ignoredRoot,
+        MortarUpgradePayload payload,
+        bool useGrapeshotVfx,
+        WeaponDamageContext damageContext,
+        GameObject authoredPrefab,
+        int poolCapacity,
+        bool detailedPresentation,
+        bool showLandingIndicator,
+        IWeaponPresentationSink presentationSink,
+        WeaponFeedbackContext feedbackTemplate)
+    {
+        MortarShellImpact shell = Acquire(authoredPrefab, poolCapacity);
         shell._payload = payload;
         shell._useGrapeshotVfx = useGrapeshotVfx || payload.UseGrapeshot;
         shell._weaponDamageContext = damageContext;
         shell._useWeaponDamageContext = damageContext.IsValid;
+        shell._detailedPresentation = detailedPresentation;
+        shell._showLandingIndicator = showLandingIndicator;
+        shell._presentationSink = presentationSink ?? NullWeaponPresentationSink.Instance;
+        shell._feedbackSink = WeaponFeedbackEmitter.Resolve(shell._presentationSink);
+        shell._feedbackTemplate = feedbackTemplate;
+        shell._hasFeedbackTemplate = feedbackTemplate.Weapon != null;
         shell.Configure(start, target, travelTime, arcHeight, damage, explosionRadius, falloff, knockback, collisionRadius, ignoredRoot);
         return shell;
+    }
+
+    public static void Prewarm(GameObject authoredPrefab, int count, int poolCapacity)
+    {
+        if (authoredPrefab == null || count <= 0)
+            return;
+        int key = authoredPrefab.GetInstanceID();
+        List<MortarShellImpact> pool = GetOrCreatePool(key);
+        PrunePool(pool);
+        int targetCount = Mathf.Min(Mathf.Max(0, count), Mathf.Max(1, poolCapacity));
+        while (pool.Count < targetCount)
+        {
+            MortarShellImpact shell = CreateAuthored(authoredPrefab, poolCapacity);
+            pool.Add(shell);
+            shell.ReturnToPool();
+        }
     }
 
     private void Configure(
@@ -167,13 +254,72 @@ public sealed class MortarShellImpact : MonoBehaviour
         _knockback = Mathf.Max(0f, knockback);
         _collisionRadius = Mathf.Max(0.01f, collisionRadius);
         _ignoredRoot = ignoredRoot;
+        _elapsed = 0f;
+        _remainingRepeatExplosions = 0;
+        _repeatExplosionTimer = 0f;
+        _repeatExplosionIndex = 0;
+        _detonated = false;
+        _impactNormal = Vector3.up;
+        _impactCollider = null;
+        _presentationImpactPoint = default;
+        _presentationImpactNormal = Vector3.up;
+        _hasPresentationImpactSurface = false;
+        HasPredictedPresentationCollision = false;
+        PredictedPresentationCollisionPoint = default;
         _grapeshotAirburstNormalizedTime = _payload.UseGrapeshot
             ? CalculateGrapeshotAirburstNormalizedTime()
             : -1f;
         transform.position = _start;
-        BuildLineRenderer();
-        BuildShellVisual();
-        UpdateArcVisual();
+        _authoredVfx ??= GetComponent<MortarShellVfx>();
+        if (_authoredVfx != null)
+        {
+            MortarShellVisualStyle style = UsesRepeatExplosionVisuals()
+                ? MortarShellVisualStyle.MultiCharged
+                : UsesGrapeshotVisuals()
+                    ? MortarShellVisualStyle.Grapeshot
+                    : MortarShellVisualStyle.Base;
+            RaycastHit predictedHit = default;
+            bool showPredictedLanding = _showLandingIndicator
+                && !_payload.UseGrapeshot
+                && MortarTrajectory.TryPredictTerrainCollision(
+                    _start,
+                    _target,
+                    _arcHeight,
+                    _travelTime,
+                    _collisionRadius,
+                    _ignoredRoot,
+                    _predictionHits,
+                    out predictedHit);
+            Vector3 presentationTarget = _target;
+            Vector3 presentationNormal = Vector3.up;
+            if (showPredictedLanding)
+            {
+                MortarPresentationSurface.Resolve(
+                    predictedHit,
+                    _explosionRadius,
+                    _ignoredRoot,
+                    _presentationSupportHits,
+                    out presentationTarget,
+                    out presentationNormal);
+            }
+            HasPredictedPresentationCollision = showPredictedLanding;
+            PredictedPresentationCollisionPoint = showPredictedLanding ? presentationTarget : default;
+            _authoredVfx.Configure(
+                style,
+                presentationTarget,
+                presentationNormal,
+                _explosionRadius,
+                _travelTime,
+                _feedbackTemplate.NormalizedHeat,
+                _detailedPresentation,
+                showPredictedLanding);
+        }
+        else
+        {
+            BuildLineRenderer();
+            BuildShellVisual();
+            UpdateArcVisual();
+        }
     }
 
     private void Update()
@@ -205,8 +351,10 @@ public sealed class MortarShellImpact : MonoBehaviour
         }
 
         transform.position = nextPosition;
+        if (_authoredVfx != null)
+            _authoredVfx.UpdateFlight(nextPosition - previousPosition, Mathf.Clamp01(t));
         if (t >= MortarTrajectory.GetMaximumNormalizedTime(_travelTime))
-            DestroyUnityObject(gameObject);
+            ReleaseShell();
     }
 
     // Sweeps the shell between frames so fast projectiles cannot tunnel through map geometry.
@@ -250,6 +398,17 @@ public sealed class MortarShellImpact : MonoBehaviour
             return false;
 
         collisionPoint = closestHit.point;
+        _impactNormal = closestHit.normal.sqrMagnitude > 0.0001f ? closestHit.normal.normalized : Vector3.up;
+        _impactCollider = closestHit.collider;
+        MortarPresentationSurface.Resolve(
+            closestHit,
+            _explosionRadius,
+            _ignoredRoot,
+            _presentationSupportHits,
+            out _presentationImpactPoint,
+            out _presentationImpactNormal);
+        _hasPresentationImpactSurface = true;
+        _authoredVfx?.SetImpactPoint(_presentationImpactPoint, _presentationImpactNormal);
         return true;
     }
 
@@ -306,19 +465,16 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void BuildShellVisual()
     {
-        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        // Compatibility fallback for isolated tests or data without a production
+        // profile. Normal gameplay always enters through the authored shell pool.
+        GameObject visual = new("Mortar Shell Visual");
         _shellVisual = visual;
-        visual.name = "Mortar Shell Visual";
         visual.transform.SetParent(transform, false);
         visual.transform.localScale = Vector3.one * Mathf.Max(0.12f, _collisionRadius * 2f);
-
-        Collider visualCollider = visual.GetComponent<Collider>();
-        if (visualCollider != null)
-            DestroyUnityObject(visualCollider);
-
-        Renderer renderer = visual.GetComponent<Renderer>();
-        if (renderer != null)
-            renderer.sharedMaterial = GetShellMaterial(UsesGrapeshotVisuals(), UsesRepeatExplosionVisuals());
+        MeshFilter filter = visual.AddComponent<MeshFilter>();
+        filter.sharedMesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+        MeshRenderer renderer = visual.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = GetShellMaterial(UsesGrapeshotVisuals(), UsesRepeatExplosionVisuals());
     }
 
     private void UpdateArcVisual()
@@ -379,9 +535,19 @@ public sealed class MortarShellImpact : MonoBehaviour
     private void Detonate(Vector3 explosionCenter)
     {
         _target = explosionCenter;
+        Vector3 presentationPoint = _hasPresentationImpactSurface
+            ? _presentationImpactPoint
+            : explosionCenter;
+        Vector3 presentationNormal = _hasPresentationImpactSurface
+            ? _presentationImpactNormal
+            : _payload.UseGrapeshot ? Vector3.up : _impactNormal;
+        _authoredVfx?.SetImpactPoint(presentationPoint, presentationNormal);
         HideFlightVisuals(keepShellVisual: !_payload.UseGrapeshot && _payload.RepeatExplosionCount > 1);
         if (_payload.UseGrapeshot)
+        {
+            EmitImpactCue(WeaponPresentationCue.MortarGrapeshotAirburst, explosionCenter, Mathf.Max(0.8f, _explosionRadius), 1.15f);
             SpawnGrapeshot(explosionCenter);
+        }
         else
             ApplyExplosionDamageAt(explosionCenter);
 
@@ -391,40 +557,63 @@ public sealed class MortarShellImpact : MonoBehaviour
             _remainingRepeatExplosions = Mathf.Max(1, _payload.RepeatExplosionCount) - 1;
             _repeatExplosionTimer = Mathf.Max(0.01f, _payload.RepeatExplosionDelay);
             if (_remainingRepeatExplosions > 0)
-                WeaponUpgradeVfx.SpawnRing(explosionCenter, _explosionRadius * 1.25f, RepeatExplosionVfxColor, _repeatExplosionTimer, 1.5f, null);
+            {
+                if (_authoredVfx == null)
+                    WeaponUpgradeVfx.SpawnRing(explosionCenter, _explosionRadius * 1.25f, RepeatExplosionVfxColor, _repeatExplosionTimer, 1.5f, null);
+                _authoredVfx?.BeginRepeatCountdown(_repeatExplosionTimer, _remainingRepeatExplosions);
+            }
         }
 
         if (_remainingRepeatExplosions <= 0)
-            DestroyUnityObject(gameObject);
+            ReleaseShell();
     }
 
     private void TickRepeatExplosions()
     {
         if (_remainingRepeatExplosions <= 0)
         {
-            DestroyUnityObject(gameObject);
+            ReleaseShell();
             return;
         }
 
         _repeatExplosionTimer -= Time.deltaTime;
+        _authoredVfx?.UpdateRepeatCountdown(_repeatExplosionTimer);
         if (_repeatExplosionTimer > 0f)
             return;
 
         _remainingRepeatExplosions--;
+        _repeatExplosionIndex++;
         _repeatExplosionTimer = Mathf.Max(0.01f, _payload.RepeatExplosionDelay);
         ApplyExplosionDamageAt(_target);
+        _authoredVfx?.PulseRepeat(_remainingRepeatExplosions);
     }
 
     private void ApplyExplosionDamageAt(Vector3 explosionCenter)
     {
-        if (UsesGrapeshotVisuals())
-            ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius, GrapeshotVfxColor);
-        else if (UsesRepeatExplosionVisuals())
-            ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius, RepeatExplosionVfxColor);
-        else
-            ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius);
+        WeaponPresentationCue impactCue = UsesGrapeshotVisuals()
+            ? WeaponPresentationCue.MortarGrapeshotImpact
+            : UsesRepeatExplosionVisuals()
+                ? (_repeatExplosionIndex > 0
+                    ? WeaponPresentationCue.MortarMultiChargedRepeat
+                    : WeaponPresentationCue.MortarMultiChargedImpact)
+                : WeaponPresentationCue.MortarImpact;
+        bool authoredImpact = EmitImpactCue(
+            impactCue,
+            explosionCenter,
+            _explosionRadius,
+            UsesRepeatExplosionVisuals() ? 1.2f + _repeatExplosionIndex * 0.15f : 1f);
 
-        if (_payload.RepeatExplosionCount > 1)
+        if (!authoredImpact)
+        {
+            if (UsesGrapeshotVisuals())
+                ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius, GrapeshotVfxColor);
+            else if (UsesRepeatExplosionVisuals())
+                ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius, RepeatExplosionVfxColor);
+            else
+                ExplosionRadiusVfx.Spawn(explosionCenter, _explosionRadius);
+        }
+
+        if (_payload.RepeatExplosionCount > 1 && _authoredVfx == null)
             WeaponUpgradeVfx.SpawnRing(explosionCenter, _explosionRadius * 1.15f, RepeatExplosionVfxColor, 0.55f, 1.8f, null);
 
         _damagedThisExplosion.Clear();
@@ -443,8 +632,12 @@ public sealed class MortarShellImpact : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
+            int healthBefore = GetRemainingHealth(damageable);
             if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+            {
                 EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, ResolveKnockback(finalDamage, falloffScale));
+                EmitDamageFeedback(damageable, hits[i], explosionCenter, finalDamage, healthBefore);
+            }
         }
     }
 
@@ -469,7 +662,17 @@ public sealed class MortarShellImpact : MonoBehaviour
             Vector2 offset = Random.insideUnitCircle * spreadRadius;
             Vector3 target = new(center.x + offset.x, center.y - fallDistance, center.z + offset.y);
 
-            MortarShellImpact.Launch(
+            WeaponFeedbackContext childFeedback = new(
+                _feedbackTemplate.Weapon,
+                _feedbackTemplate.Mode,
+                _feedbackTemplate.NormalizedHeat,
+                center,
+                target - center,
+                impactPosition: target,
+                isAbilityDamage: _feedbackTemplate.IsAbilityDamage,
+                explosionRadius: subShellExplosionRadius,
+                eventIntensity: 0.55f);
+            MortarShellImpact.LaunchAuthored(
                 center,
                 target,
                 subShellTravelTime,
@@ -482,7 +685,13 @@ public sealed class MortarShellImpact : MonoBehaviour
                 _ignoredRoot,
                 MortarUpgradePayload.None,
                 useGrapeshotVfx: true,
-                grapeshotContext);
+                grapeshotContext,
+                _authoredPrefab,
+                _poolCapacity,
+                _detailedPresentation && i < 6,
+                showLandingIndicator: false,
+                _presentationSink,
+                childFeedback);
         }
     }
 
@@ -530,6 +739,12 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void HideFlightVisuals(bool keepShellVisual = false)
     {
+        if (_authoredVfx != null)
+        {
+            _authoredVfx.ShowImpact(keepShellVisual);
+            return;
+        }
+
         if (_line != null)
             _line.enabled = false;
 
@@ -666,6 +881,195 @@ public sealed class MortarShellImpact : MonoBehaviour
             Destroy(target);
         else
             DestroyImmediate(target);
+    }
+
+    private bool EmitImpactCue(
+        WeaponPresentationCue cue,
+        Vector3 position,
+        float explosionRadius,
+        float intensity)
+    {
+        if (!_hasFeedbackTemplate || _presentationSink == null || cue == WeaponPresentationCue.None)
+            return false;
+
+        Vector3 direction = _target - _start;
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Vector3.down;
+        Vector3 presentationPosition = _hasPresentationImpactSurface
+            ? _presentationImpactPoint
+            : position;
+        Vector3 presentationNormal = _hasPresentationImpactSurface
+            ? _presentationImpactNormal
+            : _payload.UseGrapeshot ? Vector3.up : _impactNormal;
+        WeaponPresentationContext context = new(
+            cue,
+            _feedbackTemplate.Weapon,
+            presentationPosition,
+            direction,
+            intensity,
+            isAbility: _feedbackTemplate.IsAbilityDamage,
+            mode: _feedbackTemplate.Mode,
+            upgradePath: _feedbackTemplate.UpgradePath,
+            weaponLevel: _feedbackTemplate.WeaponLevel,
+            normalizedHeat: _feedbackTemplate.NormalizedHeat,
+            impactNormal: presentationNormal,
+            damageAmount: _damage,
+            surfaceType: ImpactSurfaceResolver.Resolve(_impactCollider, null),
+            explosionRadius: explosionRadius);
+        _presentationSink.Emit(in context);
+        return true;
+    }
+
+    private void EmitDamageFeedback(
+        IDamageable damageable,
+        Collider hitCollider,
+        Vector3 explosionCenter,
+        int damage,
+        int healthBefore)
+    {
+        if (!_hasFeedbackTemplate)
+            return;
+        Transform target = damageable is Component component
+            ? component.transform
+            : hitCollider != null ? hitCollider.transform : null;
+        Vector3 impactPosition = hitCollider != null
+            ? hitCollider.ClosestPoint(explosionCenter)
+            : target != null ? target.position : explosionCenter;
+        bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+        WeaponFeedbackContext feedback = _feedbackTemplate.WithImpact(
+            impactPosition,
+            impactPosition - explosionCenter,
+            damage,
+            false,
+            false,
+            kill,
+            target,
+            WeaponEnemyClassifier.GetKind(target),
+            ImpactSurfaceResolver.Resolve(hitCollider, damageable));
+        _feedbackSink.OnDamageConfirmed(in feedback);
+    }
+
+    private static int GetRemainingHealth(IDamageable damageable)
+    {
+        if (damageable is EnemyHealth enemyHealth)
+            return enemyHealth.CurrentHealth;
+        if (damageable is WeaponDummyEnemy dummy)
+            return dummy.CurrentHealth;
+        if (damageable is Component component)
+        {
+            EnemyHealth parent = component.GetComponentInParent<EnemyHealth>();
+            if (parent != null)
+                return parent.CurrentHealth;
+            WeaponDummyEnemy parentDummy = component.GetComponentInParent<WeaponDummyEnemy>();
+            if (parentDummy != null)
+                return parentDummy.CurrentHealth;
+        }
+        return -1;
+    }
+
+    private static MortarShellImpact Acquire(GameObject authoredPrefab, int poolCapacity)
+    {
+        if (authoredPrefab == null)
+        {
+            GameObject go = new("MortarShellImpact");
+            return go.AddComponent<MortarShellImpact>();
+        }
+
+        int key = authoredPrefab.GetInstanceID();
+        List<MortarShellImpact> pool = GetOrCreatePool(key);
+        PrunePool(pool);
+        for (int i = 0; i < pool.Count; i++)
+        {
+            MortarShellImpact candidate = pool[i];
+            if (candidate == null || candidate.gameObject.activeSelf)
+                continue;
+            candidate.transform.SetParent(null, false);
+            candidate.gameObject.SetActive(true);
+            candidate._usesAuthoredPool = true;
+            candidate._authoredPrefab = authoredPrefab;
+            candidate._poolCapacity = Mathf.Max(1, poolCapacity);
+            return candidate;
+        }
+
+        MortarShellImpact created = CreateAuthored(authoredPrefab, poolCapacity);
+        pool.Add(created);
+        return created;
+    }
+
+    private static MortarShellImpact CreateAuthored(GameObject authoredPrefab, int poolCapacity)
+    {
+        GameObject go = Instantiate(authoredPrefab);
+        go.name = "MortarShellImpact_Authored";
+        MortarShellImpact shell = go.GetComponent<MortarShellImpact>();
+        if (shell == null)
+            shell = go.AddComponent<MortarShellImpact>();
+        shell._usesAuthoredPool = true;
+        shell._authoredPrefab = authoredPrefab;
+        shell._poolCapacity = Mathf.Max(1, poolCapacity);
+        shell._authoredVfx = go.GetComponent<MortarShellVfx>();
+        return shell;
+    }
+
+    private static List<MortarShellImpact> GetOrCreatePool(int key)
+    {
+        if (!s_authoredPools.TryGetValue(key, out List<MortarShellImpact> pool))
+        {
+            pool = new List<MortarShellImpact>();
+            s_authoredPools.Add(key, pool);
+        }
+        return pool;
+    }
+
+    private static void PrunePool(List<MortarShellImpact> pool)
+    {
+        for (int i = pool.Count - 1; i >= 0; i--)
+        {
+            if (pool[i] == null)
+                pool.RemoveAt(i);
+        }
+    }
+
+    private void ReleaseShell()
+    {
+        if (!_usesAuthoredPool || _authoredPrefab == null)
+        {
+            DestroyUnityObject(gameObject);
+            return;
+        }
+        ReturnToPool();
+    }
+
+    private void ReturnToPool()
+    {
+        _authoredVfx?.ResetVisuals();
+        _damagedThisExplosion.Clear();
+        _presentationSink = NullWeaponPresentationSink.Instance;
+        _feedbackSink = NullWeaponPresentationSink.Instance;
+        _hasFeedbackTemplate = false;
+        int key = _authoredPrefab != null ? _authoredPrefab.GetInstanceID() : 0;
+        if (key != 0 && s_authoredPools.TryGetValue(key, out List<MortarShellImpact> pool))
+        {
+            PrunePool(pool);
+            if (pool.Count > Mathf.Max(1, _poolCapacity))
+            {
+                pool.Remove(this);
+                DestroyUnityObject(gameObject);
+                return;
+            }
+        }
+        EnsurePoolRoot();
+        transform.SetParent(s_poolRoot, false);
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
+        gameObject.SetActive(false);
+    }
+
+    private static void EnsurePoolRoot()
+    {
+        if (s_poolRoot != null)
+            return;
+        GameObject root = new("[MortarShellPool]") { hideFlags = HideFlags.HideAndDontSave };
+        s_poolRoot = root.transform;
     }
 
     private void OnDrawGizmos()

@@ -62,6 +62,9 @@ public class ReticleHud : MonoBehaviour
     private Material _mortarLineMaterial;
     private Material _mortarDotMaterial;
     private float _mortarPredictionTimer;
+    private MortarLandingIndicatorVfx _authoredMortarMarker;
+    private GameObject _authoredMortarMarkerPrefab;
+    private readonly RaycastHit[] _mortarPresentationSupportHits = new RaycastHit[16];
 
     private Texture2D _circleRingTexture;
     private Sprite _circleRingSprite;
@@ -134,6 +137,7 @@ public class ReticleHud : MonoBehaviour
     private void OnDestroy()
     {
         WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
+        DestroyOwnedObject(_authoredMortarMarker != null ? _authoredMortarMarker.gameObject : null);
         DestroyOwnedObject(_mortarMarkerRoot);
         DestroyOwnedObject(_mortarLineMaterial);
         DestroyOwnedObject(_mortarDotMaterial);
@@ -396,6 +400,7 @@ public class ReticleHud : MonoBehaviour
 
     private void UpdateMortarMarker(WeaponInstance runtime, IMortarReticleStatus mortar)
     {
+        EnsureAuthoredMortarMarker(runtime);
         if (_aimProvider == null)
         {
             SetMortarMarkerVisible(false);
@@ -424,10 +429,28 @@ public class ReticleHud : MonoBehaviour
             return;
         }
 
-        Vector3 normal = terrainHit.normal.sqrMagnitude > 0.0001f
-            ? terrainHit.normal.normalized
-            : Vector3.up;
-        Vector3 markerPosition = terrainHit.point + normal * _mortarSurfaceOffset;
+        MortarPresentationSurface.Resolve(
+            terrainHit,
+            mortar.ManualExplosionRadius,
+            transform,
+            _mortarPresentationSupportHits,
+            out Vector3 presentationPoint,
+            out Vector3 normal);
+        Vector3 markerPosition = presentationPoint + normal * _mortarSurfaceOffset;
+        if (_authoredMortarMarker != null)
+        {
+            _authoredMortarMarker.gameObject.SetActive(true);
+            _authoredMortarMarker.Configure(
+                markerPosition,
+                normal,
+                Mathf.Max(_mortarLandingRingRadius, mortar.ManualExplosionRadius),
+                mortar.ManualTravelTime,
+                runtime.HasAdvancedPath ? runtime.SelectedPath : WeaponUpgradePath.None);
+            if (_mortarMarkerRoot != null)
+                _mortarMarkerRoot.SetActive(false);
+            return;
+        }
+
         _mortarMarkerRoot.transform.position = markerPosition;
         _mortarCenterDot.position = markerPosition;
 
@@ -489,8 +512,36 @@ public class ReticleHud : MonoBehaviour
 
     private void SetMortarMarkerVisible(bool visible)
     {
-        if (_mortarMarkerRoot != null && _mortarMarkerRoot.activeSelf != visible)
-            _mortarMarkerRoot.SetActive(visible);
+        if (_authoredMortarMarker != null && _authoredMortarMarker.gameObject.activeSelf != visible)
+            _authoredMortarMarker.gameObject.SetActive(visible);
+        bool showLegacy = visible && _authoredMortarMarker == null;
+        if (_mortarMarkerRoot != null && _mortarMarkerRoot.activeSelf != showLegacy)
+            _mortarMarkerRoot.SetActive(showLegacy);
+    }
+
+    private void EnsureAuthoredMortarMarker(WeaponInstance runtime)
+    {
+        GameObject prefab = runtime?.Data?.PresentationProfile?.Mortar?.LandingIndicatorPrefab;
+        if (prefab == _authoredMortarMarkerPrefab)
+            return;
+
+        if (_authoredMortarMarker != null)
+            DestroyOwnedObject(_authoredMortarMarker.gameObject);
+        _authoredMortarMarker = null;
+        _authoredMortarMarkerPrefab = prefab;
+        if (prefab == null)
+            return;
+
+        GameObject instance = Instantiate(prefab);
+        instance.name = "Mortar Authored Landing Prediction";
+        _authoredMortarMarker = instance.GetComponent<MortarLandingIndicatorVfx>();
+        if (_authoredMortarMarker == null)
+        {
+            DestroyOwnedObject(instance);
+            _authoredMortarMarkerPrefab = null;
+            return;
+        }
+        instance.SetActive(false);
     }
 
     private RectTransform CreateCenteredRoot(string name, Vector2 size)

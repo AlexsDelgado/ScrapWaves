@@ -23,6 +23,9 @@ MonoBehaviour:
   BaseKnockback: 2.5
   BaseManualAmmo: 50
   ActiveAbilityAmmoCost: 8
+  SkillCooldown: 1
+  Icon: {fileID: 0}
+  PresentationProfile: {fileID: 11400000, guid: e83696b42bd757e4f897d3ce46d41d61, type: 2}
   _specificTuning:
     rid: 5516199936037486593
   LevelData:
@@ -66,16 +69,20 @@ MonoBehaviour:
     DamageMultiplier: 2.08
     AttackRateMultiplier: 1.405
     ManualAmmoMultiplier: 1.495
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: Multi-Blade
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData: []
   PathB:
     PathName: Atomic Sharpness
     DamageMultiplier: 1
     AttackRateMultiplier: 1
     ManualAmmoOverride: -1
+    LevelData: []
   references:
     version: 2
     RefIds:
@@ -99,4 +106,6 @@ MonoBehaviour:
         BladeActiveHeatStepPercent: 20
         BladeActiveLineWidth: 0.8
         BladeActiveDamageScale: 1.5
+        AtomicDashBaseRangeMultiplier: 3
+        AtomicDashRangePerHitMultiplier: 1
         BladeVisualDuration: 0.16

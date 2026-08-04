@@ -47,5 +47,22 @@ public enum WeaponPresentationCue
     FlamethrowerBurnStatus = 44,
     FlamethrowerJellifiedStatus = 45,
     FlamethrowerNitrogenSlow = 46,
-    FlamethrowerNitrogenFreeze = 47
+    FlamethrowerNitrogenFreeze = 47,
+    RotatingBladeManualSlash = 48,
+    RotatingBladeActiveThrust = 49,
+    RotatingBladeMultiSlash = 50,
+    RotatingBladeMultiThrust = 51,
+    RotatingBladeAtomicSlash = 52,
+    RotatingBladeAtomicDash = 53,
+    RotatingBladeContactImpact = 54,
+    RotatingBladeMultiFinalImpact = 55,
+    RotatingBladeAtomicSliceImpact = 56,
+    MortarAutomaticLaunch = 57,
+    MortarManualLaunch = 58,
+    MortarActiveBarrage = 59,
+    MortarImpact = 60,
+    MortarGrapeshotAirburst = 61,
+    MortarGrapeshotImpact = 62,
+    MortarMultiChargedImpact = 63,
+    MortarMultiChargedRepeat = 64
 }

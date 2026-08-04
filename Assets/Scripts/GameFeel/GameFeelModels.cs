@@ -339,6 +339,51 @@ public sealed class FlamethrowerPresentationSettings
 }
 
 [Serializable]
+public sealed class RotatingBladePresentationSettings
+{
+    [Header("Production prefab")]
+    [Tooltip("Authored physical blade, persistent trail, slash surface, and thrust ribbon runtime presentation.")]
+    public GameObject RuntimeVfxPrefab;
+
+    [Header("Bounded runtime layers")]
+    [Range(1, 8)] public int MaximumOrbitingBlades = 6;
+    [Range(1, 16)] public int MaximumConcurrentSlashes = 8;
+    [Range(1, 16)] public int MaximumConcurrentThrusts = 8;
+
+    public void Sanitize()
+    {
+        MaximumOrbitingBlades = Mathf.Clamp(MaximumOrbitingBlades, 1, 8);
+        MaximumConcurrentSlashes = Mathf.Clamp(MaximumConcurrentSlashes, 1, 16);
+        MaximumConcurrentThrusts = Mathf.Clamp(MaximumConcurrentThrusts, 1, 16);
+    }
+}
+
+[Serializable]
+public sealed class MortarPresentationSettings
+{
+    [Header("Production shell")]
+    [Tooltip("Authored shell, short trail, flight smoke, and world-space landing prediction presentation.")]
+    public GameObject ShellPrefab;
+    [Tooltip("Authored manual-aim landing marker with blast radius, path color, and time-to-impact pulse.")]
+    public GameObject LandingIndicatorPrefab;
+
+    [Header("Pooling and density")]
+    [Min(0), Tooltip("Shell instances prepared before the first launch while the Mortar is equipped.")]
+    public int ShellPrewarmCount = 24;
+    [Min(1), Tooltip("Maximum number of inactive authored shells retained by the Mortar pool.")]
+    public int ShellPoolCapacity = 128;
+    [Min(1), Tooltip("Maximum shells in a dense active rain that receive full smoke, trail, and landing-warning detail.")]
+    public int MaximumDetailedRainShells = 14;
+
+    public void Sanitize()
+    {
+        ShellPoolCapacity = Mathf.Max(1, ShellPoolCapacity);
+        ShellPrewarmCount = Mathf.Clamp(ShellPrewarmCount, 0, ShellPoolCapacity);
+        MaximumDetailedRainShells = Mathf.Clamp(MaximumDetailedRainShells, 1, ShellPoolCapacity);
+    }
+}
+
+[Serializable]
 public sealed class GameFeelRuntimeOptions
 {
     [Header("Presentation Channels")]

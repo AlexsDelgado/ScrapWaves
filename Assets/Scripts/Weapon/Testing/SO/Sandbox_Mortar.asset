@@ -23,6 +23,9 @@ MonoBehaviour:
   BaseKnockback: 4
   BaseManualAmmo: 36
   ActiveAbilityAmmoCost: 5
+  SkillCooldown: 1
+  Icon: {fileID: 0}
+  PresentationProfile: {fileID: 11400000, guid: 45f71e8e653db4f48bb8046b50279932, type: 2}
   _specificTuning:
     rid: 5516199936037486596
   LevelData:
@@ -66,16 +69,20 @@ MonoBehaviour:
     DamageMultiplier: 2.08
     AttackRateMultiplier: 1.405
     ManualAmmoMultiplier: 1.495
+  BalanceStats: []
+  UpgradeSpecificStats: []
   PathA:
     PathName: Grapeshot
     DamageMultiplier: 1.22
     AttackRateMultiplier: 1.12
     ManualAmmoOverride: -1
+    LevelData: []
   PathB:
     PathName: Multi-Charged Shells
     DamageMultiplier: 1.36
     AttackRateMultiplier: 0.92
     ManualAmmoOverride: -1
+    LevelData: []
   references:
     version: 2
     RefIds:

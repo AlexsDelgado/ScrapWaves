@@ -2083,6 +2083,7 @@ public class WeaponUpgradeEffectTests
             Physics.SyncTransforms();
 
             weapon.TickManual(0.1f, Vector3.forward, false);
+            weapon.TickManual(0.1f, Vector3.forward, false);
 
             Assert.That(finalDamageable.TotalDamage, Is.GreaterThan(0));
             EnemyKnockbackReceiver finalReceiver = finalTarget.GetComponent<EnemyKnockbackReceiver>();
@@ -3174,7 +3175,7 @@ public class WeaponUpgradeEffectTests
             Assert.That(line, Is.Not.Null);
             AssertYellow(line.startColor);
 
-            Renderer visualRenderer = shell.GetComponentInChildren<Renderer>();
+            Renderer visualRenderer = GetShellVisualRenderer(shell);
             Assert.That(visualRenderer, Is.Not.Null);
             AssertYellow(visualRenderer.sharedMaterial.color);
         }
@@ -3206,7 +3207,9 @@ public class WeaponUpgradeEffectTests
                 null,
                 new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
 
-            SetPrivateField(shell, "_elapsed", 0.74f);
+            // Keep a healthy margin before the 0.75 airburst threshold because
+            // Update adds the editor frame delta, which varies with test order.
+            SetPrivateField(shell, "_elapsed", 0.5f);
             InvokePrivate(shell, "Update");
             Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
 
@@ -3720,9 +3723,10 @@ public class WeaponUpgradeEffectTests
 
     private static void AssertPeach(Color color)
     {
-        Assert.That(color.r, Is.EqualTo(1f).Within(0.001f));
-        Assert.That(color.g, Is.EqualTo(0.68f).Within(0.001f));
-        Assert.That(color.b, Is.EqualTo(0.48f).Within(0.001f));
+        const float color32Tolerance = 0.002f;
+        Assert.That(color.r, Is.EqualTo(1f).Within(color32Tolerance));
+        Assert.That(color.g, Is.EqualTo(0.68f).Within(color32Tolerance));
+        Assert.That(color.b, Is.EqualTo(0.48f).Within(color32Tolerance));
     }
 
     private static Renderer GetShellVisualRenderer(Component root)
