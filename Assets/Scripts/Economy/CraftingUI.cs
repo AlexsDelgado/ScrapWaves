@@ -23,6 +23,8 @@ public class CraftingUI : MonoBehaviour
     private Action _onClosed;
     private ThirdPersonCamera _resolvedCamera;
     private bool _isVisible;
+    private bool _awaitingAdvancedChoice;
+    private LevelUpChoiceUI _activeChoiceUi;
 
     public bool IsVisible => _isVisible;
 
@@ -52,6 +54,12 @@ public class CraftingUI : MonoBehaviour
     private void Hide()
     {
         _isVisible = false;
+
+        // Si el path choice quedó abierto detrás/encima, cancelarlo para que no
+        // quede colgado al cerrar el crafting.
+        if (_awaitingAdvancedChoice && _activeChoiceUi != null && _activeChoiceUi.IsVisible)
+            _activeChoiceUi.CancelSelection();
+
         if (_canvas != null)
             _canvas.gameObject.SetActive(false);
         Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
@@ -175,11 +183,30 @@ public class CraftingUI : MonoBehaviour
         LevelUpChoiceUI choiceUi,
         List<LevelUpChoiceOption> options)
     {
+        _awaitingAdvancedChoice = true;
+        _activeChoiceUi = choiceUi;
+
+        // Ocultar crafting para que el path choice quede visible y clickeable.
+        if (_canvas != null)
+            _canvas.gameObject.SetActive(false);
+
+        // CraftingCanvas usa sortingOrder 5100; el choice por defecto es 5000.
+        choiceUi.EnsureSortingOrderAtLeast(5200);
+
         int selected = -1;
         yield return choiceUi.PresentCoroutine("Advanced Tinkering", options, index => selected = index);
 
+        _awaitingAdvancedChoice = false;
+        _activeChoiceUi = null;
+
+        // El usuario cerró el crafting mientras elegía path: no reabrir ni aplicar.
+        if (!_isVisible)
+            yield break;
+
         Time.timeScale = 0f;
         SetCameraBlocked(true);
+        if (_canvas != null)
+            _canvas.gameObject.SetActive(true);
 
         MaterialInventory inventory = FindAnyObjectByType<MaterialInventory>();
         CraftingActionResult result;
