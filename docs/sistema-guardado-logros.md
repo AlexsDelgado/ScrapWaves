@@ -117,6 +117,17 @@ poblar la tienda — diseño los va a reemplazar/ajustar cuando defina el arte y
 | Arm | Garra Reciclada, Guantelete Magnético, Brazo Hidráulico |
 | Leg | Botas a Reacción (logro), Resortes Reciclados, Piernas de Repuesto |
 
+## Botón "Reiniciar progreso" (herramienta de demo/QA)
+
+La ventana de Objetivos tiene un botón rojo "Reiniciar progreso" al lado de "Cerrar".
+Requiere tocarlo dos veces (arma la confirmación, el texto cambia a "¿Seguro? Tocá de
+nuevo", y recién el segundo click ejecuta) para evitar un reset accidental. Llama a
+`SaveManager.ResetProgress()`, que vuelve `SaveData` a un estado nuevo (Scrap en 0, todos
+los desbloqueos e IDs de logros borrados, contadores en 0) y reescribe el archivo de save.
+No hay riesgo de dejar contenido inaccesible: todo lo que tiene `UnlockedFromStart = true`
+sigue disponible igual, solo se pierde lo comprado/desbloqueado con Scrap o logros. Pensado
+para poder mostrar el flujo de desbloqueo desde cero en una demo sin reinstalar el juego.
+
 ## Nota: botones de testing ocultos para build
 
 `TitleScreenController` tiene un nuevo campo `_includeTestingButtons` (default `false`) que

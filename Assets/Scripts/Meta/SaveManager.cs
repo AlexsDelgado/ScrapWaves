@@ -197,6 +197,20 @@ public class SaveManager : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Borra todo el progreso persistente (desbloqueos, Scrap, logros y contadores) y
+    /// vuelve a guardar el archivo vacío. Pensado como herramienta de demo/QA para poder
+    /// mostrar el flujo de desbloqueo desde cero sin reinstalar — no hay soft-lock posible
+    /// porque el contenido existente vuelve a su default (UnlockedFromStart).
+    /// </summary>
+    public void ResetProgress()
+    {
+        _data = new SaveData();
+        Save();
+        OnScrapChanged?.Invoke();
+        OnUnlocksChanged?.Invoke();
+    }
+
     public void AddScrap(int amount)
     {
         if (amount == 0)

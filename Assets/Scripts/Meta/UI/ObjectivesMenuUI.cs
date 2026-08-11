@@ -23,6 +23,9 @@ public class ObjectivesMenuUI : MonoBehaviour
     private TextMeshProUGUI _scrapText;
     private RectTransform _achievementsContent;
     private RectTransform _shopContent;
+    private Button _resetButton;
+    private TextMeshProUGUI _resetButtonLabel;
+    private bool _resetArmed;
     private bool _isVisible;
 
     public bool IsVisible => _isVisible;
@@ -30,6 +33,9 @@ public class ObjectivesMenuUI : MonoBehaviour
     public void Show()
     {
         _isVisible = true;
+        _resetArmed = false;
+        if (_resetButtonLabel != null)
+            _resetButtonLabel.text = "Reiniciar progreso";
         EnsureCatalog();
         EnsureUi();
         Refresh();
@@ -75,6 +81,24 @@ public class ObjectivesMenuUI : MonoBehaviour
     }
 
     private void HandleAchievementUnlocked(AchievementDefinition achievement) => Refresh();
+
+    private void HandleResetClicked()
+    {
+        if (!_resetArmed)
+        {
+            _resetArmed = true;
+            if (_resetButtonLabel != null)
+                _resetButtonLabel.text = "¿Seguro? Tocá de nuevo";
+            return;
+        }
+
+        _resetArmed = false;
+        if (_resetButtonLabel != null)
+            _resetButtonLabel.text = "Reiniciar progreso";
+
+        SaveManager.Instance?.ResetProgress();
+        Refresh();
+    }
 
     private void Refresh()
     {
@@ -433,17 +457,24 @@ public class ObjectivesMenuUI : MonoBehaviour
             window.transform, "ShopScroll", flexibleHeight: 1.6f, grid: true, cardWidth: _cardWidth, cardHeight: _cardHeight);
         _shopContent = shopContent;
 
-        // Cerrar.
+        // Cerrar + reset de progreso (herramienta de demo/QA).
         var bottomBar = new GameObject("BottomBar", typeof(RectTransform));
         bottomBar.transform.SetParent(window.transform, false);
         bottomBar.AddComponent<LayoutElement>().preferredHeight = 56f;
         var bottomLayout = bottomBar.AddComponent<HorizontalLayoutGroup>();
         bottomLayout.childAlignment = TextAnchor.MiddleCenter;
+        bottomLayout.spacing = 20f;
         bottomLayout.childControlWidth = false;
         bottomLayout.childControlHeight = false;
 
         Button closeBtn = HudUiFactory.CreateButton(bottomBar.transform, "Cerrar", new Vector2(220f, 48f));
         closeBtn.onClick.AddListener(Hide);
+
+        _resetButton = HudUiFactory.CreateButton(bottomBar.transform, "Reiniciar progreso", new Vector2(260f, 48f));
+        _resetButtonLabel = _resetButton.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (_resetButton.TryGetComponent(out Image resetBg))
+            resetBg.color = new Color(0.4f, 0.18f, 0.18f, 1f);
+        _resetButton.onClick.AddListener(HandleResetClicked);
 
         _canvas.gameObject.SetActive(false);
     }
