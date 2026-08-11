@@ -2,6 +2,7 @@ using UnityEngine;
 
 public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 {
+    private const int ActiveShellPlacementAttempts = 4;
     private bool _presentationPoolPrepared;
     private readonly RaycastHit[] _barragePredictionHits = new RaycastHit[32];
     private readonly RaycastHit[] _presentationSupportHits = new RaycastHit[16];
@@ -118,33 +119,32 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
+        MortarTuning tuning = Runtime.Data.Mortar;
+        Vector3 aimedCenter = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;
+        if (!TryResolveActiveBarrageSurface(
+                aimedCenter,
+                tuning,
+                out Vector3 center,
+                out Vector3 presentationNormal))
+        {
+            return;
+        }
+
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
-        MortarTuning tuning = Runtime.Data.Mortar;
-        Vector3 center = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;
         int shellCount = IsGrapeshotPath() ? GetGrapeshotRainShellCount(tuning) : GetActiveShellCount(tuning);
         float barrageRadius = tuning.MortarBarrageRadius * GetAreaSizeMultiplier();
-        if (TryGetActiveBarrageCollision(center, tuning, out RaycastHit barrageHit))
-        {
-            MortarPresentationSurface.Resolve(
-                barrageHit,
-                tuning.MortarActiveExplosionRadius * GetAreaSizeMultiplier(),
-                Owner,
-                _presentationSupportHits,
-                out Vector3 presentationPoint,
-                out Vector3 presentationNormal);
-            EmitLaunchFeedback(
-                WeaponFeedbackMode.Active,
-                Spawn.position,
-                presentationPoint,
-                barrageRadius,
-                true,
-                presentationNormal);
-        }
+        EmitLaunchFeedback(
+            WeaponFeedbackMode.Active,
+            Spawn.position,
+            center,
+            barrageRadius,
+            true,
+            presentationNormal);
         for (int i = 0; i < shellCount; i++)
         {
-            Vector3 impact = center + RandomPlanarOffset(barrageRadius);
+            Vector3 impact = ResolveActiveShellImpact(center, barrageRadius, tuning);
             Vector3 dropStart = impact + Vector3.up * Mathf.Max(0f, tuning.MortarActiveDropHeight);
             FireShell(
                 dropStart,
@@ -366,6 +366,44 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             Owner,
             _barragePredictionHits,
             out terrainHit);
+    }
+
+    private bool TryResolveActiveBarrageSurface(
+        Vector3 aimedCenter,
+        MortarTuning tuning,
+        out Vector3 surfacePoint,
+        out Vector3 surfaceNormal)
+    {
+        surfacePoint = default;
+        surfaceNormal = Vector3.up;
+        if (!TryGetActiveBarrageCollision(aimedCenter, tuning, out RaycastHit terrainHit))
+            return false;
+
+        MortarPresentationSurface.Resolve(
+            terrainHit,
+            tuning.MortarActiveExplosionRadius * GetAreaSizeMultiplier(),
+            Owner,
+            _presentationSupportHits,
+            out surfacePoint,
+            out surfaceNormal);
+        return true;
+    }
+
+    private Vector3 ResolveActiveShellImpact(
+        Vector3 resolvedCenter,
+        float barrageRadius,
+        MortarTuning tuning)
+    {
+        for (int attempt = 0; attempt < ActiveShellPlacementAttempts; attempt++)
+        {
+            Vector3 candidate = resolvedCenter + RandomPlanarOffset(barrageRadius);
+            if (TryGetActiveBarrageCollision(candidate, tuning, out RaycastHit terrainHit))
+                return terrainHit.point;
+        }
+
+        // The center was already validated against terrain. Falling back to it
+        // keeps the promised shell count without ever placing a shell underground.
+        return resolvedCenter;
     }
 
     private static Vector3 RandomPlanarOffset(float radius)

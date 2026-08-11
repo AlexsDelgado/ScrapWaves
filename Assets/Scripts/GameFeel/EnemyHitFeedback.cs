@@ -5,8 +5,6 @@ public sealed class EnemyHitFeedback : MonoBehaviour
 {
     private static readonly int HitAmountId = Shader.PropertyToID("_HitAmount");
     private static readonly int HitColorId = Shader.PropertyToID("_HitColor");
-    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-    private static readonly int ColorId = Shader.PropertyToID("_Color");
 
     [Header("Visual root")]
     [SerializeField, Tooltip("Optional cosmetic-only root. Leave empty to use material flash without moving the gameplay root.")]
@@ -25,7 +23,6 @@ public sealed class EnemyHitFeedback : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float _bossResponseScale = 0.45f;
 
     private MaterialPropertyBlock _propertyBlock;
-    private Color[] _baseColors;
     private Vector3 _visualBasePosition;
     private Vector3 _visualBaseScale;
     private Vector3 _hitDirection;
@@ -111,21 +108,6 @@ public sealed class EnemyHitFeedback : MonoBehaviour
             _renderers = GetComponentsInChildren<Renderer>(true);
 
         _propertyBlock ??= new MaterialPropertyBlock();
-        if (_baseColors == null || _baseColors.Length != _renderers.Length)
-        {
-            _baseColors = new Color[_renderers.Length];
-            for (int i = 0; i < _renderers.Length; i++)
-            {
-                Material material = _renderers[i] != null ? _renderers[i].sharedMaterial : null;
-                if (material != null && material.HasProperty(BaseColorId))
-                    _baseColors[i] = material.GetColor(BaseColorId);
-                else if (material != null && material.HasProperty(ColorId))
-                    _baseColors[i] = material.GetColor(ColorId);
-                else
-                    _baseColors[i] = Color.white;
-            }
-        }
-
         if (_visualRoot != null)
         {
             _visualBasePosition = _visualRoot.localPosition;
@@ -145,9 +127,6 @@ public sealed class EnemyHitFeedback : MonoBehaviour
             renderer.GetPropertyBlock(_propertyBlock);
             _propertyBlock.SetFloat(HitAmountId, flashAmount);
             _propertyBlock.SetColor(HitColorId, _activeColor);
-            Color tint = Color.Lerp(_baseColors[i], _activeColor, flashAmount * 0.75f);
-            _propertyBlock.SetColor(BaseColorId, tint);
-            _propertyBlock.SetColor(ColorId, tint);
             renderer.SetPropertyBlock(_propertyBlock);
         }
     }
@@ -169,7 +148,7 @@ public sealed class EnemyHitFeedback : MonoBehaviour
 
     private void RestoreVisuals()
     {
-        if (_renderers != null && _baseColors != null)
+        if (_renderers != null)
         {
             for (int i = 0; i < _renderers.Length; i++)
             {
@@ -179,8 +158,6 @@ public sealed class EnemyHitFeedback : MonoBehaviour
 
                 renderer.GetPropertyBlock(_propertyBlock);
                 _propertyBlock.SetFloat(HitAmountId, 0f);
-                _propertyBlock.SetColor(BaseColorId, _baseColors[i]);
-                _propertyBlock.SetColor(ColorId, _baseColors[i]);
                 renderer.SetPropertyBlock(_propertyBlock);
             }
         }

@@ -88,7 +88,7 @@ public class WeaponManager : MonoBehaviour
 
         WeaponInstance instance = new() { Data = data, State = WeaponState.Automatic };
         if (data.PresentationProfile != null)
-            _presentationController?.SetProfile(data.PresentationProfile);
+            _presentationController?.RegisterProfile(data.PresentationProfile);
         IWeaponBehaviour behaviour = CreateBehaviour(data);
         behaviour.Setup(instance, transform, _stats, _heat);
         _equipped.Add(behaviour);

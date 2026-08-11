@@ -136,16 +136,14 @@ MonoBehaviour:
   _cues:
   - Cue: 20
     VfxPrefab: {fileID: 4011628442215546370, guid: 8ab85bc610f503b448f185a3fe5db4d9, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.72
-    PitchMin: 0.72
-    PitchMax: 0.84
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -190,16 +188,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 21
     VfxPrefab: {fileID: 4011628442215546370, guid: 8ab85bc610f503b448f185a3fe5db4d9, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.82
-    PitchMin: 0.68
-    PitchMax: 0.78
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -244,16 +240,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 22
     VfxPrefab: {fileID: 4011628442215546370, guid: 8ab85bc610f503b448f185a3fe5db4d9, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.92
-    PitchMin: 0.62
-    PitchMax: 0.72
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -298,16 +292,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 29
     VfxPrefab: {fileID: 4011628442215546370, guid: 8ab85bc610f503b448f185a3fe5db4d9, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 1
-    PitchMin: 0.54
-    PitchMax: 0.66
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -352,16 +344,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 32
     VfxPrefab: {fileID: 3835096273740526264, guid: 900986361d2e58c4abc504272c99f782, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 1
-    PitchMin: 0.48
-    PitchMax: 0.62
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -458,15 +448,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 23
     VfxPrefab: {fileID: 5569437436765060885, guid: b3f78474f88069542b662ff3de21becd, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
+    AudioClips: []
     LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
-    ApplyEventIntensityToPitch: 1
-    Volume: 0.36
-    PitchMin: 0.82
-    PitchMax: 0.9
+    ApplyHeatStrainToMechanicalLayer: 0
+    ApplyEventIntensityToPitch: 0
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -511,15 +500,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 24
     VfxPrefab: {fileID: 0}
-    AudioClips:
-    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    AudioClips: []
     LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
     ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.62
-    PitchMin: 0.9
-    PitchMax: 1.16
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -564,15 +552,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 25
     VfxPrefab: {fileID: 0}
-    AudioClips:
-    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    AudioClips: []
     LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
     ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.42
-    PitchMin: 0.58
-    PitchMax: 0.7
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -617,16 +604,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 26
     VfxPrefab: {fileID: 3801478027116244095, guid: d89f9d849dcb1be4590cc8621b9d9244, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.92
-    PitchMin: 0.52
-    PitchMax: 0.66
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -671,16 +656,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 27
     VfxPrefab: {fileID: 8332793180487446545, guid: 478436ca39fca914f882027c1914565f, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 1
-    PitchMin: 0.42
-    PitchMax: 0.56
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -725,16 +708,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 28
     VfxPrefab: {fileID: 196659015136520792, guid: fe107b454d85e1b48912e96ff709555f, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.88
-    PitchMin: 0.7
-    PitchMax: 0.86
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -779,15 +760,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 30
     VfxPrefab: {fileID: 577782919859121545, guid: 4fa0de37e574f9447a9dd0b2a6292272, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: dfd9c8995ccf2924c8f58143902a7f92, type: 3}
+    AudioClips: []
     LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
     ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 0.48
-    PitchMin: 0.62
-    PitchMax: 0.74
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55
@@ -832,16 +812,14 @@ MonoBehaviour:
       m_RotationOrder: 4
   - Cue: 31
     VfxPrefab: {fileID: 807892930617177552, guid: 80e6462ced029b5499a085e4e4daeb9d, type: 3}
-    AudioClips:
-    - {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
-    - {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
-    LayerAudioClips: 1
+    AudioClips: []
+    LayerAudioClips: 0
     MechanicalLayerVolume: 0.78
-    ApplyHeatStrainToMechanicalLayer: 1
+    ApplyHeatStrainToMechanicalLayer: 0
     ApplyEventIntensityToPitch: 0
-    Volume: 1
-    PitchMin: 0.46
-    PitchMax: 0.58
+    Volume: 0
+    PitchMin: 1
+    PitchMax: 1
     SpatialBlend: 0.9
     MinimumDistance: 1.2
     MaximumDistance: 55

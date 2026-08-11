@@ -1,9 +1,27 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-40)]
 public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbackSink
 {
+    private sealed class DirectorRuntime
+    {
+        public CombatFeedbackDirector Director;
+    }
+
+    private readonly struct LegacyLoopRoute
+    {
+        public readonly CombatFeedbackDirector Director;
+        public readonly WeaponPresentationLoopHandle InternalHandle;
+
+        public LegacyLoopRoute(CombatFeedbackDirector director, WeaponPresentationLoopHandle internalHandle)
+        {
+            Director = director;
+            InternalHandle = internalHandle;
+        }
+    }
+
     [Header("Presentation profile")]
     [SerializeField] private WeaponPresentationProfile _profile;
     [SerializeField] private ThirdPersonCamera _camera;
@@ -21,19 +39,20 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     [SerializeField] private CameraFeedbackController _cameraFeedback = new();
     [SerializeField] private HitStopController _hitStop = new();
 
+    private readonly Dictionary<WeaponPresentationProfile, DirectorRuntime> _directors = new();
+    private readonly Dictionary<int, LegacyLoopRoute> _legacyLoopRoutes = new();
     private Transform _runtimeRoot;
-    private CombatFeedbackDirector _director;
     private HeadHunterChargeVfx _debugChargeVfx;
-    private bool _directorReady;
+    private int _nextLegacyLoopId = 1;
 
     public WeaponPresentationProfile Profile => _profile;
     public GameFeelRuntimeOptions RuntimeOptions => _runtimeOptions;
-    public int ActiveLoopCount => _director?.ActiveLoopCount ?? 0;
-    public int ActiveAudioVoiceCount => _director?.ActiveAudioVoiceCount ?? 0;
-    public int AudioVoiceCapacity => _director?.AudioVoiceCapacity ?? 0;
-    public int ActiveVfxCount => _director?.ActiveVfxCount ?? 0;
-    public int TotalVfxCapacity => _director?.TotalVfxCapacity ?? 0;
-    public int SuppressionCount => _director?.SuppressionCount ?? 0;
+    public int ActiveLoopCount => SumActiveLoops();
+    public int ActiveAudioVoiceCount => SumActiveAudioVoices();
+    public int AudioVoiceCapacity => SumAudioVoiceCapacity();
+    public int ActiveVfxCount => SumActiveVfx();
+    public int TotalVfxCapacity => SumVfxCapacity();
+    public int SuppressionCount => SumSuppressions();
 
     public void Configure(
         WeaponPresentationProfile profile,
@@ -47,21 +66,27 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         _camera = camera;
         _audioManager = audioManager;
         _audioVoiceCount = Mathf.Clamp(audioVoiceCount, 1, 64);
-        _directorReady = false;
-        BuildDirector();
+        RegisterProfile(profile);
     }
 
+    // Sets the fallback profile used by the single-weapon sandbox and legacy calls
+    // that do not carry a WeaponInstance. Gameplay weapon contexts route by their
+    // own WeaponData profile and therefore never replace one another.
     public void SetProfile(WeaponPresentationProfile profile)
     {
-        if (_profile == profile && _directorReady)
+        if (_profile == profile && (profile == null || _directors.ContainsKey(profile)))
             return;
 
         ReleaseRuntimeState();
         DestroyRuntimeRoot();
         _profile = profile;
-        _directorReady = false;
         ResolveSceneDependencies();
-        BuildDirector();
+        RegisterProfile(profile);
+    }
+
+    public void RegisterProfile(WeaponPresentationProfile profile)
+    {
+        GetOrCreateDirector(profile);
     }
 
     public void Emit(in WeaponPresentationContext context)
@@ -71,8 +96,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public bool TryEmitAtTime(in WeaponPresentationContext context, float now)
     {
-        EnsureDirector();
-        return _director != null && _director.EmitLegacy(in context, ResolveSfxVolume(), now);
+        CombatFeedbackDirector director = ResolveDirector(context.Weapon);
+        return director != null && director.EmitLegacy(in context, ResolveSfxVolume(), now);
     }
 
     public WeaponPresentationLoopHandle BeginLoop(in WeaponPresentationContext context)
@@ -82,31 +107,43 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public WeaponPresentationLoopHandle BeginLoopAtTime(in WeaponPresentationContext context, float now)
     {
-        EnsureDirector();
-        return _director != null
-            ? _director.BeginLegacyLoop(in context, ResolveSfxVolume(), now)
-            : default;
+        CombatFeedbackDirector director = ResolveDirector(context.Weapon);
+        if (director == null)
+            return default;
+
+        WeaponPresentationLoopHandle internalHandle = director.BeginLegacyLoop(in context, ResolveSfxVolume(), now);
+        if (!internalHandle.IsValid)
+            return default;
+
+        int id = GetNextLegacyLoopId();
+        _legacyLoopRoutes.Add(id, new LegacyLoopRoute(director, internalHandle));
+        return new WeaponPresentationLoopHandle(id);
     }
 
     public void UpdateLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context)
     {
-        _director?.UpdateLegacyLoop(handle, in context, ResolveSfxVolume());
+        if (handle.IsValid && _legacyLoopRoutes.TryGetValue(handle.Id, out LegacyLoopRoute route))
+            route.Director.UpdateLegacyLoop(route.InternalHandle, in context, ResolveSfxVolume());
     }
 
     public void EndLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context)
     {
-        _director?.EndLegacyLoop(handle, in context);
+        if (!handle.IsValid || !_legacyLoopRoutes.TryGetValue(handle.Id, out LegacyLoopRoute route))
+            return;
+
+        route.Director.EndLegacyLoop(route.InternalHandle, in context);
+        _legacyLoopRoutes.Remove(handle.Id);
     }
 
     public void StopAllLoops()
     {
-        _director?.StopAll();
+        ReleaseRuntimeState();
     }
 
     public void OnChargeStarted(in WeaponFeedbackContext context)
     {
-        EnsureDirector();
-        _director?.BeginSemanticLoop(
+        CombatFeedbackDirector director = ResolveDirector(context.Weapon);
+        director?.BeginSemanticLoop(
             WeaponFeedbackEvent.ChargeStarted,
             in context,
             ResolveSfxVolume(),
@@ -114,8 +151,9 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         if (_runtimeOptions.DebugGeometryEnabled && context.Anchor != null)
         {
             DismissDebugCharge();
-            float duration = _profile != null &&
-                             _profile.TryResolveCue(WeaponFeedbackEvent.ChargeStarted, in context, out WeaponPresentationCueData cue)
+            WeaponPresentationProfile profile = ResolveProfile(context.Weapon);
+            float duration = profile != null &&
+                             profile.TryResolveCue(WeaponFeedbackEvent.ChargeStarted, in context, out WeaponPresentationCueData cue)
                 ? Mathf.Max(0.1f, cue.Duration)
                 : 1f;
             _debugChargeVfx = HeadHunterChargeVfx.Spawn(context.Anchor, context.Direction, duration);
@@ -124,7 +162,6 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnChargeUpdated(in WeaponFeedbackContext context, float normalizedProgress)
     {
-        EnsureDirector();
         WeaponFeedbackContext scaled = new(
             context.Weapon,
             context.Mode,
@@ -144,7 +181,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             Mathf.Clamp01(normalizedProgress),
             context.Target,
             context.Anchor);
-        _director?.UpdateSemanticLoop(
+        ResolveDirector(context.Weapon)?.UpdateSemanticLoop(
             WeaponFeedbackEvent.ChargeStarted,
             in scaled,
             ResolveSfxVolume());
@@ -153,7 +190,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnChargeCancelled(in WeaponFeedbackContext context)
     {
-        _director?.EndSemanticLoop(WeaponFeedbackEvent.ChargeStarted, in context);
+        ResolveDirector(context.Weapon)?.EndSemanticLoop(WeaponFeedbackEvent.ChargeStarted, in context);
         DismissDebugCharge();
         EmitSemantic(WeaponFeedbackEvent.ChargeCancelled, in context);
     }
@@ -166,8 +203,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnSustainedFireStarted(in WeaponFeedbackContext context)
     {
-        EnsureDirector();
-        _director?.BeginSemanticLoop(
+        ResolveDirector(context.Weapon)?.BeginSemanticLoop(
             WeaponFeedbackEvent.SustainedFireStarted,
             in context,
             ResolveSfxVolume(),
@@ -176,7 +212,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnSustainedFireStopped(in WeaponFeedbackContext context)
     {
-        _director?.EndSemanticLoop(WeaponFeedbackEvent.SustainedFireStarted, in context);
+        ResolveDirector(context.Weapon)?.EndSemanticLoop(WeaponFeedbackEvent.SustainedFireStarted, in context);
         EmitSemantic(WeaponFeedbackEvent.SustainedFireStopped, in context);
     }
 
@@ -221,8 +257,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         ProjectilePresentationArchetypeId archetype,
         in WeaponFeedbackContext context)
     {
-        EnsureDirector();
-        _director?.ConfigureProjectile(projectile, archetype, in context);
+        ResolveDirector(context.Weapon)?.ConfigureProjectile(projectile, archetype, in context);
     }
 
     public void SetVfxEnabled(bool value) => SetChannel(ref _runtimeOptions.VfxEnabled, value);
@@ -246,12 +281,17 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     {
         ResolveSceneDependencies();
         if (Application.isPlaying)
-            EnsureDirector();
+            RegisterProfile(_profile);
     }
 
     private void Update()
     {
-        _director?.Tick(Time.unscaledTime, Time.unscaledDeltaTime);
+        bool tickSharedState = true;
+        foreach (DirectorRuntime runtime in _directors.Values)
+        {
+            runtime.Director.Tick(Time.unscaledTime, Time.unscaledDeltaTime, tickSharedState);
+            tickSharedState = false;
+        }
     }
 
     private void OnDisable()
@@ -277,18 +317,61 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void EmitSemantic(WeaponFeedbackEvent feedbackEvent, in WeaponFeedbackContext context)
     {
-        EnsureDirector();
-        _director?.EmitSemantic(
+        ResolveDirector(context.Weapon)?.EmitSemantic(
             feedbackEvent,
             in context,
             ResolveSfxVolume(),
             Time.unscaledTime);
     }
 
-    private void EnsureDirector()
+    private CombatFeedbackDirector ResolveDirector(WeaponInstance weapon)
     {
-        if (!_directorReady)
-            BuildDirector();
+        return GetOrCreateDirector(ResolveProfile(weapon));
+    }
+
+    private WeaponPresentationProfile ResolveProfile(WeaponInstance weapon)
+    {
+        return weapon?.Data?.PresentationProfile != null
+            ? weapon.Data.PresentationProfile
+            : _profile;
+    }
+
+    private CombatFeedbackDirector GetOrCreateDirector(WeaponPresentationProfile profile)
+    {
+        if (profile == null)
+            return null;
+        if (_directors.TryGetValue(profile, out DirectorRuntime existing))
+            return existing.Director;
+
+        ResolveSceneDependencies();
+        profile.RebuildCache();
+        EnsureRuntimeRoot();
+        GameObject profileRootObject = new($"{profile.name} Presentation");
+        profileRootObject.transform.SetParent(_runtimeRoot, false);
+        CombatFeedbackDirector director = new(
+            profile,
+            profileRootObject.transform,
+            _camera,
+            _recoilFeedback,
+            _runtimeOptions,
+            _cameraFeedback,
+            _hitStop,
+            _audioVoiceCount,
+            _audioSpatialBlend);
+        _directors.Add(profile, new DirectorRuntime
+        {
+            Director = director
+        });
+        return director;
+    }
+
+    private void EnsureRuntimeRoot()
+    {
+        if (_runtimeRoot != null)
+            return;
+        GameObject rootObject = new("Weapon Presentation Runtime");
+        rootObject.transform.SetParent(transform, false);
+        _runtimeRoot = rootObject.transform;
     }
 
     private void ResolveSceneDependencies()
@@ -301,43 +384,23 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             _recoilFeedback = GetComponent<WeaponRecoilFeedback>();
     }
 
-    private void BuildDirector()
-    {
-        _directorReady = true;
-        _director = null;
-        if (_profile == null)
-            return;
-
-        _profile.RebuildCache();
-        GameObject rootObject = new("Weapon Presentation Runtime");
-        rootObject.transform.SetParent(transform, false);
-        _runtimeRoot = rootObject.transform;
-        _director = new CombatFeedbackDirector(
-            _profile,
-            _runtimeRoot,
-            _camera,
-            _recoilFeedback,
-            _runtimeOptions,
-            _cameraFeedback,
-            _hitStop,
-            _audioVoiceCount,
-            _audioSpatialBlend);
-    }
-
     private void ReleaseRuntimeState()
     {
         DismissDebugCharge();
-        _director?.StopAll();
+        foreach (DirectorRuntime runtime in _directors.Values)
+            runtime.Director.StopAll();
+        _legacyLoopRoutes.Clear();
     }
 
     private void DestroyRuntimeRoot()
     {
+        _directors.Clear();
+        _legacyLoopRoutes.Clear();
         if (_runtimeRoot == null)
             return;
 
         GameObject rootObject = _runtimeRoot.gameObject;
         _runtimeRoot = null;
-        _director = null;
         if (Application.isPlaying)
             Destroy(rootObject);
         else
@@ -355,7 +418,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             return;
         channel = value;
         if (!value)
-            _director?.StopAll();
+            ReleaseRuntimeState();
     }
 
     private void DismissDebugCharge()
@@ -364,5 +427,64 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             return;
         _debugChargeVfx.Dismiss();
         _debugChargeVfx = null;
+    }
+
+    private int GetNextLegacyLoopId()
+    {
+        if (_nextLegacyLoopId <= 0)
+            _nextLegacyLoopId = 1;
+        while (_legacyLoopRoutes.ContainsKey(_nextLegacyLoopId))
+            _nextLegacyLoopId = _nextLegacyLoopId == int.MaxValue ? 1 : _nextLegacyLoopId + 1;
+        int value = _nextLegacyLoopId;
+        _nextLegacyLoopId = _nextLegacyLoopId == int.MaxValue ? 1 : _nextLegacyLoopId + 1;
+        return value;
+    }
+
+    private int SumActiveLoops()
+    {
+        int total = 0;
+        foreach (DirectorRuntime runtime in _directors.Values)
+            total += runtime.Director.ActiveLoopCount;
+        return total;
+    }
+
+    private int SumActiveAudioVoices()
+    {
+        int total = 0;
+        foreach (DirectorRuntime runtime in _directors.Values)
+            total += runtime.Director.ActiveAudioVoiceCount;
+        return total;
+    }
+
+    private int SumAudioVoiceCapacity()
+    {
+        int total = 0;
+        foreach (DirectorRuntime runtime in _directors.Values)
+            total += runtime.Director.AudioVoiceCapacity;
+        return total;
+    }
+
+    private int SumActiveVfx()
+    {
+        int total = 0;
+        foreach (DirectorRuntime runtime in _directors.Values)
+            total += runtime.Director.ActiveVfxCount;
+        return total;
+    }
+
+    private int SumVfxCapacity()
+    {
+        int total = 0;
+        foreach (DirectorRuntime runtime in _directors.Values)
+            total += runtime.Director.TotalVfxCapacity;
+        return total;
+    }
+
+    private int SumSuppressions()
+    {
+        int total = 0;
+        foreach (DirectorRuntime runtime in _directors.Values)
+            total += runtime.Director.SuppressionCount;
+        return total;
     }
 }

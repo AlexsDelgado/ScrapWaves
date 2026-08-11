@@ -298,25 +298,22 @@ public static class RocketLauncherAssetBuilder
             AssetDatabase.CreateAsset(profile, ProfilePath);
         }
 
-        AudioClip shoot = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/shoot.wav");
-        AudioClip mechanical = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/010.wav");
-        AudioClip click = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/click.wav");
         List<WeaponPresentationCueData> cues = new()
         {
-            Cue(WeaponPresentationCue.RocketAutomaticLaunch, prefabs[RocketLauncherVfxStyle.Launch], new[] { shoot, mechanical }, 0.72f, 0.72f, 0.84f, 0.34f, 0.08f, 8, false, new Vector3(0f, 0f, -0.12f), new Vector3(-0.42f, 0f, 0f), 0.8f),
-            Cue(WeaponPresentationCue.RocketManualLaunch, prefabs[RocketLauncherVfxStyle.Launch], new[] { shoot, mechanical }, 0.82f, 0.68f, 0.78f, 0.38f, 0.08f, 6, false, new Vector3(0f, 0f, -0.16f), new Vector3(-0.56f, 0f, 0f), 1.05f),
-            Cue(WeaponPresentationCue.RocketActiveLaunch, prefabs[RocketLauncherVfxStyle.Launch], new[] { shoot, mechanical }, 0.92f, 0.62f, 0.72f, 0.48f, 0.12f, 5, false, new Vector3(0f, 0f, -0.22f), new Vector3(-0.78f, 0f, 0f), 1.45f),
-            Cue(WeaponPresentationCue.RocketClusterLaunch, prefabs[RocketLauncherVfxStyle.Launch], new[] { shoot, mechanical }, 1f, 0.54f, 0.66f, 0.58f, 0.16f, 3, false, new Vector3(0f, 0f, -0.28f), new Vector3(-0.96f, 0f, 0f), 1.8f),
-            Cue(WeaponPresentationCue.RocketClusterDetonation, prefabs[RocketLauncherVfxStyle.ClusterLaunch], new[] { mechanical, shoot }, 1f, 0.48f, 0.62f, 1.08f, 0.14f, 4, false, new Vector3(0f, 0f, -0.26f), new Vector3(-0.84f, 0f, 0f), 1.7f, 0.025f, 3),
+            Cue(WeaponPresentationCue.RocketAutomaticLaunch, prefabs[RocketLauncherVfxStyle.Launch], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.34f, 0.08f, 8, false, new Vector3(0f, 0f, -0.12f), new Vector3(-0.42f, 0f, 0f), 0.8f),
+            Cue(WeaponPresentationCue.RocketManualLaunch, prefabs[RocketLauncherVfxStyle.Launch], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.38f, 0.08f, 6, false, new Vector3(0f, 0f, -0.16f), new Vector3(-0.56f, 0f, 0f), 1.05f),
+            Cue(WeaponPresentationCue.RocketActiveLaunch, prefabs[RocketLauncherVfxStyle.Launch], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.48f, 0.12f, 5, false, new Vector3(0f, 0f, -0.22f), new Vector3(-0.78f, 0f, 0f), 1.45f),
+            Cue(WeaponPresentationCue.RocketClusterLaunch, prefabs[RocketLauncherVfxStyle.Launch], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.58f, 0.16f, 3, false, new Vector3(0f, 0f, -0.28f), new Vector3(-0.96f, 0f, 0f), 1.8f),
+            Cue(WeaponPresentationCue.RocketClusterDetonation, prefabs[RocketLauncherVfxStyle.ClusterLaunch], Array.Empty<AudioClip>(), 0f, 1f, 1f, 1.08f, 0.14f, 4, false, new Vector3(0f, 0f, -0.26f), new Vector3(-0.84f, 0f, 0f), 1.7f, 0.025f, 3),
             Cue(WeaponPresentationCue.RocketFragmentChildImpact, prefabs[RocketLauncherVfxStyle.FragmentImpact], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.76f, 0f, 20, false, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.RocketTargetingLoop, prefabs[RocketLauncherVfxStyle.TargetingLoop], new[] { mechanical }, 0.36f, 0.82f, 0.9f, 0.7f, 0.05f, 1, true, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.RocketLockAcquired, null, new[] { click }, 0.62f, 0.9f, 1.16f, 0.16f, 0.04f, 6, false, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.RocketTargetingCancelled, null, new[] { click }, 0.42f, 0.58f, 0.7f, 0.18f, 0.08f, 2, false, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.RocketImpact, prefabs[RocketLauncherVfxStyle.Impact], new[] { mechanical, shoot }, 0.92f, 0.52f, 0.66f, 0.82f, 0.06f, 14, false, new Vector3(0f, 0f, -0.18f), new Vector3(-0.56f, 0f, 0f), 1.2f, 0.02f, 2),
-            Cue(WeaponPresentationCue.RocketKineticImpact, prefabs[RocketLauncherVfxStyle.KineticImpact], new[] { mechanical, shoot }, 1f, 0.42f, 0.56f, 0.98f, 0.09f, 10, false, new Vector3(0f, 0f, -0.28f), new Vector3(-0.9f, 0f, 0f), 1.8f, 0.035f, 3),
-            Cue(WeaponPresentationCue.RocketFragmentImpact, prefabs[RocketLauncherVfxStyle.FragmentImpact], new[] { shoot, mechanical }, 0.88f, 0.7f, 0.86f, 0.76f, 0.04f, 20, false, new Vector3(0f, 0f, -0.12f), new Vector3(-0.38f, 0f, 0f), 0.85f, 0.012f, 1),
-            Cue(WeaponPresentationCue.RocketKineticStatus, prefabs[RocketLauncherVfxStyle.KineticStatus], new[] { click }, 0.48f, 0.62f, 0.74f, 0.72f, 0.12f, 12, false, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.RocketKillImpact, prefabs[RocketLauncherVfxStyle.KillImpact], new[] { mechanical, shoot }, 1f, 0.46f, 0.58f, 1.18f, 0.12f, 8, false, new Vector3(0f, 0f, -0.3f), new Vector3(-1f, 0f, 0f), 2f, 0.045f, 4)
+            Cue(WeaponPresentationCue.RocketTargetingLoop, prefabs[RocketLauncherVfxStyle.TargetingLoop], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.7f, 0.05f, 1, true, Vector3.zero, Vector3.zero, 0f),
+            Cue(WeaponPresentationCue.RocketLockAcquired, null, Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.16f, 0.04f, 6, false, Vector3.zero, Vector3.zero, 0f),
+            Cue(WeaponPresentationCue.RocketTargetingCancelled, null, Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.18f, 0.08f, 2, false, Vector3.zero, Vector3.zero, 0f),
+            Cue(WeaponPresentationCue.RocketImpact, prefabs[RocketLauncherVfxStyle.Impact], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.82f, 0.06f, 14, false, new Vector3(0f, 0f, -0.18f), new Vector3(-0.56f, 0f, 0f), 1.2f, 0.02f, 2),
+            Cue(WeaponPresentationCue.RocketKineticImpact, prefabs[RocketLauncherVfxStyle.KineticImpact], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.98f, 0.09f, 10, false, new Vector3(0f, 0f, -0.28f), new Vector3(-0.9f, 0f, 0f), 1.8f, 0.035f, 3),
+            Cue(WeaponPresentationCue.RocketFragmentImpact, prefabs[RocketLauncherVfxStyle.FragmentImpact], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.76f, 0.04f, 20, false, new Vector3(0f, 0f, -0.12f), new Vector3(-0.38f, 0f, 0f), 0.85f, 0.012f, 1),
+            Cue(WeaponPresentationCue.RocketKineticStatus, prefabs[RocketLauncherVfxStyle.KineticStatus], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.72f, 0.12f, 12, false, Vector3.zero, Vector3.zero, 0f),
+            Cue(WeaponPresentationCue.RocketKillImpact, prefabs[RocketLauncherVfxStyle.KillImpact], Array.Empty<AudioClip>(), 0f, 1f, 1f, 1.18f, 0.12f, 8, false, new Vector3(0f, 0f, -0.3f), new Vector3(-1f, 0f, 0f), 2f, 0.045f, 4)
         };
 
         List<WeaponFeedbackBinding> bindings = new()
@@ -373,10 +370,10 @@ public static class RocketLauncherAssetBuilder
         {
             Cue = cue,
             VfxPrefab = prefab,
-            LayerAudioClips = clips.Length > 1,
-            MechanicalLayerVolume = 0.78f,
-            ApplyHeatStrainToMechanicalLayer = loop || clips.Length > 1,
-            ApplyEventIntensityToPitch = cue == WeaponPresentationCue.RocketTargetingLoop,
+            LayerAudioClips = false,
+            MechanicalLayerVolume = 0.7f,
+            ApplyHeatStrainToMechanicalLayer = false,
+            ApplyEventIntensityToPitch = false,
             Volume = volume,
             PitchMin = pitchMin,
             PitchMax = pitchMax,

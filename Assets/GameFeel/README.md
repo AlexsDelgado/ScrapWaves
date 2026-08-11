@@ -1,6 +1,8 @@
 # ScrapWaves Game Feel Foundation
 
-This folder contains the shared feedback foundation plus complete Automatic Cannon and Rocket Launcher production presentations. Flamethrower, Mortar, and Rotating Blade remain future slices.
+This folder contains the shared feedback foundation and production presentations for all five weapons: Automatic Cannon, Rocket Launcher, Flamethrower, Mortar, and Rotating Blade.
+
+For the complete Inspector, prefab, particle, shader, pooling, per-weapon, and validation workflow, see `../../docs/weapon-effects-tuning-guide.md`.
 
 ## Tuning workflow
 

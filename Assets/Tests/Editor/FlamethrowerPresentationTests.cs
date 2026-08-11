@@ -203,15 +203,15 @@ public sealed class FlamethrowerPresentationTests
     }
 
     [Test]
-    public void Profile_PreservesSfxAndStatusVfxWithoutHandLoopVisuals()
+    public void Profile_RestoresPreOverhaulSilenceAndPreservesStatusVfx()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
         Assert.That(profile.TryGetCueData(WeaponPresentationCue.FlamethrowerManualLoop, out WeaponPresentationCueData loop), Is.True);
         Assert.That(loop.Loop, Is.True);
-        Assert.That(loop.AudioClips, Is.Not.Empty);
-        Assert.That(loop.VfxPrefab, Is.Null, "The removed repeating hand explosion must not return with the SFX loop.");
+        Assert.That(loop.AudioClips, Is.Empty);
+        Assert.That(loop.VfxPrefab, Is.Null, "The removed repeating hand explosion must not return.");
         Assert.That(profile.TryGetCueData(WeaponPresentationCue.FlamethrowerActiveBurst, out WeaponPresentationCueData active), Is.True);
-        Assert.That(active.AudioClips, Is.Not.Empty);
+        Assert.That(active.AudioClips, Is.Empty);
 
         WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Flamethrower.asset");
         WeaponInstance instance = new() { Data = data, Level = 6, State = WeaponState.Manual, SelectedPath = WeaponUpgradePath.PathB };

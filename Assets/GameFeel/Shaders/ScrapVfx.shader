@@ -5,6 +5,7 @@ Shader "ScrapWaves/GameFeel/Scrap VFX"
         _BaseColor("Base Color", Color) = (1,0.4,0.05,1)
         _EmissionColor("Emission Color", Color) = (1,0.4,0.05,1)
         _EmissionIntensity("Emission Intensity", Range(0,12)) = 2
+        _Luminescence("Luminescence", Range(0,1)) = 0.4
         _Heat("Heat", Range(0,1)) = 0
         _Pulse("Pulse", Range(0,1)) = 1
         _Dissolve("Dissolve", Range(0,1)) = 0
@@ -49,6 +50,7 @@ Shader "ScrapWaves/GameFeel/Scrap VFX"
                 float4 _BaseColor;
                 float4 _EmissionColor;
                 float _EmissionIntensity;
+                float _Luminescence;
                 float _Heat;
                 float _Pulse;
                 float _Dissolve;
@@ -84,7 +86,9 @@ Shader "ScrapWaves/GameFeel/Scrap VFX"
                 clip(noise - saturate(_Dissolve - 0.02));
                 float fresnel = pow(1.0 - saturate(dot(normalize(input.normalWS), normalize(input.viewDirWS))), 2.0);
                 float4 baseColor = _BaseColor * input.color;
-                float intensity = _EmissionIntensity * (0.4 + _Pulse * 0.6) * (0.7 + fresnel * 0.8);
+                float intensity = _EmissionIntensity * _Luminescence *
+                                  (0.4 + _Pulse * 0.6) *
+                                  (0.7 + fresnel * 0.8);
                 float3 color = baseColor.rgb * 0.25 + _EmissionColor.rgb * intensity;
                 float alpha = saturate(baseColor.a * (1.0 - _Dissolve) * (0.35 + _Pulse * 0.65));
                 return half4(color, alpha);

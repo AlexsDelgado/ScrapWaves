@@ -307,6 +307,20 @@ public sealed class MortarPresentationTests
     }
 
     [Test]
+    public void ActiveBarrageRain_UsesMatchingVelocityCurveModes()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Assert.That(profile.TryGetCueData(WeaponPresentationCue.MortarActiveBarrage, out WeaponPresentationCueData data), Is.True);
+        ParticleSystem[] particles = data.VfxPrefab.GetComponentsInChildren<ParticleSystem>(true);
+        Assert.That(particles, Has.Length.GreaterThanOrEqualTo(1));
+
+        ParticleSystem.VelocityOverLifetimeModule velocity = particles[0].velocityOverLifetime;
+        Assert.That(velocity.enabled, Is.True);
+        Assert.That(velocity.x.mode, Is.EqualTo(velocity.y.mode));
+        Assert.That(velocity.z.mode, Is.EqualTo(velocity.y.mode));
+    }
+
+    [Test]
     public void PresentationSurface_UsesLargeSlopePointAndNormal()
     {
         GameObject slope = null;
@@ -436,6 +450,42 @@ public sealed class MortarPresentationTests
             Assert.That((bool)method.Invoke(weapon, mapArguments), Is.True);
             RaycastHit hit = (RaycastHit)mapArguments[2];
             Assert.That(hit.collider, Is.EqualTo(floor.GetComponent<Collider>()));
+        }
+        finally
+        {
+            if (floor != null)
+                Object.DestroyImmediate(floor);
+            Object.DestroyImmediate(owner);
+        }
+    }
+
+    [Test]
+    public void ActiveBarrageSurface_ClampsBelowGroundAimToTerrain()
+    {
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Mortar.asset");
+        GameObject owner = new("Mortar Active Surface Owner");
+        GameObject floor = null;
+        try
+        {
+            MortarWeapon weapon = new(null, null, owner.transform);
+            WeaponInstance runtime = new() { Data = data, Level = 1, State = WeaponState.Manual };
+            weapon.Setup(runtime, owner.transform, null, null);
+            floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.transform.position = new Vector3(0f, -0.05f, 4f);
+            floor.transform.localScale = new Vector3(20f, 0.1f, 20f);
+            Physics.SyncTransforms();
+
+            MethodInfo method = typeof(MortarWeapon).GetMethod(
+                "TryResolveActiveBarrageSurface",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+            object[] arguments = { new Vector3(0f, -8f, 4f), data.Mortar, null, null };
+            Assert.That((bool)method.Invoke(weapon, arguments), Is.True);
+
+            Vector3 surfacePoint = (Vector3)arguments[2];
+            Vector3 surfaceNormal = (Vector3)arguments[3];
+            Assert.That(surfacePoint.y, Is.EqualTo(0f).Within(0.02f));
+            Assert.That(Vector3.Dot(surfaceNormal, Vector3.up), Is.GreaterThan(0.999f));
         }
         finally
         {

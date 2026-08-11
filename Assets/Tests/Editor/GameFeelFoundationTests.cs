@@ -107,6 +107,70 @@ public sealed class GameFeelFoundationTests
     }
 
     [Test]
+    public void ProductionWeaponProfiles_RestorePreGameFeelAudioContract()
+    {
+        AudioClip originalShoot = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/shoot.wav");
+        WeaponPresentationProfile cannon = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Assert.That(originalShoot, Is.Not.Null);
+        Assert.That(cannon, Is.Not.Null);
+
+        Dictionary<WeaponPresentationCue, Vector3> originalCannonCues = new()
+        {
+            { WeaponPresentationCue.AutomaticCannonAutoShot, new Vector3(0.4f, 0.96f, 1.04f) },
+            { WeaponPresentationCue.AutomaticCannonManualShot, new Vector3(0.5f, 0.94f, 1.02f) },
+            { WeaponPresentationCue.AutomaticCannonBaseActive, new Vector3(1f, 0.92f, 1f) },
+            { WeaponPresentationCue.AutomaticCannonContinuousShot, new Vector3(0.18f, 1f, 1.08f) },
+            { WeaponPresentationCue.AutomaticCannonContinuousActive, new Vector3(1f, 0.98f, 1.04f) },
+            { WeaponPresentationCue.AutomaticCannonHeadHunterAutomatic, new Vector3(0.8f, 0.98f, 1.02f) },
+            { WeaponPresentationCue.AutomaticCannonHeadHunterManual, new Vector3(1f, 0.96f, 1f) },
+            { WeaponPresentationCue.AutomaticCannonHeadHunterActive, new Vector3(1f, 0.94f, 0.98f) }
+        };
+
+        foreach (WeaponPresentationCueData cue in cannon.Cues)
+        {
+            Assert.That(cue.LayerAudioClips, Is.False, cue.Cue.ToString());
+            Assert.That(cue.ApplyHeatStrainToMechanicalLayer, Is.False, cue.Cue.ToString());
+            Assert.That(cue.ApplyEventIntensityToPitch, Is.False, cue.Cue.ToString());
+
+            if (originalCannonCues.TryGetValue(cue.Cue, out Vector3 expected))
+            {
+                Assert.That(cue.AudioClips, Has.Count.EqualTo(1), cue.Cue.ToString());
+                Assert.That(cue.AudioClips[0], Is.SameAs(originalShoot), cue.Cue.ToString());
+                Assert.That(cue.Volume, Is.EqualTo(expected.x).Within(0.001f), cue.Cue.ToString());
+                Assert.That(cue.PitchMin, Is.EqualTo(expected.y).Within(0.001f), cue.Cue.ToString());
+                Assert.That(cue.PitchMax, Is.EqualTo(expected.z).Within(0.001f), cue.Cue.ToString());
+            }
+            else
+            {
+                Assert.That(cue.AudioClips, Is.Empty, cue.Cue.ToString());
+            }
+        }
+
+        Assert.That(
+            cannon.Cues.Count(cue => cue.AudioClips.Count > 0),
+            Is.EqualTo(originalCannonCues.Count));
+
+        foreach (string path in new[]
+                 {
+                     "Assets/ScriptableObjects/WeaponPresentation/RocketLauncherPresentation.asset",
+                     "Assets/ScriptableObjects/WeaponPresentation/FlamethrowerPresentation.asset",
+                     "Assets/ScriptableObjects/WeaponPresentation/MortarPresentation.asset",
+                     "Assets/ScriptableObjects/WeaponPresentation/RotatingBladePresentation.asset"
+                 })
+        {
+            WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(path);
+            Assert.That(profile, Is.Not.Null, path);
+            foreach (WeaponPresentationCueData cue in profile.Cues)
+            {
+                Assert.That(cue.AudioClips, Is.Empty, $"{path}: {cue.Cue}");
+                Assert.That(cue.LayerAudioClips, Is.False, $"{path}: {cue.Cue}");
+                Assert.That(cue.ApplyHeatStrainToMechanicalLayer, Is.False, $"{path}: {cue.Cue}");
+                Assert.That(cue.ApplyEventIntensityToPitch, Is.False, $"{path}: {cue.Cue}");
+            }
+        }
+    }
+
+    [Test]
     public void SandboxHeatOverride_MapsDisplayedPercentAcrossBothHeatSegments()
     {
         GameObject heatObject = new("Heat override test");
@@ -221,6 +285,42 @@ public sealed class GameFeelFoundationTests
             GameObject enemy = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(enemy.GetComponent<EnemyHitFeedback>(), Is.Not.Null, path);
             Assert.That(enemy.GetComponent<EnemyDeathFeedback>(), Is.Not.Null, path);
+        }
+    }
+
+    [Test]
+    public void EnemyHitFeedback_PreservesExistingMaterialColorOverrides()
+    {
+        GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        try
+        {
+            Renderer renderer = enemy.GetComponent<Renderer>();
+            int baseColorId = Shader.PropertyToID("_BaseColor");
+            int colorId = Shader.PropertyToID("_Color");
+            Color authoredBaseColor = new(0.16f, 0.42f, 0.73f, 1f);
+            Color authoredLegacyColor = new(0.64f, 0.21f, 0.37f, 1f);
+            MaterialPropertyBlock block = new();
+            block.SetColor(baseColorId, authoredBaseColor);
+            block.SetColor(colorId, authoredLegacyColor);
+            renderer.SetPropertyBlock(block);
+
+            EnemyHitFeedback feedback = enemy.AddComponent<EnemyHitFeedback>();
+            WeaponFeedbackContext context = new(
+                weapon: null,
+                mode: WeaponFeedbackMode.Automatic,
+                normalizedHeat: 0f,
+                origin: Vector3.back,
+                direction: Vector3.forward,
+                target: enemy.transform);
+            feedback.Play(in context, reducedFlash: false);
+
+            renderer.GetPropertyBlock(block);
+            Assert.That(Vector4.Distance(block.GetColor(baseColorId), authoredBaseColor), Is.LessThan(0.0001f));
+            Assert.That(Vector4.Distance(block.GetColor(colorId), authoredLegacyColor), Is.LessThan(0.0001f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(enemy);
         }
     }
 
