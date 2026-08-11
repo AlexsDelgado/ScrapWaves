@@ -68,15 +68,17 @@ Diseño no necesita pedir código nuevo para la mayoría de los logros: alcanza 
      ítem se compra libremente con Scrap).
    - `Scrap Price`: costo en Scrap (0 si solo depende del logro).
 4. Agregar el asset a un `UnlockCatalog` (`ScrapWaves/Meta/Unlock Catalog`) para que aparezca
-   listado en la ventana de Objetivos. En el Editor, `ObjectivesMenuUI` carga automáticamente
-   `Assets/ScriptableObjects/Meta/UnlockCatalog.asset` si el campo `_catalog` quedó sin asignar
-   (mismo patrón que `EconomyBootstrap`) — en un build fuera del Editor hay que asignarlo a
-   mano en el Inspector, ese fallback solo corre en Editor.
+   listado en la ventana de Objetivos. **El catálogo activo tiene que vivir en
+   `Assets/Resources/Meta/UnlockCatalog.asset`** — `ObjectivesMenuUI` lo carga con
+   `Resources.Load<UnlockCatalog>("Meta/UnlockCatalog")` si el campo `_catalog` quedó sin
+   asignar en el Inspector. Tiene que estar en una carpeta `Resources` (no en
+   `Assets/ScriptableObjects/`) porque `Resources.Load` es lo único que funciona igual en el
+   Editor y en una build real — la primera versión de este sistema usaba `AssetDatabase`
+   (solo Editor) y la tienda aparecía vacía en builds.
 5. Si el logro que gatea el ítem todavía no existe, crearlo con
    `ScrapWaves/Meta/Achievement Definition` dentro de
-   `Assets/ScriptableObjects/Meta/Achievements/`. `SaveManager` también autocompleta su lista
-   de logros desde esa carpeta en el Editor si quedó vacía; en un build hay que asignarla a
-   mano en el prefab/bootstrap correspondiente.
+   `Assets/Resources/Meta/Achievements/` (mismo motivo: tiene que estar en `Resources` para
+   que `SaveManager` pueda cargarlo con `Resources.LoadAll` tanto en Editor como en build).
 
 No hace falta tocar `RunStartWeaponChoice`, `WeaponCraftingService` ni
 `PassiveItemLevelUpHandler`: los tres ya filtran automáticamente por `SaveManager.IsUnlocked`.
@@ -104,11 +106,18 @@ cerrado (ver `GameManager.CalculateScrapEarned`).
 
 12 ítems pasivos ficticios en `Assets/ScriptableObjects/PlayerSO/Passives/Shop_*.asset`
 (nombres inventados, efecto moderado en una sola stat cada uno; al menos 3 por slot —
-Head/Torso/Arm/Leg) y 2 logros placeholder en `Assets/ScriptableObjects/Meta/Achievements/`.
-Los 12 ítems están dados de alta tanto en `Assets/ScriptableObjects/Meta/UnlockCatalog.asset`
+Head/Torso/Arm/Leg) y 2 logros placeholder en `Assets/Resources/Meta/Achievements/`.
+Los 12 ítems están dados de alta tanto en `Assets/Resources/Meta/UnlockCatalog.asset`
 (para la tienda) como en el `_itemPool` de `Assets/Prefabs/player.prefab` (para que puedan
 salir como opción al subir de nivel una vez desbloqueados). Son contenido de prueba para
 poblar la tienda — diseño los va a reemplazar/ajustar cuando defina el arte y el balance real.
+
+> ⚠️ Los `Shop_*.asset` de ítems pasivos y los `WeaponData` **no** necesitan estar en
+> `Resources` — se referencian directo desde `UnlockCatalog`/`player.prefab` como campos
+> serializados normales, eso ya funciona en build. Solo el `UnlockCatalog` y los
+> `AchievementDefinition` necesitan vivir en `Resources` porque se cargan dinámicamente
+> por código (`Resources.Load`/`Resources.LoadAll`) en vez de asignarse a mano en el
+> Inspector de una escena.
 
 | Slot | Ítems |
 |---|---|
@@ -151,8 +160,6 @@ una build de QA, tildar ese campo en el Inspector del `TitleScreenController` de
 - **`WeaponLevelReached` sin call site.** El método existe en `SaveManager` pero nadie lo
   llama todavía. Agregar `SaveManager.Instance?.ReportWeaponLevelReached(weapon.WeaponId, instance.Level);`
   donde `WeaponManager.UpgradeWeapon` sube de nivel un arma.
-- **`UnlockCatalog` y el `_achievementCatalog` del `SaveManager` deben asignarse a mano en la
-  escena** (arrastrar los assets en el Inspector) — no se auto-descubren.
 - **La UI de `ObjectivesMenuUI` es un placeholder visual**, igual que el resto de la UI del
   juego (mismo patrón runtime que `CraftingUI`/`PauseMenuUI`). El diseño final de esta
   pantalla queda pendiente de un pase de UI/UX aparte.

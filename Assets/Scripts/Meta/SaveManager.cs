@@ -60,17 +60,10 @@ public class SaveManager : MonoBehaviour
         if (_achievementCatalog.Count > 0)
             return;
 
-#if UNITY_EDITOR
-        string[] guids = UnityEditor.AssetDatabase.FindAssets(
-            "t:AchievementDefinition", new[] { "Assets/ScriptableObjects/Meta/Achievements" });
-        for (int i = 0; i < guids.Length; i++)
-        {
-            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[i]);
-            AchievementDefinition achievement = UnityEditor.AssetDatabase.LoadAssetAtPath<AchievementDefinition>(path);
-            if (achievement != null)
-                _achievementCatalog.Add(achievement);
-        }
-#endif
+        // Resources.LoadAll funciona igual en el Editor y en una build (a diferencia de
+        // AssetDatabase, que solo existe en el Editor) — necesario para que los logros no
+        // aparezcan vacíos en builds reales.
+        _achievementCatalog.AddRange(Resources.LoadAll<AchievementDefinition>("Meta/Achievements"));
     }
 
     private void OnEnable() => SceneManager.sceneLoaded += HandleSceneLoaded;

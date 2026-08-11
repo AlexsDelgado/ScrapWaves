@@ -54,10 +54,10 @@ public class ObjectivesMenuUI : MonoBehaviour
         if (_catalog != null)
             return;
 
-#if UNITY_EDITOR
-        _catalog = UnityEditor.AssetDatabase.LoadAssetAtPath<UnlockCatalog>(
-            "Assets/ScriptableObjects/Meta/UnlockCatalog.asset");
-#endif
+        // Resources.Load funciona igual en el Editor y en una build (a diferencia de
+        // AssetDatabase, que solo existe en el Editor) — necesario para que la tienda
+        // no aparezca vacía en builds reales.
+        _catalog = Resources.Load<UnlockCatalog>("Meta/UnlockCatalog");
     }
 
     private void OnEnable()
