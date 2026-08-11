@@ -1134,6 +1134,11 @@ MonoBehaviour:
   _cameraCollisionPadding: 0.12
   _minimumDistanceFromLookPoint: 0.65
   _lockCursorOnPlay: 1
+  _cameraFeedbackScale: 1
+  _presentationImpulseDecay: 12
+  _maximumPresentationPositionImpulse: 0.35
+  _maximumPresentationRotationImpulse: 5
+  _maximumPresentationFovKick: 5
 --- !u!1 &400431837
 GameObject:
   m_ObjectHideFlags: 0
@@ -3581,6 +3586,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1926168110}
   m_LocalEulerAnglesHint: {x: 64.141, y: -90, z: 0}
+--- !u!1 &978389637
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 978389639}
+  - component: {fileID: 978389638}
+  m_Layer: 0
+  m_Name: DEBUGTESTINVENTORY
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &978389638
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 978389637}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51cb79f231e080146814e478ef3a99c2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DebugCrafting
+  _inventory: {fileID: 0}
+  _amountPerMaterial: 999
+--- !u!4 &978389639
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 978389637}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -58.06075, y: 32.94909, z: 126.51788}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1002236687
 GameObject:
   m_ObjectHideFlags: 0
@@ -6461,6 +6512,7 @@ MonoBehaviour:
   _craftingUi: {fileID: 0}
   _craftingService: {fileID: 0}
   _inventory: {fileID: 0}
+  _levelUpChoiceUi: {fileID: 0}
 --- !u!4 &1869298946
 Transform:
   m_ObjectHideFlags: 0
@@ -7792,3 +7844,4 @@ SceneRoots:
   - {fileID: 1800000301}
   - {fileID: 1869298946}
   - {fileID: 566284588}
+  - {fileID: 978389639}

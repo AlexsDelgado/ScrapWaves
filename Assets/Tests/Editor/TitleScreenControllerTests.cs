@@ -34,7 +34,7 @@ public class TitleScreenControllerTests
     }
 
     [Test]
-    public void Awake_CreatesExactlyThreeMenuButtonsWithExpectedLabels()
+    public void Awake_CreatesExactlyFourMenuButtonsWithExpectedLabels()
     {
         GameObject root = new("TitleScreenRoot");
 
@@ -43,9 +43,9 @@ public class TitleScreenControllerTests
         Button[] buttons = root.GetComponentsInChildren<Button>(true);
         string[] labels = buttons.Select(GetButtonLabel).ToArray();
 
-        Assert.That(buttons, Has.Length.EqualTo(3));
+        Assert.That(buttons, Has.Length.EqualTo(4));
         CollectionAssert.AreEqual(
-            new[] { "Play", "Weapon Sandbox", "Enemies Testing" },
+            new[] { "Play", "Objetivos", "Weapon Sandbox", "Enemies Testing" },
             labels);
     }
 

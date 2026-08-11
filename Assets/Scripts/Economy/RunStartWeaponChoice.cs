@@ -64,8 +64,9 @@ public class RunStartWeaponChoice : MonoBehaviour
         var pool = new List<WeaponData>();
         for (int i = 0; i < _weaponPool.Count; i++)
         {
-            if (_weaponPool[i] != null)
-                pool.Add(_weaponPool[i]);
+            WeaponData data = _weaponPool[i];
+            if (data != null && (SaveManager.Instance == null || SaveManager.Instance.IsUnlocked(data)))
+                pool.Add(data);
         }
 
         var result = new List<WeaponData>();

@@ -12,7 +12,12 @@ public class TitleScreenController : MonoBehaviour
     [SerializeField] private Button _playButton;
     [SerializeField] private Button _weaponSandboxButton;
     [SerializeField] private Button _enemiesTestingButton;
+    [SerializeField] private Button _objectivesButton;
     [SerializeField] private Button _quitButton;
+    [SerializeField] private ObjectivesMenuUI _objectivesMenu;
+
+    [SerializeField, Tooltip("Destildar para builds: oculta Weapon Sandbox y Enemies Testing del menú principal sin borrar su funcionalidad.")]
+    private bool _includeTestingButtons = false;
 
     private GameObject _canvasRoot;
 
@@ -23,7 +28,16 @@ public class TitleScreenController : MonoBehaviour
         CacheSceneButtonsIfNeeded();
         BuildUiIfNeeded();
         WireButtons();
+        ApplyTestingButtonVisibility();
         FocusFirstButton();
+    }
+
+    private void ApplyTestingButtonVisibility()
+    {
+        if (_weaponSandboxButton != null)
+            _weaponSandboxButton.gameObject.SetActive(_includeTestingButtons);
+        if (_enemiesTestingButton != null)
+            _enemiesTestingButton.gameObject.SetActive(_includeTestingButtons);
     }
 
     private void BuildUiIfNeeded()
@@ -90,6 +104,7 @@ public class TitleScreenController : MonoBehaviour
         fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
         _playButton = CreateMenuButton(menuRoot.transform, "Play");
+        _objectivesButton = CreateMenuButton(menuRoot.transform, "Objetivos");
         _weaponSandboxButton = CreateMenuButton(menuRoot.transform, "Weapon Sandbox");
         _enemiesTestingButton = CreateMenuButton(menuRoot.transform, "Enemies Testing");
     }
@@ -117,6 +132,7 @@ public class TitleScreenController : MonoBehaviour
         _playButton ??= FindSceneButton("PlayButton", "Play");
         _weaponSandboxButton ??= FindSceneButton("WeaponSandboxButton", "Weapon Sandbox");
         _enemiesTestingButton ??= FindSceneButton("EnemiesTestingButton", "Enemies Testing");
+        _objectivesButton ??= FindSceneButton("ObjectivesButton", "Objetivos");
         _quitButton ??= FindSceneButton("Quit", "Quit");
     }
 
@@ -146,7 +162,18 @@ public class TitleScreenController : MonoBehaviour
         WireButton(_playButton, LoadPlay);
         WireButton(_weaponSandboxButton, LoadWeaponSandbox);
         WireButton(_enemiesTestingButton, LoadEnemiesTesting);
+        WireButton(_objectivesButton, OpenObjectives);
         WireButton(_quitButton, QuitGame);
+    }
+
+    private void OpenObjectives()
+    {
+        if (_objectivesMenu == null)
+            _objectivesMenu = FindAnyObjectByType<ObjectivesMenuUI>();
+        if (_objectivesMenu == null)
+            _objectivesMenu = gameObject.AddComponent<ObjectivesMenuUI>();
+
+        _objectivesMenu.Show();
     }
 
     private static void WireButton(Button button, UnityAction action)

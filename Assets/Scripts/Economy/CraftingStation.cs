@@ -13,6 +13,7 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private CraftingUI _craftingUi;
     [SerializeField] private WeaponCraftingService _craftingService;
     [SerializeField] private MaterialInventory _inventory;
+    [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
 
     private bool _isOpen;
 
@@ -24,11 +25,18 @@ public class CraftingStation : MonoBehaviour
             _craftingService = FindAnyObjectByType<WeaponCraftingService>();
         if (_inventory == null)
             _inventory = FindAnyObjectByType<MaterialInventory>();
+        if (_levelUpChoiceUi == null)
+            _levelUpChoiceUi = FindAnyObjectByType<LevelUpChoiceUI>();
     }
 
     private void Update()
     {
         if (_isOpen || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+            return;
+
+        // Otra estación (o el level-up choice) puede tener el CraftingUI compartido abierto:
+        // no reabrir encima ni disparar una segunda corrutina sobre la misma UI.
+        if ((_craftingUi != null && _craftingUi.IsVisible) || (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible))
             return;
 
         Transform player = PlayerMovement.PlayerTransform;

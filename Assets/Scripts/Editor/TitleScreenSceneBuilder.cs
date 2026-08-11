@@ -57,10 +57,11 @@ public static class TitleScreenSceneBuilder
         CreateDivider(menuPanel);
         Transform menuRoot = CreateMenuRoot(menuPanel);
         Button playButton = CreateMenuButton(menuRoot, "PlayButton", "Play");
+        Button objectivesButton = CreateMenuButton(menuRoot, "ObjectivesButton", "Objetivos");
         Button weaponSandboxButton = CreateMenuButton(menuRoot, "WeaponSandboxButton", "Weapon Sandbox");
         Button enemiesTestingButton = CreateMenuButton(menuRoot, "EnemiesTestingButton", "Enemies Testing");
         CreateEventSystem(root.transform);
-        AssignButtons(controller, playButton, weaponSandboxButton, enemiesTestingButton);
+        AssignButtons(controller, playButton, weaponSandboxButton, enemiesTestingButton, objectivesButton);
 
         EditorSceneManager.MarkSceneDirty(root.scene);
         EditorSceneManager.SaveScene(root.scene, ScenePath);
@@ -327,12 +328,13 @@ public static class TitleScreenSceneBuilder
         eventSystem.AddComponent<InputSystemUIInputModule>();
     }
 
-    private static void AssignButtons(TitleScreenController controller, Button playButton, Button weaponSandboxButton, Button enemiesTestingButton)
+    private static void AssignButtons(TitleScreenController controller, Button playButton, Button weaponSandboxButton, Button enemiesTestingButton, Button objectivesButton)
     {
         SerializedObject serializedController = new(controller);
         serializedController.FindProperty("_playButton").objectReferenceValue = playButton;
         serializedController.FindProperty("_weaponSandboxButton").objectReferenceValue = weaponSandboxButton;
         serializedController.FindProperty("_enemiesTestingButton").objectReferenceValue = enemiesTestingButton;
+        serializedController.FindProperty("_objectivesButton").objectReferenceValue = objectivesButton;
         serializedController.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(controller);
     }
@@ -380,7 +382,7 @@ public static class TitleScreenSceneBuilder
     {
         RunFixture(
             () => new TitleScreenControllerTests(),
-            test => test.Awake_CreatesExactlyThreeMenuButtonsWithExpectedLabels());
+            test => test.Awake_CreatesExactlyFourMenuButtonsWithExpectedLabels());
         RunFixture(
             () => new TitleScreenControllerTests(),
             test => test.Awake_CreatesEventSystemWhenMissing());

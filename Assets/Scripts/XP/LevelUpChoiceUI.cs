@@ -52,6 +52,14 @@ public class LevelUpChoiceUI : MonoBehaviour
             yield break;
         }
 
+        if (_isVisible)
+        {
+            // Ya hay una elección en curso: no pisar _onSelected/_currentOptions,
+            // que dejaría a la anterior sin resolver para siempre.
+            onComplete?.Invoke(-1);
+            yield break;
+        }
+
         bool done = false;
         int selectedIndex = -1;
 

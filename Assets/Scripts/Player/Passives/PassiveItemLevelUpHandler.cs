@@ -22,7 +22,19 @@ public class PassiveItemLevelUpHandler : MonoBehaviour
 
     public IEnumerator PresentAndApplyCoroutine(int newLevel)
     {
-        List<PassiveItemOffer> eligible = _passiveItemManager.BuildEligibleOffers(_itemPool);
+        List<PassiveItemData> unlockedPool = _itemPool;
+        if (SaveManager.Instance != null)
+        {
+            unlockedPool = new List<PassiveItemData>(_itemPool.Count);
+            for (int i = 0; i < _itemPool.Count; i++)
+            {
+                PassiveItemData data = _itemPool[i];
+                if (data != null && SaveManager.Instance.IsUnlocked(data))
+                    unlockedPool.Add(data);
+            }
+        }
+
+        List<PassiveItemOffer> eligible = _passiveItemManager.BuildEligibleOffers(unlockedPool);
         if (eligible.Count == 0)
         {
             Debug.LogWarning("PassiveItemLevelUpHandler: sin ofertas elegibles. Revisa el pool de pasivos.", this);

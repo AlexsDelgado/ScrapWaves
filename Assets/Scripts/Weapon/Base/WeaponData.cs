@@ -155,7 +155,7 @@ public sealed class RotatingBladeTuning : WeaponSpecificTuning
 }
 
 [CreateAssetMenu(fileName = "WeaponData", menuName = "ScrapWaves/Weapon Data")]
-public class WeaponData : ScriptableObject
+public class WeaponData : ScriptableObject, IUnlockable
 {
     public string WeaponId;
     public string DisplayName;
@@ -174,6 +174,13 @@ public class WeaponData : ScriptableObject
     public WeaponPresentationProfile PresentationProfile;
 
     [SerializeReference] private WeaponSpecificTuning _specificTuning;
+
+    [Header("Meta / Desbloqueo")]
+    [Tooltip("Todo el contenido existente arranca desbloqueado; tildar en falso solo en armas nuevas que deban pasar por el sistema de logros/tienda.")]
+    [field: SerializeField] public bool UnlockedFromStart { get; private set; } = true;
+    [field: SerializeField] public UnlockRequirement Requirement { get; private set; }
+
+    public string UnlockId => WeaponId;
 
     public List<WeaponLevelData> LevelData = new();
     public List<WeaponBalanceStatRow> BalanceStats = new();

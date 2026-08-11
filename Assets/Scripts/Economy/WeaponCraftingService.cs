@@ -149,6 +149,8 @@ public class WeaponCraftingService : MonoBehaviour
                 continue;
             if (_weaponManager.TryGetEquippedWeapon(data, out _))
                 continue;
+            if (SaveManager.Instance != null && !SaveManager.Instance.IsUnlocked(data))
+                continue;
             list.Add(data);
         }
 

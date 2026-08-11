@@ -37,6 +37,8 @@ public class ExitDoor : MonoBehaviour
     private Transform _interactionPoint;
 
     [SerializeField] private LevelExitObjective _exitObjective;
+    [SerializeField] private CraftingUI _craftingUi;
+    [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
 
     private ExitDoorState _state = ExitDoorState.Locked;
     private float _chargeRemaining;
@@ -55,6 +57,10 @@ public class ExitDoor : MonoBehaviour
     {
         if (_exitObjective == null)
             _exitObjective = FindAnyObjectByType<LevelExitObjective>();
+        if (_craftingUi == null)
+            _craftingUi = FindAnyObjectByType<CraftingUI>();
+        if (_levelUpChoiceUi == null)
+            _levelUpChoiceUi = FindAnyObjectByType<LevelUpChoiceUI>();
     }
 
     private void OnEnable()
@@ -72,6 +78,11 @@ public class ExitDoor : MonoBehaviour
     private void Update()
     {
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
+            return;
+
+        // No reaccionar a [E] mientras haya una UI modal abierta (Crafting / Level-up choice),
+        // igual que hace PauseMenuUI.CanPause() con Escape.
+        if ((_craftingUi != null && _craftingUi.IsVisible) || (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible))
             return;
 
         if (_state != ExitDoorState.AwaitingActivation && _state != ExitDoorState.Ready)

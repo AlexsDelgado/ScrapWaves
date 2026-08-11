@@ -30,6 +30,15 @@ public class CraftingUI : MonoBehaviour
 
     public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
     {
+        if (_isVisible)
+        {
+            // Ya hay una sesión de crafting abierta (p. ej. otra estación disparó esto
+            // antes de que el caller pudiera chequear IsVisible): no pisar _onClosed
+            // de la sesión en curso, que quedaría esperando para siempre.
+            onClosed?.Invoke();
+            yield break;
+        }
+
         bool done = false;
         _onClosed = () => done = true;
         Show(crafting, inventory);

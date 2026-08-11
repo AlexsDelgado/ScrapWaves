@@ -105,6 +105,8 @@ public class GameManager : MonoBehaviour
         _state = endState;
         Time.timeScale = 0f;
 
+        ReportRunToSaveSystem(endState == GameState.Victory);
+
         if (RunEndScreenUI.Instance != null)
         {
             RunEndScreenUI.Instance.Show(endState, message);
@@ -127,6 +129,41 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
     }
+
+    /// <summary>
+    /// Acredita el progreso de la run terminada a la meta-progresión persistente (SaveManager).
+    /// Fórmula de Scrap placeholder para balancear más adelante: tiempo sobrevivido + bosses +
+    /// materiales sobrantes (los raros valen más, mismo criterio que XP común/rara del diseño).
+    /// </summary>
+    private static void ReportRunToSaveSystem(bool victory)
+    {
+        if (SaveManager.Instance == null)
+            return;
+
+        SaveManager.Instance.ReportRunEnded(
+            victory,
+            RunSessionStats.BossKills,
+            RunCombatStats.EnemiesEliminated,
+            RunSessionStats.ElapsedSeconds,
+            CalculateScrapEarned());
+    }
+
+    private static int CalculateScrapEarned()
+    {
+        int scrap = Mathf.RoundToInt(RunSessionStats.ElapsedSeconds / 10f) + RunSessionStats.BossKills * 25;
+
+        MaterialInventory inventory = FindAnyObjectByType<MaterialInventory>();
+        if (inventory != null)
+        {
+            foreach (MaterialType type in (MaterialType[])System.Enum.GetValues(typeof(MaterialType)))
+                scrap += inventory.GetAmount(type) * (IsRareMaterial(type) ? 5 : 1);
+        }
+
+        return scrap;
+    }
+
+    private static bool IsRareMaterial(MaterialType type) =>
+        type == MaterialType.JellifiedFuel || type == MaterialType.PlasticExplosive || type == MaterialType.Wiring;
 
     private void BuildEndScreenIfNeeded()
     {
