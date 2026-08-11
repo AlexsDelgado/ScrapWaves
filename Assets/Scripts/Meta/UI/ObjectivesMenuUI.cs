@@ -295,71 +295,6 @@ public class ObjectivesMenuUI : MonoBehaviour
             Destroy(parent.GetChild(i).gameObject);
     }
 
-    private static (RectTransform section, RectTransform content) CreateScrollSection(Transform parent, string name, float flexibleHeight, bool grid, float cardWidth, float cardHeight)
-    {
-        var sectionGo = new GameObject(name, typeof(RectTransform));
-        sectionGo.transform.SetParent(parent, false);
-        var sectionLayoutElement = sectionGo.AddComponent<LayoutElement>();
-        sectionLayoutElement.flexibleHeight = flexibleHeight;
-        sectionLayoutElement.flexibleWidth = 1f;
-
-        var sectionBg = sectionGo.AddComponent<Image>();
-        sectionBg.sprite = HudUiFactory.WhiteSprite;
-        sectionBg.color = new Color(1f, 1f, 1f, 0.04f);
-
-        var viewportGo = new GameObject("Viewport", typeof(RectTransform));
-        viewportGo.transform.SetParent(sectionGo.transform, false);
-        var viewportRt = viewportGo.GetComponent<RectTransform>();
-        viewportRt.anchorMin = Vector2.zero;
-        viewportRt.anchorMax = Vector2.one;
-        viewportRt.offsetMin = Vector2.zero;
-        viewportRt.offsetMax = Vector2.zero;
-        viewportGo.AddComponent<RectMask2D>();
-
-        var contentGo = new GameObject("Content", typeof(RectTransform));
-        contentGo.transform.SetParent(viewportGo.transform, false);
-        var contentRt = contentGo.GetComponent<RectTransform>();
-        contentRt.anchorMin = new Vector2(0f, 1f);
-        contentRt.anchorMax = new Vector2(1f, 1f);
-        contentRt.pivot = new Vector2(0.5f, 1f);
-        contentRt.anchoredPosition = Vector2.zero;
-        contentRt.sizeDelta = Vector2.zero;
-
-        if (grid)
-        {
-            var gridLayout = contentGo.AddComponent<GridLayoutGroup>();
-            gridLayout.padding = new RectOffset(12, 12, 12, 12);
-            gridLayout.spacing = new Vector2(14f, 14f);
-            gridLayout.cellSize = new Vector2(cardWidth, cardHeight);
-            gridLayout.constraint = GridLayoutGroup.Constraint.Flexible;
-            gridLayout.childAlignment = TextAnchor.UpperLeft;
-        }
-        else
-        {
-            var vLayout = contentGo.AddComponent<VerticalLayoutGroup>();
-            vLayout.padding = new RectOffset(12, 12, 12, 12);
-            vLayout.spacing = 8f;
-            vLayout.childControlWidth = true;
-            vLayout.childControlHeight = false;
-            vLayout.childForceExpandWidth = true;
-            vLayout.childForceExpandHeight = false;
-        }
-
-        var fitter = contentGo.AddComponent<ContentSizeFitter>();
-        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var scrollRect = sectionGo.AddComponent<ScrollRect>();
-        scrollRect.viewport = viewportRt;
-        scrollRect.content = contentRt;
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 24f;
-
-        return (sectionGo.GetComponent<RectTransform>(), contentRt);
-    }
-
     private static TextMeshProUGUI CreateSectionHeader(Transform parent, string name, string text)
     {
         var go = new GameObject(name, typeof(RectTransform));
@@ -447,14 +382,16 @@ public class ObjectivesMenuUI : MonoBehaviour
 
         // Logros (scrolleable).
         CreateSectionHeader(window.transform, "AchievementsHeader", "Logros");
-        (_, RectTransform achievementsContent) = CreateScrollSection(
-            window.transform, "AchievementsScroll", flexibleHeight: 1f, grid: false, cardWidth: 0f, cardHeight: 0f);
+        (RectTransform achievementsSection, RectTransform achievementsContent) = HudUiFactory.CreateScrollSection(
+            window.transform, "AchievementsScroll", grid: false, cellSize: Vector2.zero);
+        achievementsSection.GetComponent<LayoutElement>().flexibleHeight = 1f;
         _achievementsContent = achievementsContent;
 
         // Tienda (scrolleable, grid con wrap automático).
         CreateSectionHeader(window.transform, "ShopHeader", "Tienda");
-        (_, RectTransform shopContent) = CreateScrollSection(
-            window.transform, "ShopScroll", flexibleHeight: 1.6f, grid: true, cardWidth: _cardWidth, cardHeight: _cardHeight);
+        (RectTransform shopSection, RectTransform shopContent) = HudUiFactory.CreateScrollSection(
+            window.transform, "ShopScroll", grid: true, cellSize: new Vector2(_cardWidth, _cardHeight));
+        shopSection.GetComponent<LayoutElement>().flexibleHeight = 1.6f;
         _shopContent = shopContent;
 
         // Cerrar + reset de progreso (herramienta de demo/QA).

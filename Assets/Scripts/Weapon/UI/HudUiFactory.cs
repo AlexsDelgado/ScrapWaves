@@ -311,6 +311,75 @@ public static class HudUiFactory
         return btn;
     }
 
+    /// <summary>
+    /// Sección con scroll vertical (ScrollRect + RectMask2D) cuyo contenido se auto-organiza
+    /// con un VerticalLayoutGroup (lista) o GridLayoutGroup con wrap automático (grid).
+    /// El contenido nunca se desborda visualmente sin importar cuánto se agregue — si no
+    /// entra, scrollea en vez de salirse de la pantalla.
+    /// </summary>
+    public static (RectTransform section, RectTransform content) CreateScrollSection(Transform parent, string name, bool grid, Vector2 cellSize)
+    {
+        var sectionGo = new GameObject(name, typeof(RectTransform));
+        sectionGo.transform.SetParent(parent, false);
+        sectionGo.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+        var sectionBg = sectionGo.AddComponent<Image>();
+        sectionBg.sprite = WhiteSprite;
+        sectionBg.color = new Color(1f, 1f, 1f, 0.04f);
+
+        var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+        viewportGo.transform.SetParent(sectionGo.transform, false);
+        var viewportRt = viewportGo.GetComponent<RectTransform>();
+        viewportRt.anchorMin = Vector2.zero;
+        viewportRt.anchorMax = Vector2.one;
+        viewportRt.offsetMin = Vector2.zero;
+        viewportRt.offsetMax = Vector2.zero;
+        viewportGo.AddComponent<RectMask2D>();
+
+        var contentGo = new GameObject("Content", typeof(RectTransform));
+        contentGo.transform.SetParent(viewportGo.transform, false);
+        var contentRt = contentGo.GetComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0f, 1f);
+        contentRt.anchorMax = new Vector2(1f, 1f);
+        contentRt.pivot = new Vector2(0.5f, 1f);
+        contentRt.anchoredPosition = Vector2.zero;
+        contentRt.sizeDelta = Vector2.zero;
+
+        if (grid)
+        {
+            var gridLayout = contentGo.AddComponent<GridLayoutGroup>();
+            gridLayout.padding = new RectOffset(12, 12, 12, 12);
+            gridLayout.spacing = new Vector2(14f, 14f);
+            gridLayout.cellSize = cellSize;
+            gridLayout.constraint = GridLayoutGroup.Constraint.Flexible;
+            gridLayout.childAlignment = TextAnchor.UpperLeft;
+        }
+        else
+        {
+            var vLayout = contentGo.AddComponent<VerticalLayoutGroup>();
+            vLayout.padding = new RectOffset(12, 12, 12, 12);
+            vLayout.spacing = 8f;
+            vLayout.childControlWidth = true;
+            vLayout.childControlHeight = false;
+            vLayout.childForceExpandWidth = true;
+            vLayout.childForceExpandHeight = false;
+        }
+
+        var fitter = contentGo.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var scrollRect = sectionGo.AddComponent<ScrollRect>();
+        scrollRect.viewport = viewportRt;
+        scrollRect.content = contentRt;
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 24f;
+
+        return (sectionGo.GetComponent<RectTransform>(), contentRt);
+    }
+
     public static Color GetPlaceholderColor(HudPlaceholderKind kind) => kind switch
     {
         HudPlaceholderKind.Head => new Color(0.35f, 0.55f, 0.95f, 1f),

@@ -11,20 +11,17 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class CraftingUI : MonoBehaviour
 {
-    [SerializeField, Min(180)] private float _cardWidth = 260f;
-    [SerializeField, Min(120)] private float _cardHeight = 180f;
+    [SerializeField, Min(180)] private float _cardWidth = 280f;
+    [SerializeField, Min(120)] private float _cardHeight = 190f;
 
     private Canvas _canvas;
     private TextMeshProUGUI _titleText;
     private TextMeshProUGUI _statusText;
-    private RectTransform _cardsRow;
-    private readonly List<Button> _buttons = new();
+    private RectTransform _cardsContent;
     private float _previousTimeScale = 1f;
     private Action _onClosed;
     private ThirdPersonCamera _resolvedCamera;
     private bool _isVisible;
-    private bool _awaitingAdvancedChoice;
-    private LevelUpChoiceUI _activeChoiceUi;
 
     public bool IsVisible => _isVisible;
 
@@ -55,7 +52,7 @@ public class CraftingUI : MonoBehaviour
         SetCameraBlocked(true);
         EnsureUi();
         _titleText.text = "Crafting Station";
-        _statusText.text = string.Empty;
+        SetStatus(string.Empty);
         BuildCards(crafting, inventory);
         _canvas.gameObject.SetActive(true);
     }
@@ -63,11 +60,6 @@ public class CraftingUI : MonoBehaviour
     private void Hide()
     {
         _isVisible = false;
-
-        // Si el path choice quedó abierto detrás/encima, cancelarlo para que no
-        // quede colgado al cerrar el crafting.
-        if (_awaitingAdvancedChoice && _activeChoiceUi != null && _activeChoiceUi.IsVisible)
-            _activeChoiceUi.CancelSelection();
 
         if (_canvas != null)
             _canvas.gameObject.SetActive(false);
@@ -84,9 +76,11 @@ public class CraftingUI : MonoBehaviour
         _resolvedCamera?.SetLookBlockedByUi(blocked);
     }
 
+    // ---------------------------------------------------------------- Cards
+
     private void BuildCards(WeaponCraftingService crafting, MaterialInventory inventory)
     {
-        ClearButtons();
+        ClearCards();
         WeaponManager weaponManager = crafting.GetComponent<WeaponManager>();
         if (weaponManager == null)
             weaponManager = FindAnyObjectByType<WeaponManager>();
@@ -158,86 +152,45 @@ public class CraftingUI : MonoBehaviour
                     Refresh(crafting, inventory);
                 });
         }
-
-        AddCard("Cerrar", string.Empty, true, Hide);
     }
 
+    /// <summary>
+    /// Submenú de Advanced Tinkering: vive en la misma ventana/canvas que el resto del
+    /// crafting (mismo título, mismo grid de cards), solo cambia qué cards se muestran.
+    /// No hay handoff a otra UI ni otro estilo — al elegir una ruta, vuelve directo a las
+    /// cards normales de crafting.
+    /// </summary>
     private void PresentAdvancedChoice(WeaponCraftingService crafting, WeaponData weapon)
     {
-        var options = new List<LevelUpChoiceOption>();
+        ClearCards();
+        _titleText.text = $"Advanced Tinkering — {weapon.DisplayName}";
+        SetStatus("Elegí una ruta de mejora.");
+
         if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
         {
             string name = guaranteed == WeaponUpgradePath.PathA
                 ? (weapon.PathA?.PathName ?? "Path A")
                 : (weapon.PathB?.PathName ?? "Path B");
-            options.Add(new LevelUpChoiceOption(name, "Path garantizado tras rechazo"));
+            AddCard(name, "Path garantizado tras rechazo", true,
+                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, guaranteed, true)));
         }
         else
         {
-            options.Add(new(weapon.PathA?.PathName ?? "Path A", "Aceptar path A"));
-            options.Add(new(weapon.PathB?.PathName ?? "Path B", "Aceptar path B"));
-            options.Add(new("Rechazar", "+50% costo, garantiza path alternativo"));
+            AddCard(weapon.PathA?.PathName ?? "Path A", "Aceptar path A", true,
+                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true)));
+            AddCard(weapon.PathB?.PathName ?? "Path B", "Aceptar path B", true,
+                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true)));
+            AddCard("Rechazar", "+50% costo, garantiza path alternativo", true,
+                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false)));
         }
-
-        LevelUpChoiceUI choiceUi = FindAnyObjectByType<LevelUpChoiceUI>();
-        if (choiceUi == null)
-            return;
-
-        StartCoroutine(AdvancedChoiceCoroutine(crafting, weapon, choiceUi, options));
     }
 
-    private IEnumerator AdvancedChoiceCoroutine(
-        WeaponCraftingService crafting,
-        WeaponData weapon,
-        LevelUpChoiceUI choiceUi,
-        List<LevelUpChoiceOption> options)
+    private void ResolveAdvancedChoice(WeaponCraftingService crafting, Func<CraftingActionResult> applyChoice)
     {
-        _awaitingAdvancedChoice = true;
-        _activeChoiceUi = choiceUi;
-
-        // Ocultar crafting para que el path choice quede visible y clickeable.
-        if (_canvas != null)
-            _canvas.gameObject.SetActive(false);
-
-        // CraftingCanvas usa sortingOrder 5100; el choice por defecto es 5000.
-        choiceUi.EnsureSortingOrderAtLeast(5200);
-
-        int selected = -1;
-        yield return choiceUi.PresentCoroutine("Advanced Tinkering", options, index => selected = index);
-
-        _awaitingAdvancedChoice = false;
-        _activeChoiceUi = null;
-
-        // El usuario cerró el crafting mientras elegía path: no reabrir ni aplicar.
-        if (!_isVisible)
-            yield break;
-
-        Time.timeScale = 0f;
-        SetCameraBlocked(true);
-        if (_canvas != null)
-            _canvas.gameObject.SetActive(true);
-
-        MaterialInventory inventory = FindAnyObjectByType<MaterialInventory>();
-        CraftingActionResult result;
-
-        if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
-        {
-            if (selected == 0)
-                result = crafting.TryAdvancedTinkering(weapon, guaranteed, true);
-            else
-                result = new CraftingActionResult(false, "Selección cancelada.");
-        }
-        else if (selected == 0)
-            result = crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true);
-        else if (selected == 1)
-            result = crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true);
-        else if (selected == 2)
-            result = crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false);
-        else
-            result = new CraftingActionResult(false, "Selección cancelada.");
-
+        CraftingActionResult result = applyChoice();
         SetStatus(result.Message);
-        Refresh(crafting, inventory);
+        _titleText.text = "Crafting Station";
+        Refresh(crafting, FindAnyObjectByType<MaterialInventory>());
     }
 
     private void Refresh(WeaponCraftingService crafting, MaterialInventory inventory)
@@ -264,64 +217,77 @@ public class CraftingUI : MonoBehaviour
         return sb.ToString();
     }
 
+    private readonly List<GameObject> _cardObjects = new();
+
     private void AddCard(string title, string description, bool interactable, Action onClick)
     {
-        Button btn = CreateCard(title, description, interactable);
-        btn.onClick.AddListener(() => onClick?.Invoke());
-        _buttons.Add(btn);
-    }
+        var card = new GameObject("CraftCard", typeof(RectTransform));
+        card.transform.SetParent(_cardsContent, false);
 
-    private void ClearButtons()
-    {
-        for (int i = 0; i < _buttons.Count; i++)
-        {
-            if (_buttons[i] != null)
-                Destroy(_buttons[i].gameObject);
-        }
-        _buttons.Clear();
-    }
-
-    private Button CreateCard(string title, string description, bool interactable)
-    {
-        var cardGo = new GameObject("CraftCard", typeof(RectTransform));
-        cardGo.transform.SetParent(_cardsRow, false);
-        cardGo.GetComponent<RectTransform>().sizeDelta = new Vector2(_cardWidth, _cardHeight);
-        var bg = cardGo.AddComponent<Image>();
+        var bg = card.AddComponent<Image>();
         bg.sprite = HudUiFactory.WhiteSprite;
-        bg.color = interactable ? HudUiFactory.BorderColor : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        var btn = cardGo.AddComponent<Button>();
-        btn.interactable = interactable;
+        bg.color = interactable ? HudUiFactory.BorderColor : new Color(0.22f, 0.22f, 0.24f, 1f);
 
+        var cardLayout = card.AddComponent<VerticalLayoutGroup>();
+        cardLayout.padding = new RectOffset(12, 12, 12, 12);
+        cardLayout.spacing = 8f;
+        cardLayout.childControlWidth = true;
+        cardLayout.childControlHeight = true;
+        cardLayout.childForceExpandWidth = true;
+        cardLayout.childForceExpandHeight = false;
+
+        CreateCardLabel(card.transform, title, 18f, FontStyles.Bold, Color.white, 44f);
+
+        string desc = interactable ? description : description + "\n(Sin materiales)";
+        var descGo = new GameObject("Description", typeof(RectTransform));
+        descGo.transform.SetParent(card.transform, false);
+        var descLabel = descGo.AddComponent<TextMeshProUGUI>();
+        TmpUiHelper.ApplyDefaultFont(descLabel);
+        descLabel.fontSize = 14f;
+        descLabel.color = HudUiFactory.MutedTextColor;
+        descLabel.alignment = TextAlignmentOptions.Top;
+        descLabel.enableWordWrapping = true;
+        descLabel.text = desc;
+        descGo.AddComponent<LayoutElement>().flexibleHeight = 1f;
+
+        Button btn = card.AddComponent<Button>();
+        btn.interactable = interactable;
+        btn.targetGraphic = bg;
         var colors = btn.colors;
         colors.disabledColor = new Color(0.35f, 0.35f, 0.35f, 0.9f);
         btn.colors = colors;
+        btn.onClick.AddListener(() => onClick?.Invoke());
 
-        CreateLabel(cardGo.transform, title, 18, FontStyles.Bold, new Vector2(0f, 0.55f), new Vector2(1f, 1f));
-        string desc = interactable ? description : description + "\n(Sin materiales)";
-        CreateLabel(cardGo.transform, desc, 14, FontStyles.Normal, new Vector2(0f, 0f), new Vector2(1f, 0.55f));
-        return btn;
+        _cardObjects.Add(card);
     }
 
-    private static TextMeshProUGUI CreateLabel(Transform parent, string text, float size, FontStyles style, Vector2 anchorMin, Vector2 anchorMax)
+    private void ClearCards()
     {
-        var go = new GameObject("Label", typeof(RectTransform));
+        for (int i = 0; i < _cardObjects.Count; i++)
+        {
+            if (_cardObjects[i] != null)
+                Destroy(_cardObjects[i]);
+        }
+        _cardObjects.Clear();
+    }
+
+    private static TextMeshProUGUI CreateCardLabel(Transform parent, string text, float fontSize, FontStyles style, Color color, float preferredHeight)
+    {
+        var go = new GameObject("Title", typeof(RectTransform));
         go.transform.SetParent(parent, false);
-        var rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = anchorMin;
-        rt.anchorMax = anchorMax;
-        rt.offsetMin = new Vector2(10f, 10f);
-        rt.offsetMax = new Vector2(-10f, -10f);
         var label = go.AddComponent<TextMeshProUGUI>();
         TmpUiHelper.ApplyDefaultFont(label);
-        label.fontSize = size;
+        label.fontSize = fontSize;
         label.fontStyle = style;
+        label.color = color;
         label.alignment = TextAlignmentOptions.Top;
-        label.color = Color.white;
-        label.text = text;
         label.enableWordWrapping = true;
-        label.raycastTarget = false;
+        label.text = text;
+        go.AddComponent<LayoutElement>().preferredHeight = preferredHeight;
         return label;
     }
+
+    // ---------------------------------------------------------------- Construcción de la UI
 
     private void EnsureUi()
     {
@@ -342,38 +308,70 @@ public class CraftingUI : MonoBehaviour
         var scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
 
-        var panel = new GameObject("Panel", typeof(RectTransform));
-        panel.transform.SetParent(canvasGo.transform, false);
-        var panelRt = panel.GetComponent<RectTransform>();
-        panelRt.anchorMin = Vector2.zero;
-        panelRt.anchorMax = Vector2.one;
-        panelRt.offsetMin = Vector2.zero;
-        panelRt.offsetMax = Vector2.zero;
-        panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+        // Backdrop: opaco, cubre toda la pantalla (no debe verse el fondo del juego).
+        var backdrop = new GameObject("Backdrop", typeof(RectTransform));
+        backdrop.transform.SetParent(canvasGo.transform, false);
+        Stretch(backdrop.GetComponent<RectTransform>());
+        var backdropImg = backdrop.AddComponent<Image>();
+        backdropImg.sprite = HudUiFactory.WhiteSprite;
+        backdropImg.color = new Color(0.02f, 0.02f, 0.025f, 1f);
 
-        _titleText = CreateLabel(panel.transform, "Crafting", 30, FontStyles.Bold, new Vector2(0f, 0.88f), new Vector2(1f, 1f));
-        _titleText.alignment = TextAlignmentOptions.Center;
+        // Window: panel centrado de tamaño fijo, todo el contenido vive adentro.
+        var window = new GameObject("Window", typeof(RectTransform));
+        window.transform.SetParent(canvasGo.transform, false);
+        var windowRt = window.GetComponent<RectTransform>();
+        windowRt.anchorMin = new Vector2(0.5f, 0.5f);
+        windowRt.anchorMax = new Vector2(0.5f, 0.5f);
+        windowRt.pivot = new Vector2(0.5f, 0.5f);
+        windowRt.sizeDelta = new Vector2(1500f, 820f);
+        var windowImg = window.AddComponent<Image>();
+        windowImg.sprite = HudUiFactory.WhiteSprite;
+        windowImg.color = new Color(0.08f, 0.085f, 0.095f, 1f);
 
-        // Inventario lo muestra MaterialInventoryHUD; acá solo status + cards.
-        _statusText = CreateLabel(panel.transform, string.Empty, 15, FontStyles.Italic, new Vector2(0f, 0.78f), new Vector2(1f, 0.86f));
-        _statusText.alignment = TextAlignmentOptions.Center;
+        var windowLayout = window.AddComponent<VerticalLayoutGroup>();
+        windowLayout.padding = new RectOffset(32, 32, 24, 24);
+        windowLayout.spacing = 10f;
+        windowLayout.childControlWidth = true;
+        windowLayout.childControlHeight = true;
+        windowLayout.childForceExpandWidth = true;
+        windowLayout.childForceExpandHeight = false;
+
+        _titleText = HudUiFactory.CreateLabel(window.transform, "Title", "Crafting Station", 30f, TextAlignmentOptions.Center);
+        _titleText.fontStyle = FontStyles.Bold;
+        _titleText.gameObject.AddComponent<LayoutElement>().preferredHeight = 44f;
+
+        _statusText = HudUiFactory.CreateLabel(window.transform, "Status", string.Empty, 16f, TextAlignmentOptions.Center);
+        _statusText.fontStyle = FontStyles.Italic;
         _statusText.color = new Color(1f, 0.85f, 0.4f);
+        _statusText.gameObject.AddComponent<LayoutElement>().preferredHeight = 28f;
 
-        var rowGo = new GameObject("CardsRow", typeof(RectTransform));
-        rowGo.transform.SetParent(panel.transform, false);
-        _cardsRow = rowGo.GetComponent<RectTransform>();
-        _cardsRow.anchorMin = new Vector2(0.5f, 0.35f);
-        _cardsRow.anchorMax = new Vector2(0.5f, 0.35f);
-        _cardsRow.pivot = new Vector2(0.5f, 0.5f);
-        _cardsRow.sizeDelta = new Vector2(1300f, _cardHeight + 20f);
-        var layout = rowGo.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 16f;
-        layout.childControlWidth = false;
-        layout.childControlHeight = false;
+        (RectTransform cardsSection, RectTransform cardsContent) = HudUiFactory.CreateScrollSection(
+            window.transform, "CardsScroll", grid: true, cellSize: new Vector2(_cardWidth, _cardHeight));
+        cardsSection.GetComponent<LayoutElement>().flexibleHeight = 1f;
+        _cardsContent = cardsContent;
+
+        var bottomBar = new GameObject("BottomBar", typeof(RectTransform));
+        bottomBar.transform.SetParent(window.transform, false);
+        bottomBar.AddComponent<LayoutElement>().preferredHeight = 56f;
+        var bottomLayout = bottomBar.AddComponent<HorizontalLayoutGroup>();
+        bottomLayout.childAlignment = TextAnchor.MiddleCenter;
+        bottomLayout.childControlWidth = false;
+        bottomLayout.childControlHeight = false;
+
+        Button closeBtn = HudUiFactory.CreateButton(bottomBar.transform, "Cerrar", new Vector2(220f, 48f));
+        closeBtn.onClick.AddListener(Hide);
 
         _canvas.gameObject.SetActive(false);
+    }
+
+    private static void Stretch(RectTransform rt)
+    {
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
     }
 }

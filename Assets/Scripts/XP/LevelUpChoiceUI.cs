@@ -114,32 +114,6 @@ public class LevelUpChoiceUI : MonoBehaviour
         _currentOptions = null;
     }
 
-    /// <summary>
-    /// Cierra la UI sin elegir opción (índice -1). Útil cuando un panel padre
-    /// (p. ej. Crafting) se cierra mientras esta elección sigue abierta.
-    /// </summary>
-    public void CancelSelection()
-    {
-        if (!_isVisible)
-            return;
-
-        Hide();
-        Action<int> callback = _onSelected;
-        _onSelected = null;
-        _currentOptions = null;
-        callback?.Invoke(-1);
-    }
-
-    /// <summary>
-    /// Asegura que el canvas quede por encima de otro overlay (p. ej. Crafting en 5100).
-    /// </summary>
-    public void EnsureSortingOrderAtLeast(int minimumOrder)
-    {
-        EnsureUiExists();
-        if (_canvas != null && _canvas.sortingOrder < minimumOrder)
-            _canvas.sortingOrder = minimumOrder;
-    }
-
     private void Hide()
     {
         _isVisible = false;
