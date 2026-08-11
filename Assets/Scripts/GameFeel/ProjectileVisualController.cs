@@ -80,7 +80,7 @@ public sealed class ProjectileVisualController : MonoBehaviour
         {
             _meshRenderer.GetPropertyBlock(_propertyBlock);
             _propertyBlock.SetColor(BaseColorId, color);
-            _propertyBlock.SetColor(EmissionColorId, color * emission);
+            _propertyBlock.SetColor(EmissionColorId, color);
             _propertyBlock.SetFloat(EmissionIntensityId, emission);
             _propertyBlock.SetFloat(HeatId, heatValue);
             _meshRenderer.SetPropertyBlock(_propertyBlock);
@@ -119,11 +119,9 @@ public sealed class ProjectileVisualController : MonoBehaviour
 
         if (_light != null)
         {
-            bool allowLights = qualitySettings == null || qualitySettings.AllowLights(quality);
-            _light.enabled = allowLights && archetype.LightIntensity > 0f;
-            _light.intensity = archetype.LightIntensity * emission;
-            _light.range = archetype.LightRange;
-            _light.color = color;
+            // Projectile readability comes from silhouette, trail, and smoke.
+            // A moving point light causes large exposure spikes at automatic-fire rates.
+            _light.enabled = false;
         }
     }
 

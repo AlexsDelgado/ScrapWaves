@@ -307,7 +307,9 @@ public static class MortarAssetBuilder
             rain.transform.localPosition = Vector3.up * 1.2f;
             ParticleSystem.VelocityOverLifetimeModule velocity = rain.velocityOverLifetime;
             velocity.enabled = true;
+            velocity.x = new ParticleSystem.MinMaxCurve(0f, 0f);
             velocity.y = new ParticleSystem.MinMaxCurve(-3.4f, -6.8f);
+            velocity.z = new ParticleSystem.MinMaxCurve(0f, 0f);
             particles.Add(rain);
         }
         else

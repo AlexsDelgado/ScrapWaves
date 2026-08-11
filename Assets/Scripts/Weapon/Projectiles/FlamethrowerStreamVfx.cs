@@ -445,7 +445,7 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
         if (_nozzleGlow != null)
             _nozzleGlow.enabled = visible;
         if (_nozzleLight != null)
-            _nozzleLight.enabled = visible;
+            _nozzleLight.enabled = false;
         if (!visible)
             SetSecondaryLayers(false);
     }

@@ -321,24 +321,21 @@ public static class FlamethrowerAssetBuilder
             AssetDatabase.CreateAsset(profile, ProfilePath);
         }
 
-        AudioClip flameAudio = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/010.wav");
-        AudioClip pressureAudio = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/shoot.wav");
-        AudioClip crackAudio = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/click.wav");
         List<WeaponPresentationCueData> cues = new()
         {
-            Cue(WeaponPresentationCue.FlamethrowerAutomaticLoop, null, flameAudio, 0.28f, 0.72f, 0.82f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerManualLoop, null, flameAudio, 0.34f, 0.82f, 0.94f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedAutomaticLoop, null, flameAudio, 0.28f, 0.58f, 0.68f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedManualLoop, null, flameAudio, 0.34f, 0.66f, 0.76f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenAutomaticLoop, null, flameAudio, 0.3f, 1.05f, 1.15f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenManualLoop, null, flameAudio, 0.35f, 1.12f, 1.24f, 0.7f, true, 1),
-            Cue(WeaponPresentationCue.FlamethrowerActiveBurst, prefabs[FlamethrowerCueStyle.FlameActiveBurst], pressureAudio, 0.84f, 0.78f, 0.9f, 0.72f, false, 5, active: true),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedActive, prefabs[FlamethrowerCueStyle.JellifiedActiveBurst], pressureAudio, 0.82f, 0.62f, 0.74f, 0.72f, false, 5, active: true),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenActive, prefabs[FlamethrowerCueStyle.NitrogenActiveBurst], pressureAudio, 0.86f, 1.05f, 1.18f, 0.72f, false, 5, active: true),
+            Cue(WeaponPresentationCue.FlamethrowerAutomaticLoop, null, null, 0f, 1f, 1f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerManualLoop, null, null, 0f, 1f, 1f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedAutomaticLoop, null, null, 0f, 1f, 1f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedManualLoop, null, null, 0f, 1f, 1f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenAutomaticLoop, null, null, 0f, 1f, 1f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenManualLoop, null, null, 0f, 1f, 1f, 0.7f, true, 1),
+            Cue(WeaponPresentationCue.FlamethrowerActiveBurst, prefabs[FlamethrowerCueStyle.FlameActiveBurst], null, 0f, 1f, 1f, 0.72f, false, 5, active: true),
+            Cue(WeaponPresentationCue.FlamethrowerJellifiedActive, prefabs[FlamethrowerCueStyle.JellifiedActiveBurst], null, 0f, 1f, 1f, 0.72f, false, 5, active: true),
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenActive, prefabs[FlamethrowerCueStyle.NitrogenActiveBurst], null, 0f, 1f, 1f, 0.72f, false, 5, active: true),
             Cue(WeaponPresentationCue.FlamethrowerBurnStatus, prefabs[FlamethrowerCueStyle.BurnCoating], null, 0f, 1f, 1f, 0.75f, false, 18, secondary: true),
             Cue(WeaponPresentationCue.FlamethrowerJellifiedStatus, prefabs[FlamethrowerCueStyle.JellifiedCoating], null, 0f, 1f, 1f, 0.85f, false, 18, secondary: true),
             Cue(WeaponPresentationCue.FlamethrowerNitrogenSlow, prefabs[FlamethrowerCueStyle.NitrogenSlow], null, 0f, 1f, 1f, 0.75f, false, 18, secondary: true),
-            Cue(WeaponPresentationCue.FlamethrowerNitrogenFreeze, prefabs[FlamethrowerCueStyle.NitrogenFreeze], crackAudio, 0.68f, 0.78f, 0.9f, 1.15f, false, 18)
+            Cue(WeaponPresentationCue.FlamethrowerNitrogenFreeze, prefabs[FlamethrowerCueStyle.NitrogenFreeze], null, 0f, 1f, 1f, 1.15f, false, 18)
         };
 
         List<WeaponFeedbackBinding> bindings = new()
@@ -414,8 +411,8 @@ public static class FlamethrowerAssetBuilder
             MinimumDistance = 1f,
             MaximumDistance = 48f,
             AudioPriority = active ? 60 : 110,
-            ApplyHeatStrainToMechanicalLayer = loop,
-            ApplyEventIntensityToPitch = loop
+            ApplyHeatStrainToMechanicalLayer = false,
+            ApplyEventIntensityToPitch = false
         };
         if (clip != null)
             data.AudioClips.Add(clip);

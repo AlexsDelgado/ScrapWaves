@@ -155,7 +155,7 @@ public class AutomaticCannonPresentationTests
     }
 
     [Test]
-    public void ProductionBaseCannon_UsesLayeredShotAndMechanicalTailAudio()
+    public void ProductionCannon_RestoresOriginalSingleShotAudioContract()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(
             "Assets/ScriptableObjects/WeaponPresentation/AutomaticCannonPresentation.asset");
@@ -174,12 +174,16 @@ public class AutomaticCannonPresentationTests
             profile.TryGetCueData(WeaponPresentationCue.AutomaticCannonManualVolley, out WeaponPresentationCueData manualVolley),
             Is.True);
 
-        Assert.That(autoShot.AudioClips, Has.Count.GreaterThanOrEqualTo(2));
-        Assert.That(manualShot.AudioClips, Has.Count.GreaterThanOrEqualTo(2));
-        Assert.That(autoShot.LayerAudioClips, Is.True);
-        Assert.That(manualShot.LayerAudioClips, Is.True);
-        Assert.That(autoBurst.AudioClips, Is.Not.Empty);
-        Assert.That(manualVolley.AudioClips, Is.Not.Empty);
+        AudioClip originalShoot = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/shoot.wav");
+        Assert.That(originalShoot, Is.Not.Null);
+        Assert.That(autoShot.AudioClips, Is.EqualTo(new[] { originalShoot }));
+        Assert.That(manualShot.AudioClips, Is.EqualTo(new[] { originalShoot }));
+        Assert.That(autoShot.LayerAudioClips, Is.False);
+        Assert.That(manualShot.LayerAudioClips, Is.False);
+        Assert.That(autoShot.ApplyHeatStrainToMechanicalLayer, Is.False);
+        Assert.That(manualShot.ApplyHeatStrainToMechanicalLayer, Is.False);
+        Assert.That(autoBurst.AudioClips, Is.Empty);
+        Assert.That(manualVolley.AudioClips, Is.Empty);
     }
 
     [Test]
@@ -519,6 +523,126 @@ public class AutomaticCannonPresentationTests
         Assert.That(controller.ActiveLoopCount, Is.Zero);
         Assert.That(controller.ActiveVfxCount, Is.Zero);
         Assert.That(controller.ActiveAudioVoiceCount, Is.Zero);
+    }
+
+    [Test]
+    public void PresentationController_RoutesEachWeaponThroughItsOwnProfile()
+    {
+        GameObject cannonVfx = CreateGameObject("Cannon routed VFX");
+        GameObject flameVfx = CreateGameObject("Flame routed VFX");
+        WeaponPresentationProfile cannonProfile = CreateProfile();
+        WeaponPresentationProfile flameProfile = CreateProfile();
+
+        GetPrivateField<List<WeaponPresentationCueData>>(cannonProfile, "_cues").Add(
+            new WeaponPresentationCueData
+            {
+                Cue = WeaponPresentationCue.AutomaticCannonAutoShot,
+                VfxPrefab = cannonVfx,
+                Duration = 1f,
+                PrewarmCount = 1,
+                MaxSimultaneous = 1
+            });
+        GetPrivateField<List<WeaponFeedbackBinding>>(cannonProfile, "_feedbackBindings").Add(
+            new WeaponFeedbackBinding
+            {
+                Event = WeaponFeedbackEvent.ShotFired,
+                Cue = WeaponPresentationCue.AutomaticCannonAutoShot
+            });
+        GetPrivateField<List<WeaponPresentationCueData>>(flameProfile, "_cues").Add(
+            new WeaponPresentationCueData
+            {
+                Cue = WeaponPresentationCue.FlamethrowerActiveBurst,
+                VfxPrefab = flameVfx,
+                Duration = 1f,
+                PrewarmCount = 1,
+                MaxSimultaneous = 1
+            });
+        GetPrivateField<List<WeaponFeedbackBinding>>(flameProfile, "_feedbackBindings").Add(
+            new WeaponFeedbackBinding
+            {
+                Event = WeaponFeedbackEvent.ShotFired,
+                Cue = WeaponPresentationCue.FlamethrowerActiveBurst
+            });
+        cannonProfile.RebuildCache();
+        flameProfile.RebuildCache();
+
+        WeaponData cannonData = ScriptableObject.CreateInstance<WeaponData>();
+        WeaponData flameData = ScriptableObject.CreateInstance<WeaponData>();
+        _createdObjects.Add(cannonData);
+        _createdObjects.Add(flameData);
+        cannonData.PresentationProfile = cannonProfile;
+        flameData.PresentationProfile = flameProfile;
+        WeaponInstance cannon = new() { Data = cannonData };
+        WeaponInstance flame = new() { Data = flameData };
+
+        GameObject controllerObject = CreateGameObject("Multi-profile presentation controller");
+        WeaponPresentationController controller = controllerObject.AddComponent<WeaponPresentationController>();
+        controller.Configure(cannonProfile, camera: null, audioManager: null);
+        controller.RegisterProfile(flameProfile);
+
+        WeaponFeedbackContext cannonShot = new(
+            cannon, WeaponFeedbackMode.Automatic, 0f, Vector3.zero, Vector3.forward);
+        WeaponFeedbackContext flameAbility = new(
+            flame, WeaponFeedbackMode.Active, 0f, Vector3.zero, Vector3.forward);
+        controller.OnShotFired(in cannonShot);
+        controller.OnShotFired(in flameAbility);
+
+        Assert.That(controller.ActiveVfxCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void PresentationController_ConfiguresProjectileFromTheOwningWeaponProfile()
+    {
+        WeaponPresentationProfile fallbackProfile = CreateProfile();
+        WeaponPresentationProfile rocketProfile = CreateProfile();
+        Vector3 rocketScale = new(2.5f, 1.5f, 4f);
+        GetPrivateField<List<ProjectileArchetypePresentation>>(rocketProfile, "_projectileArchetypes").Add(
+            new ProjectileArchetypePresentation
+            {
+                Archetype = ProjectilePresentationArchetypeId.Rocket,
+                LocalScale = rocketScale,
+                BaseEmission = 1f
+            });
+        rocketProfile.RebuildCache();
+
+        WeaponData rocketData = ScriptableObject.CreateInstance<WeaponData>();
+        _createdObjects.Add(rocketData);
+        rocketData.PresentationProfile = rocketProfile;
+        WeaponInstance rocket = new() { Data = rocketData };
+
+        GameObject projectileObject = CreateGameObject("Routed rocket projectile");
+        GameObject visual = new("Visual");
+        visual.transform.SetParent(projectileObject.transform, false);
+        visual.AddComponent<MeshFilter>();
+        visual.AddComponent<MeshRenderer>();
+        Light projectileLight = visual.AddComponent<Light>();
+        projectileLight.enabled = true;
+        projectileObject.AddComponent<ProjectileVisualController>();
+        Projectile projectile = projectileObject.AddComponent<Projectile>();
+
+        GameObject controllerObject = CreateGameObject("Projectile profile controller");
+        WeaponPresentationController controller = controllerObject.AddComponent<WeaponPresentationController>();
+        controller.Configure(fallbackProfile, camera: null, audioManager: null);
+        WeaponFeedbackContext context = new(
+            rocket, WeaponFeedbackMode.Automatic, 0f, Vector3.zero, Vector3.forward);
+
+        controller.ConfigureProjectile(projectile, ProjectilePresentationArchetypeId.Rocket, in context);
+
+        Assert.That(visual.transform.localScale, Is.EqualTo(rocketScale));
+        Assert.That(projectileLight.enabled, Is.False);
+    }
+
+    [Test]
+    public void PooledWeaponVfx_DisablesAuthoredSceneLights()
+    {
+        GameObject vfxObject = CreateGameObject("Subdued pooled VFX");
+        Light light = vfxObject.AddComponent<Light>();
+        light.enabled = true;
+        PooledWeaponVfx pooled = vfxObject.AddComponent<PooledWeaponVfx>();
+
+        pooled.Initialize();
+
+        Assert.That(light.enabled, Is.False);
     }
 
     [Test]

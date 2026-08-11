@@ -10,8 +10,8 @@ public sealed class GameFeelQualitySettings : ScriptableObject
 
     [Header("Optional layers")]
     [SerializeField] private bool _lowQualityLights;
-    [SerializeField] private bool _mediumQualityLights = true;
-    [SerializeField] private bool _highQualityLights = true;
+    [SerializeField] private bool _mediumQualityLights;
+    [SerializeField] private bool _highQualityLights;
     [SerializeField, Min(0f)] private float _lowDecalLifetimeMultiplier = 0.35f;
     [SerializeField, Min(0f)] private float _mediumDecalLifetimeMultiplier = 0.7f;
     [SerializeField, Min(0f)] private float _highDecalLifetimeMultiplier = 1f;

@@ -275,30 +275,28 @@ public static class GameFeelFoundationAssetBuilder
         }
 
         AudioClip shoot = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/shoot.wav");
-        AudioClip click = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/click.wav");
-        AudioClip mechanical = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/010.wav");
 
         List<WeaponPresentationCueData> cues = new()
         {
-            Cue(WeaponPresentationCue.AutomaticCannonAutoBurst, null, new[] { click, mechanical }, 0.28f, 0.96f, 1.02f, 0.12f, 0.02f, 4, false, new Vector3(0f, 0f, -0.045f), new Vector3(-0.14f, 0f, 0f), 0.25f),
-            Cue(WeaponPresentationCue.AutomaticCannonAutoShot, prefabs[AutomaticCannonVfxStyle.AutomaticShot], new[] { shoot, mechanical }, 0.38f, 0.95f, 1.05f, 0.1f, 0.018f, 20, false, new Vector3(0f, 0f, -0.018f), new Vector3(-0.055f, 0f, 0f), 0.12f),
-            Cue(WeaponPresentationCue.AutomaticCannonManualVolley, null, new[] { click, mechanical }, 0.36f, 0.92f, 1f, 0.18f, 0.04f, 4, false, new Vector3(0f, 0f, -0.06f), new Vector3(-0.18f, 0f, 0f), 0.35f),
-            Cue(WeaponPresentationCue.AutomaticCannonManualShot, prefabs[AutomaticCannonVfxStyle.ManualShot], new[] { shoot, mechanical }, 0.48f, 0.92f, 1.02f, 0.15f, 0.025f, 24, false, new Vector3(0f, 0f, -0.028f), new Vector3(-0.085f, 0f, 0f), 0.18f),
-            Cue(WeaponPresentationCue.AutomaticCannonBaseActive, prefabs[AutomaticCannonVfxStyle.BaseActive], new[] { shoot, mechanical }, 0.8f, 0.88f, 0.98f, 0.52f, 0.12f, 4, false, new Vector3(0f, 0f, -0.14f), new Vector3(-0.5f, 0f, 0f), 1.2f),
-            Cue(WeaponPresentationCue.AutomaticCannonContinuousShot, prefabs[AutomaticCannonVfxStyle.AutomaticShot], new[] { shoot }, 0.2f, 1f, 1.08f, 0.08f, 0.045f, 20, false, new Vector3(0f, 0f, -0.01f), new Vector3(-0.035f, 0f, 0f), 0.08f),
-            Cue(WeaponPresentationCue.AutomaticCannonContinuousActive, prefabs[AutomaticCannonVfxStyle.BaseActive], new[] { mechanical }, 0.62f, 1f, 1.06f, 0.34f, 0.12f, 3, false, new Vector3(0f, 0f, -0.08f), new Vector3(-0.26f, 0f, 0f), 0.65f),
-            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterAutomatic, prefabs[AutomaticCannonVfxStyle.HeadHunterShot], new[] { shoot, mechanical }, 0.58f, 1.02f, 1.08f, 0.2f, 0.07f, 8, false, new Vector3(0f, 0f, -0.06f), new Vector3(-0.2f, 0f, 0f), 0.5f),
-            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterManual, prefabs[AutomaticCannonVfxStyle.HeadHunterShot], new[] { shoot, mechanical }, 0.72f, 0.96f, 1.02f, 0.24f, 0.08f, 8, false, new Vector3(0f, 0f, -0.1f), new Vector3(-0.34f, 0f, 0f), 0.75f),
-            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterCharge, prefabs[AutomaticCannonVfxStyle.HeadHunterCharge], new[] { mechanical }, 0.36f, 0.82f, 0.92f, 1.1f, 0.1f, 1, true, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterActive, prefabs[AutomaticCannonVfxStyle.HeadHunterRelease], new[] { shoot, mechanical }, 0.92f, 0.88f, 0.96f, 0.62f, 0.2f, 3, false, new Vector3(0f, 0f, -0.22f), new Vector3(-0.8f, 0f, 0f), 1.8f),
-            Cue(WeaponPresentationCue.AutomaticCannonImpact, prefabs[AutomaticCannonVfxStyle.Impact], new[] { mechanical }, 0.25f, 0.96f, 1.08f, 0.34f, 0.02f, 28, false, Vector3.zero, Vector3.zero, 0f, 0f, 0),
-            Cue(WeaponPresentationCue.AutomaticCannonCriticalImpact, prefabs[AutomaticCannonVfxStyle.CriticalImpact], new[] { mechanical }, 0.55f, 1f, 1.1f, 0.48f, 0.04f, 14, false, new Vector3(0f, 0f, -0.018f), new Vector3(-0.06f, 0f, 0f), 0.2f, 0.014f, 1),
-            Cue(WeaponPresentationCue.AutomaticCannonWeakPointImpact, prefabs[AutomaticCannonVfxStyle.WeakPointImpact], new[] { click, mechanical }, 0.75f, 1.02f, 1.12f, 0.52f, 0.055f, 10, false, new Vector3(0f, 0f, -0.035f), new Vector3(-0.12f, 0f, 0f), 0.35f, 0.024f, 2),
-            Cue(WeaponPresentationCue.AutomaticCannonContinuousLoop, prefabs[AutomaticCannonVfxStyle.ContinuousLoop], new[] { mechanical }, 0.22f, 0.96f, 1.08f, 0f, 0.1f, 1, true, new Vector3(0f, 0f, -0.02f), new Vector3(-0.06f, 0f, 0f), 0.15f),
-            Cue(WeaponPresentationCue.AutomaticCannonContinuousStop, prefabs[AutomaticCannonVfxStyle.ContinuousStop], new[] { click, mechanical }, 0.4f, 0.86f, 0.96f, 0.36f, 0.08f, 4, false, Vector3.zero, Vector3.zero, 0f),
-            Cue(WeaponPresentationCue.AutomaticCannonKillImpact, prefabs[AutomaticCannonVfxStyle.KillImpact], new[] { mechanical }, 0.82f, 0.88f, 1f, 0.68f, 0.09f, 10, false, new Vector3(0f, 0f, -0.06f), new Vector3(-0.16f, 0f, 0f), 0.55f, 0.04f, 3),
-            Cue(WeaponPresentationCue.AutomaticCannonHeatPulse, prefabs[AutomaticCannonVfxStyle.HeatPulse], new[] { click }, 0.35f, 1f, 1.12f, 0.45f, 0.15f, 3, false, Vector3.zero, Vector3.zero, 0.12f),
-            Cue(WeaponPresentationCue.AutomaticCannonAmmoEmpty, null, new[] { click }, 0.55f, 0.72f, 0.82f, 0.12f, 0.2f, 2, false, Vector3.zero, Vector3.zero, 0f)
+            Cue(WeaponPresentationCue.AutomaticCannonAutoBurst, null, Array.Empty<AudioClip>(), 0.8f, 0.98f, 1.02f, 0.12f, 0.02f, 4, false, new Vector3(0f, 0f, -0.045f), new Vector3(-0.14f, 0f, 0f), 0.25f),
+            Cue(WeaponPresentationCue.AutomaticCannonAutoShot, prefabs[AutomaticCannonVfxStyle.AutomaticShot], new[] { shoot }, 0.4f, 0.96f, 1.04f, 0.1f, 0.018f, 20, false, new Vector3(0f, 0f, -0.018f), new Vector3(-0.055f, 0f, 0f), 0.12f),
+            Cue(WeaponPresentationCue.AutomaticCannonManualVolley, null, Array.Empty<AudioClip>(), 1f, 0.94f, 1f, 0.18f, 0.04f, 4, false, new Vector3(0f, 0f, -0.06f), new Vector3(-0.18f, 0f, 0f), 0.35f),
+            Cue(WeaponPresentationCue.AutomaticCannonManualShot, prefabs[AutomaticCannonVfxStyle.ManualShot], new[] { shoot }, 0.5f, 0.94f, 1.02f, 0.15f, 0.025f, 24, false, new Vector3(0f, 0f, -0.028f), new Vector3(-0.085f, 0f, 0f), 0.18f),
+            Cue(WeaponPresentationCue.AutomaticCannonBaseActive, prefabs[AutomaticCannonVfxStyle.BaseActive], new[] { shoot }, 1f, 0.92f, 1f, 0.52f, 0.12f, 4, false, new Vector3(0f, 0f, -0.14f), new Vector3(-0.5f, 0f, 0f), 1.2f),
+            Cue(WeaponPresentationCue.AutomaticCannonContinuousShot, prefabs[AutomaticCannonVfxStyle.AutomaticShot], new[] { shoot }, 0.18f, 1f, 1.08f, 0.08f, 0.045f, 20, false, new Vector3(0f, 0f, -0.01f), new Vector3(-0.035f, 0f, 0f), 0.08f),
+            Cue(WeaponPresentationCue.AutomaticCannonContinuousActive, prefabs[AutomaticCannonVfxStyle.BaseActive], new[] { shoot }, 1f, 0.98f, 1.04f, 0.34f, 0.12f, 3, false, new Vector3(0f, 0f, -0.08f), new Vector3(-0.26f, 0f, 0f), 0.65f),
+            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterAutomatic, prefabs[AutomaticCannonVfxStyle.HeadHunterShot], new[] { shoot }, 0.8f, 0.98f, 1.02f, 0.2f, 0.07f, 8, false, new Vector3(0f, 0f, -0.06f), new Vector3(-0.2f, 0f, 0f), 0.5f),
+            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterManual, prefabs[AutomaticCannonVfxStyle.HeadHunterShot], new[] { shoot }, 1f, 0.96f, 1f, 0.24f, 0.08f, 8, false, new Vector3(0f, 0f, -0.1f), new Vector3(-0.34f, 0f, 0f), 0.75f),
+            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterCharge, prefabs[AutomaticCannonVfxStyle.HeadHunterCharge], Array.Empty<AudioClip>(), 0.75f, 0.98f, 1.02f, 1.1f, 0.1f, 1, true, Vector3.zero, Vector3.zero, 0f),
+            Cue(WeaponPresentationCue.AutomaticCannonHeadHunterActive, prefabs[AutomaticCannonVfxStyle.HeadHunterRelease], new[] { shoot }, 1f, 0.94f, 0.98f, 0.62f, 0.2f, 3, false, new Vector3(0f, 0f, -0.22f), new Vector3(-0.8f, 0f, 0f), 1.8f),
+            Cue(WeaponPresentationCue.AutomaticCannonImpact, prefabs[AutomaticCannonVfxStyle.Impact], Array.Empty<AudioClip>(), 0.45f, 0.96f, 1.06f, 0.34f, 0.02f, 28, false, Vector3.zero, Vector3.zero, 0f, 0f, 0),
+            Cue(WeaponPresentationCue.AutomaticCannonCriticalImpact, prefabs[AutomaticCannonVfxStyle.CriticalImpact], Array.Empty<AudioClip>(), 0.75f, 1f, 1.08f, 0.48f, 0.04f, 14, false, new Vector3(0f, 0f, -0.018f), new Vector3(-0.06f, 0f, 0f), 0.2f, 0.014f, 1),
+            Cue(WeaponPresentationCue.AutomaticCannonWeakPointImpact, prefabs[AutomaticCannonVfxStyle.WeakPointImpact], Array.Empty<AudioClip>(), 1f, 1f, 1.04f, 0.52f, 0.055f, 10, false, new Vector3(0f, 0f, -0.035f), new Vector3(-0.12f, 0f, 0f), 0.35f, 0.024f, 2),
+            Cue(WeaponPresentationCue.AutomaticCannonContinuousLoop, prefabs[AutomaticCannonVfxStyle.ContinuousLoop], Array.Empty<AudioClip>(), 0.7f, 1f, 1.08f, 0f, 0.1f, 1, true, new Vector3(0f, 0f, -0.02f), new Vector3(-0.06f, 0f, 0f), 0.15f),
+            Cue(WeaponPresentationCue.AutomaticCannonContinuousStop, prefabs[AutomaticCannonVfxStyle.ContinuousStop], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.36f, 0.08f, 4, false, Vector3.zero, Vector3.zero, 0f),
+            Cue(WeaponPresentationCue.AutomaticCannonKillImpact, prefabs[AutomaticCannonVfxStyle.KillImpact], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.68f, 0.09f, 10, false, new Vector3(0f, 0f, -0.06f), new Vector3(-0.16f, 0f, 0f), 0.55f, 0.04f, 3),
+            Cue(WeaponPresentationCue.AutomaticCannonHeatPulse, prefabs[AutomaticCannonVfxStyle.HeatPulse], Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.45f, 0.15f, 3, false, Vector3.zero, Vector3.zero, 0.12f),
+            Cue(WeaponPresentationCue.AutomaticCannonAmmoEmpty, null, Array.Empty<AudioClip>(), 0f, 1f, 1f, 0.12f, 0.2f, 2, false, Vector3.zero, Vector3.zero, 0f)
         };
 
         List<WeaponFeedbackBinding> bindings = new()
@@ -362,9 +360,9 @@ public static class GameFeelFoundationAssetBuilder
         {
             Cue = cue,
             VfxPrefab = prefab,
-            LayerAudioClips = clips.Length > 1,
-            MechanicalLayerVolume = 0.72f,
-            ApplyHeatStrainToMechanicalLayer = loop || clips.Length > 1,
+            LayerAudioClips = false,
+            MechanicalLayerVolume = 0.7f,
+            ApplyHeatStrainToMechanicalLayer = false,
             Volume = volume,
             PitchMin = pitchMin,
             PitchMax = pitchMax,

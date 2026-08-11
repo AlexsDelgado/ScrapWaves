@@ -14,6 +14,7 @@ public interface IWeaponVfxContextReceiver
 public sealed class PooledWeaponVfx : MonoBehaviour
 {
     private ParticleSystem[] _particleSystems;
+    private Light[] _lights;
     private IWeaponVfxContextReceiver[] _contextReceivers;
     private Transform _poolParent;
 
@@ -33,6 +34,8 @@ public sealed class PooledWeaponVfx : MonoBehaviour
         }
 
         _particleSystems = GetComponentsInChildren<ParticleSystem>(true);
+        _lights = GetComponentsInChildren<Light>(true);
+        DisableSceneLights();
         MonoBehaviour[] contextBehaviours = GetComponentsInChildren<MonoBehaviour>(true);
         System.Collections.Generic.List<IWeaponVfxContextReceiver> contextReceivers = new();
         for (int i = 0; i < contextBehaviours.Length; i++)
@@ -61,6 +64,7 @@ public sealed class PooledWeaponVfx : MonoBehaviour
         }
 
         gameObject.SetActive(true);
+        DisableSceneLights();
         IsActive = true;
         IsLooping = loop;
         ReleaseTime = loop ? float.PositiveInfinity : now + Mathf.Max(0f, duration);
@@ -102,11 +106,27 @@ public sealed class PooledWeaponVfx : MonoBehaviour
                 _particleSystems[i].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
 
+        DisableSceneLights();
+
         IsActive = false;
         IsLooping = false;
         ReleaseTime = 0f;
         gameObject.SetActive(false);
         ReturnToPoolParent();
+    }
+
+    private void DisableSceneLights()
+    {
+        if (_lights == null)
+            _lights = GetComponentsInChildren<Light>(true);
+
+        // Weapon particles carry their brightness in their materials. Real-time
+        // point lights made every flash illuminate the whole character and arena.
+        for (int i = 0; i < _lights.Length; i++)
+        {
+            if (_lights[i] != null)
+                _lights[i].enabled = false;
+        }
     }
 
     private void ApplyTransform(in WeaponPresentationContext context)

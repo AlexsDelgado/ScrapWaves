@@ -5,6 +5,7 @@ Shader "ScrapWaves/GameFeel/Scrap Projectile"
         _BaseColor("Base Color", Color) = (0.2,0.08,0.02,1)
         _EmissionColor("Emission Color", Color) = (1,0.45,0.05,1)
         _EmissionIntensity("Emission Intensity", Range(0,12)) = 2
+        _Luminescence("Luminescence", Range(0,1)) = 0.4
         _Heat("Heat", Range(0,1)) = 0
         _Metallic("Metallic", Range(0,1)) = 0.65
         _Smoothness("Smoothness", Range(0,1)) = 0.3
@@ -33,6 +34,7 @@ Shader "ScrapWaves/GameFeel/Scrap Projectile"
                 float4 _BaseColor;
                 float4 _EmissionColor;
                 float _EmissionIntensity;
+                float _Luminescence;
                 float _Heat;
                 float _Metallic;
                 float _Smoothness;
@@ -57,7 +59,8 @@ Shader "ScrapWaves/GameFeel/Scrap Projectile"
                 float steppedLight = floor(ndl * 4.0) / 3.0;
                 float fresnel = pow(1.0 - saturate(dot(normalWS, viewDirWS)), 3.0);
                 float3 lit = _BaseColor.rgb * (0.18 + steppedLight * mainLight.color);
-                float3 emission = _EmissionColor.rgb * _EmissionIntensity * (0.45 + _Heat * 0.8 + fresnel * 0.65);
+                float3 emission = _EmissionColor.rgb * _EmissionIntensity * _Luminescence *
+                                  (0.45 + _Heat * 0.8 + fresnel * 0.65);
                 return half4(lit + emission, 1);
             }
             ENDHLSL

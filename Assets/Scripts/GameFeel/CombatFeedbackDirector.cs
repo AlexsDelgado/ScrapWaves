@@ -245,11 +245,12 @@ public sealed class CombatFeedbackDirector
             _profile.QualitySettings);
     }
 
-    public void Tick(float now, float unscaledDeltaTime)
+    public void Tick(float now, float unscaledDeltaTime, bool tickSharedState = true)
     {
         _fx.Tick(now);
         _audio.Tick(now);
-        _hitStop.Tick(unscaledDeltaTime);
+        if (tickSharedState)
+            _hitStop.Tick(unscaledDeltaTime);
     }
 
     public void StopAll()

@@ -16,8 +16,8 @@ MonoBehaviour:
   _mediumParticleMultiplier: 0.7
   _highParticleMultiplier: 1
   _lowQualityLights: 0
-  _mediumQualityLights: 1
-  _highQualityLights: 1
+  _mediumQualityLights: 0
+  _highQualityLights: 0
   _lowDecalLifetimeMultiplier: 0.35
   _mediumDecalLifetimeMultiplier: 0.7
   _highDecalLifetimeMultiplier: 1
