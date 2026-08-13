@@ -264,7 +264,11 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     public void SetAudioEnabled(bool value) => SetChannel(ref _runtimeOptions.AudioEnabled, value);
     public void SetCameraFeedbackEnabled(bool value) => SetChannel(ref _runtimeOptions.CameraFeedbackEnabled, value);
     public void SetHitStopEnabled(bool value) => SetChannel(ref _runtimeOptions.HitStopEnabled, value);
-    public void SetEnemyReactionEnabled(bool value) => SetChannel(ref _runtimeOptions.EnemyReactionEnabled, value);
+    public void SetEnemyReactionEnabled(bool value)
+    {
+        SetChannel(ref _runtimeOptions.EnemyReactionEnabled, value);
+        EnemyReactionRuntime.Apply(_runtimeOptions);
+    }
     public void SetHeatPresentationEnabled(bool value) => _runtimeOptions.HeatPresentationEnabled = value;
     public void SetProductionPresentationEnabled(bool value) => SetChannel(ref _runtimeOptions.ProductionPresentationEnabled, value);
     public void SetDebugGeometryEnabled(bool value)
@@ -274,12 +278,21 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             DismissDebugCharge();
     }
     public void SetReducedShake(bool value) => _runtimeOptions.ReducedShake = value;
-    public void SetReducedFlash(bool value) => _runtimeOptions.ReducedFlash = value;
-    public void SetQuality(GameFeelQualityLevel value) => _runtimeOptions.Quality = value;
+    public void SetReducedFlash(bool value)
+    {
+        _runtimeOptions.ReducedFlash = value;
+        EnemyReactionRuntime.Apply(_runtimeOptions);
+    }
+    public void SetQuality(GameFeelQualityLevel value)
+    {
+        _runtimeOptions.Quality = value;
+        EnemyReactionRuntime.Apply(_runtimeOptions);
+    }
 
     private void OnEnable()
     {
         ResolveSceneDependencies();
+        EnemyReactionRuntime.Apply(_runtimeOptions);
         if (Application.isPlaying)
             RegisterProfile(_profile);
     }
@@ -313,6 +326,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         _hitStop ??= new HitStopController();
         _cameraFeedback.Sanitize();
         _hitStop.Sanitize();
+        EnemyReactionRuntime.Apply(_runtimeOptions);
     }
 
     private void EmitSemantic(WeaponFeedbackEvent feedbackEvent, in WeaponFeedbackContext context)

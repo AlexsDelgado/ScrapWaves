@@ -16,6 +16,7 @@ MonoBehaviour:
   DisplayName: Rocket Launcher
   WeaponType: 2
   AutoTargetingMode: 0
+  AutomaticAimConstraint: 1
   ManualMode: 0
   BaseDamage: 70
   BaseAttackRate: 1

@@ -155,40 +155,35 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void WeaponDamageAmplifierStatus_SpawnsVulnerableAura()
+    public void WeaponDamageAmplifierStatus_SpawnsVulnerableEnemyStatus()
     {
-        System.Type auraType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
-        Assert.That(auraType, Is.Not.Null, "Missing WeaponStatusAuraVfx type.");
-
         GameObject target = new("Vulnerable Target");
         var damageable = target.AddComponent<TestDamageable>();
 
         WeaponDamageAmplifierStatus.Apply(damageable, 1.5f, 3f);
 
-        Object aura = Object.FindAnyObjectByType(auraType);
-        Assert.That(aura, Is.Not.Null);
-        if (aura is Component component)
-            Assert.That(component.transform.position, Is.EqualTo(target.transform.position));
+        EnemyStatusFeedback status = target.GetComponent<EnemyStatusFeedback>();
+        Assert.That(status, Is.Not.Null);
+        Assert.That(status.ActiveMask, Is.EqualTo(WeaponStatusMask.Vulnerable));
 
         Object.DestroyImmediate(target);
         DestroyGeneratedVfx();
     }
 
     [Test]
-    public void WeaponDamageAmplifierStatus_DismissesVulnerableAuraWhenTargetDisabled()
+    public void WeaponDamageAmplifierStatus_DismissesVulnerableEnemyStatusWhenTargetDisabled()
     {
-        System.Type auraType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
-        Assert.That(auraType, Is.Not.Null, "Missing WeaponStatusAuraVfx type.");
-
         GameObject target = new("Disabled Vulnerable Target");
         var damageable = target.AddComponent<TestDamageable>();
 
         WeaponDamageAmplifierStatus.Apply(damageable, 1.5f, 3f);
-        Assert.That(Object.FindAnyObjectByType(auraType), Is.Not.Null);
+        EnemyStatusFeedback status = target.GetComponent<EnemyStatusFeedback>();
+        Assert.That(status.ActiveMask, Is.EqualTo(WeaponStatusMask.Vulnerable));
 
+        InvokePrivate(target.GetComponent<WeaponDamageAmplifierStatus>(), "OnDisable");
         target.SetActive(false);
 
-        Assert.That(Object.FindAnyObjectByType(auraType), Is.Null);
+        Assert.That(status.ActiveMask, Is.EqualTo(WeaponStatusMask.None));
 
         Object.DestroyImmediate(target);
         DestroyGeneratedVfx();

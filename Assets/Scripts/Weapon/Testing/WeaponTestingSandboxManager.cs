@@ -42,6 +42,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     private PlayerMovement _playerMovement;
     private ReticleAimProvider _aimProvider;
     private WeaponPresentationController _presentationController;
+    private PlayerWeaponMountController _mountController;
     private ProjectilePool _projectilePool;
     private HeatManager _heatManager;
     private IWeaponTargeting _targeting;
@@ -123,6 +124,8 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         if (!IsValidSlot(slot))
             return;
 
+        _mountController?.RemoveWeapon(_behaviours[slot]);
+
         if (!weaponType.HasValue)
         {
             _instances[slot] = null;
@@ -151,6 +154,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         _instances[slot] = instance;
         _behaviours[slot] = CreateBehaviour(data);
         _behaviours[slot].Setup(instance, PlayerTransform, _playerStats, _heatManager);
+        _mountController?.AddWeapon(_behaviours[slot], slot == _manualSlot);
 
         if (CurrentManualWeapon == null || _manualSlot == slot)
             StartManualMode(slot, true);
@@ -371,6 +375,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         }
 
         _manualSlot = slot;
+        _mountController?.SetManualWeapon(_behaviours[slot]);
         if (refillAmmo)
             RefillAmmo(slot);
     }
@@ -481,6 +486,9 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         _playerMovement = playerGo.GetComponent<PlayerMovement>();
         _aimProvider = playerGo.GetComponent<ReticleAimProvider>();
         _presentationController = playerGo.GetComponent<WeaponPresentationController>();
+        _mountController = playerGo.GetComponent<PlayerWeaponMountController>();
+        if (_mountController == null)
+            _mountController = playerGo.AddComponent<PlayerWeaponMountController>();
         if (_presentationController == null)
             _presentationController = playerGo.AddComponent<WeaponPresentationController>();
         DisableProductionRuntimeComponents(playerGo);
@@ -488,6 +496,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         ProjectileSpawn = FindChildByNameContains(playerGo.transform, "Fire");
         if (ProjectileSpawn == null)
             ProjectileSpawn = playerGo.transform;
+        _mountController.Initialize(ProjectileSpawn);
     }
 
     private void EnsureSandboxComponents()

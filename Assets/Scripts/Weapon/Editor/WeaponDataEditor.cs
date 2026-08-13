@@ -33,6 +33,7 @@ public sealed class WeaponDataEditor : Editor
         DrawProperty(nameof(WeaponData.DisplayName));
         DrawProperty(nameof(WeaponData.WeaponType));
         DrawProperty(nameof(WeaponData.AutoTargetingMode));
+        DrawProperty(nameof(WeaponData.AutomaticAimConstraint));
         DrawProperty(nameof(WeaponData.ManualMode));
 
         EditorGUILayout.Space();

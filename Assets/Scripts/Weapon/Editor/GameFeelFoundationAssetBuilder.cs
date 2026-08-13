@@ -15,6 +15,7 @@ public static class GameFeelFoundationAssetBuilder
     private const string CannonPrefabRoot = GameFeelRoot + "/Prefabs/Weapons/AutomaticCannon";
     private const string ProfilePath = "Assets/ScriptableObjects/WeaponPresentation/AutomaticCannonPresentation.asset";
     private const string QualityPath = ProfileRoot + "/GameFeelQuality_PC.asset";
+    private const string EnemyReactionProfilePath = GameFeelRoot + "/Resources/EnemyReactionProfile.asset";
 
     private sealed class BuildAssets
     {
@@ -46,6 +47,15 @@ public static class GameFeelFoundationAssetBuilder
         BuildAll();
     }
 
+    public static void BuildEnemyReactionsBatch()
+    {
+        EnsureFolders();
+        EnsureEnemyReactionProfile();
+        AddEnemyFeedbackComponents();
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+    }
+
     private static void BuildAll()
     {
         EnsureFolders();
@@ -55,6 +65,7 @@ public static class GameFeelFoundationAssetBuilder
         WeaponPresentationProfile profile = BuildProfile(assets, prefabs);
         MigrateProjectilePrefab(assets);
         AddPlayerRecoilRig(assets);
+        EnsureEnemyReactionProfile();
         AddEnemyFeedbackComponents();
         DuplicateSandbox();
         AssignProductionProfile(profile);
@@ -72,7 +83,18 @@ public static class GameFeelFoundationAssetBuilder
         EnsureFolder(GameFeelRoot + "/Prefabs", "Weapons");
         EnsureFolder(GameFeelRoot + "/Prefabs/Weapons", "AutomaticCannon");
         EnsureFolder(GameFeelRoot, "Shaders");
+        EnsureFolder(GameFeelRoot, "Resources");
         EnsureFolder("Assets/Scenes", "Testing");
+    }
+
+    private static EnemyReactionProfile EnsureEnemyReactionProfile()
+    {
+        EnemyReactionProfile profile = AssetDatabase.LoadAssetAtPath<EnemyReactionProfile>(EnemyReactionProfilePath);
+        if (profile != null)
+            return profile;
+        profile = ScriptableObject.CreateInstance<EnemyReactionProfile>();
+        AssetDatabase.CreateAsset(profile, EnemyReactionProfilePath);
+        return profile;
     }
 
     private static void EnsureFolder(string parent, string child)
@@ -557,6 +579,8 @@ public static class GameFeelFoundationAssetBuilder
                     root.AddComponent<EnemyHitFeedback>();
                 if (root.GetComponent<EnemyDeathFeedback>() == null)
                     root.AddComponent<EnemyDeathFeedback>();
+                if (root.GetComponent<EnemyStatusFeedback>() == null)
+                    root.AddComponent<EnemyStatusFeedback>();
                 PrefabUtility.SaveAsPrefabAsset(root, path);
             }
             PrefabUtility.UnloadPrefabContents(root);

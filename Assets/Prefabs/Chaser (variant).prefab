@@ -23,6 +23,7 @@ GameObject:
   - component: {fileID: 4381864671740122287}
   - component: {fileID: 5015248780894412357}
   - component: {fileID: 8032855694945477939}
+  - component: {fileID: 8899111108157587729}
   m_Layer: 3
   m_Name: Chaser (variant)
   m_TagString: Untagged
@@ -82,7 +83,7 @@ MonoBehaviour:
   m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b3a91e2f4c8d7041b6e5f0a9c8d7e6f2, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyFollow
   _target: {fileID: 0}
   _moveSpeed: 2
@@ -107,7 +108,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
   _maxHealth: 35
 --- !u!114 &7140168115193157315
@@ -120,7 +121,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a77242de664775447a0327cab31aa0a9, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
   _contactDamage: 5
   _logDebug: 0
@@ -134,7 +135,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f0b1398d8c9bf59499175b30247ce06e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyRegistryMember
 --- !u!114 &6137346672538964387
 MonoBehaviour:
@@ -146,7 +147,7 @@ MonoBehaviour:
   m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 56a00c9530e37c449b7f4ed4bca77e8b, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDropExperience
   _xpPoolOverride: {fileID: 0}
   _experienceAmount: 5
@@ -160,7 +161,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c501bd1b8a14fe84cbd16735ffb390e1, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHeatOnKill
   _heatManagerOverride: {fileID: 0}
 --- !u!54 &9117519226198818154
@@ -221,7 +222,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1166623d4caafd141bc4dd8cecc87516, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
   _speed: 3.5
@@ -235,7 +236,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e0c1a2b3c4d5e6f7081122334455667c, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ChargerEnemyBehavior
   _lockInDistance: 6
   _chargeSeconds: 1.5
@@ -263,7 +264,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f592eff57bb554f4fbe0484c7e6edb51, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyMaterialDrop
   _dropConfig: {fileID: 11400000, guid: 3fea20759749d3d46b1420f037748d61, type: 2}
   _poolOverride: {fileID: 0}
@@ -278,16 +279,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0d8476f98f77f7f4e992393cae3995d7, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitFeedback
+  _profile: {fileID: 0}
   _visualRoot: {fileID: 0}
   _renderers: []
-  _regularHitColor: {r: 1, g: 0.48, b: 0.12, a: 1}
-  _criticalHitColor: {r: 1, g: 0.96, b: 0.55, a: 1}
-  _weakPointHitColor: {r: 1, g: 1, b: 1, a: 1}
-  _flashDuration: 0.09
-  _visualDisplacement: 0.08
-  _squashAmount: 0.08
   _responseCurve:
     serializedVersion: 2
     m_Curve:
@@ -312,8 +308,6 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _eliteResponseScale: 0.8
-  _bossResponseScale: 0.45
 --- !u!114 &8032855694945477939
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -324,9 +318,23 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 359fb3d484157514e879832e366cae99, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDeathFeedback
+  _profile: {fileID: 0}
   _effectIntensity: 1
+--- !u!114 &8899111108157587729
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 993fb02c672b03a4db4c428e8619cb18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyStatusFeedback
+  _profile: {fileID: 0}
 --- !u!1 &3758058318919103680
 GameObject:
   m_ObjectHideFlags: 0

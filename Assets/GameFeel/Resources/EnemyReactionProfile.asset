@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a7e4ee2bd315334d9f94ca0ce161fd6, type: 3}
+  m_Name: EnemyReactionProfile
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyReactionProfile
+  _heavyDamageFraction: 0.18
+  _lightDuration: 0.085
+  _heavyDuration: 0.14
+  _lightDisplacement: 0.055
+  _heavyDisplacement: 0.12
+  _lightSquash: 0.055
+  _heavySquash: 0.12
+  _maximumAccumulatedIntensity: 1.35
+  _eliteScale: 0.75
+  _bossScale: 0.42
+  _statusFadeDuration: 0.24
+  _maximumStatusVisualsPerEnemy: 3
+  _maximumGlobalStatusVisuals: 48
+  _deathPoolCapacity: 48
+  _deathDuration: 0.72
+  _lightColor: {r: 1, g: 0.34, b: 0.08, a: 0.72}
+  _criticalColor: {r: 1, g: 0.84, b: 0.28, a: 0.92}
+  _weakPointColor: {r: 1, g: 1, b: 1, a: 0.95}
