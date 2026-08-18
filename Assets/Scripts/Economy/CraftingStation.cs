@@ -17,6 +17,9 @@ public class CraftingStation : MonoBehaviour
 
     private bool _isOpen;
 
+    /// <summary>Se dispara cada vez que el jugador abre esta estación (para la flecha guía, por ejemplo).</summary>
+    public event System.Action OnInteracted;
+
     private void Awake()
     {
         if (_craftingUi == null)
@@ -56,6 +59,7 @@ public class CraftingStation : MonoBehaviour
             return;
 
         _isOpen = true;
+        OnInteracted?.Invoke();
         StartCoroutine(_craftingUi.PresentCoroutine(_craftingService, _inventory, () => _isOpen = false));
     }
 
