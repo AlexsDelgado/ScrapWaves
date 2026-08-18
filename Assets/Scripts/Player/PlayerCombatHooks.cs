@@ -73,6 +73,19 @@ public static class PlayerCombatHooks
             Debug.LogWarning("[PlayerCombatHooks] TryPush: no se encontro PlayerMovement.");
     }
 
+    /// <summary>Tira continuamente al jugador hacia <paramref name="targetPoint"/> (Destroyer, succión).</summary>
+    public static void TryPull(Vector3 targetPoint, float acceleration)
+    {
+        if (acceleration <= 0f)
+            return;
+
+        PlayerMovement movement = Movement;
+        if (movement != null)
+            movement.ApplyPull(targetPoint, acceleration);
+        else if (LogMissingTargets)
+            Debug.LogWarning("[PlayerCombatHooks] TryPull: no se encontro PlayerMovement.");
+    }
+
     /// <summary>Aturde al jugador durante <paramref name="seconds"/> (Shocker).</summary>
     public static void TryStun(float seconds)
     {

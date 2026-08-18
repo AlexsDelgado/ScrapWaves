@@ -156,9 +156,13 @@ public class HeatManager : MonoBehaviour
         AddHeat(_heatPerKill);
     }
 
+    /// <summary>
+    /// Mientras la descarga post-Overheat esté activa, no se puede ganar heat (kills del swarm
+    /// que sigue vivo no deben recargar el nivel antes de que termine de bajar).
+    /// </summary>
     public void AddHeat(float amount)
     {
-        if (amount <= 0f)
+        if (amount <= 0f || _postOverheatDecayActive)
             return;
 
         float cap = TotalHeatCapacity;

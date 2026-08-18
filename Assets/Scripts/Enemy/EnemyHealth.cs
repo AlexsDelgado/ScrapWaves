@@ -7,6 +7,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     private int _prefabMaxHealth;
     private int _currentHealth;
     private bool _isInvincible;
+    private bool _blockDotWhileInvincible;
 
     public int CurrentHealth => _currentHealth;
     public int MaxHealth => _maxHealth;
@@ -14,10 +15,15 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     /// <summary>Mientras sea true, <see cref="ApplyDamage"/> ignora el dano (p. ej. Hellfire al lanzarse).</summary>
     public bool IsInvincible => _isInvincible;
 
-    /// <summary>Activa/desactiva la invencibilidad temporal del enemigo.</summary>
-    public void SetInvincible(bool invincible)
+    /// <summary>
+    /// Activa/desactiva la invencibilidad temporal del enemigo. Por defecto el DoT (<see cref="ApplyDotDamage"/>)
+    /// sigue pasando (comportamiento histórico); pasar <paramref name="blockDot"/> en true para inmunidad total
+    /// (p. ej. Destroyer durante la succión).
+    /// </summary>
+    public void SetInvincible(bool invincible, bool blockDot = false)
     {
         _isInvincible = invincible;
+        _blockDotWhileInvincible = invincible && blockDot;
     }
 
     /// <summary>Fija vida máxima y rellena al máximo (p. ej. boss spawneado por <see cref="BossManager"/>).</summary>
@@ -41,6 +47,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
         _isInvincible = false;
+        _blockDotWhileInvincible = false;
     }
 
     /// <summary>Tras salir del pool; <see cref="DifficultyManager"/> ajusta vida según la partida.</summary>
@@ -57,14 +64,25 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
         _isInvincible = false;
+        _blockDotWhileInvincible = false;
+    }
+
+    /// <summary>Cura al enemigo, clamp a la vida máxima actual (Destroyer: comer enemigos / tragar al jugador).</summary>
+    public void Heal(int amount)
+    {
+        if (amount <= 0 || _currentHealth <= 0)
+            return;
+
+        _currentHealth = Mathf.Min(_maxHealth, _currentHealth + amount);
     }
 
     /// <summary>
-    /// Daño por estado (DoT). Ignora invencibilidad pero no puede matar si ya está muerto.
+    /// Daño por estado (DoT). Por defecto ignora invencibilidad; la respeta si esta fue activada con
+    /// <c>blockDot: true</c> (inmunidad total).
     /// </summary>
     public bool ApplyDotDamage(int amount)
     {
-        if (amount <= 0 || _currentHealth <= 0)
+        if (amount <= 0 || _currentHealth <= 0 || (_isInvincible && _blockDotWhileInvincible))
             return false;
 
         _currentHealth -= amount;

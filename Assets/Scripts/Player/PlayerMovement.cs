@@ -123,6 +123,26 @@ public class PlayerMovement : MonoBehaviour
         _knockbackTimer = Mathf.Max(_knockbackTimer, _knockbackWindow);
     }
 
+    /// <summary>
+    /// Tira al jugador hacia <paramref name="towardPoint"/> con aceleración continua (Destroyer, succión).
+    /// Reutiliza la ventana de knockback para que la fuerza no sea recortada por el speed-cap normal.
+    /// Se espera que el caller la invoque cada frame mientras dure la succión.
+    /// </summary>
+    public void ApplyPull(Vector3 towardPoint, float acceleration)
+    {
+        if (acceleration <= 0f || _rb == null)
+            return;
+
+        Vector3 dir = towardPoint - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f)
+            return;
+        dir.Normalize();
+
+        _rb.AddForce(dir * acceleration, ForceMode.Acceleration);
+        _knockbackTimer = Mathf.Max(_knockbackTimer, _knockbackWindow);
+    }
+
     /// <summary>Aturde al jugador durante <paramref name="seconds"/> (Shocker). Refresca, no apila.</summary>
     public void ApplyStun(float seconds)
     {

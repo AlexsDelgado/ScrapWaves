@@ -17,13 +17,25 @@ public class XPDrop : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Velocidad de movimiento cuando el imán está activo.")]
     private float _magnetSpeed = 14f;
 
+    [SerializeField, Min(0f), Tooltip("Offset vertical sobre el suelo al aterrizar (evita enterrar el modelo).")]
+    private float _spawnHeightOffset = 0.5f;
+
+    [SerializeField, Tooltip("Layer(s) contra las que cae el drop. Vacío = Terrain + Default.")]
+    private LayerMask _groundMask;
+
     private int _experience;
     private XPPool _pool;
     private XPPoolMember _member;
 
+    private bool _isFalling;
+    private float _fallVelocity;
+
     private void Awake()
     {
         _member = GetComponent<XPPoolMember>();
+
+        if (_groundMask.value == 0)
+            _groundMask = LayerMask.GetMask("Terrain", "Default");
     }
 
     private void OnValidate()
@@ -37,10 +49,24 @@ public class XPDrop : MonoBehaviour
     {
         _pool = pool;
         _experience = experienceAmount > 0 ? experienceAmount : _defaultExperience;
+
+        // El enemigo puede haber muerto en el aire (p. ej. voladores): cae por gravedad simple
+        // hasta tocar el suelo en vez de quedar flotando en el punto exacto de la muerte.
+        _isFalling = true;
+        _fallVelocity = 0f;
     }
 
     private void Update()
     {
+        if (_isFalling)
+        {
+            Vector3 fallPos = transform.position;
+            if (PickupGroundFall.Tick(ref fallPos, ref _fallVelocity, Time.deltaTime, _spawnHeightOffset, _groundMask))
+                _isFalling = false;
+            transform.position = fallPos;
+            return;
+        }
+
         XPPickup pickup = XPPickup.Instance;
         if (pickup == null)
             return;

@@ -38,6 +38,26 @@ public static class EnemyRegistry
         }
     }
 
+    /// <summary>Copia todos los transforms de enemigos activos, sin filtrar por distancia (Destroyer: succión del swarm).</summary>
+    public static int CollectActive(List<Transform> results)
+    {
+        results.Clear();
+
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Transform t = _activeEnemies[i];
+            if (t == null)
+            {
+                _activeEnemies.RemoveAt(i);
+                continue;
+            }
+
+            results.Add(t);
+        }
+
+        return results.Count;
+    }
+
     public static int CollectActiveEnemyColliders(List<Collider> results, bool includeTriggers = false)
     {
         results.Clear();

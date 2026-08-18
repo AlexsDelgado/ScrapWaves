@@ -13,6 +13,9 @@ public class MaterialDrop : MonoBehaviour
     [SerializeField, Range(0.1f, 1f), Tooltip("Visual scale of dropped materials. Does not affect pickup range.")]
     private float _visualScale = 0.6f;
 
+    [SerializeField, Tooltip("Layer(s) contra las que cae el drop. Vacío = Terrain + Default.")]
+    private LayerMask _groundMask;
+
     private MaterialPool _pool;
     private MaterialPoolMember _member;
     private MaterialType _material;
@@ -21,11 +24,17 @@ public class MaterialDrop : MonoBehaviour
     private Transform _visualRoot;
     private readonly System.Collections.Generic.Dictionary<MaterialType, GameObject> _visuals = new();
 
+    private bool _isFalling;
+    private float _fallVelocity;
+
     private void Awake()
     {
         _member = GetComponent<MaterialPoolMember>();
         _legacyRenderer = GetComponent<MeshRenderer>();
         EnsureVisualRoot();
+
+        if (_groundMask.value == 0)
+            _groundMask = LayerMask.GetMask("Terrain", "Default");
     }
 
     public void ActivateFromPool(MaterialPool pool, MaterialType material, int amount)
@@ -34,9 +43,10 @@ public class MaterialDrop : MonoBehaviour
         _material = material;
         _amount = amount > 0 ? amount : _defaultAmount;
 
-        Vector3 pos = transform.position;
-        pos.y += _spawnHeightOffset;
-        transform.position = pos;
+        // El enemigo puede haber muerto en el aire (p. ej. voladores): cae por gravedad simple
+        // hasta tocar el suelo en vez de quedar flotando en el punto exacto de la muerte.
+        _isFalling = true;
+        _fallVelocity = 0f;
 
         ApplyVisual(pool != null ? pool.VisualCatalog : null, material);
     }
@@ -112,6 +122,15 @@ public class MaterialDrop : MonoBehaviour
     {
         if (_spinDegreesPerSecond > 0f && _visualRoot != null)
             _visualRoot.Rotate(Vector3.up, _spinDegreesPerSecond * Time.deltaTime);
+
+        if (_isFalling)
+        {
+            Vector3 fallPos = transform.position;
+            if (PickupGroundFall.Tick(ref fallPos, ref _fallVelocity, Time.deltaTime, _spawnHeightOffset, _groundMask))
+                _isFalling = false;
+            transform.position = fallPos;
+            return;
+        }
 
         MaterialPickupReceiver receiver = MaterialPickupReceiver.Instance;
         if (receiver == null)
