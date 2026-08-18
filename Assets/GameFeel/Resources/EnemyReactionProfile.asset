@@ -26,7 +26,7 @@ MonoBehaviour:
   _maximumStatusVisualsPerEnemy: 3
   _maximumGlobalStatusVisuals: 48
   _deathPoolCapacity: 48
-  _deathDuration: 0.72
+  _deathDuration: 1.25
   _lightColor: {r: 1, g: 0.34, b: 0.08, a: 0.72}
   _criticalColor: {r: 1, g: 0.84, b: 0.28, a: 0.92}
   _weakPointColor: {r: 1, g: 1, b: 1, a: 0.95}

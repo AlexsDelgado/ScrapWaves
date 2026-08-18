@@ -361,8 +361,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             burn = damageComponent.gameObject.AddComponent<FlamethrowerBurnStatus>();
 
         float duration = GetPathAdjustedBurnDuration(tuning);
+        // Jellified Fuel changes where and how long the fire burns; it does not
+        // introduce a separate enemy status. Keep the regular burn reaction so
+        // the longer duration is the only status-level difference.
         burn.Refresh(damageable, damagePerTick, duration, tuning.FlameBurnTickInterval,
-            IsJellifiedFuelPath() ? WeaponStatusKind.JellifiedBurn : WeaponStatusKind.Burn);
+            WeaponStatusKind.Burn);
 
         if (IsJellifiedFuelPath())
         {
@@ -378,10 +381,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         }
 
         WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
-        if (dummy != null && IsJellifiedFuelPath())
-        {
-            dummy.ApplyStatus("Jellified Fuel", duration);
-        }
+        if (dummy != null)
+            dummy.ApplyStatus("Burn", duration);
 
         EmitStatusFeedback(target, damagePerTick, activeAbility);
     }

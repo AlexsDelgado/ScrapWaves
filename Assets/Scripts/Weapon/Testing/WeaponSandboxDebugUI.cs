@@ -423,7 +423,6 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         GUILayout.Label("Enemy Status Preview (spawned dummies)");
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("Burn")) ApplyPreviewStatus(WeaponStatusKind.Burn);
-        if (GUILayout.Button("Jellified")) ApplyPreviewStatus(WeaponStatusKind.JellifiedBurn);
         if (GUILayout.Button("Slow")) ApplyPreviewStatus(WeaponStatusKind.Slow);
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
@@ -448,7 +447,6 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             switch (kind)
             {
                 case WeaponStatusKind.Burn:
-                case WeaponStatusKind.JellifiedBurn:
                     FlamethrowerBurnStatus burn = dummy.GetComponent<FlamethrowerBurnStatus>();
                     if (burn == null) burn = dummy.gameObject.AddComponent<FlamethrowerBurnStatus>();
                     burn.Refresh(dummy, 1, 5f, 1f, kind);

@@ -69,7 +69,8 @@ public sealed class EnemyDeathFeedback : MonoBehaviour
             color,
             EnemyStatusFeedback.ResolveMask(transform),
             _effectIntensity,
-            EnemyReactionProfile.Resolve(_profile));
+            EnemyReactionProfile.Resolve(_profile),
+            transform);
     }
 
     private void ResolveTargets()

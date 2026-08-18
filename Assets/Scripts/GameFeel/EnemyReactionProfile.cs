@@ -51,7 +51,7 @@ public sealed class EnemyReactionProfile : ScriptableObject
     [SerializeField, Range(1, 4)] private int _maximumStatusVisualsPerEnemy = 3;
     [SerializeField, Range(8, 96)] private int _maximumGlobalStatusVisuals = 48;
     [SerializeField, Range(8, 128)] private int _deathPoolCapacity = 48;
-    [SerializeField, Min(0.05f)] private float _deathDuration = 0.72f;
+    [SerializeField, Min(0.05f)] private float _deathDuration = 1.25f;
 
     [Header("Colors")]
     [SerializeField] private Color _lightColor = new(1f, 0.34f, 0.08f, 0.72f);

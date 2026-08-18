@@ -2790,15 +2790,26 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void FlamethrowerJellifiedFuel_DoublesBurnDuration()
+    public void FlamethrowerJellifiedFuel_UsesRegularBurnAtDoubleDuration()
     {
         FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathA, out WeaponData data);
         data.Flamethrower.FlameBurnDuration = 3f;
+        GameObject target = new("Jellified Fuel Burn Target");
+        target.AddComponent<TestDamageable>();
 
         float duration = InvokePrivate<float>(weapon, "GetPathAdjustedBurnDuration", data.Flamethrower);
+        InvokePrivate(weapon, "ApplyBurnToTarget", target.transform, 4, data.Flamethrower, false);
+
+        FlamethrowerBurnStatus burn = target.GetComponent<FlamethrowerBurnStatus>();
 
         Assert.That(duration, Is.EqualTo(6f).Within(0.0001f));
+        Assert.That(burn, Is.Not.Null);
+        Assert.That(ReadField<float>(burn, "_remainingDuration"), Is.EqualTo(6f).Within(0.0001f));
+        Assert.That(ReadField<WeaponStatusKind>(burn, "_statusKind"), Is.EqualTo(WeaponStatusKind.Burn));
+        Assert.That(EnemyStatusFeedback.ResolveMask(target.transform), Is.EqualTo(WeaponStatusMask.Burn));
+        Object.DestroyImmediate(target);
         Object.DestroyImmediate(data);
+        DestroyGeneratedVfx();
     }
 
     [Test]

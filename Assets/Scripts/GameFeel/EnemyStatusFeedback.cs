@@ -181,7 +181,7 @@ public sealed class EnemyStatusFeedback : MonoBehaviour
         for (int i = 0; i < _renderers.Length; i++)
         {
             Renderer renderer = _renderers[i];
-            if (renderer == null || renderer is LineRenderer || renderer.GetComponentInParent<EnemyStatusVisual>() != null)
+            if (!IsBodyRenderer(renderer))
                 continue;
             if (!found)
             {
@@ -192,9 +192,29 @@ public sealed class EnemyStatusFeedback : MonoBehaviour
                 bounds.Encapsulate(renderer.bounds);
         }
         localCenter = transform.InverseTransformPoint(found ? bounds.center : transform.position + Vector3.up * 0.75f);
-        Vector3 size = found ? bounds.size : new Vector3(1f, 1.5f, 1f);
-        radius = Mathf.Clamp(Mathf.Max(size.x, size.z) * 0.55f, 0.35f, 3.5f);
-        height = Mathf.Clamp(size.y, 0.6f, 7f);
+        Vector3 worldSize = found ? bounds.size : new Vector3(1f, 1.5f, 1f);
+        Vector3 rootScale = transform.lossyScale;
+        float scaleX = Mathf.Max(0.001f, Mathf.Abs(rootScale.x));
+        float scaleY = Mathf.Max(0.001f, Mathf.Abs(rootScale.y));
+        float scaleZ = Mathf.Max(0.001f, Mathf.Abs(rootScale.z));
+        float localHalfX = worldSize.x * 0.5f / scaleX;
+        float localHalfZ = worldSize.z * 0.5f / scaleZ;
+        float localHeight = worldSize.y / scaleY;
+        float clearance = Mathf.Clamp(localHeight * 0.055f, 0.08f, 0.35f);
+        radius = Mathf.Clamp(Mathf.Max(localHalfX, localHalfZ) * 1.18f + clearance, 0.42f, 12f);
+        height = Mathf.Clamp(localHeight, 0.6f, 20f);
+    }
+
+    internal static bool IsBodyRenderer(Renderer renderer)
+    {
+        if (renderer == null || !renderer.enabled || renderer is LineRenderer || renderer is ParticleSystemRenderer ||
+            renderer.GetComponentInParent<EnemyStatusVisual>() != null || renderer.GetComponent<TMPro.TMP_Text>() != null)
+            return false;
+        string objectName = renderer.gameObject.name;
+        if (objectName.StartsWith("[Enemy Hit Flash]") || objectName.StartsWith("[Enemy Freeze Shell]") ||
+            objectName.StartsWith("[Enemy Status]"))
+            return false;
+        return renderer is MeshRenderer || renderer is SkinnedMeshRenderer;
     }
 
     private static EnemyStatusFeedback GetOrCreate(Transform target)
@@ -249,11 +269,29 @@ public sealed class EnemyStatusVisual : MonoBehaviour
 {
     private const int RingSegments = 32;
     private const int AccentCount = 6;
+    private static readonly int IceColorId = Shader.PropertyToID("_IceColor");
+    private static readonly int IceEdgeColorId = Shader.PropertyToID("_EdgeColor");
+    private static readonly int IceOpacityId = Shader.PropertyToID("_Opacity");
+    private static readonly int IceFrostId = Shader.PropertyToID("_Frost");
+    private static readonly int IceGlintId = Shader.PropertyToID("_Glint");
+    private static readonly int IceLuminescenceId = Shader.PropertyToID("_Luminescence");
+    private static readonly AnimationCurve s_taperCurve = new(
+        new Keyframe(0f, 0.72f),
+        new Keyframe(0.18f, 1f),
+        new Keyframe(0.7f, 0.48f),
+        new Keyframe(1f, 0f));
+    private static readonly AnimationCurve s_angularCurve = new(
+        new Keyframe(0f, 0.72f),
+        new Keyframe(0.5f, 1f),
+        new Keyframe(1f, 0.72f));
     private static Material s_material;
+    private static Material s_iceMaterial;
 
     private readonly LineRenderer[] _accents = new LineRenderer[AccentCount];
+    private readonly List<Renderer> _freezeShells = new();
     private LineRenderer _lowerRing;
     private LineRenderer _upperRing;
+    private MaterialPropertyBlock _iceBlock;
     private WeaponStatusKind _kind;
     private Vector3 _center;
     private float _radius;
@@ -303,6 +341,8 @@ public sealed class EnemyStatusVisual : MonoBehaviour
         _upperRing = CreateLine("Upper Status Ring", true, 0.018f);
         for (int i = 0; i < AccentCount; i++)
             _accents[i] = CreateLine($"Status Accent {i}", false, 0.018f + (i % 3) * 0.006f);
+        if (_kind == WeaponStatusKind.Freeze)
+            CreateFreezeShells(target: transform.parent);
         ActiveCount++;
         _counted = true;
         ApplyFrame();
@@ -350,6 +390,12 @@ public sealed class EnemyStatusVisual : MonoBehaviour
 
     private void OnDestroy()
     {
+        for (int i = 0; i < _freezeShells.Count; i++)
+        {
+            if (_freezeShells[i] != null)
+                DestroySafely(_freezeShells[i].gameObject);
+        }
+        _freezeShells.Clear();
         if (_counted)
             ActiveCount = Mathf.Max(0, ActiveCount - 1);
     }
@@ -371,30 +417,148 @@ public sealed class EnemyStatusVisual : MonoBehaviour
         edge.a *= visibility * flashScale;
         float time = Time.unscaledTime;
         float pulseScale = 1f + _pulse * 0.16f + Mathf.Sin(time * 3.5f + _seed) * 0.025f;
-
-        bool fullBody = _kind == WeaponStatusKind.Freeze || _kind == WeaponStatusKind.Vulnerable;
         float lowerY = _center.y - _height * 0.48f + 0.05f;
-        float upperY = _kind == WeaponStatusKind.Slow ? lowerY + 0.08f : _center.y + _height * (fullBody ? 0.18f : 0.02f);
-        DrawRing(_lowerRing, lowerY, _radius * pulseScale, core);
-        DrawRing(_upperRing, upperY, _radius * (_kind == WeaponStatusKind.Vulnerable ? 0.78f : 0.62f) * pulseScale, edge);
+        if (_kind == WeaponStatusKind.Freeze)
+            ApplyFreezeShell(visibility * flashScale, time);
+        switch (_kind)
+        {
+            case WeaponStatusKind.Burn:
+                DrawBurn(time, lowerY, pulseScale, core, edge);
+                break;
+            case WeaponStatusKind.JellifiedBurn:
+                DrawJellified(time, lowerY, pulseScale, core, edge);
+                break;
+            case WeaponStatusKind.Slow:
+                DrawSlow(time, lowerY, pulseScale, core, edge);
+                break;
+            case WeaponStatusKind.Freeze:
+                DrawFreeze(lowerY, pulseScale, core, edge);
+                break;
+            case WeaponStatusKind.Vulnerable:
+                DrawVulnerable(time, lowerY, pulseScale, core, edge);
+                break;
+        }
+    }
 
+    private void DrawBurn(float time, float lowerY, float pulseScale, Color core, Color edge)
+    {
+        SetRingEnabled(_lowerRing, true);
+        SetRingEnabled(_upperRing, false);
+        _lowerRing.widthMultiplier = Mathf.Clamp(_radius * 0.085f, 0.04f, 0.12f);
+        DrawWobblyRing(_lowerRing, lowerY, _radius * (1.04f + _pulse * 0.08f), edge, time * 1.35f, 0.08f);
         for (int i = 0; i < _accents.Length; i++)
         {
-            float t = i / (float)_accents.Length;
-            float angle = t * Mathf.PI * 2f + time * GetOrbitSpeed(_kind) + _seed;
-            float radial = _radius * (0.72f + 0.2f * Mathf.Sin(time * 1.7f + i));
-            float y01 = Mathf.Repeat(t + time * GetRiseSpeed(_kind), 1f);
-            float y = _kind == WeaponStatusKind.Slow
-                ? lowerY + 0.04f + Mathf.Sin(time * 2f + i) * 0.06f
-                : _center.y - _height * 0.42f + y01 * _height * 0.84f;
-            Vector3 center = new(_center.x + Mathf.Cos(angle) * radial, y, _center.z + Mathf.Sin(angle) * radial);
-            float length = Mathf.Lerp(0.12f, 0.32f, _strength) * (_kind == WeaponStatusKind.Freeze ? 1.5f : 1f);
-            Vector3 axis = GetAccentAxis(_kind, angle) * length;
+            float phase = time * (4.2f + i * 0.19f) + i * 1.73f + _seed;
+            float angle = i / (float)_accents.Length * Mathf.PI * 2f + Mathf.Sin(phase * 0.43f) * 0.13f;
+            float radial = _radius * (0.98f + (i % 3) * 0.1f);
+            float baseY = lowerY + _height * ((i % 3) * 0.145f);
+            float flicker = 0.78f + Mathf.Sin(phase) * 0.14f + Mathf.Sin(phase * 2.37f) * 0.08f;
+            float flameHeight = _height * Mathf.Lerp(0.28f, 0.48f, _strength) * flicker * pulseScale;
+            Vector3 outward = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 tangent = new(-outward.z, 0f, outward.x);
+            Vector3 basePoint = new Vector3(_center.x, baseY, _center.z) + outward * radial;
+            float lean = Mathf.Sin(phase * 0.72f) * _radius * 0.16f;
             LineRenderer line = _accents[i];
-            line.startColor = core;
-            line.endColor = edge;
-            line.SetPosition(0, center - axis * 0.5f);
-            line.SetPosition(1, center + axis * 0.5f);
+            ConfigureLine(line, 5, false, Mathf.Clamp(_radius * 0.098f + _pulse * 0.016f, 0.04f, 0.14f), core, edge);
+            line.widthCurve = s_taperCurve;
+            line.SetPosition(0, basePoint);
+            line.SetPosition(1, basePoint - outward * _radius * 0.055f + tangent * lean * 0.25f + Vector3.up * flameHeight * 0.2f);
+            line.SetPosition(2, basePoint + tangent * (lean + _radius * 0.07f) + Vector3.up * flameHeight * 0.48f);
+            line.SetPosition(3, basePoint - tangent * (_radius * 0.08f - lean * 0.35f) + Vector3.up * flameHeight * 0.77f);
+            line.SetPosition(4, basePoint + outward * _radius * 0.025f + tangent * lean * 0.55f + Vector3.up * flameHeight);
+        }
+    }
+
+    private void DrawJellified(float time, float lowerY, float pulseScale, Color core, Color edge)
+    {
+        SetRingEnabled(_lowerRing, true);
+        SetRingEnabled(_upperRing, true);
+        _lowerRing.widthMultiplier = Mathf.Clamp(_radius * 0.105f, 0.045f, 0.145f);
+        _upperRing.widthMultiplier = Mathf.Clamp(_radius * 0.06f, 0.026f, 0.085f);
+        DrawWobblyRing(_lowerRing, lowerY, _radius * (1.02f + _pulse * 0.08f), core, time, 0.075f);
+        DrawSplashCrown(_upperRing, lowerY + 0.035f, _radius * 1.08f * pulseScale, edge, time);
+        for (int i = 0; i < _accents.Length; i++)
+        {
+            float angle = i / (float)_accents.Length * Mathf.PI * 2f + _seed * 0.19f;
+            float rise = Mathf.Repeat(time * (0.3f + (i % 3) * 0.035f) + i * 0.19f, 1f);
+            Vector3 outward = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 tangent = new(-outward.z, 0f, outward.x);
+            float y = Mathf.Lerp(lowerY + 0.08f, _center.y + _height * 0.44f, rise);
+            Vector3 bubbleCenter = new Vector3(_center.x, y, _center.z) + outward * _radius * (0.94f + (i % 2) * 0.14f);
+            float lifeScale = Mathf.Sin(Mathf.Clamp01(rise) * Mathf.PI);
+            float bubbleRadius = _radius * (0.075f + (i % 3) * 0.025f) * Mathf.Lerp(0.35f, 1f, lifeScale) * pulseScale;
+            Color bubbleCore = core;
+            Color bubbleEdge = edge;
+            bubbleCore.a *= 1f - Mathf.SmoothStep(0.74f, 1f, rise);
+            bubbleEdge.a *= 1f - Mathf.SmoothStep(0.68f, 1f, rise);
+            LineRenderer line = _accents[i];
+            ConfigureLine(line, 10, true, Mathf.Clamp(_radius * 0.052f, 0.022f, 0.075f), bubbleCore, bubbleEdge);
+            line.widthCurve = s_angularCurve;
+            DrawVerticalLoop(line, bubbleCenter, tangent, bubbleRadius, 10, 0.82f + Mathf.Sin(time * 2.6f + i) * 0.1f);
+        }
+    }
+
+    private void DrawSlow(float time, float lowerY, float pulseScale, Color core, Color edge)
+    {
+        SetRingEnabled(_lowerRing, true);
+        SetRingEnabled(_upperRing, true);
+        _lowerRing.widthMultiplier = Mathf.Clamp(_radius * 0.062f, 0.028f, 0.088f);
+        _upperRing.widthMultiplier = Mathf.Clamp(_radius * 0.068f, 0.03f, 0.095f);
+        DrawChainBand(_lowerRing, lowerY + _height * 0.18f, _radius * 1.08f * pulseScale, core, time * 0.18f, 3);
+        DrawChainBand(_upperRing, lowerY + _height * 0.49f, _radius * 1.04f * pulseScale, edge, -time * 0.13f, 2);
+        for (int i = 0; i < _accents.Length; i++)
+        {
+            float angle = i / (float)_accents.Length * Mathf.PI * 2f + time * 0.13f + _seed;
+            Vector3 outward = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 tangent = new(-outward.z, 0f, outward.x);
+            float linkY = lowerY + _height * (0.17f + (i % 3) * 0.17f);
+            Vector3 center = new Vector3(_center.x, linkY, _center.z) + outward * _radius * (1.22f + (i % 2) * 0.08f);
+            float linkRadius = _radius * Mathf.Lerp(0.12f, 0.18f, _strength) * pulseScale;
+            LineRenderer line = _accents[i];
+            ConfigureLine(line, 8, true, Mathf.Clamp(_radius * 0.066f, 0.028f, 0.095f), core, edge);
+            line.widthCurve = s_angularCurve;
+            Vector3 across = (i & 1) == 0 ? tangent : Vector3.Lerp(tangent, outward, 0.72f).normalized;
+            Vector3 tall = (i & 1) == 0 ? Vector3.up : Vector3.Lerp(Vector3.up, outward, 0.58f).normalized;
+            DrawChainLink(line, center, across, tall, linkRadius, 8);
+        }
+    }
+
+    private void DrawFreeze(float lowerY, float pulseScale, Color core, Color edge)
+    {
+        SetRingEnabled(_lowerRing, true);
+        SetRingEnabled(_upperRing, true);
+        _lowerRing.widthMultiplier = 0.038f;
+        _upperRing.widthMultiplier = 0.024f;
+        DrawPolygon(_lowerRing, lowerY, _radius * pulseScale, 6, core, 0f);
+        DrawPolygon(_upperRing, _center.y + _height * 0.16f, _radius * 1.06f * pulseScale, 6, edge, Mathf.PI / 6f);
+
+        // The full-body ice shell and horizontal facets carry the freeze read.
+        // Tall accent spikes looked like unrelated vertical guide lines.
+        for (int i = 0; i < _accents.Length; i++)
+            _accents[i].enabled = false;
+    }
+
+    private void DrawVulnerable(float time, float lowerY, float pulseScale, Color core, Color edge)
+    {
+        SetRingEnabled(_lowerRing, false);
+        SetRingEnabled(_upperRing, true);
+        _upperRing.widthMultiplier = 0.032f;
+        float orbit = time * 1.35f + _seed;
+        DrawPolygon(_upperRing, _center.y + _height * 0.05f, _radius * 1.08f * pulseScale, 4, edge, orbit);
+        for (int i = 0; i < _accents.Length; i++)
+        {
+            float angle = i / (float)_accents.Length * Mathf.PI * 2f - orbit * 0.72f;
+            Vector3 outward = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 tangent = new(-outward.z, 0f, outward.x);
+            float y = Mathf.Lerp(lowerY + _height * 0.2f, lowerY + _height * 0.78f, (i % 3) / 2f);
+            Vector3 tip = new Vector3(_center.x, y, _center.z) + outward * _radius * 1.02f;
+            float bracket = _radius * Mathf.Lerp(0.16f, 0.28f, _strength) * pulseScale;
+            LineRenderer line = _accents[i];
+            ConfigureLine(line, 3, false, Mathf.Clamp(_radius * 0.06f, 0.03f, 0.085f), core, edge);
+            line.widthCurve = s_taperCurve;
+            line.SetPosition(0, tip + outward * bracket + tangent * bracket * 0.65f);
+            line.SetPosition(1, tip);
+            line.SetPosition(2, tip + outward * bracket - tangent * bracket * 0.65f);
         }
     }
 
@@ -415,14 +579,203 @@ public sealed class EnemyStatusVisual : MonoBehaviour
         return line;
     }
 
-    private static void DrawRing(LineRenderer line, float y, float radius, Color color)
+    private void DrawRing(LineRenderer line, float y, float radius, Color color)
     {
+        if (line.positionCount != RingSegments)
+            line.positionCount = RingSegments;
+        line.loop = true;
         line.startColor = color;
         line.endColor = color;
         for (int i = 0; i < RingSegments; i++)
         {
             float angle = i / (float)RingSegments * Mathf.PI * 2f;
-            line.SetPosition(i, new Vector3(Mathf.Cos(angle) * radius, y, Mathf.Sin(angle) * radius));
+            line.SetPosition(i, new Vector3(_center.x + Mathf.Cos(angle) * radius, y, _center.z + Mathf.Sin(angle) * radius));
+        }
+    }
+
+    private void DrawWobblyRing(LineRenderer line, float y, float radius, Color color, float time, float wobble)
+    {
+        if (line.positionCount != RingSegments)
+            line.positionCount = RingSegments;
+        line.loop = true;
+        line.startColor = color;
+        line.endColor = color;
+        for (int i = 0; i < RingSegments; i++)
+        {
+            float angle = i / (float)RingSegments * Mathf.PI * 2f;
+            float localRadius = radius * (1f + Mathf.Sin(angle * 5f + time * 2.2f) * wobble);
+            line.SetPosition(i, new Vector3(_center.x + Mathf.Cos(angle) * localRadius, y, _center.z + Mathf.Sin(angle) * localRadius));
+        }
+    }
+
+    private void DrawSplashCrown(LineRenderer line, float y, float radius, Color color, float time)
+    {
+        const int points = 12;
+        if (line.positionCount != points)
+            line.positionCount = points;
+        line.loop = true;
+        line.startColor = color;
+        line.endColor = color;
+        for (int i = 0; i < points; i++)
+        {
+            float angle = i / (float)points * Mathf.PI * 2f;
+            float alternating = (i & 1) == 0 ? 1f : 0.9f;
+            float wobble = 1f + Mathf.Sin(time * 2.8f + angle * 3f + _seed) * 0.075f;
+            float localRadius = radius * alternating * wobble;
+            float lift = (i & 1) == 0 ? _height * 0.055f : 0f;
+            line.SetPosition(i, new Vector3(
+                _center.x + Mathf.Cos(angle) * localRadius,
+                y + lift,
+                _center.z + Mathf.Sin(angle) * localRadius));
+        }
+    }
+
+    private void DrawChainBand(LineRenderer line, float y, float radius, Color color, float rotation, int sags)
+    {
+        const int points = 24;
+        if (line.positionCount != points)
+            line.positionCount = points;
+        line.loop = true;
+        line.startColor = color;
+        line.endColor = color;
+        line.widthCurve = s_angularCurve;
+        for (int i = 0; i < points; i++)
+        {
+            float angle = i / (float)points * Mathf.PI * 2f + rotation;
+            float facetedRadius = radius * (1f + ((i & 1) == 0 ? 0.035f : -0.035f));
+            float sag = (0.5f + 0.5f * Mathf.Cos(angle * sags)) * _height * 0.035f;
+            line.SetPosition(i, new Vector3(
+                _center.x + Mathf.Cos(angle) * facetedRadius,
+                y - sag,
+                _center.z + Mathf.Sin(angle) * facetedRadius));
+        }
+    }
+
+    private static void DrawVerticalLoop(LineRenderer line, Vector3 center, Vector3 horizontal, float radius, int points, float squash)
+    {
+        for (int i = 0; i < points; i++)
+        {
+            float angle = i / (float)points * Mathf.PI * 2f;
+            line.SetPosition(i, center + horizontal * (Mathf.Cos(angle) * radius) + Vector3.up * (Mathf.Sin(angle) * radius * squash));
+        }
+    }
+
+    private static void DrawChainLink(LineRenderer line, Vector3 center, Vector3 across, Vector3 tall, float radius, int points)
+    {
+        for (int i = 0; i < points; i++)
+        {
+            float angle = i / (float)points * Mathf.PI * 2f;
+            float x = Mathf.Cos(angle) * radius * 0.72f;
+            float y = Mathf.Sin(angle) * radius * 1.22f;
+            line.SetPosition(i, center + across * x + tall * y);
+        }
+    }
+
+    private void DrawPolygon(LineRenderer line, float y, float radius, int sides, Color color, float rotation)
+    {
+        if (line.positionCount != sides)
+            line.positionCount = sides;
+        line.loop = true;
+        line.startColor = color;
+        line.endColor = color;
+        for (int i = 0; i < sides; i++)
+        {
+            float angle = i / (float)sides * Mathf.PI * 2f + rotation;
+            line.SetPosition(i, new Vector3(_center.x + Mathf.Cos(angle) * radius, y, _center.z + Mathf.Sin(angle) * radius));
+        }
+    }
+
+    private static void SetRingEnabled(LineRenderer line, bool enabled)
+    {
+        if (line != null)
+            line.enabled = enabled;
+    }
+
+    private static void ConfigureLine(LineRenderer line, int positions, bool loop, float width, Color start, Color end)
+    {
+        line.enabled = true;
+        if (line.positionCount != positions)
+            line.positionCount = positions;
+        line.loop = loop;
+        line.widthMultiplier = width;
+        line.startColor = start;
+        line.endColor = end;
+    }
+
+    private void CreateFreezeShells(Transform target)
+    {
+        Material material = GetIceMaterial();
+        if (target == null || material == null)
+            return;
+        Renderer[] sources = target.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < sources.Length; i++)
+        {
+            Renderer source = sources[i];
+            if (!EnemyStatusFeedback.IsBodyRenderer(source))
+                continue;
+            Renderer shell = CreateFreezeShell(source, material);
+            if (shell != null)
+                _freezeShells.Add(shell);
+        }
+    }
+
+    private static Renderer CreateFreezeShell(Renderer source, Material material)
+    {
+        GameObject go = new("[Enemy Freeze Shell] " + source.gameObject.name);
+        go.hideFlags = HideFlags.DontSave;
+        go.transform.SetParent(source.transform, false);
+        go.transform.localScale = Vector3.one * 1.045f;
+        Renderer shell = null;
+        if (source is SkinnedMeshRenderer skinned && skinned.sharedMesh != null)
+        {
+            SkinnedMeshRenderer copy = go.AddComponent<SkinnedMeshRenderer>();
+            copy.sharedMesh = skinned.sharedMesh;
+            copy.rootBone = skinned.rootBone;
+            copy.bones = skinned.bones;
+            copy.localBounds = skinned.localBounds;
+            shell = copy;
+        }
+        else if (source is MeshRenderer && source.TryGetComponent(out MeshFilter filter) && filter.sharedMesh != null)
+        {
+            go.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+            shell = go.AddComponent<MeshRenderer>();
+        }
+        if (shell == null)
+        {
+            DestroySafely(go);
+            return null;
+        }
+        int materialCount = Mathf.Max(1, source.sharedMaterials.Length);
+        Material[] materials = new Material[materialCount];
+        for (int i = 0; i < materialCount; i++)
+            materials[i] = material;
+        shell.sharedMaterials = materials;
+        shell.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        shell.receiveShadows = false;
+        shell.enabled = false;
+        return shell;
+    }
+
+    private void ApplyFreezeShell(float visibility, float time)
+    {
+        if (_freezeShells.Count == 0)
+            return;
+        _iceBlock ??= new MaterialPropertyBlock();
+        float glint = EnemyReactionRuntime.ReducedFlash ? 0.24f : 0.62f + Mathf.Sin(time * 1.9f + _seed) * 0.1f;
+        for (int i = 0; i < _freezeShells.Count; i++)
+        {
+            Renderer shell = _freezeShells[i];
+            if (shell == null)
+                continue;
+            shell.enabled = visibility > 0.001f;
+            _iceBlock.Clear();
+            _iceBlock.SetColor(IceColorId, new Color(0.16f, 0.62f, 1f, 1f));
+            _iceBlock.SetColor(IceEdgeColorId, new Color(0.86f, 0.98f, 1f, 1f));
+            _iceBlock.SetFloat(IceOpacityId, visibility * Mathf.Lerp(0.64f, 0.84f, _strength));
+            _iceBlock.SetFloat(IceFrostId, Mathf.Lerp(0.72f, 0.96f, _strength));
+            _iceBlock.SetFloat(IceGlintId, glint);
+            _iceBlock.SetFloat(IceLuminescenceId, 0.4f);
+            shell.SetPropertyBlock(_iceBlock);
         }
     }
 
@@ -440,33 +793,46 @@ public sealed class EnemyStatusVisual : MonoBehaviour
     {
         if (s_material != null)
             return s_material;
-        Shader shader = Shader.Find("Sprites/Default");
+        Shader shader = Shader.Find("ScrapWaves/GameFeel/Enemy Status Line");
         if (shader == null)
-            shader = Shader.Find("Universal Render Pipeline/Unlit");
+            shader = Shader.Find("Sprites/Default");
         s_material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+        if (s_material.HasProperty("_Brightness")) s_material.SetFloat("_Brightness", 1.08f);
+        if (s_material.HasProperty("_Luminescence")) s_material.SetFloat("_Luminescence", 0.4f);
+        if (s_material.HasProperty("_Pulse")) s_material.SetFloat("_Pulse", 0.35f);
         return s_material;
     }
 
-    private static float GetOrbitSpeed(WeaponStatusKind kind) => kind == WeaponStatusKind.Vulnerable ? 1.8f : kind == WeaponStatusKind.Freeze ? 0.25f : 0.75f;
-    private static float GetRiseSpeed(WeaponStatusKind kind) => kind == WeaponStatusKind.Burn ? 0.65f : kind == WeaponStatusKind.JellifiedBurn ? -0.25f : 0.18f;
-    private static Vector3 GetAccentAxis(WeaponStatusKind kind, float angle)
+    private static Material GetIceMaterial()
     {
-        if (kind == WeaponStatusKind.Vulnerable)
-            return new Vector3(-Mathf.Sin(angle), 0.2f, Mathf.Cos(angle)).normalized;
-        if (kind == WeaponStatusKind.Freeze || kind == WeaponStatusKind.Slow)
-            return new Vector3(Mathf.Cos(angle) * 0.35f, 1f, Mathf.Sin(angle) * 0.35f).normalized;
-        return kind == WeaponStatusKind.JellifiedBurn ? Vector3.down : Vector3.up;
+        if (s_iceMaterial != null)
+            return s_iceMaterial;
+        Shader shader = Shader.Find("ScrapWaves/GameFeel/Enemy Ice Shell");
+        if (shader == null)
+            return null;
+        s_iceMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+        return s_iceMaterial;
+    }
+
+    private static void DestroySafely(Object value)
+    {
+        if (value == null)
+            return;
+        if (Application.isPlaying)
+            Object.Destroy(value);
+        else
+            Object.DestroyImmediate(value);
     }
 
     private static Color GetCoreColor(WeaponStatusKind kind)
     {
         return kind switch
         {
-            WeaponStatusKind.JellifiedBurn => new Color(0.25f, 0.78f, 0.08f, 0.62f),
-            WeaponStatusKind.Slow => new Color(0.42f, 0.78f, 1f, 0.55f),
-            WeaponStatusKind.Freeze => new Color(0.8f, 0.97f, 1f, 0.82f),
-            WeaponStatusKind.Vulnerable => new Color(1f, 0.18f, 0.72f, 0.68f),
-            _ => new Color(1f, 0.28f, 0.03f, 0.58f)
+            WeaponStatusKind.JellifiedBurn => new Color(0.12f, 0.92f, 0.025f, 0.92f),
+            WeaponStatusKind.Slow => new Color(0.48f, 0.16f, 1f, 0.92f),
+            WeaponStatusKind.Freeze => new Color(0.76f, 0.98f, 1f, 0.98f),
+            WeaponStatusKind.Vulnerable => new Color(1f, 0.06f, 0.68f, 0.92f),
+            _ => new Color(1f, 0.9f, 0.2f, 0.96f)
         };
     }
 
@@ -474,11 +840,11 @@ public sealed class EnemyStatusVisual : MonoBehaviour
     {
         return kind switch
         {
-            WeaponStatusKind.JellifiedBurn => new Color(0.72f, 0.95f, 0.12f, 0.38f),
-            WeaponStatusKind.Slow => new Color(0.85f, 0.97f, 1f, 0.34f),
-            WeaponStatusKind.Freeze => new Color(0.36f, 0.64f, 0.86f, 0.58f),
-            WeaponStatusKind.Vulnerable => new Color(1f, 0.58f, 0.9f, 0.4f),
-            _ => new Color(1f, 0.78f, 0.18f, 0.34f)
+            WeaponStatusKind.JellifiedBurn => new Color(0.82f, 1f, 0.08f, 0.84f),
+            WeaponStatusKind.Slow => new Color(0.88f, 0.68f, 1f, 0.82f),
+            WeaponStatusKind.Freeze => new Color(0.08f, 0.55f, 1f, 0.86f),
+            WeaponStatusKind.Vulnerable => new Color(1f, 0.6f, 0.96f, 0.72f),
+            _ => new Color(1f, 0.16f, 0.01f, 0.86f)
         };
     }
 }
