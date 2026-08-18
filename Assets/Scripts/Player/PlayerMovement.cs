@@ -24,7 +24,10 @@ public class PlayerMovement : MonoBehaviour
     public event Action OnStunned;
 
     [SerializeField] private Transform _cameraTransform;
-    [SerializeField] private float _rotationSpeed = 540f;
+    [SerializeField, Min(0.01f), Tooltip("Tiempo de suavizado (segundos) para girar hacia la cámara/strafe. Más alto = giro más lento y suave.")]
+    private float _facingSmoothTime = 0.12f;
+    [SerializeField, Min(0f), Tooltip("Grados adicionales de giro hacia el costado al strafear con A/D, para que no se vea tan estático mirando siempre a cámara.")]
+    private float _strafeTurnAngle = 25f;
     [SerializeField, Min(0f), Tooltip("Degrees per second while the body is aligning to reticle aim. Zero uses movement rotation speed.")]
     private float _aimFacingRotationSpeed = 720f;
 
@@ -337,14 +340,31 @@ public class PlayerMovement : MonoBehaviour
         if (IsMovementInputLocked)
             return;
 
+        // Over-the-shoulder: el personaje siempre mira hacia donde mira la cámara (salvo
+        // slide, que conserva el rumbo del deslizamiento, o un aim-facing forzado), con un
+        // pequeño giro extra al strafear (A/D) para que no se vea estático. Así "S" retrocede
+        // en sentido contrario a cámara en vez de darse vuelta a mirarla, y el disparo (que
+        // apunta según cámara/reticle) siempre coincide con hacia dónde mira el personaje.
         Vector3 aimFacingDirection = Vector3.zero;
         bool useAimFacing = !_isSliding && TryGetAimFacingDirection(out aimFacingDirection);
-        Vector3 facingDirection = _isSliding ? _slideDirectionWorld : useAimFacing ? aimFacingDirection : _moveDirectionWorld;
+        Vector3 cameraFacing = FlattenOnXZ(_cameraTransform.forward);
+        Vector3 strafedFacing = Quaternion.AngleAxis(_moveInput.x * _strafeTurnAngle, Vector3.up) * cameraFacing;
+        Vector3 facingDirection = _isSliding ? _slideDirectionWorld : useAimFacing ? aimFacingDirection : strafedFacing;
         if (facingDirection.sqrMagnitude > 0.0001f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(facingDirection);
-            float rotationSpeed = useAimFacing && _aimFacingRotationSpeed > 0f ? _aimFacingRotationSpeed : _rotationSpeed;
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime);
+            if (useAimFacing && _aimFacingRotationSpeed > 0f)
+            {
+                // Lock de aim: giro a velocidad constante, más brusco a propósito.
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, _aimFacingRotationSpeed * Time.fixedDeltaTime);
+            }
+            else
+            {
+                // Movimiento normal: suavizado exponencial (independiente del framerate),
+                // se siente mucho más orgánico que un giro a velocidad constante.
+                float t = 1f - Mathf.Exp(-Time.fixedDeltaTime / _facingSmoothTime);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, t);
+            }
         }
 
         if (_isSliding) return;
