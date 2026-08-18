@@ -285,6 +285,7 @@ public sealed class GameFeelFoundationTests
             GameObject enemy = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(enemy.GetComponent<EnemyHitFeedback>(), Is.Not.Null, path);
             Assert.That(enemy.GetComponent<EnemyDeathFeedback>(), Is.Not.Null, path);
+            Assert.That(enemy.GetComponent<EnemyStatusFeedback>(), Is.Not.Null, path);
         }
     }
 

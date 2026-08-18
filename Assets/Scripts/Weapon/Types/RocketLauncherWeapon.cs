@@ -52,11 +52,15 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
 
         if (!Targeting.TryGetTarget(Runtime, Owner, Mathf.Max(0f, Runtime.Data.BaseRange), aimDirection, out Transform target))
+        {
+            ClearFireOriginAim();
             return;
+        }
 
         FireTimer = GetFireInterval();
         int extra = GetThresholdRocketBonus() + GetFragmentationRocketBonus();
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        AimFireOriginAt(target, EnemyRegistry.GetAimPoint(target));
         FireBurstAt(
             EnemyRegistry.GetAimPoint(target),
             tuning.RocketAutoBaseRocketCount + extra,

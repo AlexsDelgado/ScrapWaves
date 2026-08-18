@@ -68,6 +68,15 @@ public sealed class WeaponRecoilFeedback : MonoBehaviour
 
     public void Request(in WeaponFeedbackContext context, WeaponHeatPresentationSettings heat, bool heatEnabled)
     {
+        AutomaticWeaponMount automaticMount = context.Anchor != null
+            ? context.Anchor.GetComponentInParent<AutomaticWeaponMount>()
+            : null;
+        if (context.Mode == WeaponFeedbackMode.Automatic && automaticMount != null)
+        {
+            automaticMount.RequestRecoil(context.EventIntensity);
+            return;
+        }
+
         float distance = context.Mode == WeaponFeedbackMode.Manual || context.Mode == WeaponFeedbackMode.Active
             ? _manualRecoilDistance
             : _automaticRecoilDistance;

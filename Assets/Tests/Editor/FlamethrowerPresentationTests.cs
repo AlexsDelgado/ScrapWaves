@@ -30,7 +30,6 @@ public sealed class FlamethrowerPresentationTests
             WeaponPresentationCue.FlamethrowerJellifiedActive,
             WeaponPresentationCue.FlamethrowerNitrogenActive,
             WeaponPresentationCue.FlamethrowerBurnStatus,
-            WeaponPresentationCue.FlamethrowerJellifiedStatus,
             WeaponPresentationCue.FlamethrowerNitrogenSlow,
             WeaponPresentationCue.FlamethrowerNitrogenFreeze
         };
@@ -236,6 +235,27 @@ public sealed class FlamethrowerPresentationTests
         AssertResolved(profile, WeaponFeedbackEvent.ShotFired, instance, WeaponFeedbackMode.Active, WeaponPresentationCue.FlamethrowerJellifiedActive);
         instance.SelectedPath = WeaponUpgradePath.PathB;
         AssertResolved(profile, WeaponFeedbackEvent.ShotFired, instance, WeaponFeedbackMode.Active, WeaponPresentationCue.FlamethrowerNitrogenActive);
+    }
+
+    [Test]
+    public void JellifiedFuelStatusFeedback_UsesRegularBurnCue()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Flamethrower.asset");
+        WeaponInstance instance = new()
+        {
+            Data = data,
+            Level = 6,
+            State = WeaponState.Manual,
+            SelectedPath = WeaponUpgradePath.PathA
+        };
+
+        AssertResolved(
+            profile,
+            WeaponFeedbackEvent.StatusApplied,
+            instance,
+            WeaponFeedbackMode.Manual,
+            WeaponPresentationCue.FlamethrowerBurnStatus);
     }
 
     private static void AssertResolved(

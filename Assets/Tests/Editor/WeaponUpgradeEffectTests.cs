@@ -155,40 +155,35 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void WeaponDamageAmplifierStatus_SpawnsVulnerableAura()
+    public void WeaponDamageAmplifierStatus_SpawnsVulnerableEnemyStatus()
     {
-        System.Type auraType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
-        Assert.That(auraType, Is.Not.Null, "Missing WeaponStatusAuraVfx type.");
-
         GameObject target = new("Vulnerable Target");
         var damageable = target.AddComponent<TestDamageable>();
 
         WeaponDamageAmplifierStatus.Apply(damageable, 1.5f, 3f);
 
-        Object aura = Object.FindAnyObjectByType(auraType);
-        Assert.That(aura, Is.Not.Null);
-        if (aura is Component component)
-            Assert.That(component.transform.position, Is.EqualTo(target.transform.position));
+        EnemyStatusFeedback status = target.GetComponent<EnemyStatusFeedback>();
+        Assert.That(status, Is.Not.Null);
+        Assert.That(status.ActiveMask, Is.EqualTo(WeaponStatusMask.Vulnerable));
 
         Object.DestroyImmediate(target);
         DestroyGeneratedVfx();
     }
 
     [Test]
-    public void WeaponDamageAmplifierStatus_DismissesVulnerableAuraWhenTargetDisabled()
+    public void WeaponDamageAmplifierStatus_DismissesVulnerableEnemyStatusWhenTargetDisabled()
     {
-        System.Type auraType = typeof(Projectile).Assembly.GetType("WeaponStatusAuraVfx");
-        Assert.That(auraType, Is.Not.Null, "Missing WeaponStatusAuraVfx type.");
-
         GameObject target = new("Disabled Vulnerable Target");
         var damageable = target.AddComponent<TestDamageable>();
 
         WeaponDamageAmplifierStatus.Apply(damageable, 1.5f, 3f);
-        Assert.That(Object.FindAnyObjectByType(auraType), Is.Not.Null);
+        EnemyStatusFeedback status = target.GetComponent<EnemyStatusFeedback>();
+        Assert.That(status.ActiveMask, Is.EqualTo(WeaponStatusMask.Vulnerable));
 
+        InvokePrivate(target.GetComponent<WeaponDamageAmplifierStatus>(), "OnDisable");
         target.SetActive(false);
 
-        Assert.That(Object.FindAnyObjectByType(auraType), Is.Null);
+        Assert.That(status.ActiveMask, Is.EqualTo(WeaponStatusMask.None));
 
         Object.DestroyImmediate(target);
         DestroyGeneratedVfx();
@@ -2795,15 +2790,26 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void FlamethrowerJellifiedFuel_DoublesBurnDuration()
+    public void FlamethrowerJellifiedFuel_UsesRegularBurnAtDoubleDuration()
     {
         FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathA, out WeaponData data);
         data.Flamethrower.FlameBurnDuration = 3f;
+        GameObject target = new("Jellified Fuel Burn Target");
+        target.AddComponent<TestDamageable>();
 
         float duration = InvokePrivate<float>(weapon, "GetPathAdjustedBurnDuration", data.Flamethrower);
+        InvokePrivate(weapon, "ApplyBurnToTarget", target.transform, 4, data.Flamethrower, false);
+
+        FlamethrowerBurnStatus burn = target.GetComponent<FlamethrowerBurnStatus>();
 
         Assert.That(duration, Is.EqualTo(6f).Within(0.0001f));
+        Assert.That(burn, Is.Not.Null);
+        Assert.That(ReadField<float>(burn, "_remainingDuration"), Is.EqualTo(6f).Within(0.0001f));
+        Assert.That(ReadField<WeaponStatusKind>(burn, "_statusKind"), Is.EqualTo(WeaponStatusKind.Burn));
+        Assert.That(EnemyStatusFeedback.ResolveMask(target.transform), Is.EqualTo(WeaponStatusMask.Burn));
+        Object.DestroyImmediate(target);
         Object.DestroyImmediate(data);
+        DestroyGeneratedVfx();
     }
 
     [Test]

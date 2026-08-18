@@ -13,6 +13,7 @@ public class WeaponManager : MonoBehaviour
     [SerializeField, Tooltip("Center-screen aim resolver. Empty uses a ReticleAimProvider on the same player if one exists.")]
     private ReticleAimProvider _reticleAimProvider;
     [SerializeField] private WeaponPresentationController _presentationController;
+    [SerializeField] private PlayerWeaponMountController _mountController;
 
     [SerializeField, Min(0f), Tooltip("How long the body briefly faces reticle aim when manual fire starts.")]
     private float _aimFacingHoldTime = 0.08f;
@@ -38,6 +39,11 @@ public class WeaponManager : MonoBehaviour
             _reticleAimProvider = GetComponent<ReticleAimProvider>();
         if (_presentationController == null)
             _presentationController = GetComponent<WeaponPresentationController>();
+        if (_mountController == null)
+            _mountController = GetComponent<PlayerWeaponMountController>();
+        if (_mountController == null)
+            _mountController = gameObject.AddComponent<PlayerWeaponMountController>();
+        _mountController.Initialize(GetProjectileSpawn());
 
         _heat = HeatManager.GetInstance();
         _targeting = new ConfiguredEnemyTargeting();
@@ -92,6 +98,7 @@ public class WeaponManager : MonoBehaviour
         IWeaponBehaviour behaviour = CreateBehaviour(data);
         behaviour.Setup(instance, transform, _stats, _heat);
         _equipped.Add(behaviour);
+        _mountController?.AddWeapon(behaviour, _equipped.Count == 1);
 
         if (_equipped.Count == 1)
             StartManualMode(0);
@@ -244,6 +251,7 @@ public class WeaponManager : MonoBehaviour
         _equipped.Clear();
         _currentManualIndex = 0;
         _manualCooldownTimer = 0f;
+        _mountController?.ClearWeapons();
     }
 
     // Creates concrete behavior for each weapon type.
@@ -414,6 +422,8 @@ public class WeaponManager : MonoBehaviour
             if (equippedRuntime != null)
                 equippedRuntime.State = i == _currentManualIndex ? WeaponState.Manual : WeaponState.Automatic;
         }
+
+        _mountController?.SetManualWeapon(_equipped[_currentManualIndex]);
 
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
         if (runtime != null)

@@ -10,7 +10,6 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private static readonly Color LiquidNitrogenCoreColor = new(0.78f, 0.97f, 1f, 0.95f);
     private static readonly Color LiquidNitrogenVfxColor = new(0.38f, 0.78f, 1f, 0.88f);
 
-    private readonly PlayerMovement _movement;
     private readonly List<Transform> _targets = new();
     private readonly List<Vector3> _hitOrigins = new();
     private readonly FlamethrowerHoseStream _hoseStream = new();
@@ -37,10 +36,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     public FlamethrowerWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn, PlayerMovement movement)
         : base(targeting, pool, spawn)
     {
-        _movement = movement;
     }
 
-    // Emits an automatic cone in the player's movement direction.
+    // Emits an automatic cone from its assigned shoulder nozzle in player-body forward.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
@@ -51,6 +49,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
         Vector3 flameDirection = GetAutomaticFlameDirection();
+        AimFireOriginAlong(flameDirection);
         float range = GetScaledRange(Runtime.Data.BaseRange);
         ShowAutomaticCone(flameDirection, range, tuning);
         UpdateSustainedFeedback(WeaponFeedbackMode.Automatic, flameDirection, range);
@@ -188,17 +187,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     // Flamethrower direct ticks can crit; burn ticks do not.
     public override bool CanCrit() => true;
 
-    // Uses current movement as the automatic aim, falling back to the player's facing while idle.
+    // Automatic flame is body-forward. Camera-relative movement must not redirect the shoulder nozzle.
     private Vector3 GetAutomaticFlameDirection()
     {
-        Vector3 direction = _movement != null ? _movement.CurrentMoveDirectionWorld : Vector3.zero;
+        Vector3 direction = Owner != null ? Owner.forward : Vector3.forward;
         direction.y = 0f;
-
-        if (direction.sqrMagnitude <= 0.0001f && Owner != null)
-        {
-            direction = Owner.forward;
-            direction.y = 0f;
-        }
 
         if (direction.sqrMagnitude <= 0.0001f)
             direction = Vector3.forward;
@@ -368,7 +361,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             burn = damageComponent.gameObject.AddComponent<FlamethrowerBurnStatus>();
 
         float duration = GetPathAdjustedBurnDuration(tuning);
-        burn.Refresh(damageable, damagePerTick, duration, tuning.FlameBurnTickInterval);
+        // Jellified Fuel changes where and how long the fire burns; it does not
+        // introduce a separate enemy status. Keep the regular burn reaction so
+        // the longer duration is the only status-level difference.
+        burn.Refresh(damageable, damagePerTick, duration, tuning.FlameBurnTickInterval,
+            WeaponStatusKind.Burn);
 
         if (IsJellifiedFuelPath())
         {
@@ -384,10 +381,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         }
 
         WeaponDummyEnemy dummy = damageComponent.GetComponent<WeaponDummyEnemy>();
-        if (dummy != null && IsJellifiedFuelPath())
-        {
-            dummy.ApplyStatus("Jellified Fuel", duration);
-        }
+        if (dummy != null)
+            dummy.ApplyStatus("Burn", duration);
 
         EmitStatusFeedback(target, damagePerTick, activeAbility);
     }

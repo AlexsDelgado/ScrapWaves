@@ -17,11 +17,19 @@ public sealed class ConfiguredEnemyTargeting : IWeaponTargeting
         if (aimDirection.sqrMagnitude <= 0.0001f)
             aimDirection = owner.forward;
 
-        return weapon.Data.AutoTargetingMode switch
+        bool fullCircle = weapon.Data.AutomaticAimConstraint == WeaponAutomaticAimConstraint.Full360
+            || weapon.Data.AutoTargetingMode == WeaponTargetingMode.IgnoreCameraClosest;
+        bool random = weapon.Data.AutoTargetingMode == WeaponTargetingMode.RandomInRange;
+
+        if (fullCircle)
         {
-            WeaponTargetingMode.RandomInRange => EnemyRegistry.TryGetRandomOnPlaneInCone(owner.position, aimDirection, range, 90f, out target),
-            WeaponTargetingMode.IgnoreCameraClosest => EnemyRegistry.TryGetClosestOnPlane(owner.position, range, out target),
-            _ => EnemyRegistry.TryGetClosestOnPlaneInCone(owner.position, aimDirection, range, 90f, out target)
-        };
+            return random
+                ? EnemyRegistry.TryGetRandomOnPlane(owner.position, range, out target)
+                : EnemyRegistry.TryGetClosestOnPlane(owner.position, range, out target);
+        }
+
+        return random
+            ? EnemyRegistry.TryGetRandomOnPlaneInCone(owner.position, aimDirection, range, 90f, out target)
+            : EnemyRegistry.TryGetClosestOnPlaneInCone(owner.position, aimDirection, range, 90f, out target);
     }
 }

@@ -177,7 +177,6 @@ public static class FlamethrowerAssetBuilder
             FlamethrowerCueStyle.JellifiedActiveBurst,
             FlamethrowerCueStyle.NitrogenActiveBurst,
             FlamethrowerCueStyle.BurnCoating,
-            FlamethrowerCueStyle.JellifiedCoating,
             FlamethrowerCueStyle.NitrogenSlow,
             FlamethrowerCueStyle.NitrogenFreeze
         };
@@ -333,7 +332,6 @@ public static class FlamethrowerAssetBuilder
             Cue(WeaponPresentationCue.FlamethrowerJellifiedActive, prefabs[FlamethrowerCueStyle.JellifiedActiveBurst], null, 0f, 1f, 1f, 0.72f, false, 5, active: true),
             Cue(WeaponPresentationCue.FlamethrowerNitrogenActive, prefabs[FlamethrowerCueStyle.NitrogenActiveBurst], null, 0f, 1f, 1f, 0.72f, false, 5, active: true),
             Cue(WeaponPresentationCue.FlamethrowerBurnStatus, prefabs[FlamethrowerCueStyle.BurnCoating], null, 0f, 1f, 1f, 0.75f, false, 18, secondary: true),
-            Cue(WeaponPresentationCue.FlamethrowerJellifiedStatus, prefabs[FlamethrowerCueStyle.JellifiedCoating], null, 0f, 1f, 1f, 0.85f, false, 18, secondary: true),
             Cue(WeaponPresentationCue.FlamethrowerNitrogenSlow, prefabs[FlamethrowerCueStyle.NitrogenSlow], null, 0f, 1f, 1f, 0.75f, false, 18, secondary: true),
             Cue(WeaponPresentationCue.FlamethrowerNitrogenFreeze, prefabs[FlamethrowerCueStyle.NitrogenFreeze], null, 0f, 1f, 1f, 1.15f, false, 18)
         };
@@ -351,7 +349,7 @@ public static class FlamethrowerAssetBuilder
             Binding(WeaponFeedbackEvent.ShotFired, WeaponPresentationCue.FlamethrowerActiveBurst, WeaponFeedbackModeFilter.Active, WeaponUpgradePathFilter.Base),
             Binding(WeaponFeedbackEvent.StatusApplied, WeaponPresentationCue.FlamethrowerNitrogenFreeze, WeaponFeedbackModeFilter.Active, WeaponUpgradePathFilter.PathB),
             Binding(WeaponFeedbackEvent.StatusApplied, WeaponPresentationCue.FlamethrowerNitrogenSlow, path: WeaponUpgradePathFilter.PathB),
-            Binding(WeaponFeedbackEvent.StatusApplied, WeaponPresentationCue.FlamethrowerJellifiedStatus, path: WeaponUpgradePathFilter.PathA),
+            Binding(WeaponFeedbackEvent.StatusApplied, WeaponPresentationCue.FlamethrowerBurnStatus, path: WeaponUpgradePathFilter.PathA),
             Binding(WeaponFeedbackEvent.StatusApplied, WeaponPresentationCue.FlamethrowerBurnStatus, path: WeaponUpgradePathFilter.Base)
         };
 

@@ -41,11 +41,12 @@ public interface IMortarReticleStatus
     float ArcHeight { get; }
 }
 
-public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiver
+public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiver, IWeaponFireOriginReceiver
 {
     protected readonly IWeaponTargeting Targeting;
     protected readonly ProjectilePool Pool;
-    protected readonly Transform Spawn;
+    protected Transform Spawn;
+    private WeaponFireOriginBinding _fireOrigin;
 
     protected Transform Owner;
     protected PlayerStats Stats;
@@ -56,12 +57,38 @@ public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiv
 
     public WeaponInstance Runtime { get; protected set; }
     public IWeaponPresentationSink PresentationSink => Presentation;
+    public WeaponFireOriginBinding FireOrigin => _fireOrigin;
 
     public BasicProjectileWeapon(IWeaponTargeting targeting, ProjectilePool pool, Transform spawn)
     {
         Targeting = targeting;
         Pool = pool;
         Spawn = spawn;
+        _fireOrigin = new WeaponFireOriginBinding(spawn);
+    }
+
+    public virtual void SetFireOrigin(WeaponFireOriginBinding fireOrigin)
+    {
+        if (!fireOrigin.IsValid)
+            return;
+        _fireOrigin.ClearAim();
+        _fireOrigin = fireOrigin;
+        Spawn = fireOrigin.Muzzle;
+    }
+
+    protected void AimFireOriginAt(Transform target, Vector3 fallbackWorldPoint)
+    {
+        _fireOrigin.AimAt(target, fallbackWorldPoint);
+    }
+
+    protected void AimFireOriginAlong(Vector3 direction)
+    {
+        _fireOrigin.AimAlong(direction);
+    }
+
+    protected void ClearFireOriginAim()
+    {
+        _fireOrigin.ClearAim();
     }
 
     public void SetPresentationSink(IWeaponPresentationSink presentationSink)
@@ -90,9 +117,14 @@ public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiv
 
         FireTimer = GetFireInterval();
         if (!Targeting.TryGetTarget(Runtime, Owner, Runtime.Data.BaseRange, aimDirection, out Transform target))
+        {
+            ClearFireOriginAim();
             return;
+        }
 
-        FireAt(EnemyRegistry.GetAimPoint(target), 1f, WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
+        Vector3 targetPoint = EnemyRegistry.GetAimPoint(target);
+        AimFireOriginAt(target, targetPoint);
+        FireAt(targetPoint, 1f, WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
     }
 
     // Fires manually toward aim direction and consumes one ammo.

@@ -19,6 +19,7 @@ public sealed class WeaponMovementFreezeStatus : MonoBehaviour
         _remainingDuration = Mathf.Max(_remainingDuration, duration);
         SetMovement(false);
         TryApplyDummyStatus(duration);
+        EnemyStatusFeedback.ApplyOrRefresh(transform, WeaponStatusKind.Freeze, _remainingDuration, 1f);
     }
 
     public static void Apply(Transform target, float duration)
@@ -26,7 +27,10 @@ public sealed class WeaponMovementFreezeStatus : MonoBehaviour
         if (target == null || duration <= 0f)
             return;
 
-        Transform root = target.root != null ? target.root : target;
+        EnemyHealth health = target.GetComponentInParent<EnemyHealth>();
+        WeaponDummyEnemy dummy = target.GetComponentInParent<WeaponDummyEnemy>();
+        Transform root = health != null ? health.transform : dummy != null ? dummy.transform :
+            target.root != null ? target.root : target;
         WeaponMovementFreezeStatus status = root.GetComponent<WeaponMovementFreezeStatus>();
         if (status == null)
             status = root.gameObject.AddComponent<WeaponMovementFreezeStatus>();
@@ -48,7 +52,10 @@ public sealed class WeaponMovementFreezeStatus : MonoBehaviour
     {
         if (_hasCachedState)
             SetMovement(true);
+        EnemyStatusFeedback.Remove(transform, WeaponStatusKind.Freeze);
     }
+
+    private void OnDisable() => EnemyStatusFeedback.Remove(transform, WeaponStatusKind.Freeze);
 
     private void CacheState()
     {

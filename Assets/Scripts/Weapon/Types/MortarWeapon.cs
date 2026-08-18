@@ -41,10 +41,14 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             return;
 
         if (!EnemyRegistry.TryGetRandomOnPlane(Owner.position, Runtime.Data.BaseRange, out Transform target))
+        {
+            ClearFireOriginAim();
             return;
+        }
 
         FireTimer = GetFireInterval();
         Vector3 impact = target.position + RandomPlanarOffset(tuning.MortarAutoAccuracyRadius);
+        AimFireOriginAt(null, impact);
         Vector3 launch = Spawn != null ? Spawn.position : Owner.position;
         EmitLaunchFeedback(
             WeaponFeedbackMode.Automatic,

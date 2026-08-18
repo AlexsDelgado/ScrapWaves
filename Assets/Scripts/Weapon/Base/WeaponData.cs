@@ -161,6 +161,7 @@ public class WeaponData : ScriptableObject, IUnlockable
     public string DisplayName;
     public WeaponType WeaponType = WeaponType.AutomaticCannon;
     public WeaponTargetingMode AutoTargetingMode = WeaponTargetingMode.ClosestInRange;
+    public WeaponAutomaticAimConstraint AutomaticAimConstraint = WeaponAutomaticAimConstraint.CameraCone;
     public WeaponManualMode ManualMode = WeaponManualMode.AimAtReticle;
 
     public float BaseDamage = 10f;

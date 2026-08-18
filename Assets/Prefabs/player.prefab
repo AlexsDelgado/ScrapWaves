@@ -108,7 +108,7 @@ GameObject:
   m_Component:
   - component: {fileID: 123637993059655878}
   m_Layer: 6
-  m_Name: FIrePoint
+  m_Name: Main Weapon Fire Point
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -285,6 +285,7 @@ GameObject:
   - component: {fileID: 5070533248022036070}
   - component: {fileID: 6045364862485176579}
   - component: {fileID: 1631330456484713432}
+  - component: {fileID: 901000009}
   m_Layer: 6
   m_Name: player
   m_TagString: Untagged
@@ -638,9 +639,27 @@ MonoBehaviour:
   _projectilePool: {fileID: 0}
   _reticleAimProvider: {fileID: 3355374661182279101}
   _presentationController: {fileID: 901000008}
+  _mountController: {fileID: 901000009}
   _aimFacingHoldTime: 0.08
   _manualCycleCooldown: 1.25
   _singleWeaponCycleCooldown: 2.5
+--- !u!114 &901000009
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7499600762926182951}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 902a689b216d469483b4b1bbbfe7be22, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerWeaponMountController
+  _mainFirePoint: {fileID: 123637993059655878}
+  _rightMount: {fileID: 0}
+  _leftMount: {fileID: 0}
+  _rightMountOffset: {x: 0.58, y: 1.05, z: 0.05}
+  _leftMountOffset: {x: -0.58, y: 1.05, z: 0.05}
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0

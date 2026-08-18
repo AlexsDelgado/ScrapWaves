@@ -140,7 +140,7 @@ MonoBehaviour:
     WeakPoint: 0
     Kill: 0
     Surface: 0
-    Cue: 45
+    Cue: 44
   - Event: 8
     Mode: 0
     UpgradePath: 1
@@ -633,58 +633,6 @@ MonoBehaviour:
     MaximumDistance: 48
     AudioPriority: 110
     Duration: 0.75
-    MinReplayInterval: 0
-    PrewarmCount: 6
-    MaxSimultaneous: 18
-    Loop: 0
-    CameraPositionImpulse: {x: 0, y: 0, z: 0}
-    CameraRotationImpulse: {x: 0, y: 0, z: 0}
-    CameraFovKick: 0
-    CameraMinReplayInterval: 0.05
-    HitStopDuration: 0
-    HitStopPriority: 0
-    EssentialGameplayCue: 1
-    SecondaryEffect: 1
-    MinimumQuality: 0
-    HeatMultiplier:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-  - Cue: 45
-    VfxPrefab: {fileID: 4501652916419080779, guid: 7ba51ff60474bf247ab85df8f100a8a9, type: 3}
-    AudioClips: []
-    LayerAudioClips: 0
-    MechanicalLayerVolume: 0.7
-    ApplyHeatStrainToMechanicalLayer: 0
-    ApplyEventIntensityToPitch: 0
-    Volume: 0
-    PitchMin: 1
-    PitchMax: 1
-    SpatialBlend: 0.9
-    MinimumDistance: 1
-    MaximumDistance: 48
-    AudioPriority: 110
-    Duration: 0.85
     MinReplayInterval: 0
     PrewarmCount: 6
     MaxSimultaneous: 18

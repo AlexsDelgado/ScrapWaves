@@ -16,6 +16,7 @@ MonoBehaviour:
   DisplayName: Automatic Cannon
   WeaponType: 0
   AutoTargetingMode: 0
+  AutomaticAimConstraint: 1
   ManualMode: 0
   BaseDamage: 10
   BaseAttackRate: 5

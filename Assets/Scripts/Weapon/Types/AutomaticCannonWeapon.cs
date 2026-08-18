@@ -59,6 +59,24 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     {
     }
 
+    public override void SetFireOrigin(WeaponFireOriginBinding fireOrigin)
+    {
+        if (!fireOrigin.IsValid || fireOrigin.Muzzle == Spawn)
+        {
+            base.SetFireOrigin(fireOrigin);
+            return;
+        }
+
+        CompleteLineBurst();
+        EndContinuousFireActive();
+        if (_headHunterActiveCharging)
+        {
+            _headHunterActiveCharging = false;
+            DismissHeadHunterChargeFeedback();
+        }
+        base.SetFireOrigin(fireOrigin);
+    }
+
     // Fires three-round burst in automatic mode.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
@@ -85,9 +103,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
         float targetRange = Mathf.Max(0f, Runtime.Data.BaseRange);
         if (!Targeting.TryGetTarget(Runtime, Owner, targetRange, aimDirection, out Transform target))
+        {
+            ClearFireOriginAim();
             return;
+        }
 
         Vector3 targetPoint = EnemyRegistry.GetAimPoint(target);
+        AimFireOriginAt(target, targetPoint);
         AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
         FireTimer = GetAutomaticFireInterval(tuning);
         if (IsHeadHunterPath())

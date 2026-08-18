@@ -420,8 +420,48 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             presentation.SetQuality(GameFeelQualityLevel.High);
         GUILayout.EndHorizontal();
 
+        GUILayout.Label("Enemy Status Preview (spawned dummies)");
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Burn")) ApplyPreviewStatus(WeaponStatusKind.Burn);
+        if (GUILayout.Button("Slow")) ApplyPreviewStatus(WeaponStatusKind.Slow);
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Freeze")) ApplyPreviewStatus(WeaponStatusKind.Freeze);
+        if (GUILayout.Button("Vulnerable")) ApplyPreviewStatus(WeaponStatusKind.Vulnerable);
+        GUILayout.EndHorizontal();
+
         if (_sandbox.DebugGizmos != null)
             _sandbox.DebugGizmos.ShowRuntimeVisuals = options.DebugGeometryEnabled;
+    }
+
+    private void ApplyPreviewStatus(WeaponStatusKind kind)
+    {
+        WeaponDummySpawner spawner = _sandbox != null ? _sandbox.Spawner : null;
+        if (spawner == null)
+            return;
+        for (int i = 0; i < spawner.Spawned.Count; i++)
+        {
+            WeaponDummyEnemy dummy = spawner.Spawned[i];
+            if (dummy == null || !dummy.gameObject.activeInHierarchy)
+                continue;
+            switch (kind)
+            {
+                case WeaponStatusKind.Burn:
+                    FlamethrowerBurnStatus burn = dummy.GetComponent<FlamethrowerBurnStatus>();
+                    if (burn == null) burn = dummy.gameObject.AddComponent<FlamethrowerBurnStatus>();
+                    burn.Refresh(dummy, 1, 5f, 1f, kind);
+                    break;
+                case WeaponStatusKind.Slow:
+                    WeaponMovementSlowStatus.Apply(dummy.transform, 0.45f, 5f, "Slow Preview");
+                    break;
+                case WeaponStatusKind.Freeze:
+                    WeaponMovementFreezeStatus.Apply(dummy.transform, 3f);
+                    break;
+                case WeaponStatusKind.Vulnerable:
+                    WeaponDamageAmplifierStatus.Apply(dummy, 1.2f, 5f);
+                    break;
+            }
+        }
     }
 
     private void DrawImmediateMetrics()
