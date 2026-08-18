@@ -764,7 +764,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             bool eliteOrBoss = kind == WeaponEnemyKind.Elite || kind == WeaponEnemyKind.Boss;
             bool weakPointHit = allowWeakPointHits && IsWeakPointHit(_piercingTargets[i], _piercingLine[0], _piercingLine[1]);
             WeaponDamageContext damageContext = CreateDamageContext(1f, isAbilityDamage);
-            float damage = damageContext.CalculateDamageValue(eliteOrBoss);
+            float damage = damageContext.CalculateDamageValue(eliteOrBoss, _piercingTargets[i].position);
             float scale = GetHeadHunterDamageScale(kind, i, weakPointHit, isAbilityDamage);
 
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * scale));

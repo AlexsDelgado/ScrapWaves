@@ -393,7 +393,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
 
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale);
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage, targetPosition: target.position) * Mathf.Max(0f, damageScale);
         int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
 
         int healthBefore = GetRemainingHealth(damageable);

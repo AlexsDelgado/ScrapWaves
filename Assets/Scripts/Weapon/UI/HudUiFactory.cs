@@ -6,7 +6,7 @@ public enum HudPlaceholderKind
 {
     None,
     Head,
-    Torso,
+    Core,
     Arm,
     Leg,
     Weapon
@@ -383,7 +383,7 @@ public static class HudUiFactory
     public static Color GetPlaceholderColor(HudPlaceholderKind kind) => kind switch
     {
         HudPlaceholderKind.Head => new Color(0.35f, 0.55f, 0.95f, 1f),
-        HudPlaceholderKind.Torso => new Color(0.35f, 0.85f, 0.45f, 1f),
+        HudPlaceholderKind.Core => new Color(0.35f, 0.85f, 0.45f, 1f),
         HudPlaceholderKind.Arm => new Color(0.95f, 0.55f, 0.25f, 1f),
         HudPlaceholderKind.Leg => new Color(0.65f, 0.4f, 0.95f, 1f),
         HudPlaceholderKind.Weapon => new Color(0.55f, 0.58f, 0.62f, 1f),

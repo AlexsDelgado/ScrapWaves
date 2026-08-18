@@ -85,22 +85,36 @@ public readonly struct WeaponDamageContext
         if (!IsValid)
             return 0;
 
-        return CalculateDamage(WeaponEnemyClassifier.CountsAsEliteOrBoss(target), additionalScale);
+        Vector3? targetPosition = target != null ? target.position : (Vector3?)null;
+        return CalculateDamage(WeaponEnemyClassifier.CountsAsEliteOrBoss(target), targetPosition, additionalScale);
     }
 
-    public int CalculateDamage(bool eliteOrBoss, float additionalScale = 1f)
+    public int CalculateDamage(bool eliteOrBoss, float additionalScale = 1f) => CalculateDamage(eliteOrBoss, null, additionalScale);
+
+    public int CalculateDamage(bool eliteOrBoss, Vector3? targetPosition, float additionalScale = 1f)
     {
-        float damage = CalculateDamageValue(eliteOrBoss, additionalScale, report: true);
+        float damage = CalculateDamageValue(eliteOrBoss, targetPosition, additionalScale, report: true);
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
-    public int EstimateDamage(bool eliteOrBoss, float additionalScale = 1f)
+    public int EstimateDamage(bool eliteOrBoss, float additionalScale = 1f) => EstimateDamage(eliteOrBoss, null, additionalScale);
+
+    public int EstimateDamage(bool eliteOrBoss, Vector3? targetPosition, float additionalScale = 1f)
     {
-        float damage = CalculateDamageValue(eliteOrBoss, additionalScale, report: false);
+        float damage = CalculateDamageValue(eliteOrBoss, targetPosition, additionalScale, report: false);
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
     public float CalculateDamageValue(bool eliteOrBoss, float additionalScale = 1f, bool report = true)
+        => CalculateDamageValue(eliteOrBoss, null, additionalScale, report);
+
+    /// <summary>
+    /// Igual que la sobrecarga sin posición, pero además aplica el multiplicador de daño por
+    /// rango (Sharpshooter/CQB) cuando se conoce la posición del objetivo: distancia jugador-objetivo
+    /// mayor a 15m usa <see cref="StatType.LongRangeDamageMultiplier"/>, menor a 10m usa
+    /// <see cref="StatType.CloseRangeDamageMultiplier"/> (ambos con base neutra 1 si no hay ítem).
+    /// </summary>
+    public float CalculateDamageValue(bool eliteOrBoss, Vector3? targetPosition, float additionalScale = 1f, bool report = true)
     {
         if (!IsValid)
             return 0f;
@@ -109,6 +123,7 @@ public readonly struct WeaponDamageContext
         if (eliteOrBoss)
             damage *= EliteDamageMultiplier;
 
+        damage *= GetRangeDamageMultiplier(targetPosition);
         damage *= DamageScale * Mathf.Max(0f, additionalScale);
 
         if (report)
@@ -122,6 +137,23 @@ public readonly struct WeaponDamageContext
                 IsAbilityDamage));
 
         return damage;
+    }
+
+    private const float LongRangeDistance = 15f;
+    private const float CloseRangeDistance = 10f;
+
+    private float GetRangeDamageMultiplier(Vector3? targetPosition)
+    {
+        if (!targetPosition.HasValue || Stats == null)
+            return 1f;
+
+        float distance = Vector3.Distance(Stats.transform.position, targetPosition.Value);
+        if (distance > LongRangeDistance)
+            return Mathf.Max(0f, Stats.GetStat(StatType.LongRangeDamageMultiplier));
+        if (distance < CloseRangeDistance)
+            return Mathf.Max(0f, Stats.GetStat(StatType.CloseRangeDamageMultiplier));
+
+        return 1f;
     }
 
     public float CalculateKnockback(int damage, float falloffScale = 1f)
@@ -138,7 +170,7 @@ public static class WeaponDamageResolver
     public static event System.Action<WeaponDamageRoll> OnDamageResolved;
 
     // Calculates damage from weapon base, level/path, stats, and crit.
-    public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f, bool isAbilityDamage = false)
+    public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f, bool isAbilityDamage = false, Vector3? targetPosition = null)
     {
         WeaponDamageContext context = new(
             stats,
@@ -148,7 +180,7 @@ public static class WeaponDamageResolver
             1f,
             isAbilityDamage,
             1f);
-        return context.CalculateDamageValue(eliteOrBoss);
+        return context.CalculateDamageValue(eliteOrBoss, targetPosition);
     }
 
     public static void ReportDamageResolved(WeaponDamageRoll roll)

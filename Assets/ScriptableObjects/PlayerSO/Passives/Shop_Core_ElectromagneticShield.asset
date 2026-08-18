@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1000007000007000007000007000007, type: 3}
+  m_Name: Shop_Core_ElectromagneticShield
+  m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
+  _displayName: Electromagnetic Shield
+  _slot: 1
+  _maxLevel: 6
+  _icon: {fileID: 0}
+  _bonusesPerLevel:
+  - StatType: 27
+    ModifierType: 0
+    ValuesPerLevel:
+    - 1
+    - 1
+    - 2
+    - 3
+    - 3
+    - 4
+  - StatType: 28
+    ModifierType: 0
+    ValuesPerLevel:
+    - 8
+    - 7
+    - 7
+    - 7
+    - 6
+    - 6
+  _unlockId: Shop_Core_ElectromagneticShield
+  _unlockedFromStart: 1
+  _requirement:
+    RequiredAchievement: {fileID: 0}
+    ScrapPrice: 0

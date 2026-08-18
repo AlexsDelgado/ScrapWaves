@@ -27,9 +27,20 @@ public class PlayerHealth : MonoBehaviour
     private float _burnTickTimer;
     private int _burnDps;
 
+    private int _shieldCharges;
+    private int _maxShieldCharges;
+    private float _shieldRechargeDelaySeconds;
+
     public int CurrentHealth => _currentHealth;
     public int MaxHealth => _maxHealth;
     public bool IsAlive => _currentHealth > 0 && !_isDead;
+
+    /// <summary>Cargas de escudo actuales (Electromagnetic Shield). Cada una absorbe un impacto entero.</summary>
+    public int ShieldCharges => _shieldCharges;
+    public int MaxShieldCharges => _maxShieldCharges;
+
+    /// <summary>Cambios en cargas de escudo (equipar/subir de nivel, consumir, recargar).</summary>
+    public event Action OnShieldChanged;
 
     /// <summary>Se dispara una vez al llegar a 0 HP (para <see cref="GameManager"/>).</summary>
     public event System.Action OnPlayerDied;
@@ -83,6 +94,23 @@ public class PlayerHealth : MonoBehaviour
         OnHealthChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Sincroniza el máximo de cargas de escudo y su delay de recarga (Electromagnetic Shield).
+    /// Un aumento de máximo otorga la diferencia como cargas disponibles de inmediato.
+    /// </summary>
+    public void SetShieldConfig(int maxCharges, float rechargeDelaySeconds)
+    {
+        int previousMax = _maxShieldCharges;
+        _maxShieldCharges = Mathf.Max(0, maxCharges);
+        _shieldRechargeDelaySeconds = Mathf.Max(0f, rechargeDelaySeconds);
+
+        if (_maxShieldCharges > previousMax)
+            _shieldCharges += _maxShieldCharges - previousMax;
+
+        _shieldCharges = Mathf.Clamp(_shieldCharges, 0, _maxShieldCharges);
+        OnShieldChanged?.Invoke();
+    }
+
     private void OnEnable()
     {
         _isDead = false;
@@ -114,6 +142,19 @@ public class PlayerHealth : MonoBehaviour
 
         UpdateBurn(Time.deltaTime);
         ApplyRegeneration(Time.deltaTime, Time.time);
+        TickShieldRecharge(Time.time);
+    }
+
+    private void TickShieldRecharge(float currentTime)
+    {
+        if (_maxShieldCharges <= 0 || _shieldCharges >= _maxShieldCharges)
+            return;
+
+        if (currentTime - _lastDamageTime < _shieldRechargeDelaySeconds)
+            return;
+
+        _shieldCharges = _maxShieldCharges;
+        OnShieldChanged?.Invoke();
     }
 
     private void UpdateBurn(float deltaTime)
@@ -209,6 +250,16 @@ public class PlayerHealth : MonoBehaviour
         if (Time.time < _invulnerableUntil)
             return;
 
+        if (_shieldCharges > 0)
+        {
+            _shieldCharges--;
+            _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
+            SyncEnemyCollisionIgnores();
+            RegisterDamageTaken(Time.time);
+            OnShieldChanged?.Invoke();
+            return;
+        }
+
         int finalAmount = PlayerStatMath.ApplyDamageResistance(Stats, amount);
         _currentHealth -= finalAmount;
         if (_currentHealth < 0)
@@ -234,7 +285,9 @@ public class PlayerHealth : MonoBehaviour
         if (deltaTime <= 0f || _currentHealth <= 0 || _currentHealth >= _maxHealth)
             return;
 
-        if (currentTime - _lastDamageTime < _regenerationDelaySeconds)
+        float delayReduction = Stats != null ? Stats.GetStat(StatType.HealthRegenerationDelayReduction) : 0f;
+        float effectiveDelay = Mathf.Max(0f, _regenerationDelaySeconds - delayReduction);
+        if (currentTime - _lastDamageTime < effectiveDelay)
             return;
 
         float regeneration = PlayerStatMath.GetHealthRegenerationPerSecond(Stats);

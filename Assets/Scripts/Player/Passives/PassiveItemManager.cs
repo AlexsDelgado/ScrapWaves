@@ -25,7 +25,7 @@ public class PassiveItemManager : MonoBehaviour
             return offers;
 
         AddSlotOffers(offers, pool, PassiveItemSlot.Head);
-        AddSlotOffers(offers, pool, PassiveItemSlot.Torso);
+        AddSlotOffers(offers, pool, PassiveItemSlot.Core);
         AddSlotOffers(offers, pool, PassiveItemSlot.Arm);
         AddSlotOffers(offers, pool, PassiveItemSlot.Leg);
 
@@ -136,7 +136,7 @@ public class PassiveItemManager : MonoBehaviour
         for (int i = 0; i < bonuses.Count; i++)
         {
             PassiveStatBonus bonus = bonuses[i];
-            float value = bonus.ValuePerLevel * instance.Level;
+            float value = bonus.GetValueForLevel(instance.Level);
             if (Mathf.Approximately(value, 0f))
                 continue;
 
@@ -144,13 +144,21 @@ public class PassiveItemManager : MonoBehaviour
                 bonus.StatType,
                 value,
                 StatUpgradeSource.PassiveItem,
-                instance));
+                instance,
+                bonus.ModifierType));
         }
 
         float newMaxHealthBonus = GetMaxHealthBonus(instance.Data, instance.Level);
         int healthDelta = Mathf.RoundToInt(newMaxHealthBonus - oldMaxHealthBonus);
-        if (healthDelta > 0 && TryGetComponent(out PlayerHealth health))
-            health.ApplyMaxHealthIncrease(healthDelta);
+        if (TryGetComponent(out PlayerHealth health))
+        {
+            if (healthDelta > 0)
+                health.ApplyMaxHealthIncrease(healthDelta);
+
+            health.SetShieldConfig(
+                _playerStats.GetStatInt(StatType.ShieldCharges),
+                _playerStats.GetStat(StatType.ShieldRechargeDelay));
+        }
     }
 
     private static float GetMaxHealthBonus(PassiveItemData data, int level)
@@ -163,7 +171,7 @@ public class PassiveItemManager : MonoBehaviour
         for (int i = 0; i < bonuses.Count; i++)
         {
             if (bonuses[i].StatType == StatType.MaxHealth)
-                total += bonuses[i].ValuePerLevel * level;
+                total += bonuses[i].GetValueForLevel(level);
         }
 
         return total;

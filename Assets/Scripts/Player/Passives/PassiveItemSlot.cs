@@ -1,7 +1,7 @@
 public enum PassiveItemSlot
 {
     Head,
-    Torso,
+    Core,
     Arm,
     Leg
 }

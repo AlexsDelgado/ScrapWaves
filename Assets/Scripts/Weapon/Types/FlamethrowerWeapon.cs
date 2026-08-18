@@ -288,7 +288,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private int CalculateDirectDamage(float damageScale, Transform target, bool isAbilityDamage = false)
     {
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, damageScale);
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage, targetPosition: target != null ? target.position : (Vector3?)null) * Mathf.Max(0f, damageScale);
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 
@@ -297,7 +297,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
         float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false, isAbilityDamage: isAbilityDamage) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
+        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false, isAbilityDamage: isAbilityDamage, targetPosition: target != null ? target.position : (Vector3?)null) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
         return Mathf.Max(1, Mathf.RoundToInt(damage));
     }
 

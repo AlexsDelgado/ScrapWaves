@@ -9,9 +9,12 @@ public static class PassiveItemUiText
             return string.Empty;
 
         if (offer.IsUpgrade && offer.TargetInstance != null)
-            return $"Mejora a nivel {offer.TargetInstance.Level + 1}.\n{BuildBonusesLine(offer.Data)}";
+        {
+            int nextLevel = offer.TargetInstance.Level + 1;
+            return $"Mejora a nivel {nextLevel}.\n{BuildBonusesLine(offer.Data, nextLevel)}";
+        }
 
-        return $"Slot: {offer.Data.Slot}.\n{BuildBonusesLine(offer.Data)}";
+        return $"Slot: {offer.Data.Slot}.\n{BuildBonusesLine(offer.Data, 1)}";
     }
 
     public static HudPlaceholderKind GetPlaceholderKind(PassiveItemData data)
@@ -22,25 +25,28 @@ public static class PassiveItemUiText
         return data.Slot switch
         {
             PassiveItemSlot.Head => HudPlaceholderKind.Head,
-            PassiveItemSlot.Torso => HudPlaceholderKind.Torso,
+            PassiveItemSlot.Core => HudPlaceholderKind.Core,
             PassiveItemSlot.Arm => HudPlaceholderKind.Arm,
             PassiveItemSlot.Leg => HudPlaceholderKind.Leg,
             _ => HudPlaceholderKind.None
         };
     }
 
-    private static string BuildBonusesLine(PassiveItemData data)
+    private static string BuildBonusesLine(PassiveItemData data, int level)
     {
         var sb = new StringBuilder();
         for (int i = 0; i < data.BonusesPerLevel.Count; i++)
         {
             PassiveStatBonus bonus = data.BonusesPerLevel[i];
-            if (Mathf.Approximately(bonus.ValuePerLevel, 0f))
+            float value = bonus.GetValueForLevel(level);
+            if (Mathf.Approximately(value, 0f))
                 continue;
 
             if (sb.Length > 0)
                 sb.Append(' ');
-            sb.Append($"+{bonus.ValuePerLevel:0.##} {StatDisplayNames.GetDisplayName(bonus.StatType)}/nivel");
+
+            string sign = bonus.ModifierType == StatModifierType.Multiplicative ? "x" : "+";
+            sb.Append($"{sign}{value:0.##} {StatDisplayNames.GetDisplayName(bonus.StatType)}");
         }
 
         return sb.Length > 0 ? sb.ToString() : "Sin bonus configurado.";

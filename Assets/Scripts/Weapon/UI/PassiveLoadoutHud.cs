@@ -16,7 +16,7 @@ public class PassiveLoadoutHud : MonoBehaviour
     private static readonly (PassiveItemSlot slot, int index)[] SlotLayout =
     {
         (PassiveItemSlot.Head, 0),
-        (PassiveItemSlot.Torso, 0),
+        (PassiveItemSlot.Core, 0),
         (PassiveItemSlot.Arm, 0),
         (PassiveItemSlot.Arm, 1),
         (PassiveItemSlot.Leg, 0),
@@ -112,7 +112,7 @@ public class PassiveLoadoutHud : MonoBehaviour
     private static HudPlaceholderKind SlotToPlaceholder(PassiveItemSlot slot) => slot switch
     {
         PassiveItemSlot.Head => HudPlaceholderKind.Head,
-        PassiveItemSlot.Torso => HudPlaceholderKind.Torso,
+        PassiveItemSlot.Core => HudPlaceholderKind.Core,
         PassiveItemSlot.Arm => HudPlaceholderKind.Arm,
         PassiveItemSlot.Leg => HudPlaceholderKind.Leg,
         _ => HudPlaceholderKind.None

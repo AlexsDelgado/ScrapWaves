@@ -147,7 +147,12 @@ public static class StatDisplayNames
         { StatType.ExtraEliteChance, "Elite Chance" },
         { StatType.Scavenging, "Scavenging" },
         { StatType.DoubleDrop, "Double Drop" },
-        { StatType.BaseFireInterval, "Fire Interval" }
+        { StatType.BaseFireInterval, "Fire Interval" },
+        { StatType.LongRangeDamageMultiplier, "Long Range Damage" },
+        { StatType.CloseRangeDamageMultiplier, "Close Range Damage" },
+        { StatType.ShieldCharges, "Shield Charges" },
+        { StatType.ShieldRechargeDelay, "Shield Recharge Delay" },
+        { StatType.HealthRegenerationDelayReduction, "Regen Delay Reduction" }
     };
 
     public static string GetDisplayName(StatType statType) =>

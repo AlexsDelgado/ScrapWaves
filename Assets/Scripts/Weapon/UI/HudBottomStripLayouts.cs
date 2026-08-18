@@ -31,7 +31,7 @@ public static class HudBottomStripLayouts
         (PassiveItemSlot slot, int index, HudPlaceholderKind placeholder)[] slots =
         {
             (PassiveItemSlot.Head, 0, HudPlaceholderKind.Head),
-            (PassiveItemSlot.Torso, 0, HudPlaceholderKind.Torso),
+            (PassiveItemSlot.Core, 0, HudPlaceholderKind.Core),
             (PassiveItemSlot.Arm, 0, HudPlaceholderKind.Arm),
             (PassiveItemSlot.Arm, 1, HudPlaceholderKind.Arm),
             (PassiveItemSlot.Leg, 0, HudPlaceholderKind.Leg),

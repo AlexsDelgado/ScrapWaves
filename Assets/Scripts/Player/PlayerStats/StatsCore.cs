@@ -10,11 +10,22 @@ public enum StatType
     PickupRange, ExtraEliteChance, Scavenging, DoubleDrop,
     BaseFireInterval,
     AbilityDamageMultiplier,
-    AbilityCooldownReduction
+    AbilityCooldownReduction,
+    LongRangeDamageMultiplier, CloseRangeDamageMultiplier,
+    ShieldCharges, ShieldRechargeDelay,
+    HealthRegenerationDelayReduction
 }
 
 public enum StatCategory { Mobility, Offensive, Defensive, Miscellaneous }
 public enum StatUpgradeSource { Base, LevelUp, PassiveItem, Weapon, TemporaryEffect }
+
+/// <summary>
+/// Additive: se suma al valor base junto con el resto de modificadores aditivos.
+/// Multiplicative: el valor ES el multiplicador (p. ej. 1.2 = +20%); todos los
+/// modificadores multiplicativos de un stat se multiplican entre sí y ese producto
+/// escala el resultado aditivo (Base + suma de aditivos).
+/// </summary>
+public enum StatModifierType { Additive, Multiplicative }
 
 [CreateAssetMenu(menuName = "ScrapWaves/Stats/Stat Definition")]
 public class StatDefinition : ScriptableObject
@@ -36,14 +47,16 @@ public class StatModifier
     public float Value;
     public StatUpgradeSource Source;
     public object SourceReference;
+    public StatModifierType ModifierType;
 
     // Builds a modifier record with value, source type, and optional source reference.
-    public StatModifier(StatType statType, float value, StatUpgradeSource source, object sourceReference = null)
+    public StatModifier(StatType statType, float value, StatUpgradeSource source, object sourceReference = null, StatModifierType modifierType = StatModifierType.Additive)
     {
         StatType = statType;
         Value = value;
         Source = source;
         SourceReference = sourceReference;
+        ModifierType = modifierType;
     }
 }
 
@@ -64,7 +77,16 @@ public class RuntimeStat
         get
         {
             float value = BaseValue;
-            foreach (StatModifier modifier in _modifiers) value += modifier.Value;
+            float multiplier = 1f;
+            foreach (StatModifier modifier in _modifiers)
+            {
+                if (modifier.ModifierType == StatModifierType.Multiplicative)
+                    multiplier *= modifier.Value;
+                else
+                    value += modifier.Value;
+            }
+
+            value *= multiplier;
             if (_definition.IsInteger) value = Mathf.Floor(value);
             return value;
         }

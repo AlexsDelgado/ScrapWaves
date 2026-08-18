@@ -6,7 +6,19 @@ using UnityEngine;
 public struct PassiveStatBonus
 {
     public StatType StatType;
-    public float ValuePerLevel;
+    public StatModifierType ModifierType;
+
+    [Tooltip("Un valor explícito por nivel (index 0 = nivel 1), tal cual la tabla de balance. Si el nivel pedido excede el array, se usa el último valor definido.")]
+    public float[] ValuesPerLevel;
+
+    public float GetValueForLevel(int level)
+    {
+        if (ValuesPerLevel == null || ValuesPerLevel.Length == 0 || level <= 0)
+            return 0f;
+
+        int index = Mathf.Clamp(level - 1, 0, ValuesPerLevel.Length - 1);
+        return ValuesPerLevel[index];
+    }
 }
 
 [CreateAssetMenu(fileName = "PassiveItem", menuName = "ScrapWaves/Passives/Passive Item")]

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 public class PassiveItemInventory
 {
     private PassiveItemInstance _head;
-    private PassiveItemInstance _torso;
+    private PassiveItemInstance _core;
     private readonly PassiveItemInstance[] _arms = new PassiveItemInstance[2];
     private readonly PassiveItemInstance[] _legs = new PassiveItemInstance[2];
 
@@ -12,7 +12,7 @@ public class PassiveItemInventory
         return slot switch
         {
             PassiveItemSlot.Head => _head,
-            PassiveItemSlot.Torso => _torso,
+            PassiveItemSlot.Core => _core,
             PassiveItemSlot.Arm => slotIndex >= 0 && slotIndex < _arms.Length ? _arms[slotIndex] : null,
             PassiveItemSlot.Leg => slotIndex >= 0 && slotIndex < _legs.Length ? _legs[slotIndex] : null,
             _ => null
@@ -26,7 +26,7 @@ public class PassiveItemInventory
             return false;
 
         if (data.Slot == PassiveItemSlot.Head && _head?.Data == data) { instance = _head; return true; }
-        if (data.Slot == PassiveItemSlot.Torso && _torso?.Data == data) { instance = _torso; return true; }
+        if (data.Slot == PassiveItemSlot.Core && _core?.Data == data) { instance = _core; return true; }
 
         PassiveItemInstance[] array = data.Slot == PassiveItemSlot.Arm ? _arms : _legs;
         if (data.Slot != PassiveItemSlot.Arm && data.Slot != PassiveItemSlot.Leg)
@@ -49,7 +49,7 @@ public class PassiveItemInventory
         return slot switch
         {
             PassiveItemSlot.Head => _head != null ? 1 : 0,
-            PassiveItemSlot.Torso => _torso != null ? 1 : 0,
+            PassiveItemSlot.Core => _core != null ? 1 : 0,
             PassiveItemSlot.Arm => CountFilled(_arms),
             PassiveItemSlot.Leg => CountFilled(_legs),
             _ => 0
@@ -61,7 +61,7 @@ public class PassiveItemInventory
     public static int GetCapacity(PassiveItemSlot slot) => slot switch
     {
         PassiveItemSlot.Head => 1,
-        PassiveItemSlot.Torso => 1,
+        PassiveItemSlot.Core => 1,
         PassiveItemSlot.Arm => 2,
         PassiveItemSlot.Leg => 2,
         _ => 0
@@ -84,11 +84,11 @@ public class PassiveItemInventory
                 instance.SlotIndex = 0;
                 _head = instance;
                 return true;
-            case PassiveItemSlot.Torso:
-                if (_torso != null) return false;
+            case PassiveItemSlot.Core:
+                if (_core != null) return false;
                 instance.Slot = slot;
                 instance.SlotIndex = 0;
-                _torso = instance;
+                _core = instance;
                 return true;
             case PassiveItemSlot.Arm:
                 return TryAssignToArray(_arms, slot, instance);
@@ -102,7 +102,7 @@ public class PassiveItemInventory
     public IEnumerable<PassiveItemInstance> GetAllEquipped()
     {
         if (_head != null) yield return _head;
-        if (_torso != null) yield return _torso;
+        if (_core != null) yield return _core;
         foreach (PassiveItemInstance arm in _arms)
             if (arm != null) yield return arm;
         foreach (PassiveItemInstance leg in _legs)
