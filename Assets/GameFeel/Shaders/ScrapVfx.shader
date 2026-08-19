@@ -2,6 +2,7 @@ Shader "ScrapWaves/GameFeel/Scrap VFX"
 {
     Properties
     {
+        [MainTexture] _MainTex("Particle Texture", 2D) = "white" {}
         _BaseColor("Base Color", Color) = (1,0.4,0.05,1)
         _EmissionColor("Emission Color", Color) = (1,0.4,0.05,1)
         _EmissionIntensity("Emission Intensity", Range(0,12)) = 2

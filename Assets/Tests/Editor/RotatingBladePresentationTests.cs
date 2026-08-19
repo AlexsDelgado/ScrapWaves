@@ -7,6 +7,24 @@ public sealed class RotatingBladePresentationTests
     private const string ProfilePath = "Assets/ScriptableObjects/WeaponPresentation/RotatingBladePresentation.asset";
 
     [Test]
+    public void ScrapVfxShader_ExposesParticleMainTextureProperty()
+    {
+        Shader shader = Shader.Find("ScrapWaves/GameFeel/Scrap VFX");
+        Assert.That(shader, Is.Not.Null);
+        Material material = new(shader);
+        try
+        {
+            Assert.That(material.HasProperty("_MainTex"), Is.True,
+                "ParticleSystemRenderer queries Material.mainTexture and must not emit warnings.");
+            Assert.That(material.mainTexture, Is.Not.Null);
+        }
+        finally
+        {
+            Object.DestroyImmediate(material);
+        }
+    }
+
+    [Test]
     public void ProductionRotatingBlade_ReferencesCompleteAuthoredProfile()
     {
         WeaponData production = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/RotatingBlade.asset");
@@ -78,7 +96,7 @@ public sealed class RotatingBladePresentationTests
     }
 
     [Test]
-    public void ManualSlash_UsesCurvedSurfaceInsideGameplayRange()
+    public void ManualSlash_MaterializesAsNarrowLeftToRightSweepInsideGameplayRange()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
         RotatingBladeVfx vfx = null;
@@ -90,12 +108,38 @@ public sealed class RotatingBladePresentationTests
             Assert.That(vfx.ActiveSlashSurfaceCount, Is.EqualTo(1));
             Mesh mesh = vfx.transform.Find("Blade Slash Surface 1").GetComponent<MeshFilter>().sharedMesh;
             float furthest = 0f;
+            float nearest = float.MaxValue;
             for (int i = 0; i < mesh.vertexCount; i++)
             {
                 Vector3 vertex = mesh.vertices[i];
-                furthest = Mathf.Max(furthest, new Vector2(vertex.x, vertex.z).magnitude);
+                float radial = new Vector2(vertex.x, vertex.z).magnitude;
+                furthest = Mathf.Max(furthest, radial);
+                nearest = Mathf.Min(nearest, radial);
             }
             Assert.That(furthest, Is.EqualTo(range).Within(range * 0.05f));
+            Assert.That(furthest, Is.LessThanOrEqualTo(range + 0.001f), "Presentation must stay inside the damage range.");
+            Assert.That(nearest, Is.GreaterThan(range * 0.75f), "The slash must remain a narrow crescent instead of filling a cone.");
+            Assert.That(mesh.vertexCount, Is.EqualTo((96 + 1) * 2), "The first frame should contain only the small leading edge of the sweep.");
+
+            float minimumAngle = float.MaxValue;
+            float maximumAngle = float.MinValue;
+            for (int i = 0; i < mesh.vertexCount; i++)
+            {
+                Vector3 vertex = mesh.vertices[i];
+                float angle = Mathf.Atan2(vertex.x, vertex.z) * Mathf.Rad2Deg;
+                minimumAngle = Mathf.Min(minimumAngle, angle);
+                maximumAngle = Mathf.Max(maximumAngle, angle);
+            }
+            Assert.That(maximumAngle - minimumAngle, Is.LessThan(3f),
+                "The slash must begin at the left edge and reveal across the arc over time.");
+
+            LineRenderer sweep = vfx.transform.Find("Blade Slash 1").GetComponent<LineRenderer>();
+            Assert.That(sweep.positionCount, Is.EqualTo(24));
+            Assert.That(sweep.widthCurve.Evaluate(0f), Is.LessThan(sweep.widthCurve.Evaluate(0.75f) * 0.15f));
+            MeshRenderer slashRenderer = vfx.transform.Find("Blade Slash Surface 1").GetComponent<MeshRenderer>();
+            Assert.That(slashRenderer.sharedMaterial.shader.name, Is.EqualTo("ScrapWaves/GameFeel/Flowing Slash"));
+            Assert.That(slashRenderer.sharedMaterial.GetColor("_BaseColor").a, Is.GreaterThanOrEqualTo(0.85f),
+                "The authored slash body should be physically dense rather than predominantly transparent.");
         }
         finally
         {

@@ -499,6 +499,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
     private void StopSustainedFeedback(Vector3 direction)
     {
+        if (_sustainedFeedbackMode == WeaponFeedbackMode.Manual)
+            _streamVfx?.ReleaseManual();
+        else if (_sustainedFeedbackMode == WeaponFeedbackMode.Automatic)
+            _streamVfx?.ReleaseAutomatic();
+
         if (!_sustainedFeedbackActive || Runtime == null)
             return;
         Vector3 origin = Spawn != null ? Spawn.position : Owner != null ? Owner.position : Vector3.zero;

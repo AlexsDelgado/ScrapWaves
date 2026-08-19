@@ -390,7 +390,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RotatingBladeVfx
   _bladePrototype: {fileID: 6715128412822536455}
   _trailMaterial: {fileID: 2100000, guid: 3cca810f91db5a0429a42f389686f683, type: 2}
-  _slashMaterial: {fileID: 2100000, guid: db688400c79371f418675f2766aacfe9, type: 2}
+  _slashMaterial: {fileID: 2100000, guid: b89a861dd6174f06b2429b58e937aee6, type: 2}
   _thrustMaterial: {fileID: 2100000, guid: 2c57444805247bc41a56173db4af5659, type: 2}
   _atomicMaterial: {fileID: 2100000, guid: b3cb46c182469cf4abf7f3a0dfb458bb, type: 2}
   _orbitGuideAlpha: 0.16

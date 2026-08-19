@@ -6,7 +6,9 @@ using UnityEngine.Rendering;
 public sealed class RotatingBladeVfx : MonoBehaviour
 {
     private const int OrbitSegmentCount = 72;
-    private const int SlashSegmentCount = 28;
+    private const int SlashSegmentCount = 96;
+    private const int SlashHeadSegmentCount = 24;
+    private const float SlashSweepWindow = 0.32f;
     private const int ThrustSegmentCount = 8;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
@@ -38,6 +40,9 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         public Color Color;
         public Vector3 BaseScale = Vector3.one;
         public bool OwnsMesh;
+        public bool IsSlashSweep;
+        public float SlashRange;
+        public float SlashConeAngle;
     }
 
     [Header("Authored production layers")]
@@ -58,6 +63,10 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     private readonly List<float> _slashTimers = new();
     private readonly List<float> _slashDurations = new();
     private readonly List<Color> _slashColors = new();
+    private readonly List<Vector3> _slashOrigins = new();
+    private readonly List<Vector3> _slashDirections = new();
+    private readonly List<float> _slashRanges = new();
+    private readonly List<float> _slashHalfAngles = new();
     private readonly List<BladeVisual> _bladeVisuals = new();
     private readonly List<MeshPulse> _slashSurfaces = new();
     private readonly List<MeshPulse> _thrustSurfaces = new();
@@ -198,27 +207,31 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         _slashTimers[index] = safeDuration;
         _slashDurations[index] = safeDuration;
         _slashColors[index] = color;
+        _slashOrigins[index] = liftedOrigin;
+        _slashDirections[index] = direction;
+        _slashRanges[index] = range;
+        _slashHalfAngles[index] = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
         slashLine.enabled = true;
         slashLine.loop = false;
-        slashLine.positionCount = SlashSegmentCount + 1;
-        slashLine.widthMultiplier = 0.09f;
-
-        float halfAngle = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
-        for (int i = 0; i <= SlashSegmentCount; i++)
-        {
-            float t = i / (float)SlashSegmentCount;
-            float yaw = Mathf.Lerp(-halfAngle, halfAngle, t);
-            Vector3 pointDirection = Quaternion.AngleAxis(yaw, Vector3.up) * direction;
-            slashLine.SetPosition(i, liftedOrigin + pointDirection * range);
-        }
-        SetLineColor(slashLine, color, 1f);
+        slashLine.positionCount = SlashHeadSegmentCount;
+        slashLine.widthMultiplier = Mathf.Clamp(range * 0.035f, 0.075f, 0.16f);
+        slashLine.widthCurve = new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.22f, 0.48f),
+            new Keyframe(0.78f, 1f),
+            new Keyframe(1f, 0.08f));
+        UpdateSlashHead(slashLine, index, 0f);
+        SetSlashLineGradient(slashLine, color, 1f);
 
         MeshPulse surface = GetMeshPulse(_slashSurfaces, "Blade Slash Surface", _slashMaterial, ownsMesh: true);
         surface.Root.transform.SetPositionAndRotation(liftedOrigin, Quaternion.LookRotation(direction, Vector3.up));
         surface.Root.transform.localScale = Vector3.one;
         surface.Timer = surface.Duration = safeDuration;
         surface.Color = color;
-        BuildSlashSurface(surface.Mesh, range, coneAngle);
+        surface.IsSlashSweep = true;
+        surface.SlashRange = range;
+        surface.SlashConeAngle = coneAngle;
+        BuildSlashSurface(surface.Mesh, range, coneAngle, 0f);
         surface.Renderer.enabled = true;
         ApplyPulseProperties(surface, 0f);
     }
@@ -458,6 +471,10 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         _slashTimers.Add(0f);
         _slashDurations.Add(0f);
         _slashColors.Add(SlashColor);
+        _slashOrigins.Add(Vector3.zero);
+        _slashDirections.Add(Vector3.forward);
+        _slashRanges.Add(1f);
+        _slashHalfAngles.Add(45f);
         index = _slashLines.Count - 1;
         return line;
     }
@@ -523,7 +540,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         TickOrbit(deltaTime);
         TickOneShot(_thrustLine, _thrustColor, ref _thrustTimer, _thrustDuration, deltaTime);
         TickSlashLines(deltaTime);
-        TickMeshPulses(_slashSurfaces, deltaTime, 0.08f);
+        TickMeshPulses(_slashSurfaces, deltaTime, 0f);
         TickMeshPulses(_thrustSurfaces, deltaTime, 0.18f);
         TickMeshPulses(_dashAfterimages, deltaTime, 0.28f);
     }
@@ -572,6 +589,11 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             }
 
             float normalized = 1f - Mathf.Clamp01(pulse.Timer / Mathf.Max(0.01f, pulse.Duration));
+            if (pulse.IsSlashSweep)
+            {
+                float reveal = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.68f, normalized));
+                BuildSlashSurface(pulse.Mesh, pulse.SlashRange, pulse.SlashConeAngle, reveal);
+            }
             pulse.Root.transform.localScale = pulse.BaseScale * Mathf.Lerp(1f, 1f + expansion, normalized);
             ApplyPulseProperties(pulse, normalized);
         }
@@ -606,9 +628,54 @@ public sealed class RotatingBladeVfx : MonoBehaviour
                 SetEnabled(line, false);
                 continue;
             }
-            float alpha = Mathf.Clamp01(_slashTimers[i] / Mathf.Max(0.01f, _slashDurations[i]));
-            SetLineColor(line, _slashColors[i], alpha);
+            float normalized = 1f - Mathf.Clamp01(_slashTimers[i] / Mathf.Max(0.01f, _slashDurations[i]));
+            float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.58f, 1f, normalized));
+            UpdateSlashHead(line, i, normalized);
+            SetSlashLineGradient(line, _slashColors[i], fade);
         }
+    }
+
+    private void UpdateSlashHead(LineRenderer line, int index, float normalized)
+    {
+        float sweepProgress = Mathf.Clamp01(normalized / 0.82f);
+        float easedSweep = 1f - Mathf.Pow(1f - sweepProgress, 3f);
+        float head = Mathf.Lerp(-0.04f, 1.08f, easedSweep);
+        float tail = head - SlashSweepWindow;
+        float halfAngle = _slashHalfAngles[index];
+        Vector3 origin = _slashOrigins[index];
+        Vector3 direction = _slashDirections[index];
+        float radius = Mathf.Max(0.05f, _slashRanges[index] * 0.985f);
+
+        for (int i = 0; i < SlashHeadSegmentCount; i++)
+        {
+            float u = i / (float)(SlashHeadSegmentCount - 1);
+            float arcProgress = Mathf.Clamp01(Mathf.Lerp(tail, head, u));
+            float yaw = Mathf.Lerp(-halfAngle, halfAngle, arcProgress);
+            Vector3 pointDirection = Quaternion.AngleAxis(yaw, Vector3.up) * direction;
+            line.SetPosition(i, origin + pointDirection * radius);
+        }
+    }
+
+    private static void SetSlashLineGradient(LineRenderer line, Color color, float alphaMultiplier)
+    {
+        Color tail = Color.Lerp(color, Color.white, 0.12f);
+        Color hot = Color.Lerp(color, Color.white, 0.62f);
+        Gradient gradient = new();
+        gradient.SetKeys(
+            new[]
+            {
+                new GradientColorKey(tail, 0f),
+                new GradientColorKey(color, 0.55f),
+                new GradientColorKey(hot, 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(0.5f * alphaMultiplier, 0.32f),
+                new GradientAlphaKey(alphaMultiplier, 0.82f),
+                new GradientAlphaKey(0.12f * alphaMultiplier, 1f)
+            });
+        line.colorGradient = gradient;
     }
 
     private void OnDestroy()
@@ -630,40 +697,59 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         }
     }
 
-    private static void BuildSlashSurface(Mesh mesh, float range, float coneAngle)
+    private static void BuildSlashSurface(Mesh mesh, float range, float coneAngle, float revealProgress)
     {
         int pointCount = SlashSegmentCount + 1;
-        Vector3[] vertices = new Vector3[pointCount * 2];
-        Vector2[] uvs = new Vector2[vertices.Length];
-        Color[] colors = new Color[vertices.Length];
-        int[] triangles = new int[SlashSegmentCount * 6];
+        List<Vector3> vertices = new(pointCount * 2 + 160);
+        List<Vector2> uvs = new(pointCount * 2 + 160);
+        List<Color> colors = new(pointCount * 2 + 160);
+        List<int> triangles = new(SlashSegmentCount * 6 + 360);
         float halfAngle = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
-        float innerRadius = Mathf.Max(0.05f, range * 0.56f);
-        float outerRadius = Mathf.Max(innerRadius + 0.05f, range);
+        float visibleEnd = Mathf.Lerp(0.012f, 1f, Mathf.Clamp01(revealProgress));
+        float headTaperDistance = Mathf.Max(0.025f, Mathf.Min(0.14f, visibleEnd * 0.45f));
+
+        // Only the already-swept portion exists. The live end is tapered as it
+        // advances, so the effect materializes from left to right instead of
+        // flashing a complete area-of-effect cone into existence.
         for (int i = 0; i < pointCount; i++)
         {
-            float t = i / (float)(pointCount - 1);
+            float t = visibleEnd * (i / (float)(pointCount - 1));
             float angle = Mathf.Lerp(-halfAngle, halfAngle, t) * Mathf.Deg2Rad;
             Vector3 radial = new(Mathf.Sin(angle), 0f, Mathf.Cos(angle));
-            float irregular = 1f + Mathf.Sin(t * Mathf.PI * 5f) * 0.035f;
-            vertices[i * 2] = radial * innerRadius;
-            vertices[i * 2 + 1] = radial * (outerRadius * irregular);
-            uvs[i * 2] = new Vector2(0f, t);
-            uvs[i * 2 + 1] = new Vector2(1f, t);
-            colors[i * 2] = new Color(1f, 1f, 1f, 0.15f);
-            colors[i * 2 + 1] = Color.white;
+            float arcEnvelope = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * Mathf.PI)), 0.64f);
+            float headEnvelope = visibleEnd >= 0.995f
+                ? 1f
+                : Mathf.SmoothStep(0f, 1f, (visibleEnd - t) / headTaperDistance);
+            float envelope = arcEnvelope * headEnvelope;
+            float irregular = Mathf.Sin(t * Mathf.PI * 7f) * range * 0.008f * envelope;
+            float outerRadius = Mathf.Max(0.05f, range * 0.985f + irregular);
+            float thickness = range * Mathf.Lerp(0.012f, 0.205f, envelope);
+            float innerRadius = Mathf.Max(range * 0.76f, outerRadius - thickness);
+            float alpha = Mathf.Lerp(0.16f, 0.98f, envelope);
+
+            vertices.Add(radial * innerRadius);
+            vertices.Add(radial * outerRadius);
+            uvs.Add(new Vector2(0f, t));
+            uvs.Add(new Vector2(1f, t));
+            colors.Add(new Color(1f, 1f, 1f, alpha * 0.78f));
+            colors.Add(new Color(1f, 1f, 1f, alpha));
             if (i >= pointCount - 1)
                 continue;
             int vertex = i * 2;
-            int triangle = i * 6;
-            triangles[triangle] = vertex;
-            triangles[triangle + 1] = vertex + 2;
-            triangles[triangle + 2] = vertex + 1;
-            triangles[triangle + 3] = vertex + 1;
-            triangles[triangle + 4] = vertex + 2;
-            triangles[triangle + 5] = vertex + 3;
+            AddQuadTriangles(triangles, vertex, vertex + 2, vertex + 1, vertex + 3);
         }
-        AssignMesh(mesh, vertices, uvs, colors, triangles);
+
+        AssignMesh(mesh, vertices.ToArray(), uvs.ToArray(), colors.ToArray(), triangles.ToArray());
+    }
+
+    private static void AddQuadTriangles(List<int> triangles, int innerStart, int innerEnd, int outerStart, int outerEnd)
+    {
+        triangles.Add(innerStart);
+        triangles.Add(innerEnd);
+        triangles.Add(outerStart);
+        triangles.Add(outerStart);
+        triangles.Add(innerEnd);
+        triangles.Add(outerEnd);
     }
 
     private static void BuildThrustSurface(Mesh mesh, float range, float width)

@@ -22,6 +22,7 @@ public static class FlamethrowerAssetBuilder
         public Mesh Shard;
         public Material Flame;
         public Material FlameCore;
+        public Material FlamePlume;
         public Material Smoke;
         public Material Fuel;
         public Material FuelCore;
@@ -74,6 +75,20 @@ public static class FlamethrowerAssetBuilder
         Shader shader = Shader.Find("ScrapWaves/GameFeel/Scrap VFX");
         if (shader == null)
             throw new InvalidOperationException("ScrapWaves/GameFeel/Scrap VFX shader is required.");
+        Shader plumeShader = Shader.Find("ScrapWaves/GameFeel/Flamethrower Plume");
+        if (plumeShader == null)
+            throw new InvalidOperationException("ScrapWaves/GameFeel/Flamethrower Plume shader is required.");
+
+        Material flamePlume = CreateMaterial(
+            MaterialRoot + "/GF_Flamethrower_Plume.mat",
+            plumeShader,
+            new Color(1f, 0.075f, 0.008f, 0.82f),
+            new Color(1f, 0.36f, 0.025f),
+            2.4f,
+            1.7f,
+            1.35f);
+        flamePlume.SetColor("_HotColor", new Color(1f, 0.86f, 0.24f, 1f));
+        EditorUtility.SetDirty(flamePlume);
 
         return new BuildAssets
         {
@@ -83,6 +98,7 @@ public static class FlamethrowerAssetBuilder
             Shard = AssetDatabase.LoadAssetAtPath<Mesh>(GameFeelRoot + "/Meshes/GF_ScrapShard.asset"),
             Flame = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Flame.mat", shader, new Color(1f, 0.11f, 0.01f, 0.74f), new Color(1f, 0.2f, 0.015f), 2.7f, 7f, 4f),
             FlameCore = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Core.mat", shader, new Color(1f, 0.78f, 0.2f, 0.95f), new Color(1f, 0.92f, 0.5f), 4.2f, 5f, 3f),
+            FlamePlume = flamePlume,
             Smoke = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Smoke.mat", shader, new Color(0.16f, 0.13f, 0.11f, 0.36f), new Color(0.2f, 0.13f, 0.08f), 0.4f, 3f, 0.8f),
             Fuel = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Fuel.mat", shader, new Color(0.012f, 0.18f, 0.038f, 0.88f), new Color(0.04f, 0.3f, 0.055f), 1.8f, 8f, 1.5f),
             FuelCore = CreateMaterial(MaterialRoot + "/GF_Flamethrower_FuelCore.mat", shader, new Color(0.56f, 0.78f, 0.08f, 0.9f), new Color(0.72f, 0.94f, 0.12f), 3f, 6f, 2f),
@@ -98,6 +114,7 @@ public static class FlamethrowerAssetBuilder
         FlamethrowerStreamVfx vfx = root.AddComponent<FlamethrowerStreamVfx>();
         GameObject body = CreateEmptyMeshLayer("Procedural Flame Body", root.transform, assets.Flame);
         GameObject core = CreateEmptyMeshLayer("Procedural Bright Core", root.transform, assets.FlameCore);
+        GameObject billows = CreateEmptyMeshLayer("Rolling Flame Billows", root.transform, assets.FlamePlume);
         GameObject nozzle = CreateMeshLayer("Nozzle Glow", root.transform, assets.Sphere, assets.FlameCore);
         nozzle.transform.localScale = new Vector3(0.12f, 0.12f, 0.2f);
         ParticleSystem embers = CreateParticles("Fast Flame Licks", root.transform, assets.Shard, assets.FlameCore, 38, true, ParticleSystemShapeType.Cone, 0.1f, 8.5f, 0.62f, 15f, new Color(1f, 0.72f, 0.18f), new Color(1f, 0.08f, 0.01f));
@@ -114,6 +131,8 @@ public static class FlamethrowerAssetBuilder
         serialized.FindProperty("_bodyRenderer").objectReferenceValue = body.GetComponent<MeshRenderer>();
         serialized.FindProperty("_coreFilter").objectReferenceValue = core.GetComponent<MeshFilter>();
         serialized.FindProperty("_coreRenderer").objectReferenceValue = core.GetComponent<MeshRenderer>();
+        serialized.FindProperty("_billowFilter").objectReferenceValue = billows.GetComponent<MeshFilter>();
+        serialized.FindProperty("_billowRenderer").objectReferenceValue = billows.GetComponent<MeshRenderer>();
         serialized.FindProperty("_embers").objectReferenceValue = embers;
         serialized.FindProperty("_smoke").objectReferenceValue = smoke;
         serialized.FindProperty("_nozzleGlow").objectReferenceValue = nozzle.GetComponent<MeshRenderer>();
@@ -121,6 +140,16 @@ public static class FlamethrowerAssetBuilder
         serialized.FindProperty("_maximumSegments").intValue = 48;
         serialized.FindProperty("_automaticWidthMultiplier").floatValue = 0.52f;
         serialized.FindProperty("_automaticHeightMultiplier").floatValue = 0.22f;
+        serialized.FindProperty("_automaticBillowCount").intValue = 11;
+        serialized.FindProperty("_automaticBillowRadiusMultiplier").floatValue = 0.48f;
+        serialized.FindProperty("_automaticBillowTravelSpeed").floatValue = 1.65f;
+        serialized.FindProperty("_automaticReleaseDuration").floatValue = 0.42f;
+        serialized.FindProperty("_manualBillowCount").intValue = 12;
+        serialized.FindProperty("_manualBillowRadiusMultiplier").floatValue = 1.32f;
+        serialized.FindProperty("_manualBillowTravelSpeed").floatValue = 1.35f;
+        serialized.FindProperty("_manualTubeWidthMultiplier").floatValue = 0.58f;
+        serialized.FindProperty("_manualBodyOpacity").floatValue = 0.28f;
+        serialized.FindProperty("_manualReleaseDuration").floatValue = 0.55f;
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
         return SavePrefab(root, "GF_Flamethrower_Stream");

@@ -24,6 +24,7 @@ public static class RotatingBladeAssetBuilder
         public Mesh Cube;
         public Material Metal;
         public Material Edge;
+        public Material ManualSlash;
         public Material Trail;
         public Material MultiBlade;
         public Material Atomic;
@@ -72,9 +73,10 @@ public static class RotatingBladeAssetBuilder
     private static BuildAssets BuildSharedAssets()
     {
         Shader vfxShader = Shader.Find("ScrapWaves/GameFeel/Scrap VFX");
+        Shader slashShader = Shader.Find("ScrapWaves/GameFeel/Flowing Slash");
         Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-        if (vfxShader == null || litShader == null)
-            throw new InvalidOperationException("Rotating Blade presentation requires the Scrap VFX and URP Lit shaders.");
+        if (vfxShader == null || slashShader == null || litShader == null)
+            throw new InvalidOperationException("Rotating Blade presentation requires the Scrap VFX, Flowing Slash, and URP Lit shaders.");
 
         Mesh blade = SaveMesh(MeshRoot + "/GF_RotatingBlade_ScrapBlade.asset", CreateScrapBladeMesh());
         return new BuildAssets
@@ -99,6 +101,14 @@ public static class RotatingBladeAssetBuilder
                 2.8f,
                 8f,
                 2.4f),
+            ManualSlash = CreateVfxMaterial(
+                MaterialRoot + "/GF_RotatingBlade_Slash.mat",
+                slashShader,
+                new Color(0.35f, 0.9f, 1f, 0.9f),
+                new Color(0.55f, 0.96f, 1f),
+                2.8f,
+                5.5f,
+                4f),
             Trail = CreateVfxMaterial(
                 MaterialRoot + "/GF_RotatingBlade_Trail.mat",
                 vfxShader,
@@ -167,7 +177,7 @@ public static class RotatingBladeAssetBuilder
         SerializedObject serialized = new(vfx);
         serialized.FindProperty("_bladePrototype").objectReferenceValue = prototype;
         serialized.FindProperty("_trailMaterial").objectReferenceValue = assets.Trail;
-        serialized.FindProperty("_slashMaterial").objectReferenceValue = assets.Edge;
+        serialized.FindProperty("_slashMaterial").objectReferenceValue = assets.ManualSlash;
         serialized.FindProperty("_thrustMaterial").objectReferenceValue = assets.MultiBlade;
         serialized.FindProperty("_atomicMaterial").objectReferenceValue = assets.Atomic;
         serialized.FindProperty("_orbitGuideAlpha").floatValue = 0.16f;
