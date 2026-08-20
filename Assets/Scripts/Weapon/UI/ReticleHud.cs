@@ -681,6 +681,14 @@ public class ReticleHud : MonoBehaviour
 
     private void HandleWeakPointHit()
     {
+        if (!EnemyReactionRuntime.ScreenFlashEnabled)
+        {
+            _weakPointFlashActive = false;
+            _weakPointFlashTimer = 0f;
+            RestoreReticleTintColors();
+            return;
+        }
+
         _weakPointFlashActive = true;
         _weakPointFlashTimer = Mathf.Max(0.01f, _weakPointFlashDuration);
         ApplyWeakPointFlashColor();
@@ -690,6 +698,14 @@ public class ReticleHud : MonoBehaviour
     {
         if (!_weakPointFlashActive)
             return;
+
+        if (!EnemyReactionRuntime.ScreenFlashEnabled)
+        {
+            _weakPointFlashActive = false;
+            _weakPointFlashTimer = 0f;
+            RestoreReticleTintColors();
+            return;
+        }
 
         _weakPointFlashTimer -= Time.unscaledDeltaTime;
         if (_weakPointFlashTimer > 0f)

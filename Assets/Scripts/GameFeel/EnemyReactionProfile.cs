@@ -153,6 +153,8 @@ public static class EnemyReactionRuntime
 {
     public static bool Enabled { get; private set; } = true;
     public static bool ReducedFlash { get; private set; }
+    public static bool ReducedMotion { get; private set; }
+    public static bool ScreenFlashEnabled { get; private set; } = true;
     public static GameFeelQualityLevel Quality { get; private set; } = GameFeelQualityLevel.High;
 
     public static void Apply(GameFeelRuntimeOptions options)
@@ -164,5 +166,11 @@ public static class EnemyReactionRuntime
         Quality = options.Quality;
         if (!Enabled)
             EnemyStatusFeedback.ClearAllActive();
+    }
+
+    public static void ApplyUserPreferences(bool reducedMotion, bool screenFlash)
+    {
+        ReducedMotion = reducedMotion;
+        ScreenFlashEnabled = screenFlash;
     }
 }

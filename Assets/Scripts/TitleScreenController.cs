@@ -1,253 +1,381 @@
-using System.Linq;
-using TMPro;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
-public class TitleScreenController : MonoBehaviour
+public sealed class TitleScreenController : MonoBehaviour
 {
+    [Header("Authored production controls")]
     [SerializeField] private Button _playButton;
+    [SerializeField] private Button _objectivesButton;
+    [SerializeField] private Button _settingsButton;
+    [SerializeField] private Button _quitButton;
+    [SerializeField] private Button _quitConfirmButton;
+
+    [Header("Authored developer controls")]
+    [SerializeField] private GameObject _developerRoot;
     [SerializeField] private Button _weaponSandboxButton;
     [SerializeField] private Button _enemiesTestingButton;
-    [SerializeField] private Button _objectivesButton;
-    [SerializeField] private Button _quitButton;
-    [SerializeField] private ObjectivesMenuUI _objectivesMenu;
+    [SerializeField, Tooltip("Enables the separated DEV destination section. Keep disabled for normal builds.")]
+    private bool _includeTestingButtons;
 
-    [SerializeField, Tooltip("Destildar para builds: oculta Weapon Sandbox y Enemies Testing del menú principal sin borrar su funcionalidad.")]
-    private bool _includeTestingButtons = false;
+    [Header("Authored screen and presentation systems")]
+    [SerializeField] private EventSystem _eventSystem;
+    [SerializeField] private TitleScreenScreenStack _screenStack;
+    [SerializeField] private MainMenuPresentationController _presentation;
+    [SerializeField] private ObjectivesMenuUI _objectivesScreen;
+    [SerializeField] private SettingsScreenUI _settingsScreen;
+    [SerializeField] private ScrapSceneTransition _sceneTransition;
+    [SerializeField] private UserSettingsService _settingsService;
 
-    private GameObject _canvasRoot;
+    [Header("Authored item views")]
+    [SerializeField] private MainMenuItemView _playItem;
+    [SerializeField] private MainMenuItemView _objectivesItem;
+    [SerializeField] private MainMenuItemView _settingsItem;
+    [SerializeField] private MainMenuItemView _quitItem;
+    [SerializeField] private MainMenuItemView _weaponSandboxItem;
+    [SerializeField] private MainMenuItemView _enemiesTestingItem;
+
+    private bool _wired;
+    private bool _initialFocusApplied;
+
+    public bool IncludeTestingButtons => _includeTestingButtons;
+    public Button PlayButton => _playButton;
+    public Button ObjectivesButton => _objectivesButton;
+    public Button SettingsButton => _settingsButton;
+    public Button QuitButton => _quitButton;
+    public TitleScreenScreenStack ScreenStack => _screenStack;
 
     private void Awake()
     {
         ShowCursorForMenu();
-        EnsureEventSystemWithInputSystemUi();
-        CacheSceneButtonsIfNeeded();
-        BuildUiIfNeeded();
+        if (UserSettingsService.Instance != null)
+            _settingsService = UserSettingsService.Instance;
+        if (ScrapSceneTransition.Instance != null)
+            _sceneTransition = ScrapSceneTransition.Instance;
+        ValidateAuthoredReferences();
         WireButtons();
-        ApplyTestingButtonVisibility();
-        FocusFirstButton();
-    }
-
-    private void ApplyTestingButtonVisibility()
-    {
-        if (_weaponSandboxButton != null)
-            _weaponSandboxButton.gameObject.SetActive(_includeTestingButtons);
-        if (_enemiesTestingButton != null)
-            _enemiesTestingButton.gameObject.SetActive(_includeTestingButtons);
-    }
-
-    private void BuildUiIfNeeded()
-    {
-        if (HasSceneButtons())
-            return;
-
-        _canvasRoot = new GameObject("Canvas", typeof(RectTransform));
-        _canvasRoot.transform.SetParent(transform, false);
-
-        Canvas canvas = _canvasRoot.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 1000;
-
-        CanvasScaler scaler = _canvasRoot.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-
-        _canvasRoot.AddComponent<GraphicRaycaster>();
-
-        RectTransform canvasRect = _canvasRoot.GetComponent<RectTransform>();
-        canvasRect.anchorMin = Vector2.zero;
-        canvasRect.anchorMax = Vector2.one;
-        canvasRect.offsetMin = Vector2.zero;
-        canvasRect.offsetMax = Vector2.zero;
-
-        Image background = HudUiFactory.CreatePanel(_canvasRoot.transform, "Background", Vector2.zero);
-        RectTransform backgroundRect = background.GetComponent<RectTransform>();
-        backgroundRect.anchorMin = Vector2.zero;
-        backgroundRect.anchorMax = Vector2.one;
-        backgroundRect.offsetMin = Vector2.zero;
-        backgroundRect.offsetMax = Vector2.zero;
-        background.color = new Color(0.02f, 0.02f, 0.02f, 1f);
-        background.raycastTarget = true;
-
-        TextMeshProUGUI title = HudUiFactory.CreateLabel(_canvasRoot.transform, "Title", "SCRAP WAVES", 56f, TextAlignmentOptions.Center);
-        RectTransform titleRect = title.GetComponent<RectTransform>();
-        titleRect.anchorMin = new Vector2(0.5f, 0.72f);
-        titleRect.anchorMax = new Vector2(0.5f, 0.72f);
-        titleRect.pivot = new Vector2(0.5f, 0.5f);
-        titleRect.sizeDelta = new Vector2(640f, 72f);
-        title.fontStyle = FontStyles.Bold;
-
-        GameObject menuRoot = new("MenuEntries", typeof(RectTransform));
-        menuRoot.transform.SetParent(_canvasRoot.transform, false);
-        RectTransform menuRect = menuRoot.GetComponent<RectTransform>();
-        menuRect.anchorMin = new Vector2(0.5f, 0.5f);
-        menuRect.anchorMax = new Vector2(0.5f, 0.5f);
-        menuRect.pivot = new Vector2(0.5f, 0.5f);
-        menuRect.anchoredPosition = new Vector2(0f, -24f);
-        menuRect.sizeDelta = new Vector2(360f, 220f);
-
-        VerticalLayoutGroup layout = menuRoot.AddComponent<VerticalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 18f;
-        layout.childControlWidth = false;
-        layout.childControlHeight = false;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-
-        ContentSizeFitter fitter = menuRoot.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-
-        _playButton = CreateMenuButton(menuRoot.transform, "Play");
-        _objectivesButton = CreateMenuButton(menuRoot.transform, "Objetivos");
-        _weaponSandboxButton = CreateMenuButton(menuRoot.transform, "Weapon Sandbox");
-        _enemiesTestingButton = CreateMenuButton(menuRoot.transform, "Enemies Testing");
-    }
-
-    private Button CreateMenuButton(Transform parent, string label)
-    {
-        Button button = HudUiFactory.CreateButton(parent, label, new Vector2(360f, 56f));
-        button.name = $"{label.Replace(" ", string.Empty)}Button";
-
-        if (button.TryGetComponent(out Image background))
-            background.color = new Color(1f, 1f, 1f, 0.12f);
-
-        TextMeshProUGUI labelText = button.GetComponentInChildren<TextMeshProUGUI>(true);
-        if (labelText != null)
+        ApplyDestinationVisibility();
+        if (_screenStack != null)
+            _screenStack.ScreenClosed += HandleScreenClosed;
+        if (_presentation != null)
+            _presentation.InteractionBecameAvailable += HandlePresentationInteractionAvailable;
+        if (_sceneTransition != null)
+            _sceneTransition.TransitioningChanged += HandleTransitioningChanged;
+        if (_settingsService != null)
         {
-            labelText.fontSize = 24f;
-            labelText.fontStyle = FontStyles.Bold;
+            _settingsService.Changed += HandleSettingsChanged;
+            ApplyFeedbackPreferences();
         }
-
-        return button;
     }
 
-    private void CacheSceneButtonsIfNeeded()
+    private void Start()
     {
-        _playButton ??= FindSceneButton("PlayButton", "Play");
-        _weaponSandboxButton ??= FindSceneButton("WeaponSandboxButton", "Weapon Sandbox");
-        _enemiesTestingButton ??= FindSceneButton("EnemiesTestingButton", "Enemies Testing");
-        _objectivesButton ??= FindSceneButton("ObjectivesButton", "Objetivos");
-        _quitButton ??= FindSceneButton("Quit", "Quit");
+        TryApplyInitialFocus();
     }
 
-    private Button FindSceneButton(string buttonName, string label)
+    private void OnDestroy()
     {
-        Button[] buttons = GetComponentsInChildren<Button>(true);
-        Button namedButton = buttons.FirstOrDefault(button => button.name == buttonName);
-        if (namedButton != null)
-            return namedButton;
-
-        return buttons.FirstOrDefault(button => GetButtonLabel(button) == label);
+        if (_screenStack != null)
+            _screenStack.ScreenClosed -= HandleScreenClosed;
+        if (_presentation != null)
+            _presentation.InteractionBecameAvailable -= HandlePresentationInteractionAvailable;
+        if (_sceneTransition != null)
+            _sceneTransition.TransitioningChanged -= HandleTransitioningChanged;
+        if (_settingsService != null)
+            _settingsService.Changed -= HandleSettingsChanged;
+        UnwireButtons();
     }
 
-    private static string GetButtonLabel(Button button)
+    public void SetTestingButtonsVisible(bool visible)
     {
-        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
-        return label != null ? label.text : string.Empty;
-    }
-
-    private bool HasSceneButtons()
-    {
-        return _playButton != null && _weaponSandboxButton != null && _enemiesTestingButton != null;
-    }
-
-    private void WireButtons()
-    {
-        WireButton(_playButton, LoadPlay);
-        WireButton(_weaponSandboxButton, LoadWeaponSandbox);
-        WireButton(_enemiesTestingButton, LoadEnemiesTesting);
-        WireButton(_objectivesButton, OpenObjectives);
-        WireButton(_quitButton, QuitGame);
+        _includeTestingButtons = visible;
+        ApplyDestinationVisibility();
     }
 
     private void OpenObjectives()
     {
-        if (_objectivesMenu == null)
-            _objectivesMenu = FindAnyObjectByType<ObjectivesMenuUI>();
-        if (_objectivesMenu == null)
-            _objectivesMenu = gameObject.AddComponent<ObjectivesMenuUI>();
+        if (_objectivesScreen == null || _screenStack == null)
+        {
+            _presentation?.PlayReject();
+            return;
+        }
 
-        _objectivesMenu.Show();
+        _presentation?.PlayConfirm(_objectivesItem);
+        if (_screenStack.OpenObjectives(_objectivesButton.gameObject))
+            _objectivesScreen.Show();
     }
 
-    private static void WireButton(Button button, UnityAction action)
+    private void OpenSettings()
     {
-        if (button == null)
+        if (_settingsScreen == null || _screenStack == null)
+        {
+            _presentation?.PlayReject();
             return;
+        }
 
-        button.onClick.RemoveListener(action);
-        button.onClick.AddListener(action);
+        _presentation?.PlayConfirm(_settingsItem);
+        if (_screenStack.OpenSettings(_settingsButton.gameObject))
+            _settingsScreen.Show();
     }
 
-    private void FocusFirstButton()
+    private void OpenQuitConfirmation()
     {
-        if (_playButton == null)
+        if (_screenStack == null)
+        {
+            _presentation?.PlayReject();
             return;
+        }
 
-        EventSystem eventSystem = EventSystem.current ?? UnityEngine.Object.FindFirstObjectByType<EventSystem>();
-        if (eventSystem != null)
-            eventSystem.SetSelectedGameObject(_playButton.gameObject);
+        _presentation?.PlayConfirm(_quitItem);
+        _screenStack.OpenQuitConfirmation(_quitButton.gameObject);
     }
 
     private void LoadPlay()
     {
-        SceneNavigation.LoadPlay();
+        _presentation?.PlayConfirm(_playItem);
+        RequestSceneLoad(SceneDestination.Play);
     }
 
     private void LoadWeaponSandbox()
     {
-        SceneNavigation.LoadWeaponSandbox();
+        _presentation?.PlayConfirm(_weaponSandboxItem);
+        RequestSceneLoad(SceneDestination.WeaponSandbox);
     }
 
     private void LoadEnemiesTesting()
     {
-        SceneNavigation.LoadEnemiesTesting();
+        _presentation?.PlayConfirm(_enemiesTestingItem);
+        RequestSceneLoad(SceneDestination.EnemiesTesting);
     }
 
-    private static void QuitGame()
+    private void ConfirmQuit()
     {
         SceneNavigation.QuitApplication();
     }
 
-    private static void EnsureEventSystemWithInputSystemUi()
+    private void RequestSceneLoad(SceneDestination destination)
     {
-        EventSystem existing = UnityEngine.Object.FindFirstObjectByType<EventSystem>();
-        if (existing != null)
+        if (_sceneTransition != null)
         {
-            StandaloneInputModule legacy = existing.GetComponent<StandaloneInputModule>();
-            if (legacy != null)
-                DestroyComponent(legacy);
-
-            if (existing.GetComponent<InputSystemUIInputModule>() == null)
-                existing.gameObject.AddComponent<InputSystemUIInputModule>();
-            return;
+            if (_sceneTransition.TryLoad(destination))
+                return;
+            if (_sceneTransition.IsTransitioning)
+                return;
         }
 
-        GameObject eventSystem = new("EventSystem");
-        eventSystem.AddComponent<EventSystem>();
-        eventSystem.AddComponent<InputSystemUIInputModule>();
+        Debug.LogError("TitleScreenController: the authored ScrapSceneTransition is missing or unavailable; loading directly.", this);
+        SceneNavigation.Load(destination);
+    }
+
+    private void HandleScreenClosed(TitleScreenLocalState state)
+    {
+        switch (state)
+        {
+            case TitleScreenLocalState.Objectives:
+                _objectivesScreen?.Hide();
+                break;
+            case TitleScreenLocalState.Settings:
+                _settingsScreen?.Hide();
+                break;
+        }
+
+        if (_eventSystem != null && _eventSystem.currentSelectedGameObject == null)
+            Focus(_playButton);
+    }
+
+    private void HandleSettingsChanged(UserSettingsChange change)
+    {
+        if ((change & UserSettingsChange.Feedback) != 0)
+            ApplyFeedbackPreferences();
+    }
+
+    private void HandlePresentationInteractionAvailable()
+    {
+        TryApplyInitialFocus();
+    }
+
+    private void TryApplyInitialFocus()
+    {
+        if (!_initialFocusApplied && Focus(_playButton))
+            _initialFocusApplied = true;
+    }
+
+    private void HandleTransitioningChanged(bool transitioning)
+    {
+        _presentation?.SetInputLocked(transitioning);
+        _screenStack?.SetInputLocked(transitioning);
+    }
+
+    private void ApplyFeedbackPreferences()
+    {
+        if (_settingsService == null)
+            return;
+        _presentation?.ApplyPreferences(
+            _settingsService.ReducedMotion,
+            _settingsService.ScreenShake,
+            _settingsService.ScreenFlash);
+        _screenStack?.ApplyReducedMotion(_settingsService.ReducedMotion);
+    }
+
+    private void WireButtons()
+    {
+        if (_wired)
+            return;
+        _wired = true;
+        Wire(_playButton, LoadPlay);
+        Wire(_objectivesButton, OpenObjectives);
+        Wire(_settingsButton, OpenSettings);
+        Wire(_quitButton, OpenQuitConfirmation);
+        Wire(_quitConfirmButton, ConfirmQuit);
+        Wire(_weaponSandboxButton, LoadWeaponSandbox);
+        Wire(_enemiesTestingButton, LoadEnemiesTesting);
+    }
+
+    private void UnwireButtons()
+    {
+        if (!_wired)
+            return;
+        _wired = false;
+        Unwire(_playButton, LoadPlay);
+        Unwire(_objectivesButton, OpenObjectives);
+        Unwire(_settingsButton, OpenSettings);
+        Unwire(_quitButton, OpenQuitConfirmation);
+        Unwire(_quitConfirmButton, ConfirmQuit);
+        Unwire(_weaponSandboxButton, LoadWeaponSandbox);
+        Unwire(_enemiesTestingButton, LoadEnemiesTesting);
+    }
+
+    private void ApplyDestinationVisibility()
+    {
+        if (_developerRoot != null)
+            _developerRoot.SetActive(_includeTestingButtons);
+        else
+        {
+            if (_weaponSandboxButton != null)
+                _weaponSandboxButton.gameObject.SetActive(_includeTestingButtons);
+            if (_enemiesTestingButton != null)
+                _enemiesTestingButton.gameObject.SetActive(_includeTestingButtons);
+        }
+
+        bool quitSupported = SupportsApplicationQuit();
+        if (_quitButton != null)
+            _quitButton.gameObject.SetActive(quitSupported);
+
+        ConfigureNavigation();
+        if (_eventSystem != null &&
+            _eventSystem.currentSelectedGameObject != null &&
+            !_eventSystem.currentSelectedGameObject.activeInHierarchy)
+        {
+            Focus(_playButton);
+        }
+    }
+
+    private void ConfigureNavigation()
+    {
+        List<Button> destinations = new(6);
+        AddVisibleDestination(destinations, _playButton);
+        AddVisibleDestination(destinations, _objectivesButton);
+        AddVisibleDestination(destinations, _settingsButton);
+        AddVisibleDestination(destinations, _quitButton);
+        if (_includeTestingButtons)
+        {
+            AddVisibleDestination(destinations, _weaponSandboxButton);
+            AddVisibleDestination(destinations, _enemiesTestingButton);
+        }
+
+        for (int index = 0; index < destinations.Count; index++)
+        {
+            Navigation navigation = destinations[index].navigation;
+            navigation.mode = Navigation.Mode.Explicit;
+            navigation.selectOnUp = index > 0 ? destinations[index - 1] : null;
+            navigation.selectOnDown = index + 1 < destinations.Count ? destinations[index + 1] : null;
+            navigation.selectOnLeft = null;
+            navigation.selectOnRight = null;
+            destinations[index].navigation = navigation;
+        }
+    }
+
+    private static void AddVisibleDestination(List<Button> destinations, Button button)
+    {
+        if (button != null && button.gameObject.activeInHierarchy && button.IsInteractable())
+            destinations.Add(button);
+    }
+
+    private void ValidateAuthoredReferences()
+    {
+        ValidateButton(_playButton, nameof(_playButton));
+        ValidateButton(_objectivesButton, nameof(_objectivesButton));
+        ValidateButton(_settingsButton, nameof(_settingsButton));
+        if (SupportsApplicationQuit())
+        {
+            ValidateButton(_quitButton, nameof(_quitButton));
+            ValidateButton(_quitConfirmButton, nameof(_quitConfirmButton));
+        }
+        if (_eventSystem == null)
+            Debug.LogError("TitleScreenController: authored EventSystem reference is missing. Runtime will not create one.", this);
+        if (_screenStack == null)
+        {
+            DisableWithError(_objectivesButton, nameof(_screenStack));
+            DisableWithError(_settingsButton, nameof(_screenStack));
+        }
+        if (_objectivesScreen == null)
+            DisableWithError(_objectivesButton, nameof(_objectivesScreen));
+        if (_settingsScreen == null)
+            DisableWithError(_settingsButton, nameof(_settingsScreen));
+        if (_sceneTransition == null)
+            Debug.LogError("TitleScreenController: authored scene transition reference is missing; scene routes will use the direct fallback.", this);
+        if (_settingsService == null)
+            Debug.LogError("TitleScreenController: authored UserSettingsService reference is missing; feedback preferences cannot be applied.", this);
+    }
+
+    private void DisableWithError(Button button, string missingField)
+    {
+        Debug.LogError($"TitleScreenController: required authored field '{missingField}' is missing; the affected action was disabled.", this);
+        if (button != null)
+            button.interactable = false;
+    }
+
+    private void ValidateButton(Button button, string fieldName)
+    {
+        if (button == null)
+            Debug.LogError($"TitleScreenController: required authored button '{fieldName}' is missing. Runtime UI construction is disabled.", this);
+    }
+
+    private bool Focus(Button button)
+    {
+        if (_eventSystem == null || button == null || !button.gameObject.activeInHierarchy || !button.IsInteractable())
+            return false;
+        _eventSystem.SetSelectedGameObject(button.gameObject);
+        return true;
+    }
+
+    private static bool SupportsApplicationQuit()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        return false;
+#else
+        return true;
+#endif
+    }
+
+    private static void Wire(Button button, UnityAction action)
+    {
+        if (button != null)
+            button.onClick.AddListener(action);
+    }
+
+    private static void Unwire(Button button, UnityAction action)
+    {
+        if (button != null)
+            button.onClick.RemoveListener(action);
     }
 
     private static void ShowCursorForMenu()
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-    }
-
-    private static void DestroyComponent(Object component)
-    {
-        if (component == null)
-            return;
-
-        if (Application.isPlaying)
-            UnityEngine.Object.Destroy(component);
-        else
-            UnityEngine.Object.DestroyImmediate(component);
     }
 }

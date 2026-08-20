@@ -88,8 +88,8 @@ public static class GameplaySceneBuilder
             new EditorBuildSettingsScene("Assets/Scenes/TitleScreen.unity", true),
             new EditorBuildSettingsScene(ScenePath, true),
             new EditorBuildSettingsScene(SourceScenePath, false),
-            new EditorBuildSettingsScene("Assets/Scenes/WeaponTestingSandbox.unity", true),
-            new EditorBuildSettingsScene("Assets/Scenes/enemiesTesting.unity", true)
+            new EditorBuildSettingsScene("Assets/Scenes/Testing/WeaponTestingSandbox.unity", true),
+            new EditorBuildSettingsScene("Assets/Scenes/Testing/enemiesTesting.unity", true)
         };
     }
 }

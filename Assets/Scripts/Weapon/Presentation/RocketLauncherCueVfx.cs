@@ -210,7 +210,7 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             _propertyBlock.SetColor(BaseColorId, color);
             _propertyBlock.SetColor(EmissionColorId, color * emission);
             _propertyBlock.SetFloat(EmissionIntensityId, emission);
-            _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(_intensity * (1f - normalizedLife)));
+            _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(_intensity * (1f - normalizedLife)) * flashScale);
             _propertyBlock.SetFloat(DissolveId, dissolve);
             renderer.SetPropertyBlock(_propertyBlock);
         }

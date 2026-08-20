@@ -150,7 +150,7 @@ public sealed class CombatFeedbackDirector
         }
 
         if (feedbackEvent == WeaponFeedbackEvent.DamageConfirmed && _options.EnemyReactionEnabled)
-            EnemyHitFeedback.TryPlay(in routedContext, _options.ReducedFlash);
+            EnemyHitFeedback.TryPlay(in routedContext, ShouldReduceFlash());
 
         if (!_profile.TryResolveCue(feedbackEvent, in routedContext, out WeaponPresentationCueData cueData) ||
             cueData.Loop || IsRateLimited(cueData.Cue, now))
@@ -282,7 +282,8 @@ public sealed class CombatFeedbackDirector
             _profile,
             cueData,
             _options.Quality,
-            _options.ReducedFlash);
+            ShouldReduceFlash(),
+            _options.ScreenFlashEnabled);
 
         bool played = _fx.TryPlay(cueData, in presentation, now, loop: false, out _);
         played |= _audio.TryPlayOneShot(cueData, in context, globalVolume, now, out _);
@@ -290,12 +291,12 @@ public sealed class CombatFeedbackDirector
             cueData,
             in context,
             _profile.Heat,
-            _options.CameraFeedbackEnabled,
+            _options.CameraFeedbackEnabled && _options.ScreenShakeEnabled && !_options.ReducedMotion,
             _options.ReducedShake,
             now);
 
         if (playEnemyReaction && _options.EnemyReactionEnabled)
-            played |= EnemyHitFeedback.TryPlay(in context, _options.ReducedFlash);
+            played |= EnemyHitFeedback.TryPlay(in context, ShouldReduceFlash());
         if (playHitStop)
         {
             played |= _hitStop.Request(
@@ -323,14 +324,15 @@ public sealed class CombatFeedbackDirector
             _profile,
             cueData,
             _options.Quality,
-            _options.ReducedFlash);
+            ShouldReduceFlash(),
+            _options.ScreenFlashEnabled);
         _fx.TryPlay(cueData, in presentation, now, loop: true, out PooledWeaponVfx vfx);
         _audio.TryBeginLoop(cueData, in context, globalVolume, out WeaponAudioVoiceHandle audio);
         _camera.Request(
             cueData,
             in context,
             _profile.Heat,
-            _options.CameraFeedbackEnabled,
+            _options.CameraFeedbackEnabled && _options.ScreenShakeEnabled && !_options.ReducedMotion,
             _options.ReducedShake,
             now);
 
@@ -358,7 +360,8 @@ public sealed class CombatFeedbackDirector
                 _profile,
                 loop.CueData,
                 _options.Quality,
-                _options.ReducedFlash);
+                ShouldReduceFlash(),
+                _options.ScreenFlashEnabled);
             loop.Vfx.UpdateTransform(in presentation);
         }
         if (loop.Audio.IsValid)
@@ -378,6 +381,11 @@ public sealed class CombatFeedbackDirector
     private bool IsRateLimited(WeaponPresentationCue cue, float now)
     {
         return _nextCueTimes.TryGetValue(cue, out float nextTime) && now < nextTime;
+    }
+
+    private bool ShouldReduceFlash()
+    {
+        return _options.ReducedFlash || !_options.ScreenFlashEnabled;
     }
 
     private static WeaponFeedbackContext ConvertLegacy(in WeaponPresentationContext context)

@@ -17,12 +17,15 @@ public class PauseMenuUITests
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         Time.timeScale = 1f;
+        PlayerPrefs.DeleteKey(UserSettingsService.PlayerPrefsKey);
     }
 
     [TearDown]
     public void TearDown()
     {
         Time.timeScale = 1f;
+        PlayerPrefs.DeleteKey(UserSettingsService.PlayerPrefsKey);
+        PlayerPrefs.Save();
     }
 
     [Test]
@@ -127,6 +130,55 @@ public class PauseMenuUITests
         Assert.That(Cursor.visible, Is.True);
     }
 
+    [Test]
+    public void SettingsControlsReadWriteAndSynchronizeThroughSharedServiceWithoutLiveTargets()
+    {
+        UserSettingsService settings = CreateSettingsService();
+        settings.HorizontalSensitivity = 0.26f;
+        settings.VerticalSensitivity = 0.32f;
+        settings.InvertY = true;
+        settings.SfxVolume = 0.4f;
+        settings.MusicVolume = 0.3f;
+
+        Component first = CreatePauseMenu(new GameObject("FirstPauseMenu"));
+        Component second = CreatePauseMenu(new GameObject("SecondPauseMenu"));
+
+        Slider firstHorizontal = GetPrivateField<Slider>(first, "_hSensSlider");
+        Slider secondHorizontal = GetPrivateField<Slider>(second, "_hSensSlider");
+        Toggle secondInvertY = GetPrivateField<Toggle>(second, "_invertYToggle");
+        Slider secondSfx = GetPrivateField<Slider>(second, "_sfxSlider");
+        Slider secondMusic = GetPrivateField<Slider>(second, "_musicSlider");
+
+        Assert.That(firstHorizontal.value, Is.EqualTo(0.26f));
+        Assert.That(GetPrivateField<Slider>(first, "_vSensSlider").value, Is.EqualTo(0.32f));
+        Assert.That(GetPrivateField<Toggle>(first, "_invertYToggle").isOn, Is.True);
+        Assert.That(GetPrivateField<Slider>(first, "_sfxSlider").value, Is.EqualTo(0.4f));
+        Assert.That(GetPrivateField<Slider>(first, "_musicSlider").value, Is.EqualTo(0.3f));
+
+        firstHorizontal.value = 0.19f;
+        Assert.That(settings.HorizontalSensitivity, Is.EqualTo(0.19f));
+        Assert.That(secondHorizontal.value, Is.EqualTo(0.19f));
+
+        settings.InvertY = false;
+        settings.SfxVolume = 0.7f;
+        settings.MusicVolume = 0.8f;
+        Assert.That(secondInvertY.isOn, Is.False);
+        Assert.That(secondSfx.value, Is.EqualTo(0.7f));
+        Assert.That(secondMusic.value, Is.EqualTo(0.8f));
+    }
+
+    [Test]
+    public void MissingSettingsServiceLeavesPauseSettingsDisabled()
+    {
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuWithoutSettings"));
+
+        Assert.That(GetPrivateField<Slider>(pauseMenu, "_hSensSlider").interactable, Is.False);
+        Assert.That(GetPrivateField<Slider>(pauseMenu, "_vSensSlider").interactable, Is.False);
+        Assert.That(GetPrivateField<Toggle>(pauseMenu, "_invertYToggle").interactable, Is.False);
+        Assert.That(GetPrivateField<Slider>(pauseMenu, "_sfxSlider").interactable, Is.False);
+        Assert.That(GetPrivateField<Slider>(pauseMenu, "_musicSlider").interactable, Is.False);
+    }
+
     private static void AssertButtonInvokes(GameObject root, string expectedLabel, string expectedMethodName)
     {
         Button button = root
@@ -182,6 +234,16 @@ public class PauseMenuUITests
         Assert.That(awake, Is.Not.Null);
         awake.Invoke(pauseMenu, null);
         return pauseMenu;
+    }
+
+    private static UserSettingsService CreateSettingsService()
+    {
+        UserSettingsService settings = new GameObject("UserSettingsService").AddComponent<UserSettingsService>();
+        MethodInfo awake = typeof(UserSettingsService).GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.That(awake, Is.Not.Null);
+        awake.Invoke(settings, null);
+        return settings;
     }
 
     private static void InvokePrivate(Component component, string methodName)

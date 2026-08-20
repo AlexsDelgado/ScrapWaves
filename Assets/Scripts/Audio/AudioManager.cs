@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -9,6 +10,7 @@ using UnityEngine;
 public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
+    public static event Action<AudioManager> BecameAvailable;
     public static float EffectiveSfxVolume => Instance != null ? Instance.SfxVolume : 1f;
 
     [Header("Fuentes (3 AudioSource en este u otros hijos)")]
@@ -45,6 +47,7 @@ public class AudioManager : MonoBehaviour
     private void OnEnable()
     {
         Instance = this;
+        BecameAvailable?.Invoke(this);
     }
 
     private void OnDisable()
@@ -146,7 +149,7 @@ public class AudioManager : MonoBehaviour
                 _musicOverheatLayer.Play();
         }
 
-        _musicOverheatLayer.volume = active ? _musicOverheatVolume : 0f;
+        _musicOverheatLayer.volume = active ? ResolveOverheatLayerVolume() : 0f;
     }
 
     public void PlayShoot() => PlaySfx(_shoot);
@@ -178,8 +181,14 @@ public class AudioManager : MonoBehaviour
             if (_musicNormal != null)
                 _musicNormal.volume = _musicMainVolume;
             if (_musicOverheatLayer != null && _musicOverheatLayer.volume > 0f)
-                _musicOverheatLayer.volume = _musicOverheatVolume;
+                _musicOverheatLayer.volume = ResolveOverheatLayerVolume();
         }
+    }
+
+    private float ResolveOverheatLayerVolume()
+    {
+        float defaultVolume = Mathf.Max(0.0001f, UserSettingsData.DefaultMusicVolume);
+        return Mathf.Clamp01(_musicOverheatVolume * (_musicMainVolume / defaultVolume));
     }
 
     private void PlaySfx(AudioClip clip)

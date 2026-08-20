@@ -1,0 +1,159 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5391789fe81b3b14faee641e0e96d94b, type: 3}
+  m_Name: MainMenuPresentationProfile
+  m_EditorClassIdentifier: Assembly-CSharp::MainMenuPresentationProfile
+  _coal: {r: 0.035, g: 0.043, b: 0.039, a: 1}
+  _deepSteel: {r: 0.067, g: 0.078, b: 0.075, a: 1}
+  _plate: {r: 0.122, g: 0.145, b: 0.133, a: 1}
+  _bone: {r: 0.949, g: 0.961, b: 0.922, a: 1}
+  _mutedSteel: {r: 0.678, g: 0.741, b: 0.69, a: 1}
+  _scrapGreen: {r: 0.659, g: 0.78, b: 0.561, a: 1}
+  _warningRust: {r: 0.851, g: 0.416, b: 0.196, a: 1}
+  _danger: {r: 0.78, g: 0.29, b: 0.263, a: 1}
+  _unselectedScale: 0.95
+  _selectedScale: 1.1
+  _selectedOffset: {x: -24, y: 6}
+  _focusDuration: 0.12
+  _pressScaleMultiplier: 0.96
+  _pressDuration: 0.06
+  _focusCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 6
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _titleStartOffset: {x: -60, y: 0}
+  _titleStartScale: 0.82
+  _titleDuration: 0.31
+  _itemStartOffset: {x: -130, y: 0}
+  _itemStartScale: 0.8
+  _itemDuration: 0.27
+  _itemStagger: 0.05
+  _entranceCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 6
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.76
+      value: 1.04
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _navigationPunchDistance: {x: 10, y: -7}
+  _navigationPunchRotation: 0.55
+  _punchDuration: 0.1
+  _hoverPunchMultiplier: 0.4
+  _flashOpacity: 0.06
+  _flashDuration: 0.09
+  _punchCooldown: 0.035
+  _punchCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.45
+      value: -0.15
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _localScreenOpenDuration: 0.22
+  _localScreenCloseDuration: 0.18
+  _localScreenStartOffset: {x: 90, y: 0}
+  _localScreenCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

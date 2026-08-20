@@ -1,8 +1,11 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class ThirdPersonCamera : MonoBehaviour
 {
+    public static event Action<ThirdPersonCamera> BecameAvailable;
+
     [SerializeField] private Transform _followTarget;
 
     [Header("Over-the-shoulder framing")]
@@ -47,6 +50,7 @@ public class ThirdPersonCamera : MonoBehaviour
 
     [Header("Presentation feedback")]
     [SerializeField, Range(0f, 1f)] private float _cameraFeedbackScale = 1f;
+    [SerializeField] private bool _screenShakeEnabled = true;
     [SerializeField, Min(0f)] private float _presentationImpulseDecay = 12f;
     [SerializeField, Min(0f)] private float _maximumPresentationPositionImpulse = 0.35f;
     [SerializeField, Min(0f)] private float _maximumPresentationRotationImpulse = 5f;
@@ -67,6 +71,7 @@ public class ThirdPersonCamera : MonoBehaviour
     private void OnEnable()
     {
         CacheCamera();
+        BecameAvailable?.Invoke(this);
     }
 
     private void Start()
@@ -139,6 +144,17 @@ public class ThirdPersonCamera : MonoBehaviour
         }
     }
 
+    public bool ScreenShakeEnabled
+    {
+        get => _screenShakeEnabled;
+        set
+        {
+            _screenShakeEnabled = value;
+            if (!_screenShakeEnabled)
+                ClearPresentationImpulses();
+        }
+    }
+
     public Vector3 CurrentPresentationPositionImpulse => _presentationPositionImpulse;
     public Vector3 CurrentPresentationRotationImpulse => _presentationRotationImpulse;
     public float CurrentPresentationFovKick => _presentationFovKick;
@@ -151,6 +167,7 @@ public class ThirdPersonCamera : MonoBehaviour
     public bool AddPresentationImpulse(Vector3 positionImpulse, Vector3 rotationImpulse, float fovKick)
     {
         if (!isActiveAndEnabled ||
+            !_screenShakeEnabled ||
             _cameraFeedbackScale <= 0f ||
             (positionImpulse.sqrMagnitude <= 0.000001f &&
              rotationImpulse.sqrMagnitude <= 0.000001f &&

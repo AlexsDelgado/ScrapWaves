@@ -195,7 +195,7 @@ public sealed class AutomaticCannonCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IW
             _propertyBlock.SetColor(EmissionColorId, heatColor * emission);
             _propertyBlock.SetFloat(EmissionIntensityId, emission);
             _propertyBlock.SetFloat(HeatId, _normalizedHeat);
-            _propertyBlock.SetFloat(PulseId, pulse);
+            _propertyBlock.SetFloat(PulseId, pulse * flashScale);
             _propertyBlock.SetFloat(DissolveId, dissolve);
             renderer.SetPropertyBlock(_propertyBlock);
         }

@@ -11,7 +11,7 @@ using UnityEngine.InputSystem.UI;
 
 public static class WeaponTestingSandboxSceneBuilder
 {
-    private const string ScenePath = "Assets/Scenes/WeaponTestingSandbox.unity";
+    private const string ScenePath = "Assets/Scenes/Testing/WeaponTestingSandbox.unity";
     private const string WeaponAssetFolder = "Assets/Scripts/Weapon/Testing/SO";
     private const string DummyPrefabFolder = "Assets/Prefabs/Testing";
     private const string DummyPrefabPath = DummyPrefabFolder + "/WeaponDummyEnemy.prefab";

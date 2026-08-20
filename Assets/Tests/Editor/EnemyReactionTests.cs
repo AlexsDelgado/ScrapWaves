@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -13,6 +14,37 @@ public sealed class EnemyReactionTests
             ReducedFlash = false,
             Quality = GameFeelQualityLevel.High
         });
+        EnemyReactionRuntime.ApplyUserPreferences(false, true);
+    }
+
+    [Test]
+    public void ScreenFlashOff_PreservesStatusIndicatorButRejectsDynamicPulse()
+    {
+        GameObject target = new("Flash Accessible Status Target");
+        try
+        {
+            EnemyStatusFeedback.ApplyOrRefresh(target.transform, WeaponStatusKind.Burn, 3f, 1f);
+            EnemyStatusVisual visual = target.GetComponentInChildren<EnemyStatusVisual>();
+            Assert.That(visual, Is.Not.Null);
+
+            EnemyReactionRuntime.ApplyUserPreferences(false, false);
+            visual.Pulse(1f);
+
+            FieldInfo pulseField = typeof(EnemyStatusVisual).GetField(
+                "_pulse",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(pulseField, Is.Not.Null);
+            Assert.That((float)pulseField.GetValue(visual), Is.Zero);
+
+            LineRenderer indicator = visual.transform.Find("Lower Status Ring").GetComponent<LineRenderer>();
+            Assert.That(indicator.enabled, Is.True,
+                "Screen Flash OFF must suppress flashes without hiding stable status information.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(target);
+            EnemyReactionRuntime.ApplyUserPreferences(false, true);
+        }
     }
 
     [Test]

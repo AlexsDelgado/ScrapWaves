@@ -589,7 +589,7 @@ public static class GameFeelFoundationAssetBuilder
 
     private static void DuplicateSandbox()
     {
-        const string source = "Assets/Scenes/WeaponTestingSandbox.unity";
+        const string source = "Assets/Scenes/Testing/WeaponTestingSandbox.unity";
         const string target = "Assets/Scenes/Testing/WeaponTestingSandbox_GameFeel.unity";
         if (AssetDatabase.LoadAssetAtPath<SceneAsset>(target) == null && !AssetDatabase.CopyAsset(source, target))
             Debug.LogWarning("Could not duplicate the weapon sandbox for Game Feel testing.");

@@ -106,7 +106,8 @@ public readonly struct WeaponPresentationContext
         WeaponPresentationProfile profile,
         WeaponPresentationCueData cueData,
         GameFeelQualityLevel quality,
-        bool reducedFlash)
+        bool reducedFlash,
+        bool screenFlashEnabled = true)
     {
         Vector3 position = context.ImpactPosition != default ? context.ImpactPosition : context.Origin;
         WeaponHeatPresentationSettings heat = profile?.Heat;
@@ -140,6 +141,8 @@ public readonly struct WeaponPresentationContext
             heat != null ? heat.SmokeRate.Evaluate(context.NormalizedHeat) * cueHeat : cueHeat,
             heat != null ? heat.SparkRate.Evaluate(context.NormalizedHeat) * cueHeat : cueHeat,
             profile != null ? profile.ReducedFlashColor : new Color(1f, 0.58f, 0.16f, 0.55f),
-            profile != null ? profile.ReducedFlashIntensity : 0.35f);
+            screenFlashEnabled
+                ? (profile != null ? profile.ReducedFlashIntensity : 0.35f)
+                : 0f);
     }
 }

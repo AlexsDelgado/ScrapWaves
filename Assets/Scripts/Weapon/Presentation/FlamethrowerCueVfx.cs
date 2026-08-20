@@ -490,7 +490,9 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
             _propertyBlock.SetColor(HotColorId, layerHotColor);
             _propertyBlock.SetFloat(EmissionIntensityId, layerEmission);
             _propertyBlock.SetFloat(HeatId, _heat);
-            _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(_intensity * (1f - normalizedLife * 0.35f)));
+            _propertyBlock.SetFloat(
+                PulseId,
+                Mathf.Clamp01(_intensity * (1f - normalizedLife * 0.35f)) * flashScale);
             _propertyBlock.SetFloat(DissolveId, layerDissolve);
             renderer.SetPropertyBlock(_propertyBlock);
         }

@@ -1,6 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -9,7 +7,6 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -17,8 +14,8 @@ using UnityEngine.UI;
 public class TitleScreenControllerTests
 {
     private const string TitleScenePath = "Assets/Scenes/TitleScreen.unity";
-    private const string WeaponSandboxScenePath = "Assets/Scenes/WeaponTestingSandbox.unity";
-    private const string EnemiesTestingScenePath = "Assets/Scenes/enemiesTesting.unity";
+    private const string WeaponSandboxScenePath = "Assets/Scenes/Testing/WeaponTestingSandbox.unity";
+    private const string EnemiesTestingScenePath = "Assets/Scenes/Testing/enemiesTesting.unity";
 
     [SetUp]
     public void SetUp()
@@ -31,62 +28,11 @@ public class TitleScreenControllerTests
     public void TearDown()
     {
         Time.timeScale = 1f;
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
     }
 
     [Test]
-    public void Awake_CreatesExactlyFourMenuButtonsWithExpectedLabels()
-    {
-        GameObject root = new("TitleScreenRoot");
-
-        CreateController(root);
-
-        Button[] buttons = root.GetComponentsInChildren<Button>(true);
-        string[] labels = buttons.Select(GetButtonLabel).ToArray();
-
-        Assert.That(buttons, Has.Length.EqualTo(4));
-        CollectionAssert.AreEqual(
-            new[] { "Play", "Objetivos", "Weapon Sandbox", "Enemies Testing" },
-            labels);
-    }
-
-    [Test]
-    public void Awake_CreatesEventSystemWhenMissing()
-    {
-        Assert.That(UnityEngine.Object.FindAnyObjectByType<EventSystem>(), Is.Null);
-
-        GameObject root = new("TitleScreenRoot");
-        CreateController(root);
-
-        EventSystem[] eventSystems = UnityEngine.Object.FindObjectsByType<EventSystem>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        Assert.That(eventSystems, Has.Length.EqualTo(1));
-    }
-
-    [Test]
-    public void Awake_UnlocksAndShowsCursorForMenu()
-    {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-
-        GameObject root = new("TitleScreenRoot");
-        CreateController(root);
-
-        Assert.That(Cursor.lockState, Is.EqualTo(CursorLockMode.None));
-        Assert.That(Cursor.visible, Is.True);
-    }
-
-    [Test]
-    public void Awake_WiresButtonsToSharedSceneNavigationMethods()
-    {
-        GameObject root = new("TitleScreenRoot");
-        CreateController(root);
-
-        AssertButtonInvokes(root, "Play", nameof(SceneNavigation.LoadPlay));
-        AssertButtonInvokes(root, "Weapon Sandbox", nameof(SceneNavigation.LoadWeaponSandbox));
-        AssertButtonInvokes(root, "Enemies Testing", nameof(SceneNavigation.LoadEnemiesTesting));
-    }
-
-    [Test]
-    public void EnabledBuildSettingsOrder_MatchesTitleScreenBootFlow()
+    public void EnabledBuildSettingsOrder_MatchesProductionAndTestingDestinations()
     {
         string[] enabledScenePaths = EditorBuildSettings.scenes
             .Where(scene => scene.enabled)
@@ -96,51 +42,179 @@ public class TitleScreenControllerTests
         CollectionAssert.AreEqual(
             new[]
             {
-                "Assets/Scenes/TitleScreen.unity",
+                TitleScenePath,
                 "Assets/Scenes/GameplayScene.unity",
-                "Assets/Scenes/WeaponTestingSandbox.unity",
-                "Assets/Scenes/enemiesTesting.unity"
+                WeaponSandboxScenePath,
+                EnemiesTestingScenePath
             },
             enabledScenePaths);
     }
 
     [Test]
-    public void TitleScreenScene_HasEditableCanvasWithControllerAndButtons()
+    public void TitleScreenScene_HasAuthoredProductionMenuInRequiredOrder()
     {
-        Assert.That(File.Exists(TitleScenePath), Is.True, $"Expected scene at '{TitleScenePath}'.");
+        Scene scene = OpenTitleScene();
+        TitleScreenController controller = FindExactlyOneInScene<TitleScreenController>(scene);
 
-        Scene scene = EditorSceneManager.OpenScene(TitleScenePath, OpenSceneMode.Single);
-        GameObject[] roots = scene.GetRootGameObjects();
-        Type controllerType = GetTitleScreenControllerType();
+        Button[] productionButtons =
+        {
+            controller.PlayButton,
+            controller.ObjectivesButton,
+            controller.SettingsButton,
+            controller.QuitButton
+        };
 
-        Assert.That(controllerType, Is.Not.Null, "TitleScreenController type was not found.");
-        Assert.That(roots, Has.Length.EqualTo(1));
-        Assert.That(roots[0].GetComponent(controllerType), Is.Not.Null);
-
-        Canvas canvas = roots[0].GetComponentInChildren<Canvas>(true);
-        Camera titleCamera = roots[0].GetComponentInChildren<Camera>(true);
-        EventSystem eventSystem = roots[0].GetComponentInChildren<EventSystem>(true);
-        Button[] buttons = roots[0].GetComponentsInChildren<Button>(true);
-        string[] labels = buttons.Select(GetButtonLabel).ToArray();
-
-        Assert.That(canvas, Is.Not.Null, "TitleScreen scene should contain an editable Canvas.");
-        Assert.That(titleCamera, Is.Not.Null, "TitleScreen scene should contain an editable Main Camera.");
-        Assert.That(titleCamera.CompareTag("MainCamera"), Is.True, "TitleScreen camera should be tagged MainCamera.");
-        Assert.That(eventSystem, Is.Not.Null, "TitleScreen scene should contain an editable EventSystem.");
-        Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
+        Assert.That(productionButtons, Has.All.Not.Null, "Every production destination must be assigned in the scene.");
         CollectionAssert.AreEqual(
-            new[] { "Play", "Weapon Sandbox", "Enemies Testing", "Quit" },
-            labels);
+            new[] { "PLAY", "OBJECTIVES", "SETTINGS", "QUIT" },
+            productionButtons.Select(ReadButtonLabel).ToArray());
 
-        Component controller = roots[0].GetComponent(controllerType);
-        MethodInfo awake = controllerType.GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        MainMenuItemView[] productionItems = productionButtons
+            .Select(button => button.GetComponent<MainMenuItemView>())
+            .ToArray();
+        Assert.That(productionItems, Has.All.Not.Null);
+        Assert.That(productionItems, Has.All.Matches<MainMenuItemView>(item => item.HasRequiredReferences));
+        Assert.That(productionItems, Has.All.Matches<MainMenuItemView>(item => !item.IsDeveloperEntry));
+        Assert.That(productionItems.Select(item => item.transform.GetSiblingIndex()), Is.Ordered);
+
+        VerticalLayoutGroup[] automaticLayouts = FindAllInScene<VerticalLayoutGroup>(scene)
+            .Where(layout => HasAncestorNamed(layout.transform, "MenuRoot"))
+            .ToArray();
+        Assert.That(automaticLayouts, Is.Empty, "The angled menu uses individually authored slots, not an automatic vertical layout.");
+    }
+
+    [Test]
+    public void TitleScreenScene_KeepsDeveloperDestinationsSeparateAndDisabledByDefault()
+    {
+        Scene scene = OpenTitleScene();
+        TitleScreenController controller = FindExactlyOneInScene<TitleScreenController>(scene);
+        GameObject developerRoot = ReadObjectReference<GameObject>(controller, "_developerRoot");
+        Button weaponSandbox = ReadObjectReference<Button>(controller, "_weaponSandboxButton");
+        Button enemiesTesting = ReadObjectReference<Button>(controller, "_enemiesTestingButton");
+
+        Assert.That(developerRoot, Is.Not.Null);
+        Assert.That(weaponSandbox, Is.Not.Null);
+        Assert.That(enemiesTesting, Is.Not.Null);
+        Assert.That(controller.IncludeTestingButtons, Is.False);
+        Assert.That(developerRoot.activeSelf, Is.False, "Developer destinations must be opt-in for normal builds.");
+        Assert.That(weaponSandbox.transform.IsChildOf(developerRoot.transform), Is.True);
+        Assert.That(enemiesTesting.transform.IsChildOf(developerRoot.transform), Is.True);
+        Assert.That(controller.PlayButton.transform.IsChildOf(developerRoot.transform), Is.False);
+        Assert.That(controller.ObjectivesButton.transform.IsChildOf(developerRoot.transform), Is.False);
+        Assert.That(controller.SettingsButton.transform.IsChildOf(developerRoot.transform), Is.False);
+        Assert.That(controller.QuitButton.transform.IsChildOf(developerRoot.transform), Is.False);
+        Assert.That(weaponSandbox.GetComponent<MainMenuItemView>().IsDeveloperEntry, Is.True);
+        Assert.That(enemiesTesting.GetComponent<MainMenuItemView>().IsDeveloperEntry, Is.True);
+    }
+
+    [Test]
+    public void TitleScreenScene_HasAuthoredLocalScreensAndNoVersionLabel()
+    {
+        Scene scene = OpenTitleScene();
+        TitleScreenScreenStack stack = FindExactlyOneInScene<TitleScreenScreenStack>(scene);
+
+        Assert.That(stack.HasValidBindings, Is.True, "Objectives, Settings, and Quit must be authored as local screen bindings.");
+        Assert.That(FindAllInScene<ObjectivesMenuUI>(scene), Has.Length.EqualTo(1));
+        Assert.That(FindAllInScene<SettingsScreenUI>(scene), Has.Length.EqualTo(1));
+        AssertNamedObjectExists(scene, "MainMenuScreen");
+        AssertNamedObjectExists(scene, "ObjectivesScreen");
+        AssertNamedObjectExists(scene, "SettingsScreen");
+        AssertNamedObjectExists(scene, "QuitConfirmation");
+
+        Transform[] transforms = FindAllInScene<Transform>(scene);
+        Assert.That(
+            transforms.Where(transform =>
+                transform.name.IndexOf("Version", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                transform.name.IndexOf("BuildLabel", StringComparison.OrdinalIgnoreCase) >= 0),
+            Is.Empty,
+            "The production title screen must not expose a version/build label.");
+    }
+
+    [Test]
+    public void TitleScreenScene_HasOneAuthoredEventSystemAndPersistentPresentationServices()
+    {
+        Scene scene = OpenTitleScene();
+
+        EventSystem eventSystem = FindExactlyOneInScene<EventSystem>(scene);
+        TitleScreenController controller = FindExactlyOneInScene<TitleScreenController>(scene);
+        Assert.That(eventSystem.firstSelectedGameObject, Is.SameAs(controller.PlayButton.gameObject),
+            "Keyboard/gamepad navigation needs an authored recovery selection.");
+        BaseInputModule inputModule = eventSystem.GetComponent<BaseInputModule>();
+        Assert.That(inputModule, Is.Not.Null);
+        SerializedProperty deselectOnBackgroundClick = new SerializedObject(inputModule)
+            .FindProperty("m_DeselectOnBackgroundClick");
+        Assert.That(deselectOnBackgroundClick, Is.Not.Null);
+        Assert.That(deselectOnBackgroundClick.boolValue, Is.False,
+            "Clicking decorative background must not strand controller focus.");
+        UserSettingsService settings = FindExactlyOneInScene<UserSettingsService>(scene);
+        UserSettingsApplier applier = FindExactlyOneInScene<UserSettingsApplier>(scene);
+        ScrapSceneTransition transition = FindExactlyOneInScene<ScrapSceneTransition>(scene);
+        Transform persistentRoot = FindAllInScene<Transform>(scene)
+            .Single(transform => transform.name == "PersistentSystemsRoot");
+
+        Assert.That(settings.transform == persistentRoot || settings.transform.IsChildOf(persistentRoot), Is.True);
+        Assert.That(applier.transform == persistentRoot || applier.transform.IsChildOf(persistentRoot), Is.True);
+        Assert.That(transition.transform == persistentRoot || transition.transform.IsChildOf(persistentRoot), Is.True);
+        Assert.That(
+            transition.GetComponentsInChildren<Canvas>(true).Any(canvas => canvas.sortingOrder >= 5000),
+            Is.True,
+            "The authored scene transition must render above the menu and local screens.");
+    }
+
+    [Test]
+    public void TitleScreenController_AwakeDoesNotConstructFixedHierarchyOrEventSystem()
+    {
+        Scene scene = OpenTitleScene();
+        TitleScreenController controller = FindExactlyOneInScene<TitleScreenController>(scene);
+        int[] componentIdsBefore = FindAllInScene<Component>(scene)
+            .Where(component => component != null)
+            .Select(component => component.GetInstanceID())
+            .OrderBy(id => id)
+            .ToArray();
+        int eventSystemCountBefore = FindAllInScene<EventSystem>(scene).Length;
+        MethodInfo awake = typeof(TitleScreenController).GetMethod(
+            "Awake",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
         Assert.That(awake, Is.Not.Null);
+        Assert.That(
+            typeof(TitleScreenController).GetMethod("BuildUiIfNeeded", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public),
+            Is.Null,
+            "Fixed title UI may not be constructed at runtime.");
+
         awake.Invoke(controller, null);
 
-        Button quitButton = buttons.Single(current => GetButtonLabel(current) == "Quit");
-        CollectionAssert.Contains(
-            GetRuntimeListenerMethodNames(quitButton.onClick).ToArray(),
-            nameof(SceneNavigation.QuitApplication));
+        int[] componentIdsAfter = FindAllInScene<Component>(scene)
+            .Where(component => component != null)
+            .Select(component => component.GetInstanceID())
+            .OrderBy(id => id)
+            .ToArray();
+        CollectionAssert.AreEqual(componentIdsBefore, componentIdsAfter);
+        Assert.That(FindAllInScene<EventSystem>(scene), Has.Length.EqualTo(eventSystemCountBefore));
+    }
+
+    [Test]
+    public void TitleScreenController_AwakeUnlocksAndShowsCursor()
+    {
+        Scene scene = OpenTitleScene();
+        TitleScreenController controller = FindExactlyOneInScene<TitleScreenController>(scene);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        InvokeAwake(controller);
+
+        Assert.That(Cursor.lockState, Is.EqualTo(CursorLockMode.None));
+        Assert.That(Cursor.visible, Is.True);
+    }
+
+    [Test]
+    public void TitleScreenScene_PassesAuthoringValidator()
+    {
+        Scene scene = OpenTitleScene();
+
+        TitleScreenAuthoringValidator.Result result = TitleScreenAuthoringValidator.ValidateScene(scene);
+
+        Assert.That(result.IsValid, Is.True, string.Join(Environment.NewLine, result.Errors));
     }
 
     [Test]
@@ -155,106 +229,80 @@ public class TitleScreenControllerTests
         AssertSceneHasPauseMenu(EnemiesTestingScenePath, "Enemies testing");
     }
 
+    private static Scene OpenTitleScene()
+    {
+        Assert.That(File.Exists(TitleScenePath), Is.True, $"Expected scene at '{TitleScenePath}'.");
+        return EditorSceneManager.OpenScene(TitleScenePath, OpenSceneMode.Single);
+    }
+
     private static void AssertSceneHasPauseMenu(string scenePath, string sceneLabel)
     {
         Assert.That(File.Exists(scenePath), Is.True, $"Expected scene at '{scenePath}'.");
+        Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
 
-        EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
-
-        PauseMenuUI[] pauseMenus = UnityEngine.Object.FindObjectsByType<PauseMenuUI>(
-            FindObjectsInactive.Include,
-            FindObjectsSortMode.None);
-        EventSystem eventSystem = UnityEngine.Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include);
+        PauseMenuUI[] pauseMenus = FindAllInScene<PauseMenuUI>(scene);
+        EventSystem[] eventSystems = FindAllInScene<EventSystem>(scene);
 
         Assert.That(pauseMenus, Has.Length.EqualTo(1), $"{sceneLabel} scene should include PauseMenuUI so Escape can open the pause menu.");
         Assert.That(pauseMenus[0].GetComponentInParent<Canvas>(true), Is.Not.Null, $"{sceneLabel} PauseMenuUI should live under a Canvas.");
-        Assert.That(eventSystem, Is.Not.Null, $"{sceneLabel} scene should include an EventSystem for pause menu buttons.");
+        Assert.That(eventSystems, Has.Length.GreaterThanOrEqualTo(1), $"{sceneLabel} scene should include an EventSystem for pause menu buttons.");
     }
 
-    private static void AssertButtonInvokes(GameObject root, string expectedLabel, string expectedMethodName)
+    private static void InvokeAwake(TitleScreenController controller)
     {
-        Button button = root
-            .GetComponentsInChildren<Button>(true)
-            .Single(current => GetButtonLabel(current) == expectedLabel);
-
-        string[] methodNames = GetRuntimeListenerMethodNames(button.onClick).ToArray();
-
-        CollectionAssert.AreEqual(new[] { expectedMethodName }, methodNames);
-    }
-
-    private static IEnumerable<string> GetRuntimeListenerMethodNames(UnityEvent unityEvent)
-    {
-        FieldInfo callsField = typeof(UnityEventBase).GetField("m_Calls", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(callsField, Is.Not.Null, "Could not inspect UnityEvent runtime listeners.");
-
-        object calls = callsField.GetValue(unityEvent);
-        Assert.That(calls, Is.Not.Null, "UnityEvent call list was null.");
-
-        FieldInfo runtimeCallsField = calls.GetType().GetField("m_RuntimeCalls", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(runtimeCallsField, Is.Not.Null, "Could not inspect UnityEvent runtime calls.");
-
-        if (runtimeCallsField.GetValue(calls) is not IEnumerable runtimeCalls)
-            yield break;
-
-        foreach (object runtimeCall in runtimeCalls)
-        {
-            Delegate callback = GetDelegate(runtimeCall);
-            if (callback != null)
-                yield return callback.Method.Name;
-        }
-    }
-
-    private static Delegate GetDelegate(object runtimeCall)
-    {
-        for (Type current = runtimeCall.GetType(); current != null; current = current.BaseType)
-        {
-            FieldInfo delegateField = current.GetField("Delegate", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            if (delegateField == null)
-                continue;
-
-            return delegateField.GetValue(runtimeCall) as Delegate;
-        }
-
-        return null;
-    }
-
-    private static Component CreateController(GameObject root)
-    {
-        Type controllerType = GetTitleScreenControllerType();
-        Assert.That(controllerType, Is.Not.Null, "TitleScreenController type was not found.");
-
-        Component controller = root.AddComponent(controllerType);
-        MethodInfo awake = controllerType.GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-
-        Assert.That(awake, Is.Not.Null, "TitleScreenController.Awake was not found.");
+        MethodInfo awake = typeof(TitleScreenController).GetMethod(
+            "Awake",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(awake, Is.Not.Null);
         awake.Invoke(controller, null);
-        return controller;
     }
 
-    private static string GetButtonLabel(Button button)
+    private static string ReadButtonLabel(Button button)
     {
-        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
-        Assert.That(label, Is.Not.Null, $"Button '{button.name}' is missing a TMP label.");
-        return label.text;
+        Assert.That(button, Is.Not.Null);
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+        Assert.That(label, Is.Not.Null, $"Button '{button.name}' is missing its authored TMP label.");
+        return label.text.Trim();
     }
 
-    private static Type GetTitleScreenControllerType()
+    private static T ReadObjectReference<T>(UnityEngine.Object target, string propertyName) where T : UnityEngine.Object
     {
-        return AppDomain.CurrentDomain
-            .GetAssemblies()
-            .SelectMany(GetTypesSafely)
-            .FirstOrDefault(type => type != null && type.Name == "TitleScreenController");
+        SerializedObject serializedObject = new(target);
+        SerializedProperty property = serializedObject.FindProperty(propertyName);
+        Assert.That(property, Is.Not.Null, $"Serialized field '{propertyName}' was not found on {target.GetType().Name}.");
+        Assert.That(property.objectReferenceValue, Is.AssignableTo<T>(), $"Serialized field '{propertyName}' is not assigned.");
+        return (T)property.objectReferenceValue;
     }
 
-    private static IEnumerable<Type> GetTypesSafely(Assembly assembly)
+    private static T FindExactlyOneInScene<T>(Scene scene) where T : Component
     {
-        try
+        T[] values = FindAllInScene<T>(scene);
+        Assert.That(values, Has.Length.EqualTo(1), $"Expected exactly one {typeof(T).Name} in '{scene.path}'.");
+        return values[0];
+    }
+
+    private static T[] FindAllInScene<T>(Scene scene) where T : Component
+    {
+        return scene.GetRootGameObjects()
+            .SelectMany(root => root.GetComponentsInChildren<T>(true))
+            .ToArray();
+    }
+
+    private static void AssertNamedObjectExists(Scene scene, string objectName)
+    {
+        Assert.That(
+            FindAllInScene<Transform>(scene).Any(transform => transform.name == objectName),
+            Is.True,
+            $"Expected authored object '{objectName}' in the title scene.");
+    }
+
+    private static bool HasAncestorNamed(Transform transform, string name)
+    {
+        for (Transform current = transform; current != null; current = current.parent)
         {
-            return assembly.GetTypes();
+            if (current.name == name)
+                return true;
         }
-        catch (ReflectionTypeLoadException ex)
-        {
-            return ex.Types.Where(type => type != null);
-        }
+        return false;
     }
 }

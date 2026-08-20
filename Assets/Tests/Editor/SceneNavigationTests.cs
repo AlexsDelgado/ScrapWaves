@@ -37,8 +37,8 @@ public class SceneNavigationTests
 
     [TestCase(SceneDestination.Title, "Assets/Scenes/TitleScreen.unity")]
     [TestCase(SceneDestination.Play, "Assets/Scenes/GameplayScene.unity")]
-    [TestCase(SceneDestination.WeaponSandbox, "Assets/Scenes/WeaponTestingSandbox.unity")]
-    [TestCase(SceneDestination.EnemiesTesting, "Assets/Scenes/enemiesTesting.unity")]
+    [TestCase(SceneDestination.WeaponSandbox, "Assets/Scenes/Testing/WeaponTestingSandbox.unity")]
+    [TestCase(SceneDestination.EnemiesTesting, "Assets/Scenes/Testing/enemiesTesting.unity")]
     public void GetScenePath_ReturnsCanonicalScenePath(SceneDestination destination, string expectedScenePath)
     {
         MethodInfo method = typeof(SceneNavigation).GetMethod("GetScenePath", BindingFlags.NonPublic | BindingFlags.Static);

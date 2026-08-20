@@ -59,7 +59,7 @@ public sealed class EnemyHitFeedback : MonoBehaviour
         float normalized = 1f - _remaining / Mathf.Max(0.01f, _activeDuration);
         float response = Mathf.Clamp01(_responseCurve.Evaluate(normalized)) * _intensity;
         ApplyFlash(response);
-        ApplyTransformResponse(response);
+        ApplyTransformResponse(EnemyReactionRuntime.ReducedMotion ? 0f : response);
         if (_remaining <= 0f)
             RestoreVisuals();
     }
@@ -93,7 +93,7 @@ public sealed class EnemyHitFeedback : MonoBehaviour
         _squash = _profile.GetSquash(CurrentTier) * signature;
         _reducedFlash = reducedFlash || EnemyReactionRuntime.ReducedFlash;
         ApplyFlash(_intensity);
-        ApplyTransformResponse(_intensity);
+        ApplyTransformResponse(EnemyReactionRuntime.ReducedMotion ? 0f : _intensity);
         EnemyDeathFeedback.RecordHit(in context);
     }
 
@@ -209,7 +209,9 @@ public sealed class EnemyHitFeedback : MonoBehaviour
 
     private void ApplyFlash(float amount)
     {
-        float visibility = (_reducedFlash ? 0.35f : 1f) * Mathf.Clamp01(amount);
+        float visibility = EnemyReactionRuntime.ScreenFlashEnabled
+            ? (_reducedFlash ? 0.35f : 1f) * Mathf.Clamp01(amount)
+            : 0f;
         Color color = _activeColor;
         color.a *= visibility * 0.62f;
         for (int i = 0; i < _flashShells.Count; i++)

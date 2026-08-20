@@ -13,7 +13,7 @@ public class PauseMenuUI : MonoBehaviour
     [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
     [SerializeField] private CraftingUI _craftingUi;
     [SerializeField] private ThirdPersonCamera _camera;
-    [SerializeField] private AudioManager _audioManager;
+    [SerializeField] private UserSettingsService _settingsService;
     [SerializeField] private WeaponSandboxDebugUI _sandboxDebugUi;
 
     private GameObject _root;
@@ -26,12 +26,29 @@ public class PauseMenuUI : MonoBehaviour
     private Slider _musicSlider;
     private float _savedTimeScale = 1f;
     private bool _isPaused;
+    private bool _missingSettingsServiceReported;
 
     private void Awake()
     {
         ResolveRefs();
         BuildUi();
+        BindSettingsService(_settingsService != null ? _settingsService : UserSettingsService.Instance);
         _root.SetActive(false);
+    }
+
+    private void OnEnable()
+    {
+        UserSettingsService.InstanceChanged -= HandleSettingsServiceInstanceChanged;
+        UserSettingsService.InstanceChanged += HandleSettingsServiceInstanceChanged;
+        if (_root != null)
+            BindSettingsService(_settingsService != null ? _settingsService : UserSettingsService.Instance);
+    }
+
+    private void OnDisable()
+    {
+        UserSettingsService.InstanceChanged -= HandleSettingsServiceInstanceChanged;
+        if (_settingsService != null)
+            _settingsService.Changed -= HandleSettingsChanged;
     }
 
     private void Update()
@@ -64,8 +81,6 @@ public class PauseMenuUI : MonoBehaviour
             _craftingUi = FindAnyObjectByType<CraftingUI>();
         if (_camera == null)
             _camera = FindAnyObjectByType<ThirdPersonCamera>();
-        if (_audioManager == null)
-            _audioManager = AudioManager.Instance ?? FindAnyObjectByType<AudioManager>();
         if (_sandboxDebugUi == null)
             _sandboxDebugUi = FindAnyObjectByType<WeaponSandboxDebugUI>(FindObjectsInactive.Include);
     }
@@ -130,6 +145,8 @@ public class PauseMenuUI : MonoBehaviour
 
     private void SetPauseState(bool paused, float timeScale)
     {
+        if (!paused)
+            _settingsService?.FlushPendingSave();
         _isPaused = paused;
         if (_root != null)
             _root.SetActive(paused);
@@ -146,23 +163,82 @@ public class PauseMenuUI : MonoBehaviour
 
     private void SyncSettingsFromSources()
     {
-        if (_camera != null)
+        if (_settingsService == null)
+            BindSettingsService(UserSettingsService.Instance);
+
+        if (_settingsService == null)
         {
-            if (_hSensSlider != null)
-                _hSensSlider.SetValueWithoutNotify(_camera.HorizontalSensitivity);
-            if (_vSensSlider != null)
-                _vSensSlider.SetValueWithoutNotify(_camera.VerticalSensitivity);
-            if (_invertYToggle != null)
-                _invertYToggle.SetIsOnWithoutNotify(_camera.InvertVertical);
+            SetSettingsControlsInteractable(false);
+            return;
         }
 
-        if (_audioManager != null)
+        if (_hSensSlider != null)
+            _hSensSlider.SetValueWithoutNotify(_settingsService.HorizontalSensitivity);
+        if (_vSensSlider != null)
+            _vSensSlider.SetValueWithoutNotify(_settingsService.VerticalSensitivity);
+        if (_invertYToggle != null)
+            _invertYToggle.SetIsOnWithoutNotify(_settingsService.InvertY);
+        if (_sfxSlider != null)
+            _sfxSlider.SetValueWithoutNotify(_settingsService.SfxVolume);
+        if (_musicSlider != null)
+            _musicSlider.SetValueWithoutNotify(_settingsService.MusicVolume);
+        SetSettingsControlsInteractable(true);
+    }
+
+    private void HandleSettingsServiceInstanceChanged(UserSettingsService service)
+    {
+        BindSettingsService(service);
+    }
+
+    private void BindSettingsService(UserSettingsService service)
+    {
+        if (_settingsService != null)
+            _settingsService.Changed -= HandleSettingsChanged;
+
+        _settingsService = service;
+        if (_settingsService == null)
         {
-            if (_sfxSlider != null)
-                _sfxSlider.SetValueWithoutNotify(_audioManager.SfxVolume);
-            if (_musicSlider != null)
-                _musicSlider.SetValueWithoutNotify(_audioManager.MusicVolume);
+            SetSettingsControlsInteractable(false);
+            if (!_missingSettingsServiceReported && Application.isPlaying)
+            {
+                Debug.LogError(
+                    "PauseMenuUI: no authored UserSettingsService is available; settings controls were disabled.",
+                    this);
+                _missingSettingsServiceReported = true;
+            }
+            return;
         }
+
+        _settingsService.Changed -= HandleSettingsChanged;
+        _settingsService.Changed += HandleSettingsChanged;
+        SyncSettingsFromSources();
+    }
+
+    private void HandleSettingsChanged(UserSettingsChange _)
+    {
+        SyncSettingsFromSources();
+    }
+
+    private void SetSettingsControlsInteractable(bool interactable)
+    {
+        if (_hSensSlider != null)
+            _hSensSlider.interactable = interactable;
+        if (_vSensSlider != null)
+            _vSensSlider.interactable = interactable;
+        if (_invertYToggle != null)
+            _invertYToggle.interactable = interactable;
+        if (_sfxSlider != null)
+            _sfxSlider.interactable = interactable;
+        if (_musicSlider != null)
+            _musicSlider.interactable = interactable;
+    }
+
+    private bool TryGetSettingsService(out UserSettingsService service)
+    {
+        if (_settingsService == null)
+            BindSettingsService(UserSettingsService.Instance);
+        service = _settingsService;
+        return service != null;
     }
 
     private void RefreshStats()
@@ -266,32 +342,60 @@ public class PauseMenuUI : MonoBehaviour
         header.fontStyle = FontStyles.Bold;
 
         float y = -56f;
-        _hSensSlider = CreateSettingRow(panel.transform, "Horizontal Sensitivity", ref y, 0.02f, 0.4f, 0.12f, v =>
+        _hSensSlider = CreateSettingRow(
+            panel.transform,
+            "Horizontal Sensitivity",
+            ref y,
+            UserSettingsData.MinimumSensitivity,
+            UserSettingsData.MaximumSensitivity,
+            UserSettingsData.DefaultHorizontalSensitivity,
+            v =>
         {
-            if (_camera != null)
-                _camera.HorizontalSensitivity = v;
+            if (TryGetSettingsService(out UserSettingsService settings))
+                settings.HorizontalSensitivity = v;
         });
-        _vSensSlider = CreateSettingRow(panel.transform, "Vertical Sensitivity", ref y, 0.02f, 0.4f, 0.12f, v =>
+        _vSensSlider = CreateSettingRow(
+            panel.transform,
+            "Vertical Sensitivity",
+            ref y,
+            UserSettingsData.MinimumSensitivity,
+            UserSettingsData.MaximumSensitivity,
+            UserSettingsData.DefaultVerticalSensitivity,
+            v =>
         {
-            if (_camera != null)
-                _camera.VerticalSensitivity = v;
+            if (TryGetSettingsService(out UserSettingsService settings))
+                settings.VerticalSensitivity = v;
         });
 
         _invertYToggle = CreateToggleRow(panel.transform, "Invert Y", ref y, on =>
         {
-            if (_camera != null)
-                _camera.InvertVertical = on;
+            if (TryGetSettingsService(out UserSettingsService settings))
+                settings.InvertY = on;
         });
 
-        _sfxSlider = CreateSettingRow(panel.transform, "SFX Volume", ref y, 0f, 1f, 1f, v =>
+        _sfxSlider = CreateSettingRow(
+            panel.transform,
+            "SFX Volume",
+            ref y,
+            0f,
+            1f,
+            UserSettingsData.DefaultSfxVolume,
+            v =>
         {
-            if (_audioManager != null)
-                _audioManager.SfxVolume = v;
+            if (TryGetSettingsService(out UserSettingsService settings))
+                settings.SfxVolume = v;
         });
-        _musicSlider = CreateSettingRow(panel.transform, "Music Volume", ref y, 0f, 1f, 0.45f, v =>
+        _musicSlider = CreateSettingRow(
+            panel.transform,
+            "Music Volume",
+            ref y,
+            0f,
+            1f,
+            UserSettingsData.DefaultMusicVolume,
+            v =>
         {
-            if (_audioManager != null)
-                _audioManager.MusicVolume = v;
+            if (TryGetSettingsService(out UserSettingsService settings))
+                settings.MusicVolume = v;
         });
     }
 

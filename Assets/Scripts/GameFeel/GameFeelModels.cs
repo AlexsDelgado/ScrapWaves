@@ -399,6 +399,9 @@ public sealed class GameFeelRuntimeOptions
     [Header("Accessibility")]
     public bool ReducedShake;
     public bool ReducedFlash;
+    public bool ReducedMotion;
+    public bool ScreenShakeEnabled = true;
+    public bool ScreenFlashEnabled = true;
 
     [Header("Performance")]
     public GameFeelQualityLevel Quality = GameFeelQualityLevel.High;

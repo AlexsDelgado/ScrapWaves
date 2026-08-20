@@ -87,8 +87,8 @@ public static class SceneNavigation
         {
             SceneDestination.Title => "Assets/Scenes/TitleScreen.unity",
             SceneDestination.Play => "Assets/Scenes/GameplayScene.unity",
-            SceneDestination.WeaponSandbox => "Assets/Scenes/WeaponTestingSandbox.unity",
-            SceneDestination.EnemiesTesting => "Assets/Scenes/enemiesTesting.unity",
+            SceneDestination.WeaponSandbox => "Assets/Scenes/Testing/WeaponTestingSandbox.unity",
+            SceneDestination.EnemiesTesting => "Assets/Scenes/Testing/enemiesTesting.unity",
             _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, "Unknown scene destination.")
         };
     }

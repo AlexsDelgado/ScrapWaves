@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -5,6 +6,8 @@ using UnityEngine;
 [DefaultExecutionOrder(-40)]
 public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbackSink
 {
+    public static event Action<WeaponPresentationController> BecameAvailable;
+
     private sealed class DirectorRuntime
     {
         public CombatFeedbackDirector Director;
@@ -289,10 +292,22 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         EnemyReactionRuntime.Apply(_runtimeOptions);
     }
 
+    public void ApplyUserFeedbackPreferences(bool reducedMotion, bool screenShake, bool screenFlash)
+    {
+        _runtimeOptions ??= new GameFeelRuntimeOptions();
+        _runtimeOptions.ReducedMotion = reducedMotion;
+        _runtimeOptions.ScreenShakeEnabled = screenShake && !reducedMotion;
+        _runtimeOptions.ScreenFlashEnabled = screenFlash;
+        if (!screenShake || reducedMotion)
+            _camera?.ClearPresentationImpulses();
+        EnemyReactionRuntime.ApplyUserPreferences(reducedMotion, screenFlash);
+    }
+
     private void OnEnable()
     {
         ResolveSceneDependencies();
         EnemyReactionRuntime.Apply(_runtimeOptions);
+        BecameAvailable?.Invoke(this);
         if (Application.isPlaying)
             RegisterProfile(_profile);
     }

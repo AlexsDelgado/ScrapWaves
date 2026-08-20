@@ -328,10 +328,10 @@ public sealed class GameFeelFoundationTests
     [Test]
     public void GameFeelSandbox_IsASeparateSceneWithOriginalPreserved()
     {
-        Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Scenes/WeaponTestingSandbox.unity"), Is.Not.Null);
+        Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Scenes/Testing/WeaponTestingSandbox.unity"), Is.Not.Null);
         Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Scenes/Testing/WeaponTestingSandbox_GameFeel.unity"), Is.Not.Null);
         Assert.That(
-            AssetDatabase.AssetPathToGUID("Assets/Scenes/WeaponTestingSandbox.unity"),
+            AssetDatabase.AssetPathToGUID("Assets/Scenes/Testing/WeaponTestingSandbox.unity"),
             Is.Not.EqualTo(AssetDatabase.AssetPathToGUID("Assets/Scenes/Testing/WeaponTestingSandbox_GameFeel.unity")));
     }
 }

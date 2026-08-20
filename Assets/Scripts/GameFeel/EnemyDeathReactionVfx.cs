@@ -213,7 +213,10 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
         float disappear = 1f - Mathf.SmoothStep(0.66f, 1f, t);
         float alpha = appear * disappear;
         Color color = _color;
-        color.a = alpha * (EnemyReactionRuntime.ReducedFlash ? 0.28f : 0.64f);
+        float transientAlpha = EnemyReactionRuntime.ScreenFlashEnabled
+            ? (EnemyReactionRuntime.ReducedFlash ? 0.28f : 0.64f)
+            : 0f;
+        color.a = alpha * transientAlpha;
         float dissolve = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.045f, 0.94f, t));
         ApplySnapshot(dissolve, t);
 
@@ -415,7 +418,9 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
         _snapshotBlock ??= new MaterialPropertyBlock();
         Color edge = Color.Lerp(_color, new Color(1f, 0.48f, 0.08f, 1f), 0.62f);
         Color ash = Color.Lerp(_color, new Color(0.12f, 0.105f, 0.09f, 1f), 0.8f);
-        float glow = EnemyReactionRuntime.ReducedFlash ? 0.16f : 0.4f;
+        float glow = EnemyReactionRuntime.ScreenFlashEnabled
+            ? (EnemyReactionRuntime.ReducedFlash ? 0.16f : 0.4f)
+            : 0f;
         float opacity = 1f - Mathf.SmoothStep(0.84f, 1f, time) * 0.48f;
         for (int i = 0; i < _snapshotRenderers.Count; i++)
         {

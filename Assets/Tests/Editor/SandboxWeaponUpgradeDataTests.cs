@@ -107,7 +107,7 @@ public class SandboxWeaponUpgradeDataTests
     [Test]
     public void WeaponTestingSandbox_DebugVisualizationsStartDisabled()
     {
-        string sceneText = File.ReadAllText("Assets/Scenes/WeaponTestingSandbox.unity");
+        string sceneText = File.ReadAllText("Assets/Scenes/Testing/WeaponTestingSandbox.unity");
         string[] disabledFields =
         {
             "ShowRuntimeVisuals: 0",

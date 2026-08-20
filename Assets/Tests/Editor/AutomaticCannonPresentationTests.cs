@@ -46,6 +46,29 @@ public class AutomaticCannonPresentationTests
     }
 
     [Test]
+    public void PresentationContext_ScreenFlashOffZerosTransientEmissionIntensity()
+    {
+        WeaponFeedbackContext feedback = new(
+            weapon: null,
+            mode: WeaponFeedbackMode.Automatic,
+            normalizedHeat: 0f,
+            origin: Vector3.zero,
+            direction: Vector3.forward);
+
+        WeaponPresentationContext presentation = WeaponPresentationContext.FromFeedback(
+            WeaponPresentationCue.AutomaticCannonAutoShot,
+            in feedback,
+            profile: null,
+            cueData: null,
+            quality: GameFeelQualityLevel.High,
+            reducedFlash: true,
+            screenFlashEnabled: false);
+
+        Assert.That(presentation.ReducedFlash, Is.True);
+        Assert.That(presentation.ReducedFlashIntensity, Is.Zero);
+    }
+
+    [Test]
     public void NullSink_AcceptsEveryOperationAndNeverCreatesLoop()
     {
         WeaponPresentationContext context = new(

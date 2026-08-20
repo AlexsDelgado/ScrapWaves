@@ -1,3 +1,4 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -5,6 +6,8 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class PlayerCombatFeedback : MonoBehaviour
 {
+    public static event Action<PlayerCombatFeedback> BecameAvailable;
+
     [SerializeField] private PlayerHealth _playerHealth;
     [SerializeField] private PlayerMovement _playerMovement;
 
@@ -14,6 +17,8 @@ public class PlayerCombatFeedback : MonoBehaviour
     private Image _burnIcon;
     private TextMeshProUGUI _stunLabel;
     private float _flashTimer;
+    private bool _reducedMotion;
+    private bool _screenFlashEnabled = true;
 
     private void Awake()
     {
@@ -28,6 +33,7 @@ public class PlayerCombatFeedback : MonoBehaviour
             _playerHealth.OnHitDamageTaken += OnHitDamageTaken;
         if (_playerMovement != null)
             _playerMovement.OnStunned += OnStunned;
+        BecameAvailable?.Invoke(this);
     }
 
     private void OnDisable()
@@ -46,12 +52,31 @@ public class PlayerCombatFeedback : MonoBehaviour
             _playerMovement = FindAnyObjectByType<PlayerMovement>();
     }
 
-    private void OnHitDamageTaken() => _flashTimer = 0.15f;
+    private void OnHitDamageTaken()
+    {
+        if (_screenFlashEnabled)
+            _flashTimer = 0.15f;
+    }
+
+    public void ApplyUserFeedbackPreferences(bool reducedMotion, bool screenFlash)
+    {
+        _reducedMotion = reducedMotion;
+        _screenFlashEnabled = screenFlash;
+        if (_screenFlashEnabled)
+            return;
+
+        _flashTimer = 0f;
+        if (_damageFlash != null)
+            _damageFlash.color = new Color(0.9f, 0.1f, 0.08f, 0f);
+    }
 
     private void OnStunned()
     {
         if (_stunOverlay != null)
-            _stunOverlay.color = new Color(1f, 0.9f, 0.2f, 0.35f);
+        {
+            float alpha = _reducedMotion || !_screenFlashEnabled ? 0.18f : 0.35f;
+            _stunOverlay.color = new Color(1f, 0.9f, 0.2f, alpha);
+        }
     }
 
     private void BuildUi()
@@ -106,7 +131,7 @@ public class PlayerCombatFeedback : MonoBehaviour
     {
         if (_damageFlash != null)
         {
-            if (_flashTimer > 0f)
+            if (_screenFlashEnabled && _flashTimer > 0f)
             {
                 _flashTimer -= Time.deltaTime;
                 float t = Mathf.Clamp01(_flashTimer / 0.15f);
@@ -122,7 +147,9 @@ public class PlayerCombatFeedback : MonoBehaviour
         {
             if (_playerHealth.IsInvulnerable)
             {
-                float pulse = 0.12f + 0.1f * (0.5f + 0.5f * Mathf.Sin(Time.time * 12f));
+                float pulse = _reducedMotion || !_screenFlashEnabled
+                    ? 0.14f
+                    : 0.12f + 0.1f * (0.5f + 0.5f * Mathf.Sin(Time.time * 12f));
                 _invulnOverlay.color = new Color(1f, 0.4f, 0.4f, pulse);
             }
             else
@@ -138,9 +165,14 @@ public class PlayerCombatFeedback : MonoBehaviour
         {
             bool stunned = _playerMovement.IsStunned;
             if (_stunOverlay != null)
+            {
+                float stunAlpha = _reducedMotion || !_screenFlashEnabled
+                    ? 0.18f
+                    : 0.18f + 0.08f * Mathf.Sin(Time.time * 8f);
                 _stunOverlay.color = stunned
-                    ? new Color(1f, 0.9f, 0.2f, 0.18f + 0.08f * Mathf.Sin(Time.time * 8f))
+                    ? new Color(1f, 0.9f, 0.2f, stunAlpha)
                     : new Color(1f, 0.9f, 0.2f, 0f);
+            }
             if (_stunLabel != null)
                 _stunLabel.gameObject.SetActive(stunned);
         }

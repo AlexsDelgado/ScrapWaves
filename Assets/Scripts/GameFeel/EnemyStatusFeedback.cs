@@ -353,11 +353,20 @@ public sealed class EnemyStatusVisual : MonoBehaviour
         _remaining = Mathf.Max(_remaining, duration);
         _strength = Mathf.Max(_strength, Mathf.Clamp01(strength));
         _dismissing = false;
-        _pulse = Mathf.Max(_pulse, 0.45f);
+        if (EnemyReactionRuntime.ScreenFlashEnabled)
+            _pulse = Mathf.Max(_pulse, 0.45f);
+        else
+            _pulse = 0f;
     }
 
     public void Pulse(float amount)
     {
+        if (!EnemyReactionRuntime.ScreenFlashEnabled)
+        {
+            _pulse = 0f;
+            return;
+        }
+
         _pulse = Mathf.Max(_pulse, Mathf.Clamp01(amount));
     }
 
@@ -411,12 +420,19 @@ public sealed class EnemyStatusVisual : MonoBehaviour
         };
         float visibility = (_suppressed ? 0f : 1f) * fade * quality;
         float flashScale = EnemyReactionRuntime.ReducedFlash ? 0.45f : 1f;
+        bool animateFlash = EnemyReactionRuntime.ScreenFlashEnabled;
+        if (!animateFlash)
+            _pulse = 0f;
         Color core = GetCoreColor(_kind);
         Color edge = GetEdgeColor(_kind);
         core.a *= visibility * flashScale;
         edge.a *= visibility * flashScale;
         float time = Time.unscaledTime;
-        float pulseScale = 1f + _pulse * 0.16f + Mathf.Sin(time * 3.5f + _seed) * 0.025f;
+        float impactPulse = animateFlash ? _pulse * 0.16f : 0f;
+        float idlePulse = animateFlash && !EnemyReactionRuntime.ReducedMotion
+            ? Mathf.Sin(time * 3.5f + _seed) * 0.025f
+            : 0f;
+        float pulseScale = 1f + impactPulse + idlePulse;
         float lowerY = _center.y - _height * 0.48f + 0.05f;
         if (_kind == WeaponStatusKind.Freeze)
             ApplyFreezeShell(visibility * flashScale, time);
@@ -761,7 +777,11 @@ public sealed class EnemyStatusVisual : MonoBehaviour
         if (_freezeShells.Count == 0)
             return;
         _iceBlock ??= new MaterialPropertyBlock();
-        float glint = EnemyReactionRuntime.ReducedFlash ? 0.24f : 0.62f + Mathf.Sin(time * 1.9f + _seed) * 0.1f;
+        float glint = EnemyReactionRuntime.ScreenFlashEnabled
+            ? (EnemyReactionRuntime.ReducedFlash
+                ? 0.24f
+                : 0.62f + Mathf.Sin(time * 1.9f + _seed) * 0.1f)
+            : 0f;
         for (int i = 0; i < _freezeShells.Count; i++)
         {
             Renderer shell = _freezeShells[i];
