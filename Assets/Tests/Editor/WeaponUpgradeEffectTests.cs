@@ -63,6 +63,53 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
+    public void RadialDamage_SaturatedOverlapRetriesPastUnrelatedAndDuplicateColliders()
+    {
+        Vector3 center = new(2400f, 0f, 2400f);
+        GameObject unrelated = new("Dense unrelated colliders");
+        GameObject denseTarget = new("Dense damageable colliders");
+        GameObject finalTarget = new("Damageable after saturated candidates");
+
+        try
+        {
+            unrelated.transform.position = center;
+            denseTarget.transform.position = center + Vector3.left;
+            finalTarget.transform.position = center + Vector3.right;
+
+            for (int i = 0; i < 260; i++)
+            {
+                unrelated.AddComponent<SphereCollider>().radius = 0.25f;
+                denseTarget.AddComponent<SphereCollider>().radius = 0.25f;
+            }
+
+            TestDamageable denseDamageable = denseTarget.AddComponent<TestDamageable>();
+            finalTarget.AddComponent<SphereCollider>().radius = 0.25f;
+            TestDamageable finalDamageable = finalTarget.AddComponent<TestDamageable>();
+            Physics.SyncTransforms();
+
+            int hits = WeaponRadialDamage.Apply(
+                center,
+                4f,
+                12,
+                falloff: 0f,
+                knockback: 0f,
+                maxTargets: 2,
+                showVfx: false);
+
+            Assert.That(hits, Is.EqualTo(2));
+            Assert.That(denseDamageable.TotalDamage, Is.EqualTo(12));
+            Assert.That(finalDamageable.TotalDamage, Is.EqualTo(12));
+        }
+        finally
+        {
+            Object.DestroyImmediate(unrelated);
+            Object.DestroyImmediate(denseTarget);
+            Object.DestroyImmediate(finalTarget);
+            DestroyGeneratedVfx();
+        }
+    }
+
+    [Test]
     public void ExplosionRadiusVfx_CanSpawnWithCustomColor()
     {
         MethodInfo spawn = typeof(ExplosionRadiusVfx).GetMethod(
@@ -2790,7 +2837,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void FlamethrowerJellifiedFuel_UsesRegularBurnAtDoubleDuration()
+    public void FlamethrowerJellifiedFuel_UsesJellifiedBurnAtDoubleDuration()
     {
         FlamethrowerWeapon weapon = CreateFlamethrowerWeapon(WeaponUpgradePath.PathA, out WeaponData data);
         data.Flamethrower.FlameBurnDuration = 3f;
@@ -2805,8 +2852,8 @@ public class WeaponUpgradeEffectTests
         Assert.That(duration, Is.EqualTo(6f).Within(0.0001f));
         Assert.That(burn, Is.Not.Null);
         Assert.That(ReadField<float>(burn, "_remainingDuration"), Is.EqualTo(6f).Within(0.0001f));
-        Assert.That(ReadField<WeaponStatusKind>(burn, "_statusKind"), Is.EqualTo(WeaponStatusKind.Burn));
-        Assert.That(EnemyStatusFeedback.ResolveMask(target.transform), Is.EqualTo(WeaponStatusMask.Burn));
+        Assert.That(ReadField<WeaponStatusKind>(burn, "_statusKind"), Is.EqualTo(WeaponStatusKind.JellifiedBurn));
+        Assert.That(EnemyStatusFeedback.ResolveMask(target.transform), Is.EqualTo(WeaponStatusMask.JellifiedBurn));
         Object.DestroyImmediate(target);
         Object.DestroyImmediate(data);
         DestroyGeneratedVfx();
@@ -3604,7 +3651,9 @@ public class WeaponUpgradeEffectTests
             CreateDefinition(StatType.Knockback, 1f),
             CreateDefinition(StatType.ProjectileAreaSize, projectileAreaSize),
             CreateDefinition(StatType.AbilityDamageMultiplier, 1f),
-            CreateDefinition(StatType.AbilityCooldownReduction, 0f)
+            CreateDefinition(StatType.AbilityCooldownReduction, 0f),
+            CreateDefinition(StatType.CloseRangeDamageMultiplier, 1f),
+            CreateDefinition(StatType.LongRangeDamageMultiplier, 1f)
         };
     }
 

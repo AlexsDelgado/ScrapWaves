@@ -714,6 +714,7 @@ MonoBehaviour:
     ShellPrewarmCount: 24
     ShellPoolCapacity: 128
     MaximumDetailedRainShells: 14
+    DamageFeedbackSubVolleyShellCount: 5
   _qualitySettings: {fileID: 11400000, guid: 64b5ca0913ab2c541b8b88552f8334d3, type: 2}
   _reducedFlashColor: {r: 1, g: 0.58, b: 0.16, a: 0.55}
   _reducedFlashIntensity: 0.35

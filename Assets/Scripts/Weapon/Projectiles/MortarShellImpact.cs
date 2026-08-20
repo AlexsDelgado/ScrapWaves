@@ -85,6 +85,8 @@ public sealed class MortarShellImpact : MonoBehaviour
     private Vector3 _presentationImpactNormal = Vector3.up;
     private bool _hasPresentationImpactSurface;
     private int _repeatExplosionIndex;
+    private bool _completesDamageSequenceContributor;
+    private bool _damageSequenceContributorCompleted;
 
     public bool HasPredictedPresentationCollision { get; private set; }
     public Vector3 PredictedPresentationCollisionPoint { get; private set; }
@@ -199,13 +201,17 @@ public sealed class MortarShellImpact : MonoBehaviour
         bool detailedPresentation,
         bool showLandingIndicator,
         IWeaponPresentationSink presentationSink,
-        WeaponFeedbackContext feedbackTemplate)
+        WeaponFeedbackContext feedbackTemplate,
+        bool completesSequenceContributor = false)
     {
         MortarShellImpact shell = Acquire(authoredPrefab, poolCapacity);
         shell._payload = payload;
         shell._useGrapeshotVfx = useGrapeshotVfx || payload.UseGrapeshot;
         shell._weaponDamageContext = damageContext;
         shell._useWeaponDamageContext = damageContext.IsValid;
+        shell._completesDamageSequenceContributor =
+            completesSequenceContributor && ResolveSequenceId(in damageContext, in feedbackTemplate) != 0;
+        shell._damageSequenceContributorCompleted = false;
         shell._detailedPresentation = detailedPresentation;
         shell._showLandingIndicator = showLandingIndicator;
         shell._presentationSink = presentationSink ?? NullWeaponPresentationSink.Instance;
@@ -324,6 +330,8 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void Update()
     {
+        TouchDamageSequence();
+
         if (_detonated)
         {
             TickRepeatExplosions();
@@ -632,11 +640,11 @@ public sealed class MortarShellImpact : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
-            int healthBefore = GetRemainingHealth(damageable);
-            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+            if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, ResolveKnockback(finalDamage, falloffScale));
-                EmitDamageFeedback(damageable, hits[i], explosionCenter, finalDamage, healthBefore);
+                EmitDamageFeedback(damageable, hits[i], explosionCenter, in result);
             }
         }
     }
@@ -671,8 +679,11 @@ public sealed class MortarShellImpact : MonoBehaviour
                 impactPosition: target,
                 isAbilityDamage: _feedbackTemplate.IsAbilityDamage,
                 explosionRadius: subShellExplosionRadius,
-                eventIntensity: 0.55f);
-            MortarShellImpact.LaunchAuthored(
+                eventIntensity: 0.55f,
+                referenceDamage: grapeshotContext.ReferenceDamage,
+                actionSequenceId: grapeshotContext.ActionSequenceId,
+                damageKind: DamageFeedbackKind.Fragment);
+            MortarShellImpact child = MortarShellImpact.LaunchAuthored(
                 center,
                 target,
                 subShellTravelTime,
@@ -691,7 +702,10 @@ public sealed class MortarShellImpact : MonoBehaviour
                 _detailedPresentation && i < 6,
                 showLandingIndicator: false,
                 _presentationSink,
-                childFeedback);
+                childFeedback,
+                completesSequenceContributor: grapeshotContext.ActionSequenceId != 0);
+            if (child == null && grapeshotContext.ActionSequenceId != 0)
+                DamageFeedbackSequenceRuntime.CompleteContributor(grapeshotContext.ActionSequenceId);
         }
     }
 
@@ -713,17 +727,10 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private WeaponDamageContext CreateScaledDamageContext(float damageScale, float knockbackScale)
     {
-        if (!_useWeaponDamageContext)
-            return default;
-
-        return new WeaponDamageContext(
-            _weaponDamageContext.Stats,
-            _weaponDamageContext.Weapon,
-            _weaponDamageContext.CanCrit,
-            _weaponDamageContext.CritMultiplierOverride,
-            _weaponDamageContext.DamageScale * Mathf.Max(0f, damageScale),
-            _weaponDamageContext.IsAbilityDamage,
-            _weaponDamageContext.KnockbackScale * Mathf.Max(0f, knockbackScale));
+        return _weaponDamageContext.WithScales(
+            damageScale,
+            knockbackScale,
+            DamageFeedbackKind.Fragment);
     }
 
     private static Transform GetDamageTarget(IDamageable damageable, Collider hitCollider)
@@ -924,10 +931,9 @@ public sealed class MortarShellImpact : MonoBehaviour
         IDamageable damageable,
         Collider hitCollider,
         Vector3 explosionCenter,
-        int damage,
-        int healthBefore)
+        in DamageApplicationResult result)
     {
-        if (!_hasFeedbackTemplate)
+        if (!_hasFeedbackTemplate || !result.IsAuthoritative || result.AppliedDamage <= 0)
             return;
         Transform target = damageable is Component component
             ? component.transform
@@ -935,17 +941,26 @@ public sealed class MortarShellImpact : MonoBehaviour
         Vector3 impactPosition = hitCollider != null
             ? hitCollider.ClosestPoint(explosionCenter)
             : target != null ? target.position : explosionCenter;
-        bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
         WeaponFeedbackContext feedback = _feedbackTemplate.WithImpact(
             impactPosition,
             impactPosition - explosionCenter,
-            damage,
+            result.AppliedDamage,
+            _useWeaponDamageContext && _weaponDamageContext.IsCritical,
             false,
-            false,
-            kill,
+            result.Killed,
             target,
             WeaponEnemyClassifier.GetKind(target),
             ImpactSurfaceResolver.Resolve(hitCollider, damageable));
+        if (_useWeaponDamageContext)
+        {
+            feedback = feedback.WithDamageMetadata(
+                _weaponDamageContext.ReferenceDamage,
+                _weaponDamageContext.ActionSequenceId,
+                _weaponDamageContext.DamageKind,
+                _weaponDamageContext.StatusInstanceId,
+                _weaponDamageContext.StatusKind,
+                _weaponDamageContext.SegmentIndex);
+        }
         _feedbackSink.OnDamageConfirmed(in feedback);
     }
 
@@ -1031,6 +1046,8 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void ReleaseShell()
     {
+        CompleteDamageSequenceContributor();
+
         if (!_usesAuthoredPool || _authoredPrefab == null)
         {
             DestroyUnityObject(gameObject);
@@ -1041,11 +1058,14 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private void ReturnToPool()
     {
+        CompleteDamageSequenceContributor();
         _authoredVfx?.ResetVisuals();
         _damagedThisExplosion.Clear();
         _presentationSink = NullWeaponPresentationSink.Instance;
         _feedbackSink = NullWeaponPresentationSink.Instance;
         _hasFeedbackTemplate = false;
+        _completesDamageSequenceContributor = false;
+        _damageSequenceContributorCompleted = false;
         int key = _authoredPrefab != null ? _authoredPrefab.GetInstanceID() : 0;
         if (key != 0 && s_authoredPools.TryGetValue(key, out List<MortarShellImpact> pool))
         {
@@ -1063,6 +1083,39 @@ public sealed class MortarShellImpact : MonoBehaviour
         transform.localRotation = Quaternion.identity;
         gameObject.SetActive(false);
     }
+
+    private void TouchDamageSequence()
+    {
+        if (!_completesDamageSequenceContributor || _damageSequenceContributorCompleted)
+            return;
+
+        int sequenceId = ResolveSequenceId(in _weaponDamageContext, in _feedbackTemplate);
+        if (sequenceId != 0)
+            DamageFeedbackSequenceRuntime.TouchSequence(sequenceId);
+    }
+
+    private void CompleteDamageSequenceContributor()
+    {
+        if (!_completesDamageSequenceContributor || _damageSequenceContributorCompleted)
+            return;
+
+        int sequenceId = ResolveSequenceId(in _weaponDamageContext, in _feedbackTemplate);
+        if (sequenceId != 0)
+            DamageFeedbackSequenceRuntime.CompleteContributor(sequenceId);
+        _damageSequenceContributorCompleted = true;
+    }
+
+    private static int ResolveSequenceId(
+        in WeaponDamageContext damageContext,
+        in WeaponFeedbackContext feedbackTemplate)
+    {
+        return damageContext.ActionSequenceId != 0
+            ? damageContext.ActionSequenceId
+            : feedbackTemplate.ActionSequenceId;
+    }
+
+    private void OnDisable() => CompleteDamageSequenceContributor();
+    private void OnDestroy() => CompleteDamageSequenceContributor();
 
     private static void EnsurePoolRoot()
     {

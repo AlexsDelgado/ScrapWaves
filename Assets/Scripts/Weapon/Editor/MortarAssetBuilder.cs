@@ -401,7 +401,8 @@ public static class MortarAssetBuilder
             LandingIndicatorPrefab = landingIndicator,
             ShellPrewarmCount = 24,
             ShellPoolCapacity = 128,
-            MaximumDetailedRainShells = 14
+            MaximumDetailedRainShells = 14,
+            DamageFeedbackSubVolleyShellCount = 5
         };
         SetPrivate(profile, "_weaponType", WeaponType.Mortar);
         SetPrivate(profile, "_defaultQuality", GameFeelQualityLevel.High);

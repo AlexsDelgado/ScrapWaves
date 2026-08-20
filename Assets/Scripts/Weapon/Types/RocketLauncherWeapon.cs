@@ -584,7 +584,16 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
         float travelRange = Mathf.Max(0f, Runtime.Data.BaseRange);
         float pathKnockback = GetPathAdjustedKnockbackScale(isAbilityDamage);
-        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage, damageScale * pathKnockback);
+        bool usesCluster = IsFragmentationCapPath() && isAbilityDamage;
+        int clusterContributorCount = usesCluster ? GetFragmentClusterRocketCount() : 0;
+        int actionSequenceId = DamageFeedbackSequenceRuntime.BeginSequence(
+            DamageFeedbackKind.Explosion,
+            1 + clusterContributorCount);
+        WeaponDamageContext damageContext = CreateDamageContext(
+                damageScale,
+                isAbilityDamage,
+                damageScale * pathKnockback)
+            .WithFeedbackMetadata(actionSequenceId, DamageFeedbackKind.Explosion);
         int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(finalDamage);
         float amplifier = IsKineticExplosionPath() ? 1.2f : 1f;
@@ -593,15 +602,16 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         float fragmentDamageScale = GetFragmentDamageScale(isAbilityDamage);
         float fragmentConeAngle = fragmentDamageScale > 0f ? 45f : 0f;
 
-        if (IsFragmentationCapPath() && isAbilityDamage)
+        if (usesCluster)
         {
             RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
             float clusterRadius = GetPathAdjustedExplosionRadius(tuning.RocketManualExplosionRadius) * GetAreaSizeMultiplier();
             float clusterDamageScale = GetFragmentClusterDamageScale();
             WeaponDamageContext clusterDamageContext = CreateDamageContext(
-                damageScale * clusterDamageScale,
-                isAbilityDamage,
-                damageScale * GetPathAdjustedKnockbackScale(false));
+                    damageScale * clusterDamageScale,
+                    isAbilityDamage,
+                    damageScale * GetPathAdjustedKnockbackScale(false))
+                .WithFeedbackMetadata(actionSequenceId, DamageFeedbackKind.Fragment);
             int clusterDamage = clusterDamageContext.EstimateDamage(eliteOrBoss);
             float clusterKnockback = clusterDamageContext.CalculateKnockback(clusterDamage);
             bool spawned = Pool.TrySpawnExplosiveProjectileWithAmplifierAndCluster(
@@ -635,7 +645,18 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 clusterDamageContext,
                 out Projectile clusterRocket);
             if (spawned)
+            {
+                clusterRocket.ConfigureDamageFeedback(
+                    actionSequenceId,
+                    DamageFeedbackKind.Explosion,
+                    completesSequenceContributor: actionSequenceId != 0);
                 ConfigureRocketPresentation(clusterRocket, direction, scaledExplosionRadius, true, emitShotFeedback, true);
+            }
+            else
+            {
+                CompleteFailedSequenceContributors(actionSequenceId, 1 + clusterContributorCount);
+            }
+            DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
             return spawned;
         }
 
@@ -658,8 +679,27 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             damageContext,
             out Projectile rocket);
         if (rocketSpawned)
+        {
+            rocket.ConfigureDamageFeedback(
+                actionSequenceId,
+                DamageFeedbackKind.Explosion,
+                completesSequenceContributor: actionSequenceId != 0);
             ConfigureRocketPresentation(rocket, direction, scaledExplosionRadius, isAbilityDamage, emitShotFeedback, false);
+        }
+        else
+        {
+            CompleteFailedSequenceContributors(actionSequenceId, 1);
+        }
+        DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
         return rocketSpawned;
+    }
+
+    private static void CompleteFailedSequenceContributors(int sequenceId, int count)
+    {
+        if (sequenceId == 0)
+            return;
+        for (int i = 0; i < Mathf.Max(0, count); i++)
+            DamageFeedbackSequenceRuntime.CompleteContributor(sequenceId);
     }
 
     private void ConfigureRocketPresentation(

@@ -42,6 +42,14 @@ public sealed class EnemyReactionProfile : ScriptableObject
     [SerializeField, Range(0f, 0.5f)] private float _heavySquash = 0.12f;
     [SerializeField, Range(0f, 2f)] private float _maximumAccumulatedIntensity = 1.35f;
 
+    [Header("Reduced motion")]
+    [SerializeField, Range(0f, 1f), Tooltip("Multiplier for cosmetic hit displacement when Reduced Motion is enabled.")]
+    private float _reducedMotionDisplacementScale = 0.2f;
+    [SerializeField, Range(0f, 1f), Tooltip("Multiplier for cosmetic hit squash when Reduced Motion is enabled.")]
+    private float _reducedMotionSquashScale = 0.25f;
+    [SerializeField, Range(0.25f, 1f), Tooltip("Shortens the cosmetic transform response without changing damage acknowledgement.")]
+    private float _reducedMotionDurationScale = 0.75f;
+
     [Header("Enemy classes")]
     [SerializeField, Range(0f, 1f)] private float _eliteScale = 0.75f;
     [SerializeField, Range(0f, 1f)] private float _bossScale = 0.42f;
@@ -66,6 +74,9 @@ public sealed class EnemyReactionProfile : ScriptableObject
     public int DeathPoolCapacity => Mathf.Clamp(_deathPoolCapacity, 8, 128);
     public float DeathDuration => Mathf.Max(0.05f, _deathDuration);
     public float MaximumAccumulatedIntensity => Mathf.Max(0.1f, _maximumAccumulatedIntensity);
+    public float ReducedMotionDisplacementScale => Mathf.Clamp01(_reducedMotionDisplacementScale);
+    public float ReducedMotionSquashScale => Mathf.Clamp01(_reducedMotionSquashScale);
+    public float ReducedMotionDurationScale => Mathf.Clamp(_reducedMotionDurationScale, 0.25f, 1f);
 
     public static EnemyReactionProfile Resolve(EnemyReactionProfile authored)
     {
@@ -141,6 +152,9 @@ public sealed class EnemyReactionProfile : ScriptableObject
         _lightSquash = Mathf.Clamp(_lightSquash, 0f, 0.5f);
         _heavySquash = Mathf.Clamp(_heavySquash, _lightSquash, 0.5f);
         _maximumAccumulatedIntensity = Mathf.Max(0.1f, _maximumAccumulatedIntensity);
+        _reducedMotionDisplacementScale = Mathf.Clamp01(_reducedMotionDisplacementScale);
+        _reducedMotionSquashScale = Mathf.Clamp01(_reducedMotionSquashScale);
+        _reducedMotionDurationScale = Mathf.Clamp(_reducedMotionDurationScale, 0.25f, 1f);
         _statusFadeDuration = Mathf.Max(0.05f, _statusFadeDuration);
         _maximumStatusVisualsPerEnemy = Mathf.Clamp(_maximumStatusVisualsPerEnemy, 1, 4);
         _maximumGlobalStatusVisuals = Mathf.Clamp(_maximumGlobalStatusVisuals, 8, 96);
@@ -152,6 +166,7 @@ public sealed class EnemyReactionProfile : ScriptableObject
 public static class EnemyReactionRuntime
 {
     public static bool Enabled { get; private set; } = true;
+    public static bool ReducedMotion { get; private set; }
     public static bool ReducedFlash { get; private set; }
     public static GameFeelQualityLevel Quality { get; private set; } = GameFeelQualityLevel.High;
 
@@ -160,6 +175,7 @@ public static class EnemyReactionRuntime
         if (options == null)
             return;
         Enabled = options.EnemyReactionEnabled;
+        ReducedMotion = options.ReducedMotion;
         ReducedFlash = options.ReducedFlash;
         Quality = options.Quality;
         if (!Enabled)

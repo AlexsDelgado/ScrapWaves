@@ -15,6 +15,8 @@ public sealed class WeaponRecoilFeedback : MonoBehaviour
     [SerializeField, Min(0.01f)] private float _recoilInSpeed = 38f;
     [SerializeField, Min(0.01f)] private float _recoverySpeed = 16f;
     [SerializeField] private AnimationCurve _recoilCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+    [SerializeField, Range(0f, 1f), Tooltip("Multiplier for cosmetic recoil travel when Reduced Motion is enabled.")]
+    private float _reducedMotionRecoilScale = 0.2f;
 
     private MaterialPropertyBlock _propertyBlock;
     private Vector3 _baseLocalPosition;
@@ -24,6 +26,7 @@ public sealed class WeaponRecoilFeedback : MonoBehaviour
     private float _normalizedHeat;
     private WeaponHeatPresentationSettings _heatSettings;
     private bool _heatEnabled;
+    private bool _reducedMotionActive;
 
     public Transform RecoilRoot => _recoilRoot;
 
@@ -62,25 +65,48 @@ public sealed class WeaponRecoilFeedback : MonoBehaviour
         _currentRecoil = 0f;
         _targetRecoil = 0f;
         _activeRecoilDistance = 0f;
+        _reducedMotionActive = false;
         if (_recoilRoot != null)
             _recoilRoot.localPosition = _baseLocalPosition;
     }
 
     public void Request(in WeaponFeedbackContext context, WeaponHeatPresentationSettings heat, bool heatEnabled)
     {
+        Request(in context, heat, heatEnabled, reducedMotion: false);
+    }
+
+    public void Request(
+        in WeaponFeedbackContext context,
+        WeaponHeatPresentationSettings heat,
+        bool heatEnabled,
+        bool reducedMotion)
+    {
+        float motionScale = reducedMotion ? Mathf.Clamp01(_reducedMotionRecoilScale) : 1f;
+        if (reducedMotion && !_reducedMotionActive)
+        {
+            // Apply a newly-enabled accessibility setting immediately instead of
+            // letting a previously queued full-travel impulse win the Max below.
+            _currentRecoil *= motionScale;
+            _targetRecoil *= motionScale;
+            _activeRecoilDistance *= motionScale;
+        }
+        _reducedMotionActive = reducedMotion;
+
         AutomaticWeaponMount automaticMount = context.Anchor != null
             ? context.Anchor.GetComponentInParent<AutomaticWeaponMount>()
             : null;
         if (context.Mode == WeaponFeedbackMode.Automatic && automaticMount != null)
         {
-            automaticMount.RequestRecoil(context.EventIntensity);
+            automaticMount.RequestRecoil(context.EventIntensity * motionScale);
             return;
         }
 
         float distance = context.Mode == WeaponFeedbackMode.Manual || context.Mode == WeaponFeedbackMode.Active
             ? _manualRecoilDistance
             : _automaticRecoilDistance;
-        _targetRecoil = Mathf.Max(_targetRecoil, distance * Mathf.Clamp01(context.EventIntensity));
+        _targetRecoil = Mathf.Max(
+            _targetRecoil,
+            distance * Mathf.Clamp01(context.EventIntensity) * motionScale);
         _activeRecoilDistance = Mathf.Max(_activeRecoilDistance, _targetRecoil);
         _normalizedHeat = context.NormalizedHeat;
         _heatSettings = heat;
@@ -125,6 +151,7 @@ public sealed class WeaponRecoilFeedback : MonoBehaviour
         _manualRecoilDistance = Mathf.Max(0f, _manualRecoilDistance);
         _recoilInSpeed = Mathf.Max(0.01f, _recoilInSpeed);
         _recoverySpeed = Mathf.Max(0.01f, _recoverySpeed);
+        _reducedMotionRecoilScale = Mathf.Clamp01(_reducedMotionRecoilScale);
         _recoilCurve ??= AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     }
 }

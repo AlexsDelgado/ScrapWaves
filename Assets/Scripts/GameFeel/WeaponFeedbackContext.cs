@@ -12,6 +12,7 @@ public readonly struct WeaponFeedbackContext
     public readonly Vector3 Direction;
     public readonly Vector3 ImpactPosition;
     public readonly Vector3 ImpactNormal;
+    /// <summary>Exact health removed by this single confirmed damage event.</summary>
     public readonly int DamageAmount;
     public readonly bool IsCritical;
     public readonly bool IsWeakPoint;
@@ -23,6 +24,12 @@ public readonly struct WeaponFeedbackContext
     public readonly float EventIntensity;
     public readonly Transform Target;
     public readonly Transform Anchor;
+    public readonly float ReferenceDamage;
+    public readonly int ActionSequenceId;
+    public readonly DamageFeedbackKind DamageKind;
+    public readonly int StatusInstanceId;
+    public readonly WeaponStatusKind StatusKind;
+    public readonly int SegmentIndex;
 
     public WeaponFeedbackContext(
         WeaponInstance weapon,
@@ -42,7 +49,13 @@ public readonly struct WeaponFeedbackContext
         float explosionRadius = 0f,
         float eventIntensity = 1f,
         Transform target = null,
-        Transform anchor = null)
+        Transform anchor = null,
+        float referenceDamage = 0f,
+        int actionSequenceId = 0,
+        DamageFeedbackKind damageKind = DamageFeedbackKind.Direct,
+        int statusInstanceId = 0,
+        WeaponStatusKind statusKind = WeaponStatusKind.Burn,
+        int segmentIndex = 0)
     {
         Weapon = weapon;
         WeaponType = weapon?.Data != null ? weapon.Data.WeaponType : WeaponType.AutomaticCannon;
@@ -65,6 +78,12 @@ public readonly struct WeaponFeedbackContext
         EventIntensity = Mathf.Max(0f, eventIntensity);
         Target = target;
         Anchor = anchor;
+        ReferenceDamage = Mathf.Max(0f, referenceDamage);
+        ActionSequenceId = Mathf.Max(0, actionSequenceId);
+        DamageKind = damageKind;
+        StatusInstanceId = Mathf.Max(0, statusInstanceId);
+        StatusKind = statusKind;
+        SegmentIndex = Mathf.Max(0, segmentIndex);
     }
 
     public WeaponFeedbackContext WithImpact(
@@ -96,7 +115,36 @@ public readonly struct WeaponFeedbackContext
             ExplosionRadius,
             EventIntensity,
             target,
-            anchor: null);
+            anchor: null,
+            ReferenceDamage,
+            ActionSequenceId,
+            DamageKind,
+            StatusInstanceId,
+            StatusKind,
+            SegmentIndex);
+    }
+
+    public WeaponFeedbackContext WithAppliedDamage(
+        Vector3 impactPosition,
+        Vector3 impactNormal,
+        int appliedDamage,
+        bool isCritical,
+        bool isWeakPoint,
+        bool isKill,
+        Transform target,
+        WeaponEnemyKind targetClass,
+        ImpactSurfaceType surfaceType)
+    {
+        return WithImpact(
+            impactPosition,
+            impactNormal,
+            appliedDamage,
+            isCritical,
+            isWeakPoint,
+            isKill,
+            target,
+            targetClass,
+            surfaceType);
     }
 
     public WeaponFeedbackContext WithIntensity(float eventIntensity)
@@ -119,7 +167,13 @@ public readonly struct WeaponFeedbackContext
             ExplosionRadius,
             eventIntensity,
             Target,
-            Anchor);
+            Anchor,
+            ReferenceDamage,
+            ActionSequenceId,
+            DamageKind,
+            StatusInstanceId,
+            StatusKind,
+            SegmentIndex);
     }
 
     public WeaponFeedbackContext WithExplosionRadius(float explosionRadius)
@@ -142,7 +196,13 @@ public readonly struct WeaponFeedbackContext
             explosionRadius,
             EventIntensity,
             Target,
-            Anchor);
+            Anchor,
+            ReferenceDamage,
+            ActionSequenceId,
+            DamageKind,
+            StatusInstanceId,
+            StatusKind,
+            SegmentIndex);
     }
 
     public WeaponFeedbackContext WithDirection(Vector3 direction)
@@ -165,6 +225,75 @@ public readonly struct WeaponFeedbackContext
             ExplosionRadius,
             EventIntensity,
             Target,
-            Anchor);
+            Anchor,
+            ReferenceDamage,
+            ActionSequenceId,
+            DamageKind,
+            StatusInstanceId,
+            StatusKind,
+            SegmentIndex);
+    }
+
+    public WeaponFeedbackContext WithDamageMetadata(
+        float referenceDamage,
+        int actionSequenceId,
+        DamageFeedbackKind damageKind,
+        int statusInstanceId = 0,
+        WeaponStatusKind statusKind = WeaponStatusKind.Burn,
+        int segmentIndex = 0)
+    {
+        return new WeaponFeedbackContext(
+            Weapon,
+            Mode,
+            NormalizedHeat,
+            Origin,
+            Direction,
+            ImpactPosition,
+            ImpactNormal,
+            DamageAmount,
+            IsCritical,
+            IsWeakPoint,
+            IsKill,
+            IsAbilityDamage,
+            TargetClass,
+            SurfaceType,
+            ExplosionRadius,
+            EventIntensity,
+            Target,
+            Anchor,
+            referenceDamage,
+            actionSequenceId,
+            damageKind,
+            statusInstanceId,
+            statusKind,
+            segmentIndex);
+    }
+
+    public WeaponFeedbackContext WithSequence(int actionSequenceId, DamageFeedbackKind damageKind)
+    {
+        return WithDamageMetadata(
+            ReferenceDamage,
+            actionSequenceId,
+            damageKind,
+            StatusInstanceId,
+            StatusKind,
+            SegmentIndex);
+    }
+
+    public WeaponFeedbackContext WithStatus(
+        int statusInstanceId,
+        WeaponStatusKind statusKind,
+        int segmentIndex = 0)
+    {
+        DamageFeedbackKind statusDamageKind = statusKind == WeaponStatusKind.JellifiedBurn
+            ? DamageFeedbackKind.JellifiedBurn
+            : DamageFeedbackKind.Burn;
+        return WithDamageMetadata(
+            ReferenceDamage,
+            ActionSequenceId,
+            statusDamageKind,
+            statusInstanceId,
+            statusKind,
+            segmentIndex);
     }
 }

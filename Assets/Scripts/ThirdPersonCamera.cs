@@ -51,6 +51,12 @@ public class ThirdPersonCamera : MonoBehaviour
     [SerializeField, Min(0f)] private float _maximumPresentationPositionImpulse = 0.35f;
     [SerializeField, Min(0f)] private float _maximumPresentationRotationImpulse = 5f;
     [SerializeField, Min(0f)] private float _maximumPresentationFovKick = 5f;
+    [SerializeField, Range(0f, 1f), Tooltip("Cosmetic camera travel retained under Reduced Motion.")]
+    private float _reducedMotionPositionScale = 0.2f;
+    [SerializeField, Range(0f, 1f), Tooltip("Cosmetic camera rotation retained under Reduced Motion.")]
+    private float _reducedMotionRotationScale = 0.35f;
+    [SerializeField, Range(0f, 1f), Tooltip("FOV kick retained under Reduced Motion. Zero removes zoom pulses.")]
+    private float _reducedMotionFovScale;
 
     private readonly RaycastHit[] _cameraHitBuffer = new RaycastHit[12];
     private float _yaw;
@@ -150,6 +156,22 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public bool AddPresentationImpulse(Vector3 positionImpulse, Vector3 rotationImpulse, float fovKick)
     {
+        return AddPresentationImpulse(positionImpulse, rotationImpulse, fovKick, reducedMotion: false);
+    }
+
+    public bool AddPresentationImpulse(
+        Vector3 positionImpulse,
+        Vector3 rotationImpulse,
+        float fovKick,
+        bool reducedMotion)
+    {
+        if (reducedMotion)
+        {
+            positionImpulse *= Mathf.Clamp01(_reducedMotionPositionScale);
+            rotationImpulse *= Mathf.Clamp01(_reducedMotionRotationScale);
+            fovKick *= Mathf.Clamp01(_reducedMotionFovScale);
+        }
+
         if (!isActiveAndEnabled ||
             _cameraFeedbackScale <= 0f ||
             (positionImpulse.sqrMagnitude <= 0.000001f &&
@@ -197,6 +219,9 @@ public class ThirdPersonCamera : MonoBehaviour
         _cameraCollisionPadding = 0.12f;
         _minimumDistanceFromLookPoint = 0.65f;
         _lockCursorOnPlay = true;
+        _reducedMotionPositionScale = 0.2f;
+        _reducedMotionRotationScale = 0.35f;
+        _reducedMotionFovScale = 0f;
     }
 
     private void LateUpdate()
@@ -334,5 +359,17 @@ public class ThirdPersonCamera : MonoBehaviour
             _camera = GetComponent<Camera>();
         if (_camera != null)
             _baseFieldOfView = _camera.fieldOfView;
+    }
+
+    private void OnValidate()
+    {
+        _cameraFeedbackScale = Mathf.Clamp01(_cameraFeedbackScale);
+        _presentationImpulseDecay = Mathf.Max(0f, _presentationImpulseDecay);
+        _maximumPresentationPositionImpulse = Mathf.Max(0f, _maximumPresentationPositionImpulse);
+        _maximumPresentationRotationImpulse = Mathf.Max(0f, _maximumPresentationRotationImpulse);
+        _maximumPresentationFovKick = Mathf.Max(0f, _maximumPresentationFovKick);
+        _reducedMotionPositionScale = Mathf.Clamp01(_reducedMotionPositionScale);
+        _reducedMotionRotationScale = Mathf.Clamp01(_reducedMotionRotationScale);
+        _reducedMotionFovScale = Mathf.Clamp01(_reducedMotionFovScale);
     }
 }

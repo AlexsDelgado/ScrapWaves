@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 [DisallowMultipleComponent]
-public sealed class FlamethrowerFuelPuddle : MonoBehaviour
+public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageObserver
 {
     private const int PuddleSegments = 28;
     private const float GroundProbeHeight = 4f;
@@ -11,6 +11,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     private const float SurfaceOffset = 0.045f;
     private const float MinimumVisualFadeDuration = 0.25f;
     private const float ParticleFadePadding = 0.08f;
+    private const float MaximumTallySegmentDuration = 3.25f;
+    private const int GroundHitCapacity = 32;
     private static readonly Color FuelFillColor = new(0.015f, 0.2f, 0.045f, 0.92f);
     private static readonly Color FuelEdgeColor = new(0.55f, 0.78f, 0.08f, 0.78f);
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -18,6 +20,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     private static readonly int EmissionIntensityId = Shader.PropertyToID("_EmissionIntensity");
     private static readonly int PulseId = Shader.PropertyToID("_Pulse");
     private static readonly int DissolveId = Shader.PropertyToID("_Dissolve");
+    private static readonly RaycastHit[] GroundHits = new RaycastHit[GroundHitCapacity];
 
     private sealed class PuddlePool
     {
@@ -55,8 +58,20 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     private bool _smokeEmissionStopped;
     private bool _useDamageContext;
     private WeaponDamageContext _damageContext;
+    private IWeaponFeedbackSink _feedbackSink;
+    private WeaponFeedbackMode _feedbackMode;
+    private int _statusInstanceId;
+    private int _statusSegmentIndex;
+    private float _statusSegmentElapsed;
+    private bool _statusSegmentClosureNotified;
     private Mesh _fillMesh;
     private Mesh _edgeMesh;
+    private Vector3[] _fillVertices;
+    private int[] _fillTriangles;
+    private Vector2[] _fillUvs;
+    private Vector3[] _edgeVertices;
+    private int[] _edgeTriangles;
+    private Vector2[] _edgeUvs;
     private MaterialPropertyBlock _propertyBlock;
     private PuddlePool _pool;
     private bool _visualReady;
@@ -69,14 +84,30 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     public static FlamethrowerFuelPuddle Spawn(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval)
     {
         FlamethrowerFuelPuddle puddle = CreateFallback();
-        puddle.Configure(center, radius, damagePerTick, duration, tickInterval, default);
+        puddle.Configure(center, radius, damagePerTick, duration, tickInterval, default, null, default);
         return puddle;
     }
 
-    public static FlamethrowerFuelPuddle SpawnWithContext(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval, WeaponDamageContext damageContext)
+    public static FlamethrowerFuelPuddle SpawnWithContext(
+        Vector3 center,
+        float radius,
+        int damagePerTick,
+        float duration,
+        float tickInterval,
+        WeaponDamageContext damageContext,
+        IWeaponFeedbackSink feedbackSink = null,
+        WeaponFeedbackMode feedbackMode = WeaponFeedbackMode.Automatic)
     {
         FlamethrowerFuelPuddle puddle = CreateFallback();
-        puddle.Configure(center, radius, damagePerTick, duration, tickInterval, damageContext);
+        puddle.Configure(
+            center,
+            radius,
+            damagePerTick,
+            duration,
+            tickInterval,
+            damageContext,
+            feedbackSink,
+            feedbackMode);
         return puddle;
     }
 
@@ -89,10 +120,22 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         int damagePerTick,
         float duration,
         float tickInterval,
-        WeaponDamageContext damageContext)
+        WeaponDamageContext damageContext,
+        IWeaponFeedbackSink feedbackSink = null,
+        WeaponFeedbackMode feedbackMode = WeaponFeedbackMode.Automatic)
     {
         if (prefab == null)
-            return SpawnWithContext(center, radius, damagePerTick, duration, tickInterval, damageContext);
+        {
+            return SpawnWithContext(
+                center,
+                radius,
+                damagePerTick,
+                duration,
+                tickInterval,
+                damageContext,
+                feedbackSink,
+                feedbackMode);
+        }
 
         int key = prefab.GetInstanceID();
         if (!Pools.TryGetValue(key, out PuddlePool pool) || pool.Prefab != prefab)
@@ -121,7 +164,15 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
             return null;
 
         puddle.gameObject.SetActive(true);
-        puddle.Configure(center, radius, damagePerTick, duration, tickInterval, damageContext);
+        puddle.Configure(
+            center,
+            radius,
+            damagePerTick,
+            duration,
+            tickInterval,
+            damageContext,
+            feedbackSink,
+            feedbackMode);
         return puddle;
     }
 
@@ -143,7 +194,15 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         return puddle;
     }
 
-    private void Configure(Vector3 center, float radius, int damagePerTick, float duration, float tickInterval, WeaponDamageContext damageContext)
+    private void Configure(
+        Vector3 center,
+        float radius,
+        int damagePerTick,
+        float duration,
+        float tickInterval,
+        WeaponDamageContext damageContext,
+        IWeaponFeedbackSink feedbackSink,
+        WeaponFeedbackMode feedbackMode)
     {
         EnsureVisual();
         _radius = Mathf.Max(0.1f, radius);
@@ -154,9 +213,18 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         _tickTimer = 0f;
         _damageContext = damageContext;
         _useDamageContext = damageContext.IsValid;
+        _feedbackSink = feedbackSink;
+        _feedbackMode = feedbackMode;
+        _statusInstanceId = _useDamageContext && feedbackSink != null
+            ? StatusDamageInstanceRuntime.Next()
+            : 0;
+        _statusSegmentIndex = 0;
+        _statusSegmentElapsed = 0f;
+        _statusSegmentClosureNotified = false;
         _center = ResolveGroundPosition(center);
         _shapeSeed = Mathf.Abs(center.x * 12.9898f + center.z * 78.233f);
         transform.SetPositionAndRotation(_center, Quaternion.identity);
+        BuildPuddleShape(1f);
         UpdateParticleCoverage();
         _bubbleEmissionStopped = false;
         _smokeEmissionStopped = false;
@@ -173,10 +241,30 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     {
         _remainingDuration -= Time.deltaTime;
         _tickTimer -= Time.deltaTime;
+        _statusSegmentElapsed += Time.deltaTime;
         if (_tickTimer <= 0f && _remainingDuration > 0f)
         {
+            if (_statusSegmentElapsed >= MaximumTallySegmentDuration)
+            {
+                CloseCurrentStatusSegment();
+                _statusSegmentIndex++;
+                _statusSegmentElapsed = 0f;
+                _statusSegmentClosureNotified = false;
+            }
+
             if (_useDamageContext)
-                WeaponRadialDamage.Apply(_center, _radius, _damageContext, falloff: 0f, maxTargets: 64, showVfx: false);
+            {
+                WeaponRadialDamage.Apply(
+                    _center,
+                    _radius,
+                    _damageContext,
+                    falloff: 0f,
+                    maxTargets: 64,
+                    showVfx: false,
+                    observer: this,
+                    channel: DamageChannel.Status,
+                    statusKind: _damageContext.StatusKind);
+            }
             else
                 WeaponRadialDamage.Apply(_center, _radius, _damagePerTick, falloff: 0f, knockback: 0f, maxTargets: 64, showVfx: false);
             // Never stack several damage ticks in a single frame after a hitch.
@@ -193,6 +281,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
 
     private void OnDestroy()
     {
+        CloseCurrentStatusSegment();
         if (_fillMesh != null)
             DestroyRuntimeObject(_fillMesh);
         if (_edgeMesh != null)
@@ -205,6 +294,54 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
     {
         Gizmos.color = FuelEdgeColor;
         Gizmos.DrawWireSphere(transform.position, _radius);
+    }
+
+    public void OnRadialDamageApplied(
+        Collider hitCollider,
+        IDamageable damageable,
+        Transform target,
+        Vector3 impactPosition,
+        in DamageApplicationResult result,
+        in WeaponDamageContext damageContext)
+    {
+        if (_feedbackSink == null || target == null || _statusInstanceId <= 0 ||
+            !result.IsAuthoritative || result.AppliedDamage <= 0)
+        {
+            return;
+        }
+
+        WeaponStatusKind statusKind = damageContext.StatusKind;
+        DamageFeedbackKind damageKind = statusKind == WeaponStatusKind.JellifiedBurn
+            ? DamageFeedbackKind.JellifiedBurn
+            : DamageFeedbackKind.Burn;
+        Vector3 direction = impactPosition - _center;
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Vector3.up;
+        WeaponFeedbackContext feedback = new(
+            damageContext.Weapon,
+            _feedbackMode,
+            normalizedHeat: 0f,
+            origin: _center,
+            direction: direction,
+            impactPosition: impactPosition,
+            impactNormal: -direction.normalized,
+            damageAmount: result.AppliedDamage,
+            isCritical: damageContext.IsCritical,
+            isKill: result.Killed,
+            isAbilityDamage: damageContext.IsAbilityDamage,
+            targetClass: WeaponEnemyClassifier.GetKind(target),
+            surfaceType: ImpactSurfaceResolver.Resolve(hitCollider, damageable),
+            explosionRadius: _radius,
+            eventIntensity: 0.8f,
+            target: target,
+            anchor: target,
+            referenceDamage: damageContext.ReferenceDamage,
+            actionSequenceId: damageContext.ActionSequenceId,
+            damageKind: damageKind,
+            statusInstanceId: _statusInstanceId,
+            statusKind: statusKind,
+            segmentIndex: _statusSegmentIndex);
+        _feedbackSink.OnDamageConfirmed(in feedback);
     }
 
     private void EnsureVisual()
@@ -221,6 +358,12 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         _edgeMesh.MarkDynamic();
         _fillFilter.sharedMesh = _fillMesh;
         _edgeFilter.sharedMesh = _edgeMesh;
+        _fillVertices = new Vector3[PuddleSegments + 1];
+        _fillTriangles = new int[PuddleSegments * 3];
+        _fillUvs = new Vector2[PuddleSegments + 1];
+        _edgeVertices = new Vector3[PuddleSegments * 2];
+        _edgeTriangles = new int[PuddleSegments * 6];
+        _edgeUvs = new Vector2[PuddleSegments * 2];
     }
 
     private void EnsureMeshLayer(ref MeshFilter filter, ref MeshRenderer renderer, string childName, Color fallbackColor)
@@ -253,22 +396,14 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         // already-emitted smoke and bubbles perform their final fade.
         float fadeDuration = Mathf.Min(_initialDuration, Mathf.Max(MinimumVisualFadeDuration, _visualFadeDuration));
         float life = Mathf.Clamp01(_remainingDuration / Mathf.Max(0.01f, fadeDuration));
-        float pulse = 1f + Mathf.Sin(Time.time * _viscousPulseSpeed + _shapeSeed) * 0.018f;
-        BuildPuddleShape(pulse);
         ApplyRenderer(_fillRenderer, FuelFillColor, life, 1.4f);
         ApplyRenderer(_edgeRenderer, FuelEdgeColor, life, 2.1f);
     }
 
     private void BuildPuddleShape(float scale)
     {
-        Vector3[] fillVertices = new Vector3[PuddleSegments + 1];
-        int[] fillTriangles = new int[PuddleSegments * 3];
-        Vector3[] edgeVertices = new Vector3[PuddleSegments * 2];
-        int[] edgeTriangles = new int[PuddleSegments * 6];
-        Vector2[] fillUvs = new Vector2[fillVertices.Length];
-        Vector2[] edgeUvs = new Vector2[edgeVertices.Length];
-        fillVertices[0] = Vector3.zero;
-        fillUvs[0] = new Vector2(0.5f, 0.5f);
+        _fillVertices[0] = Vector3.zero;
+        _fillUvs[0] = new Vector2(0.5f, 0.5f);
 
         for (int i = 0; i < PuddleSegments; i++)
         {
@@ -278,32 +413,32 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
             float outerRadius = _radius * GetEdgeScale(angle) * scale;
             float innerRadius = outerRadius * (1f - Mathf.Clamp(_edgeThickness, 0.01f, 0.25f));
             Vector3 outer = radial * outerRadius;
-            fillVertices[i + 1] = outer;
-            fillUvs[i + 1] = new Vector2(radial.x, radial.z) * 0.5f + Vector2.one * 0.5f;
-            edgeVertices[i * 2] = radial * innerRadius + Vector3.up * 0.012f;
-            edgeVertices[i * 2 + 1] = outer + Vector3.up * 0.012f;
-            edgeUvs[i * 2] = new Vector2(0f, t);
-            edgeUvs[i * 2 + 1] = new Vector2(1f, t);
+            _fillVertices[i + 1] = outer;
+            _fillUvs[i + 1] = new Vector2(radial.x, radial.z) * 0.5f + Vector2.one * 0.5f;
+            _edgeVertices[i * 2] = radial * innerRadius + Vector3.up * 0.012f;
+            _edgeVertices[i * 2 + 1] = outer + Vector3.up * 0.012f;
+            _edgeUvs[i * 2] = new Vector2(0f, t);
+            _edgeUvs[i * 2 + 1] = new Vector2(1f, t);
 
             int nextFill = i == PuddleSegments - 1 ? 1 : i + 2;
             int fillTriangle = i * 3;
-            fillTriangles[fillTriangle] = 0;
-            fillTriangles[fillTriangle + 1] = nextFill;
-            fillTriangles[fillTriangle + 2] = i + 1;
+            _fillTriangles[fillTriangle] = 0;
+            _fillTriangles[fillTriangle + 1] = nextFill;
+            _fillTriangles[fillTriangle + 2] = i + 1;
 
             int nextEdge = ((i + 1) % PuddleSegments) * 2;
             int edge = i * 2;
             int edgeTriangle = i * 6;
-            edgeTriangles[edgeTriangle] = edge;
-            edgeTriangles[edgeTriangle + 1] = nextEdge;
-            edgeTriangles[edgeTriangle + 2] = edge + 1;
-            edgeTriangles[edgeTriangle + 3] = edge + 1;
-            edgeTriangles[edgeTriangle + 4] = nextEdge;
-            edgeTriangles[edgeTriangle + 5] = nextEdge + 1;
+            _edgeTriangles[edgeTriangle] = edge;
+            _edgeTriangles[edgeTriangle + 1] = nextEdge;
+            _edgeTriangles[edgeTriangle + 2] = edge + 1;
+            _edgeTriangles[edgeTriangle + 3] = edge + 1;
+            _edgeTriangles[edgeTriangle + 4] = nextEdge;
+            _edgeTriangles[edgeTriangle + 5] = nextEdge + 1;
         }
 
-        AssignMesh(_fillMesh, fillVertices, fillUvs, fillTriangles);
-        AssignMesh(_edgeMesh, edgeVertices, edgeUvs, edgeTriangles);
+        AssignMesh(_fillMesh, _fillVertices, _fillUvs, _fillTriangles);
+        AssignMesh(_edgeMesh, _edgeVertices, _edgeUvs, _edgeTriangles);
     }
 
     private static void AssignMesh(Mesh mesh, Vector3[] vertices, Vector2[] uvs, int[] triangles)
@@ -405,6 +540,12 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
 
     private void Release()
     {
+        CloseCurrentStatusSegment();
+        _feedbackSink = null;
+        _statusInstanceId = 0;
+        _statusSegmentIndex = 0;
+        _statusSegmentElapsed = 0f;
+        _statusSegmentClosureNotified = false;
         SetParticlesActive(false);
         if (_pool == null)
         {
@@ -415,16 +556,47 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour
         _pool.Available.Enqueue(this);
     }
 
+    private void CloseCurrentStatusSegment()
+    {
+        if (_statusSegmentClosureNotified || _statusInstanceId <= 0 ||
+            _feedbackSink is not ICombatTextStatusLifecycleSink lifecycleSink)
+        {
+            return;
+        }
+
+        _statusSegmentClosureNotified = true;
+        // A puddle can affect many targets, so a null target closes every tally
+        // carrying this puddle's exact status-instance/segment identity.
+        lifecycleSink.OnStatusSegmentClosed(
+            null,
+            _damageContext.StatusKind,
+            _statusInstanceId,
+            _statusSegmentIndex);
+    }
+
     private static Vector3 ResolveGroundPosition(Vector3 center)
     {
         Vector3 rayOrigin = center + Vector3.up * GroundProbeHeight;
-        RaycastHit[] hits = Physics.RaycastAll(rayOrigin, Vector3.down, GroundProbeHeight + GroundProbeDistance, ~0, QueryTriggerInteraction.Ignore);
-        System.Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
-        for (int i = 0; i < hits.Length; i++)
+        int hitCount = Physics.RaycastNonAlloc(
+            rayOrigin,
+            Vector3.down,
+            GroundHits,
+            GroundProbeHeight + GroundProbeDistance,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+        float nearestDistance = float.MaxValue;
+        Vector3 nearestPoint = default;
+        for (int i = 0; i < hitCount; i++)
         {
-            if (IsGroundSurface(hits[i].collider))
-                return hits[i].point + Vector3.up * SurfaceOffset;
+            RaycastHit hit = GroundHits[i];
+            if (hit.distance < nearestDistance && IsGroundSurface(hit.collider))
+            {
+                nearestDistance = hit.distance;
+                nearestPoint = hit.point;
+            }
         }
+        if (nearestDistance < float.MaxValue)
+            return nearestPoint + Vector3.up * SurfaceOffset;
         if (center.y > 0.5f)
             center.y = 0f;
         return center + Vector3.up * SurfaceOffset;

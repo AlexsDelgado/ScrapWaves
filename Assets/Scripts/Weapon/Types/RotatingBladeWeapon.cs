@@ -28,6 +28,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private float _multiBladeManualRange;
     private float _multiBladeManualDamageScale;
     private Vector3 _multiBladeManualDirection;
+    private int _multiBladeManualSequenceId;
     private bool _multiBladeActivePending;
     private int _multiBladeActiveThrustIndex;
     private int _multiBladeActiveThrustCount;
@@ -35,6 +36,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private float _multiBladeActiveRange;
     private float _multiBladeActiveLineWidth;
     private Vector3 _multiBladeActiveDirection;
+    private int _multiBladeActiveSequenceId;
 
     public float SpinAngle => _spinAngle;
 
@@ -81,7 +83,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                     GetAtomicSharpnessDamageScale(),
                     impactOrigin,
                     knockbackScale,
-                    WeaponFeedbackMode.Automatic);
+                    WeaponFeedbackMode.Automatic,
+                    actionSequenceId: 0,
+                    damageKind: DamageFeedbackKind.SustainedContact);
             }
         }
 
@@ -122,6 +126,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
         }
 
+        int actionSequenceId = DamageFeedbackSequenceRuntime.BeginSequence(
+            DamageFeedbackKind.ManualMultiHit,
+            1);
         ExecuteManualSwing(
             origin,
             slashDirection,
@@ -130,7 +137,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             GetAtomicSharpnessKnockbackScale(tuning.BladeManualKnockbackScale),
             tuning,
             0,
-            1);
+            1,
+            actionSequenceId);
+        DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
     }
 
     // Thrusts forward in a thick line. Heat adds range in discrete 20% steps, capped by tuning.
@@ -165,7 +174,18 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return;
         }
 
-        ExecuteActiveThrust(origin, thrustDirection, range, lineWidth, tuning.BladeActiveKnockbackScale, tuning, 0, 1);
+        int actionSequenceId = DamageFeedbackSequenceRuntime.BeginSequence(DamageFeedbackKind.Ability, 1);
+        ExecuteActiveThrust(
+            origin,
+            thrustDirection,
+            range,
+            lineWidth,
+            tuning.BladeActiveKnockbackScale,
+            tuning,
+            0,
+            1,
+            actionSequenceId);
+        DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
         CompleteActiveAbility();
     }
 
@@ -383,7 +403,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float knockbackScale,
         WeaponFeedbackMode feedbackMode,
         bool isAbilityDamage = false,
-        bool strongImpact = false)
+        bool strongImpact = false,
+        int actionSequenceId = 0,
+        DamageFeedbackKind damageKind = DamageFeedbackKind.Direct)
     {
         if (target == null)
             return;
@@ -392,16 +414,31 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (damageable == null)
             return;
 
-        bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage, targetPosition: target.position) * Mathf.Max(0f, damageScale);
-        int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage));
-
-        int healthBefore = GetRemainingHealth(damageable);
-        if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+        WeaponDamageContext damageContext = CreateDamageContext(
+                damageScale,
+                isAbilityDamage,
+                knockbackScale)
+            .WithFeedbackMetadata(actionSequenceId, damageKind);
+        // Preserve the legacy one-damage fallback used by lightweight sandbox/test
+        // targets when no PlayerStats dependency is available.
+        int finalDamage = damageContext.IsValid ? damageContext.CalculateDamage(target) : 1;
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+        if (result.Applied)
         {
             ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);
-            bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
-            EmitImpactFeedback(target, impactOrigin, finalDamage, feedbackMode, isAbilityDamage, kill, strongImpact);
+            EmitImpactFeedback(
+                target,
+                impactOrigin,
+                result.AppliedDamage,
+                feedbackMode,
+                isAbilityDamage,
+                result.Killed,
+                strongImpact,
+                damageContext.IsCritical,
+                damageContext.ReferenceDamage,
+                actionSequenceId,
+                damageKind,
+                result.IsAuthoritative);
         }
     }
 
@@ -438,6 +475,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         _multiBladeManualDirection = direction;
         _multiBladeManualRange = range;
         _multiBladeManualDamageScale = damageScale;
+        _multiBladeManualSequenceId = DamageFeedbackSequenceRuntime.BeginSequence(
+            DamageFeedbackKind.ManualMultiHit,
+            _multiBladeManualSwingCount);
         ExecuteNextMultiBladeManualSwing();
     }
 
@@ -461,12 +501,15 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             knockbackScale,
             tuning,
             swing,
-            _multiBladeManualSwingCount);
+            _multiBladeManualSwingCount,
+            _multiBladeManualSequenceId);
 
         _multiBladeManualSwingIndex++;
         if (_multiBladeManualSwingIndex >= _multiBladeManualSwingCount)
         {
             _multiBladeManualPending = false;
+            DamageFeedbackSequenceRuntime.CompleteSequence(_multiBladeManualSequenceId);
+            _multiBladeManualSequenceId = 0;
             return;
         }
 
@@ -481,7 +524,8 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float knockbackScale,
         RotatingBladeTuning tuning,
         int swingIndex,
-        int swingCount)
+        int swingCount,
+        int actionSequenceId)
     {
         ShowSlash(origin, swingDirection, range, tuning);
         bool strongImpact = IsMultiBladePath() && swingCount > 1 && ShouldApplyMultiBladeKnockback(swingIndex, swingCount);
@@ -508,7 +552,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 origin,
                 GetAtomicSharpnessKnockbackScale(knockbackScale),
                 WeaponFeedbackMode.Manual,
-                strongImpact: strongImpact);
+                strongImpact: strongImpact,
+                actionSequenceId: actionSequenceId,
+                damageKind: DamageFeedbackKind.ManualMultiHit);
+        DamageFeedbackSequenceRuntime.CompleteContributor(actionSequenceId);
     }
 
     private void StartMultiBladeActiveThrusts(Vector3 direction, float range, float lineWidth, int thrustCount)
@@ -520,6 +567,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         _multiBladeActiveDirection = direction;
         _multiBladeActiveRange = range;
         _multiBladeActiveLineWidth = lineWidth;
+        _multiBladeActiveSequenceId = DamageFeedbackSequenceRuntime.BeginSequence(
+            DamageFeedbackKind.Ability,
+            _multiBladeActiveThrustCount);
         ExecuteNextMultiBladeActiveThrust();
     }
 
@@ -543,12 +593,15 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             knockbackScale,
             tuning,
             thrust,
-            _multiBladeActiveThrustCount);
+            _multiBladeActiveThrustCount,
+            _multiBladeActiveSequenceId);
 
         _multiBladeActiveThrustIndex++;
         if (_multiBladeActiveThrustIndex >= _multiBladeActiveThrustCount)
         {
             _multiBladeActivePending = false;
+            DamageFeedbackSequenceRuntime.CompleteSequence(_multiBladeActiveSequenceId);
+            _multiBladeActiveSequenceId = 0;
             CompleteActiveAbility();
             return;
         }
@@ -564,7 +617,8 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         float knockbackScale,
         RotatingBladeTuning tuning,
         int thrustIndex,
-        int thrustCount)
+        int thrustCount,
+        int actionSequenceId)
     {
         _activeLinePoints[0] = origin;
         _activeLinePoints[1] = origin + direction * range;
@@ -599,12 +653,16 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 knockbackScale,
                 WeaponFeedbackMode.Active,
                 isAbilityDamage: true,
-                strongImpact: strongImpact);
+                strongImpact: strongImpact,
+                actionSequenceId: actionSequenceId,
+                damageKind: DamageFeedbackKind.Ability);
         }
+        DamageFeedbackSequenceRuntime.CompleteContributor(actionSequenceId);
     }
 
     private void ExecuteAtomicSharpnessDash(Vector3 origin, Vector3 direction, RotatingBladeTuning tuning)
     {
+        int actionSequenceId = DamageFeedbackSequenceRuntime.BeginSequence(DamageFeedbackKind.Ability, 1);
         float baseRange = GetAtomicDashBaseRange(tuning);
         float lineWidth = GetScaledActiveLineWidth(tuning);
 
@@ -638,8 +696,12 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
                 impactOrigin,
                 0f,
                 WeaponFeedbackMode.Active,
-                isAbilityDamage: true);
+                isAbilityDamage: true,
+                actionSequenceId: actionSequenceId,
+                damageKind: DamageFeedbackKind.Ability);
         }
+        DamageFeedbackSequenceRuntime.CompleteContributor(actionSequenceId);
+        DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
     }
 
     private int CollectAtomicDashTargets(Vector3 origin, Vector3 direction, float baseRange, float lineWidth, RotatingBladeTuning tuning)
@@ -745,7 +807,12 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         WeaponFeedbackMode mode,
         bool isAbilityDamage,
         bool kill,
-        bool strongImpact)
+        bool strongImpact,
+        bool isCritical,
+        float referenceDamage,
+        int actionSequenceId,
+        DamageFeedbackKind damageKind,
+        bool authoritative)
     {
         Vector3 impactPosition = EnemyRegistry.GetAimPoint(target);
         Vector3 direction = impactPosition - impactOrigin;
@@ -762,15 +829,20 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             impactPosition,
             -direction,
             damage,
+            isCritical: isCritical,
             isKill: kill,
             isAbilityDamage: isAbilityDamage,
             targetClass: WeaponEnemyClassifier.GetKind(target),
             surfaceType: ImpactSurfaceResolver.Resolve(surfaceCollider, damageable),
             eventIntensity: strongImpact ? 1.35f : 0.72f,
             target: target,
-            anchor: target);
+            anchor: target,
+            referenceDamage: referenceDamage,
+            actionSequenceId: actionSequenceId,
+            damageKind: damageKind);
         Feedback.OnProjectileImpact(in context);
-        Feedback.OnDamageConfirmed(in context);
+        if (authoritative && damage > 0)
+            Feedback.OnDamageConfirmed(in context);
 
         if (!strongImpact || Runtime?.Data?.PresentationProfile == null)
             return;
@@ -789,6 +861,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             normalizedHeat: GetNormalizedHeat(),
             impactNormal: -direction,
             damageAmount: damage,
+            isCritical: isCritical,
             isKill: kill,
             targetClass: WeaponEnemyClassifier.GetKind(target),
             surfaceType: ImpactSurfaceResolver.Resolve(surfaceCollider, damageable));

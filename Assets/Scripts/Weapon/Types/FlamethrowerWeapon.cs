@@ -152,16 +152,30 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         for (int i = 0; i < hitCount; i++)
         {
-            int damage = CalculateDirectDamage(tuning.FlameActiveDamageScale, _targets[i], isAbilityDamage: true);
-            int burnDamage = CalculateBurnDamage(tuning, _targets[i], isAbilityDamage: true);
-            ApplyDamageToTarget(_targets[i], damage, Owner.position, tuning.FlameActiveKnockbackScale, activeAbility: true);
-            ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: true);
+            int damage = CalculateDirectDamage(
+                tuning.FlameActiveDamageScale,
+                _targets[i],
+                true,
+                out WeaponDamageContext directContext);
+            int burnDamage = CalculateBurnDamage(
+                tuning,
+                _targets[i],
+                true,
+                out WeaponDamageContext burnContext);
+            ApplyDamageToTarget(
+                _targets[i],
+                damage,
+                Owner.position,
+                tuning.FlameActiveKnockbackScale,
+                true,
+                in directContext);
+            ApplyBurnToTargetWithContext(_targets[i], burnDamage, tuning, true, in burnContext);
         }
 
         if (IsJellifiedFuelPath())
         {
             Vector2 puddleSettings = GetJellifiedActivePuddleSettings(tuning, activeRadius);
-            int puddleDamage = CalculateBurnDamage(tuning, null, isAbilityDamage: true);
+            int puddleDamage = CalculateBurnDamage(tuning, null, true, out _);
             SpawnFuelPuddle(
                 Owner.position,
                 puddleSettings.x,
@@ -233,12 +247,12 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         for (int i = 0; i < hitCount; i++)
         {
-            int damage = CalculateDirectDamage(1f, _targets[i]);
-            if (ApplyDamageToTarget(_targets[i], damage, origin, knockbackScale: 0f)
+            int damage = CalculateDirectDamage(1f, _targets[i], false, out WeaponDamageContext directContext);
+            if (ApplyDamageToTarget(_targets[i], damage, origin, 0f, false, in directContext)
                 && (IsJellifiedFuelPath() || IsLiquidNitrogenPath()))
             {
-                int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
-                ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: false);
+                int burnDamage = CalculateBurnDamage(tuning, _targets[i], false, out WeaponDamageContext burnContext);
+                ApplyBurnToTargetWithContext(_targets[i], burnDamage, tuning, false, in burnContext);
             }
         }
 
@@ -264,13 +278,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         for (int i = 0; i < hitCount; i++)
         {
             Vector3 impactOrigin = i < _hitOrigins.Count ? _hitOrigins[i] : (Spawn != null ? Spawn.position : Owner.position);
-            int damage = CalculateDirectDamage(damageScale, _targets[i]);
-            if (ApplyDamageToTarget(_targets[i], damage, impactOrigin, knockbackScale))
+            int damage = CalculateDirectDamage(damageScale, _targets[i], false, out WeaponDamageContext directContext);
+            if (ApplyDamageToTarget(_targets[i], damage, impactOrigin, knockbackScale, false, in directContext))
                 LastManualDamageApplications++;
             if (applyBurn)
             {
-                int burnDamage = CalculateBurnDamage(tuning, _targets[i]);
-                ApplyBurnToTarget(_targets[i], burnDamage, tuning, activeAbility: false);
+                int burnDamage = CalculateBurnDamage(tuning, _targets[i], false, out WeaponDamageContext burnContext);
+                ApplyBurnToTargetWithContext(_targets[i], burnDamage, tuning, false, in burnContext);
             }
         }
 
@@ -278,25 +292,58 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     }
 
     // Calculates one direct flamethrower damage tick from shared weapon rules.
-    private int CalculateDirectDamage(float damageScale, Transform target, bool isAbilityDamage = false)
+    private int CalculateDirectDamage(
+        float damageScale,
+        Transform target,
+        bool isAbilityDamage,
+        out WeaponDamageContext damageContext)
     {
-        bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, CanCrit(), isAbilityDamage: isAbilityDamage, targetPosition: target != null ? target.position : (Vector3?)null) * Mathf.Max(0f, damageScale);
-        return Mathf.Max(1, Mathf.RoundToInt(damage));
+        damageContext = CreateDamageContext(damageScale, isAbilityDamage)
+            .WithFeedbackMetadata(
+                0,
+                isAbilityDamage ? DamageFeedbackKind.Ability : DamageFeedbackKind.SustainedContact);
+        return target != null
+            ? damageContext.CalculateDamage(target)
+            : damageContext.EstimateDamage(false);
     }
 
     // Calculates burn damage separately so damage-over-time does not roll critical hits.
-    private int CalculateBurnDamage(FlamethrowerTuning tuning, Transform target, bool isAbilityDamage = false)
+    private int CalculateBurnDamage(
+        FlamethrowerTuning tuning,
+        Transform target,
+        bool isAbilityDamage,
+        out WeaponDamageContext damageContext)
     {
-        bool eliteOrBoss = WeaponEnemyClassifier.CountsAsEliteOrBoss(target);
         float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
-        float damage = WeaponDamageResolver.CalculateDamage(Stats, Runtime, eliteOrBoss, canCrit: false, isAbilityDamage: isAbilityDamage, targetPosition: target != null ? target.position : (Vector3?)null) * Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale;
-        return Mathf.Max(1, Mathf.RoundToInt(damage));
+        WeaponStatusKind statusKind = IsJellifiedFuelPath()
+            ? WeaponStatusKind.JellifiedBurn
+            : WeaponStatusKind.Burn;
+        DamageFeedbackKind damageKind = statusKind == WeaponStatusKind.JellifiedBurn
+            ? DamageFeedbackKind.JellifiedBurn
+            : DamageFeedbackKind.Burn;
+        damageContext = new WeaponDamageContext(
+                Stats,
+                Runtime,
+                canCrit: false,
+                critMultiplierOverride: 1f,
+                damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
+                isAbilityDamage: isAbilityDamage,
+                knockbackScale: 0f)
+            .WithFeedbackMetadata(0, damageKind, statusKind: statusKind);
+        return target != null
+            ? damageContext.CalculateDamage(target)
+            : damageContext.EstimateDamage(false);
     }
 
     private WeaponDamageContext CreateBurnDamageContext(FlamethrowerTuning tuning, bool isAbilityDamage)
     {
         float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
+        WeaponStatusKind statusKind = IsJellifiedFuelPath()
+            ? WeaponStatusKind.JellifiedBurn
+            : WeaponStatusKind.Burn;
+        DamageFeedbackKind damageKind = statusKind == WeaponStatusKind.JellifiedBurn
+            ? DamageFeedbackKind.JellifiedBurn
+            : DamageFeedbackKind.Burn;
         return new WeaponDamageContext(
             Stats,
             Runtime,
@@ -304,7 +351,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             critMultiplierOverride: 1f,
             damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
             isAbilityDamage: isAbilityDamage,
-            knockbackScale: 0f);
+            knockbackScale: 0f).WithFeedbackMetadata(0, damageKind, statusKind: statusKind);
     }
 
     private bool IsJellifiedFuelPath() =>
@@ -314,13 +361,20 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
 
     // Applies immediate damage to one enemy transform if it has a damage receiver.
-    private bool ApplyDamageToTarget(Transform target, int damage, Vector3 impactOrigin, float knockbackScale, bool activeAbility = false)
+    private bool ApplyDamageToTarget(
+        Transform target,
+        int damage,
+        Vector3 impactOrigin,
+        float knockbackScale,
+        bool activeAbility,
+        in WeaponDamageContext damageContext)
     {
         if (target == null)
             return false;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
-        if (damageable != null && WeaponDamageApplier.TryApplyDamage(damageable, damage))
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, damage);
+        if (damageable != null && result.Applied)
         {
             ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);
             Vector3 direction = target.position - impactOrigin;
@@ -329,11 +383,26 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 impactOrigin,
                 direction,
                 impactPosition: target.position,
-                damageAmount: damage,
+                damageAmount: result.AppliedDamage,
                 target: target,
                 anchor: target,
                 isAbilityDamage: activeAbility);
-            Feedback.OnDamageConfirmed(in feedback);
+            feedback = feedback.WithImpact(
+                target.position,
+                direction.sqrMagnitude > 0.0001f ? -direction.normalized : Vector3.back,
+                result.AppliedDamage,
+                damageContext.IsCritical,
+                false,
+                result.Killed,
+                target,
+                WeaponEnemyClassifier.GetKind(target),
+                ImpactSurfaceType.EnemyOrganic);
+            feedback = feedback.WithDamageMetadata(
+                damageContext.ReferenceDamage,
+                damageContext.ActionSequenceId,
+                damageContext.DamageKind);
+            if (result.IsAuthoritative && result.AppliedDamage > 0)
+                Feedback.OnDamageConfirmed(in feedback);
             return true;
         }
 
@@ -341,7 +410,22 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     }
 
     // Refreshes a simple burn component on the target's damage receiver.
-    private void ApplyBurnToTarget(Transform target, int damagePerTick, FlamethrowerTuning tuning, bool activeAbility)
+    private void ApplyBurnToTarget(
+        Transform target,
+        int damagePerTick,
+        FlamethrowerTuning tuning,
+        bool activeAbility)
+    {
+        WeaponDamageContext burnContext = CreateBurnDamageContext(tuning, activeAbility);
+        ApplyBurnToTargetWithContext(target, damagePerTick, tuning, activeAbility, in burnContext);
+    }
+
+    private void ApplyBurnToTargetWithContext(
+        Transform target,
+        int damagePerTick,
+        FlamethrowerTuning tuning,
+        bool activeAbility,
+        in WeaponDamageContext burnContext)
     {
         if (target == null || tuning.FlameBurnDuration <= 0f)
             return;
@@ -361,11 +445,22 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             burn = damageComponent.gameObject.AddComponent<FlamethrowerBurnStatus>();
 
         float duration = GetPathAdjustedBurnDuration(tuning);
-        // Jellified Fuel changes where and how long the fire burns; it does not
-        // introduce a separate enemy status. Keep the regular burn reaction so
-        // the longer duration is the only status-level difference.
+        WeaponStatusKind statusKind = IsJellifiedFuelPath()
+            ? WeaponStatusKind.JellifiedBurn
+            : WeaponStatusKind.Burn;
+        StatusDamageSource source = new(
+            Runtime,
+            Feedback,
+            activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
+            Runtime != null && Runtime.HasAdvancedPath
+                ? Runtime.SelectedPath
+                : WeaponUpgradePath.None,
+            burnContext.ReferenceDamage,
+            statusInstanceId: 0,
+            statusKind: statusKind,
+            isAbilityDamage: activeAbility);
         burn.Refresh(damageable, damagePerTick, duration, tuning.FlameBurnTickInterval,
-            WeaponStatusKind.Burn);
+            statusKind, in source);
 
         if (IsJellifiedFuelPath())
         {
@@ -450,6 +545,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         float tickInterval,
         WeaponDamageContext damageContext)
     {
+        WeaponFeedbackMode feedbackMode = damageContext.IsAbilityDamage
+            ? WeaponFeedbackMode.Active
+            : GetCurrentFeedbackMode();
         FlamethrowerPresentationSettings settings = GetPresentationSettings();
         if (settings?.FuelPuddlePrefab != null)
         {
@@ -462,11 +560,21 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 damagePerTick,
                 duration,
                 tickInterval,
-                damageContext);
+                damageContext,
+                Feedback,
+                feedbackMode);
             return;
         }
 
-        FlamethrowerFuelPuddle.SpawnWithContext(position, radius, damagePerTick, duration, tickInterval, damageContext);
+        FlamethrowerFuelPuddle.SpawnWithContext(
+            position,
+            radius,
+            damagePerTick,
+            duration,
+            tickInterval,
+            damageContext,
+            Feedback,
+            feedbackMode);
     }
 
     private FlamethrowerPresentationSettings GetPresentationSettings() =>

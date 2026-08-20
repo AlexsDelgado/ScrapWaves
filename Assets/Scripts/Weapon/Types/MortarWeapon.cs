@@ -146,8 +146,20 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             barrageRadius,
             true,
             presentationNormal);
+        int shellsPerSubVolley = GetActiveDamageFeedbackSubVolleyShellCount();
+        int subVolleySequenceId = 0;
+        MortarUpgradePayload activePayload = GetUpgradePayload(activeAbility: true);
+        int contributorsPerShell = GetDamageFeedbackContributorCount(activePayload);
         for (int i = 0; i < shellCount; i++)
         {
+            if (i % shellsPerSubVolley == 0)
+            {
+                int subVolleyShellCount = Mathf.Min(shellsPerSubVolley, shellCount - i);
+                subVolleySequenceId = DamageFeedbackSequenceRuntime.BeginSequence(
+                    DamageFeedbackKind.Explosion,
+                    subVolleyShellCount * contributorsPerShell);
+            }
+
             Vector3 impact = ResolveActiveShellImpact(center, barrageRadius, tuning);
             Vector3 dropStart = impact + Vector3.up * Mathf.Max(0f, tuning.MortarActiveDropHeight);
             FireShell(
@@ -163,7 +175,13 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
                 activeAbility: true,
                 isAbilityDamage: true,
                 shellIndex: i,
-                shellCount: shellCount);
+                shellCount: shellCount,
+                actionSequenceId: subVolleySequenceId,
+                manageSequenceLifecycle: false);
+
+            bool subVolleyComplete = i + 1 >= shellCount || (i + 1) % shellsPerSubVolley == 0;
+            if (subVolleyComplete)
+                DamageFeedbackSequenceRuntime.CompleteSequence(subVolleySequenceId);
         }
 
         CompleteActiveAbility();
@@ -246,7 +264,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         return baseTravelTime + Mathf.Max(0, shellIndex) * 0.08f;
     }
 
-    private void FireShell(
+    private bool FireShell(
         Vector3 launchPosition,
         Vector3 impactPosition,
         float damageScale,
@@ -259,12 +277,21 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         bool activeAbility = false,
         bool isAbilityDamage = false,
         int shellIndex = 0,
-        int shellCount = 1)
+        int shellCount = 1,
+        int actionSequenceId = 0,
+        bool manageSequenceLifecycle = true)
     {
         MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
         MortarUpgradePayload payload = GetUpgradePayload(activeAbility);
-        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        int contributorCount = GetDamageFeedbackContributorCount(payload);
+        int sequenceId = manageSequenceLifecycle
+            ? DamageFeedbackSequenceRuntime.BeginSequence(DamageFeedbackKind.Explosion, contributorCount)
+            : actionSequenceId;
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage)
+            .WithFeedbackMetadata(
+                sequenceId,
+                DamageFeedbackKind.Explosion);
         int damage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(damage);
         MortarPresentationSettings presentation = Runtime.Data.PresentationProfile?.Mortar;
@@ -280,8 +307,11 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             impactPosition: impactPosition,
             isAbilityDamage: isAbilityDamage,
             explosionRadius: explosionRadius * area,
-            eventIntensity: activeAbility ? 0.7f : 1f);
-        MortarShellImpact.LaunchAuthored(
+            eventIntensity: activeAbility ? 0.7f : 1f,
+            referenceDamage: damageContext.ReferenceDamage,
+            actionSequenceId: sequenceId,
+            damageKind: damageContext.DamageKind);
+        MortarShellImpact shell = MortarShellImpact.LaunchAuthored(
             launchPosition,
             impactPosition,
             travelTime,
@@ -300,7 +330,29 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             detailed,
             showLanding,
             Presentation,
-            feedback);
+            feedback,
+            completesSequenceContributor: sequenceId != 0);
+
+        if (shell == null && sequenceId != 0)
+        {
+            for (int i = 0; i < contributorCount; i++)
+                DamageFeedbackSequenceRuntime.CompleteContributor(sequenceId);
+        }
+
+        if (manageSequenceLifecycle)
+            DamageFeedbackSequenceRuntime.CompleteSequence(sequenceId);
+        return shell != null;
+    }
+
+    private int GetActiveDamageFeedbackSubVolleyShellCount()
+    {
+        MortarPresentationSettings settings = Runtime?.Data?.PresentationProfile?.Mortar;
+        return Mathf.Max(1, settings?.DamageFeedbackSubVolleyShellCount ?? 5);
+    }
+
+    private static int GetDamageFeedbackContributorCount(MortarUpgradePayload payload)
+    {
+        return 1 + (payload.UseGrapeshot ? Mathf.Max(0, payload.GrapeshotCount) : 0);
     }
 
     private void EnsurePresentationPool()

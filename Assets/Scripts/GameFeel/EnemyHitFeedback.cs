@@ -76,6 +76,11 @@ public sealed class EnemyHitFeedback : MonoBehaviour
 
     public void Play(in WeaponFeedbackContext context, bool reducedFlash)
     {
+        Play(in context, reducedFlash, EnemyReactionRuntime.ReducedMotion);
+    }
+
+    public void Play(in WeaponFeedbackContext context, bool reducedFlash, bool reducedMotion)
+    {
         if (!EnemyReactionRuntime.Enabled)
             return;
         CacheVisuals();
@@ -85,12 +90,17 @@ public sealed class EnemyHitFeedback : MonoBehaviour
         float signature = ResolveWeaponSignature(context.WeaponType);
         float incoming = Mathf.Clamp(context.EventIntensity * classScale * signature, 0.1f, _profile.MaximumAccumulatedIntensity);
         _intensity = Mathf.Clamp(Mathf.Max(_intensity * 0.62f, incoming), 0f, _profile.MaximumAccumulatedIntensity);
-        _activeDuration = _profile.GetDuration(CurrentTier) * (context.IsCritical || context.IsWeakPoint ? 1.25f : 1f);
+        float motionDurationScale = reducedMotion ? _profile.ReducedMotionDurationScale : 1f;
+        _activeDuration = _profile.GetDuration(CurrentTier) *
+            (context.IsCritical || context.IsWeakPoint ? 1.25f : 1f) *
+            motionDurationScale;
         _remaining = Mathf.Max(_remaining, _activeDuration);
         _hitDirection = ResolveDirection(in context);
         _activeColor = _profile.GetHitColor(CurrentTier);
-        _displacement = _profile.GetDisplacement(CurrentTier) * signature;
-        _squash = _profile.GetSquash(CurrentTier) * signature;
+        float displacementScale = reducedMotion ? _profile.ReducedMotionDisplacementScale : 1f;
+        float squashScale = reducedMotion ? _profile.ReducedMotionSquashScale : 1f;
+        _displacement = _profile.GetDisplacement(CurrentTier) * signature * displacementScale;
+        _squash = _profile.GetSquash(CurrentTier) * signature * squashScale;
         _reducedFlash = reducedFlash || EnemyReactionRuntime.ReducedFlash;
         ApplyFlash(_intensity);
         ApplyTransformResponse(_intensity);
@@ -98,6 +108,11 @@ public sealed class EnemyHitFeedback : MonoBehaviour
     }
 
     public static bool TryPlay(in WeaponFeedbackContext context, bool reducedFlash)
+    {
+        return TryPlay(in context, reducedFlash, EnemyReactionRuntime.ReducedMotion);
+    }
+
+    public static bool TryPlay(in WeaponFeedbackContext context, bool reducedFlash, bool reducedMotion)
     {
         if (context.Target == null || !EnemyReactionRuntime.Enabled)
             return false;
@@ -114,7 +129,7 @@ public sealed class EnemyHitFeedback : MonoBehaviour
         }
         if (feedback == null)
             return false;
-        feedback.Play(in context, reducedFlash);
+        feedback.Play(in context, reducedFlash, reducedMotion);
         return true;
     }
 

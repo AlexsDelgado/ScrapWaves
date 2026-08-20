@@ -66,6 +66,8 @@ public class Projectile : MonoBehaviour
     private WeaponFeedbackContext _feedbackTemplate;
     private bool _feedbackImpactEmitted;
     private bool _feedbackAllowWeakPoint;
+    private bool _completesDamageSequenceContributor;
+    private bool _damageSequenceContributorCompleted;
     private bool _replaceExplosionVfx;
     private WeaponPresentationCue _feedbackImpactCueOverride;
     private ProjectileVisualController _visualController;
@@ -149,6 +151,27 @@ public class Projectile : MonoBehaviour
     {
         _weaponDamageContext = context;
         _useWeaponDamageContext = context.IsValid;
+        SyncFeedbackDamageMetadata();
+    }
+
+    public void ConfigureDamageFeedback(
+        int actionSequenceId,
+        DamageFeedbackKind damageKind,
+        bool completesSequenceContributor = false)
+    {
+        if (_useWeaponDamageContext)
+        {
+            _weaponDamageContext = _weaponDamageContext.WithFeedbackMetadata(
+                actionSequenceId,
+                damageKind,
+                _weaponDamageContext.StatusInstanceId,
+                _weaponDamageContext.StatusKind,
+                _weaponDamageContext.SegmentIndex);
+        }
+
+        _completesDamageSequenceContributor = completesSequenceContributor && actionSequenceId != 0;
+        _damageSequenceContributorCompleted = false;
+        SyncFeedbackDamageMetadata();
     }
 
     public void ConfigurePresentation(
@@ -183,6 +206,7 @@ public class Projectile : MonoBehaviour
         _feedbackAllowWeakPoint = allowWeakPoint;
         _replaceExplosionVfx = replaceExplosionVfx;
         _feedbackImpactCueOverride = impactCueOverride;
+        SyncFeedbackDamageMetadata();
     }
 
     public void ClearPresentation()
@@ -199,6 +223,9 @@ public class Projectile : MonoBehaviour
         _feedbackTemplate = default;
         _feedbackImpactEmitted = false;
         _feedbackAllowWeakPoint = false;
+        CompleteDamageSequenceContributor();
+        _completesDamageSequenceContributor = false;
+        _damageSequenceContributorCompleted = false;
         _replaceExplosionVfx = false;
         _feedbackImpactCueOverride = WeaponPresentationCue.None;
         if (_visualController == null)
@@ -412,13 +439,18 @@ public class Projectile : MonoBehaviour
         if (damageable != null)
         {
             int finalDamage = ResolveDamage(damageable, other);
-            int healthBefore = GetRemainingHealth(damageable);
-            bool damageApplied = WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
-            if (damageApplied)
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+            if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
-                bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
-                EmitFeedbackImpact(other, damageable, worldImpact: false, impactPosition, finalDamage, true, kill);
+                EmitFeedbackImpact(
+                    other,
+                    damageable,
+                    worldImpact: false,
+                    impactPosition,
+                    result.AppliedDamage,
+                    result.IsAuthoritative && result.AppliedDamage > 0,
+                    result.Killed);
                 EmitPresentationImpact(other, damageable, worldImpact: false, impactPosition);
             }
             DespawnOrDestroy();
@@ -520,13 +552,18 @@ public class Projectile : MonoBehaviour
             else
             {
                 int finalDamage = ResolveDamage(damageable, closestCollider);
-                int healthBefore = GetRemainingHealth(damageable);
-                bool damageApplied = WeaponDamageApplier.TryApplyDamage(damageable, finalDamage);
-                if (damageApplied)
+                DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+                if (result.Applied)
                 {
                     EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
-                    bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
-                    EmitFeedbackImpact(closestCollider, damageable, worldImpact: false, closestImpactPoint, finalDamage, true, kill);
+                    EmitFeedbackImpact(
+                        closestCollider,
+                        damageable,
+                        worldImpact: false,
+                        closestImpactPoint,
+                        result.AppliedDamage,
+                        result.IsAuthoritative && result.AppliedDamage > 0,
+                        result.Killed);
                     EmitPresentationImpact(closestCollider, damageable, worldImpact: false, closestImpactPoint);
                 }
                 DespawnOrDestroy();
@@ -623,15 +660,21 @@ public class Projectile : MonoBehaviour
                     WeaponUpgradeVfx.SpawnTargetPulse(targetTransform, AmplifierVfxColor, 0.45f, "VULN");
             }
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
-            int healthBefore = GetRemainingHealth(damageable);
-            if (WeaponDamageApplier.TryApplyDamage(damageable, finalDamage))
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+            if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage, falloffScale));
-                totalDamage += finalDamage;
+                totalDamage += result.AppliedDamage;
                 anyDamageApplied = true;
-                anyKill |= healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
+                anyKill |= result.Killed;
                 feedbackDamageable ??= damageable;
                 feedbackCollider ??= hits[i];
+                EmitAreaDamageConfirmed(
+                    hits[i],
+                    damageable,
+                    targetTransform != null ? targetTransform.position : hits[i].bounds.center,
+                    in result,
+                    ResolveDamageFeedbackKind(DamageFeedbackKind.Explosion));
             }
         }
 
@@ -693,8 +736,6 @@ public class Projectile : MonoBehaviour
         }
         else
             _feedbackSink.OnProjectileImpact(in impact);
-        if (damageApplied)
-            _feedbackSink.OnDamageConfirmed(in impact);
         if (_applyDamageAmplifierOnExplosion && damageApplied)
             _feedbackSink.OnStatusApplied(in impact);
         _feedbackImpactEmitted = true;
@@ -728,8 +769,54 @@ public class Projectile : MonoBehaviour
                 continue;
 
             int damage = ResolveDamage(damageable, hits[i], _fragmentDamageScale);
-            WeaponDamageApplier.TryApplyDamage(damageable, damage);
+            Transform targetTransform = GetDamageableTransform(damageable, hits[i]);
+            Vector3 targetPosition = targetTransform != null ? targetTransform.position : hits[i].bounds.center;
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, damage);
+            if (result.Applied)
+            {
+                EmitAreaDamageConfirmed(
+                    hits[i],
+                    damageable,
+                    targetPosition,
+                    in result,
+                    ResolveDamageFeedbackKind(DamageFeedbackKind.Fragment));
+            }
         }
+    }
+
+    private void EmitAreaDamageConfirmed(
+        Collider hitCollider,
+        IDamageable damageable,
+        Vector3 impactPosition,
+        in DamageApplicationResult result,
+        DamageFeedbackKind damageKind)
+    {
+        if (_feedbackSink == null || !result.IsAuthoritative || result.AppliedDamage <= 0)
+            return;
+
+        Transform target = damageable is Component component
+            ? component.transform
+            : hitCollider != null ? hitCollider.transform : null;
+        WeaponFeedbackContext context = _feedbackTemplate.WithImpact(
+            impactPosition,
+            (impactPosition - transform.position).sqrMagnitude > 0.0001f
+                ? (impactPosition - transform.position).normalized
+                : -_direction,
+            result.AppliedDamage,
+            _useWeaponDamageContext && _weaponDamageContext.IsCritical,
+            false,
+            result.Killed,
+            target,
+            WeaponEnemyClassifier.GetKind(target),
+            ImpactSurfaceResolver.Resolve(hitCollider, damageable));
+        context = context.WithDamageMetadata(
+            ResolveReferenceDamage(result.AppliedDamage),
+            _useWeaponDamageContext ? _weaponDamageContext.ActionSequenceId : _feedbackTemplate.ActionSequenceId,
+            damageKind,
+            _feedbackTemplate.StatusInstanceId,
+            _feedbackTemplate.StatusKind,
+            _feedbackTemplate.SegmentIndex);
+        _feedbackSink.OnDamageConfirmed(in context);
     }
 
     private static IDamageable GetAreaDamageable(Collider hitCollider)
@@ -909,6 +996,50 @@ public class Projectile : MonoBehaviour
             _rigidbody.position = impactPosition;
     }
 
+    private void SyncFeedbackDamageMetadata()
+    {
+        if (!_useWeaponDamageContext)
+            return;
+
+        _feedbackTemplate = _feedbackTemplate.WithDamageMetadata(
+            _weaponDamageContext.ReferenceDamage,
+            _weaponDamageContext.ActionSequenceId,
+            _weaponDamageContext.DamageKind,
+            _weaponDamageContext.StatusInstanceId,
+            _weaponDamageContext.StatusKind,
+            _weaponDamageContext.SegmentIndex);
+    }
+
+    private float ResolveReferenceDamage(int appliedDamage)
+    {
+        if (_useWeaponDamageContext && _weaponDamageContext.ReferenceDamage > 0f)
+            return _weaponDamageContext.ReferenceDamage;
+        if (_feedbackTemplate.ReferenceDamage > 0f)
+            return _feedbackTemplate.ReferenceDamage;
+        return Mathf.Max(1, appliedDamage);
+    }
+
+    private DamageFeedbackKind ResolveDamageFeedbackKind(DamageFeedbackKind fallback)
+    {
+        DamageFeedbackKind configured = _useWeaponDamageContext
+            ? _weaponDamageContext.DamageKind
+            : _feedbackTemplate.DamageKind;
+        return configured == DamageFeedbackKind.Direct ? fallback : configured;
+    }
+
+    private void CompleteDamageSequenceContributor()
+    {
+        if (!_completesDamageSequenceContributor || _damageSequenceContributorCompleted)
+            return;
+
+        int sequenceId = _useWeaponDamageContext
+            ? _weaponDamageContext.ActionSequenceId
+            : _feedbackTemplate.ActionSequenceId;
+        if (sequenceId != 0)
+            DamageFeedbackSequenceRuntime.CompleteContributor(sequenceId);
+        _damageSequenceContributorCompleted = true;
+    }
+
     private static int GetRemainingHealth(IDamageable damageable)
     {
         if (damageable is EnemyHealth enemyHealth)
@@ -967,10 +1098,28 @@ public class Projectile : MonoBehaviour
                 _clusterFragmentDamageScale,
                 _clusterDamageContext,
                 out Projectile clusterProjectile);
-            if (!spawned || clusterProjectile == null || _feedbackSink == null)
+            int sequenceId = _clusterDamageContext.ActionSequenceId != 0
+                ? _clusterDamageContext.ActionSequenceId
+                : _weaponDamageContext.ActionSequenceId;
+            if (!spawned || clusterProjectile == null)
+            {
+                if (sequenceId != 0)
+                    DamageFeedbackSequenceRuntime.CompleteContributor(sequenceId);
+                continue;
+            }
+
+            clusterProjectile.ConfigureDamageFeedback(
+                sequenceId,
+                DamageFeedbackKind.Fragment,
+                completesSequenceContributor: sequenceId != 0);
+            if (_feedbackSink == null)
                 continue;
 
             WeaponFeedbackContext clusterFeedback = _feedbackTemplate.WithExplosionRadius(_clusterExplosionRadius);
+            clusterFeedback = clusterFeedback.WithDamageMetadata(
+                _clusterDamageContext.ReferenceDamage,
+                sequenceId,
+                DamageFeedbackKind.Fragment);
             clusterProjectile.ConfigureFeedback(
                 _feedbackSink,
                 in clusterFeedback,
@@ -1000,6 +1149,7 @@ public class Projectile : MonoBehaviour
             return;
 
         _consumed = true;
+        CompleteDamageSequenceContributor();
 
         if (TryGetComponent(out ProjectilePoolMember poolMember))
             poolMember.Despawn();
