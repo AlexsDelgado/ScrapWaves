@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
 /// Pooled view driven exclusively by CombatTextDirector. Intentionally has no
@@ -11,12 +10,6 @@ public sealed class CombatTextView : MonoBehaviour
     [SerializeField] private RectTransform _root;
     [SerializeField] private TMP_Text _text;
     [SerializeField] private CanvasGroup _canvasGroup;
-    [SerializeField] private Image _backing;
-    [SerializeField] private Image _burnAccent;
-    [SerializeField] private Image _jellifiedAccent;
-    [SerializeField] private Image _criticalAccent;
-    [SerializeField] private Image _weakPointAccent;
-    [SerializeField] private Image _killAccent;
 
     private readonly char[] _numberBuffer = new char[32];
     private CombatTextProfile _profile;
@@ -62,12 +55,6 @@ public sealed class CombatTextView : MonoBehaviour
         _canvasGroup ??= GetComponent<CanvasGroup>();
         if (_canvasGroup == null)
             _canvasGroup = gameObject.AddComponent<CanvasGroup>();
-        _backing ??= FindImage("Backing");
-        _burnAccent ??= FindImage("BurnAccent");
-        _jellifiedAccent ??= FindImage("JellifiedAccent");
-        _criticalAccent ??= FindImage("CriticalAccent");
-        _weakPointAccent ??= FindImage("WeakPointAccent");
-        _killAccent ??= FindImage("KillAccent");
         _canvasGroup.interactable = false;
         _canvasGroup.blocksRaycasts = false;
         ReleaseImmediately();
@@ -106,13 +93,7 @@ public sealed class CombatTextView : MonoBehaviour
             HashSigned(_seed ^ 0x7f4a7c15) * _motion.HorizontalSpeed * lateralMultiplier,
             _motion.UpwardSpeed);
         SetNumber(presentation.TotalAppliedDamage, presentation.CompactLargeNumbers);
-        ApplyStyle(
-            presentation.Style,
-            presentation.DamageKind,
-            presentation.IsCritical,
-            presentation.IsWeakPoint,
-            presentation.IsKill,
-            presentation.ReducedFlash);
+        ApplyStyle(presentation.Style);
         _canvasGroup.alpha = 1f;
         _root.anchoredPosition = _position;
         _root.localScale = Vector3.one * Mathf.Max(0.01f, _resolvedScale * _motion.SpawnScale);
@@ -132,13 +113,7 @@ public sealed class CombatTextView : MonoBehaviour
         }
         _position.y += Mathf.Max(0f, merge.UpwardNudge);
         SetNumber(merge.TotalAppliedDamage, merge.CompactLargeNumbers);
-        ApplyStyle(
-            merge.Style,
-            merge.DamageKind,
-            merge.IsCritical,
-            merge.IsWeakPoint,
-            merge.IsKill,
-            merge.ReducedFlash);
+        ApplyStyle(merge.Style);
     }
 
     public void SetAnchorPosition(Vector2 screenPosition, bool snap)
@@ -243,9 +218,6 @@ public sealed class CombatTextView : MonoBehaviour
         root.sizeDelta = new Vector2(190f, 72f);
         root.pivot = new Vector2(0.5f, 0.5f);
 
-        Image backing = CreateImage(root, "Backing", new Vector2(116f, 42f), Vector2.zero, 0f);
-        backing.color = new Color(0.025f, 0.018f, 0.012f, 0.54f);
-
         GameObject textObject = new("Value", typeof(RectTransform), typeof(TextMeshProUGUI));
         RectTransform textRect = (RectTransform)textObject.transform;
         textRect.SetParent(root, false);
@@ -259,22 +231,10 @@ public sealed class CombatTextView : MonoBehaviour
         text.overflowMode = TextOverflowModes.Overflow;
         text.raycastTarget = false;
 
-        Image burn = CreateImage(root, "BurnAccent", new Vector2(9f, 19f), new Vector2(-62f, 0f), 24f);
-        Image jelly = CreateImage(root, "JellifiedAccent", new Vector2(16f, 9f), new Vector2(-62f, -10f), 0f);
-        Image critical = CreateImage(root, "CriticalAccent", new Vector2(34f, 4f), new Vector2(0f, 27f), 0f);
-        Image weak = CreateImage(root, "WeakPointAccent", new Vector2(10f, 10f), new Vector2(64f, 0f), 45f);
-        Image kill = CreateImage(root, "KillAccent", new Vector2(16f, 6f), new Vector2(66f, -16f), -28f);
-
         CombatTextView view = rootObject.AddComponent<CombatTextView>();
         view._root = root;
         view._canvasGroup = rootObject.GetComponent<CanvasGroup>();
         view._text = text;
-        view._backing = backing;
-        view._burnAccent = burn;
-        view._jellifiedAccent = jelly;
-        view._criticalAccent = critical;
-        view._weakPointAccent = weak;
-        view._killAccent = kill;
         view.Initialize(profile);
         return view;
     }
@@ -285,13 +245,7 @@ public sealed class CombatTextView : MonoBehaviour
         _text.SetCharArray(_numberBuffer, 0, length);
     }
 
-    private void ApplyStyle(
-        CombatTextStyleId styleId,
-        DamageFeedbackKind damageKind,
-        bool isCritical,
-        bool isWeakPoint,
-        bool isKill,
-        bool reducedFlash)
+    private void ApplyStyle(CombatTextStyleId styleId)
     {
         CombatTextStyleDefinition style = _profile.GetStyle(styleId);
         if (_profile.FontAsset != null)
@@ -302,51 +256,6 @@ public sealed class CombatTextView : MonoBehaviour
         _text.fontSize = style.FontSize;
         _text.fontStyle = style.FontStyle;
         _text.color = style.TextColor;
-
-        bool burn = damageKind == DamageFeedbackKind.Burn;
-        bool jellified = damageKind == DamageFeedbackKind.JellifiedBurn;
-        SetAccent(_burnAccent, burn || jellified, style.AccentColor, reducedFlash);
-        SetAccent(_jellifiedAccent, jellified, style.AccentColor, reducedFlash);
-        SetAccent(_criticalAccent, isCritical, style.AccentColor, reducedFlash);
-        SetAccent(_weakPointAccent, isWeakPoint, style.AccentColor, reducedFlash);
-        SetAccent(_killAccent, isKill, style.AccentColor, reducedFlash);
-        if (_backing != null)
-            _backing.gameObject.SetActive(true);
-    }
-
-    private void SetAccent(Image image, bool active, Color color, bool reducedFlash)
-    {
-        if (image == null)
-            return;
-        image.gameObject.SetActive(active);
-        if (!active)
-            return;
-        color.a *= reducedFlash ? _profile.ReducedFlashAccentAlpha : 1f;
-        image.color = color;
-    }
-
-    private Image FindImage(string childName)
-    {
-        Transform child = transform.Find(childName);
-        return child != null ? child.GetComponent<Image>() : null;
-    }
-
-    private static Image CreateImage(
-        RectTransform parent,
-        string name,
-        Vector2 size,
-        Vector2 position,
-        float rotation)
-    {
-        GameObject imageObject = new(name, typeof(RectTransform), typeof(Image));
-        RectTransform rect = (RectTransform)imageObject.transform;
-        rect.SetParent(parent, false);
-        rect.sizeDelta = size;
-        rect.anchoredPosition = position;
-        rect.localRotation = Quaternion.Euler(0f, 0f, rotation);
-        Image image = imageObject.GetComponent<Image>();
-        image.raycastTarget = false;
-        return image;
     }
 
     private static float HashUnit(int value)

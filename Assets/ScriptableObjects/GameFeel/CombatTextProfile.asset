@@ -21,57 +21,49 @@ MonoBehaviour:
   ReferenceResolution: {x: 1920, y: 1080}
   Normal:
     TextColor: {r: 1, g: 0.93, b: 0.78, a: 1}
-    AccentColor: {r: 1, g: 0.65, b: 0.18, a: 0.92}
     FontSize: 34
     BaseScale: 1
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   Burn:
-    TextColor: {r: 1, g: 0.62, b: 0.18, a: 1}
-    AccentColor: {r: 1, g: 0.3, b: 0.05, a: 1}
+    TextColor: {r: 1, g: 0.42, b: 0.04, a: 1}
     FontSize: 30
     BaseScale: 0.9
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   JellifiedBurn:
-    TextColor: {r: 0.72, g: 1, b: 0.46, a: 1}
-    AccentColor: {r: 0.34, g: 0.92, b: 0.24, a: 1}
+    TextColor: {r: 0.34, g: 0.92, b: 0.24, a: 1}
     FontSize: 30
     BaseScale: 0.9
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   Critical:
     TextColor: {r: 1, g: 0.82, b: 0.22, a: 1}
-    AccentColor: {r: 1, g: 0.42, b: 0.04, a: 1}
-    FontSize: 38
+    FontSize: 40
     BaseScale: 1.06
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   WeakPoint:
-    TextColor: {r: 1, g: 1, b: 1, a: 1}
-    AccentColor: {r: 0.35, g: 0.95, b: 1, a: 1}
+    TextColor: {r: 0.35, g: 0.95, b: 1, a: 1}
     FontSize: 38
     BaseScale: 1.07
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   CriticalWeakPoint:
-    TextColor: {r: 1, g: 0.94, b: 0.54, a: 1}
-    AccentColor: {r: 0.42, g: 0.96, b: 1, a: 1}
-    FontSize: 41
+    TextColor: {r: 0.85, g: 0.4, b: 1, a: 1}
+    FontSize: 44
     BaseScale: 1.1
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   Kill:
-    TextColor: {r: 1, g: 0.96, b: 0.75, a: 1}
-    AccentColor: {r: 1, g: 0.36, b: 0.1, a: 1}
-    FontSize: 42
+    TextColor: {r: 1, g: 0.23, b: 0.302, a: 1}
+    FontSize: 46
     BaseScale: 1.1
     FontStyle: 1
     SharedMaterial: {fileID: 0}
   Ability:
-    TextColor: {r: 0.82, g: 0.92, b: 1, a: 1}
-    AccentColor: {r: 0.3, g: 0.72, b: 1, a: 1}
-    FontSize: 37
+    TextColor: {r: 0.36, g: 0.486, b: 1, a: 1}
+    FontSize: 36
     BaseScale: 1.04
     FontStyle: 1
     SharedMaterial: {fileID: 0}
@@ -843,4 +835,3 @@ MonoBehaviour:
   EliteBossImportantRatioThreshold: 1.5
   ReducedMotionLateralMultiplier: 0.35
   ReducedShakeMultiplier: 0
-  ReducedFlashAccentAlpha: 0.45

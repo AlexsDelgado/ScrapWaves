@@ -3,7 +3,6 @@ using System;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
 /// Builds the authored, shared assets used by the pooled combat-text runtime.
@@ -112,56 +111,7 @@ public static class CombatTextAssetBuilder
             canvasGroup.interactable = false;
             canvasGroup.blocksRaycasts = false;
 
-            Image backing = CreateImage(
-                root,
-                "Backing",
-                new Vector2(116f, 42f),
-                Vector2.zero,
-                0f,
-                new Color(0.025f, 0.018f, 0.012f, 0.54f));
-
             TMP_Text value = CreateValueText(root, font, sharedFontMaterial);
-            Image burn = CreateImage(
-                root,
-                "BurnAccent",
-                new Vector2(9f, 19f),
-                new Vector2(-62f, 0f),
-                24f,
-                new Color(1f, 0.30f, 0.05f, 0.92f));
-            Image jellified = CreateImage(
-                root,
-                "JellifiedAccent",
-                new Vector2(16f, 9f),
-                new Vector2(-62f, -10f),
-                0f,
-                new Color(0.34f, 0.92f, 0.24f, 0.92f));
-            Image critical = CreateImage(
-                root,
-                "CriticalAccent",
-                new Vector2(34f, 4f),
-                new Vector2(0f, 27f),
-                0f,
-                new Color(1f, 0.42f, 0.04f, 0.92f));
-            Image weakPoint = CreateImage(
-                root,
-                "WeakPointAccent",
-                new Vector2(10f, 10f),
-                new Vector2(64f, 0f),
-                45f,
-                new Color(0.35f, 0.95f, 1f, 0.92f));
-            Image kill = CreateImage(
-                root,
-                "KillAccent",
-                new Vector2(16f, 6f),
-                new Vector2(66f, -16f),
-                -28f,
-                new Color(1f, 0.88f, 0.45f, 0.92f));
-
-            burn.gameObject.SetActive(false);
-            jellified.gameObject.SetActive(false);
-            critical.gameObject.SetActive(false);
-            weakPoint.gameObject.SetActive(false);
-            kill.gameObject.SetActive(false);
 
             CombatTextView view = rootObject.GetComponent<CombatTextView>();
             SerializedObject serializedView = new(view);
@@ -169,12 +119,6 @@ public static class CombatTextAssetBuilder
             SetReference(serializedView, "_root", root);
             SetReference(serializedView, "_text", value);
             SetReference(serializedView, "_canvasGroup", canvasGroup);
-            SetReference(serializedView, "_backing", backing);
-            SetReference(serializedView, "_burnAccent", burn);
-            SetReference(serializedView, "_jellifiedAccent", jellified);
-            SetReference(serializedView, "_criticalAccent", critical);
-            SetReference(serializedView, "_weakPointAccent", weakPoint);
-            SetReference(serializedView, "_killAccent", kill);
             serializedView.ApplyModifiedPropertiesWithoutUndo();
 
             rootObject.SetActive(false);
@@ -216,30 +160,6 @@ public static class CombatTextAssetBuilder
         if (sharedFontMaterial != null)
             text.fontSharedMaterial = sharedFontMaterial;
         return text;
-    }
-
-    private static Image CreateImage(
-        RectTransform parent,
-        string name,
-        Vector2 size,
-        Vector2 position,
-        float rotation,
-        Color color)
-    {
-        GameObject imageObject = new(name, typeof(RectTransform), typeof(Image));
-        RectTransform rect = (RectTransform)imageObject.transform;
-        rect.SetParent(parent, false);
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = size;
-        rect.anchoredPosition = position;
-        rect.localRotation = Quaternion.Euler(0f, 0f, rotation);
-
-        Image image = imageObject.GetComponent<Image>();
-        image.color = color;
-        image.raycastTarget = false;
-        return image;
     }
 
     private static Material FindSharedFontMaterial(TMP_FontAsset font)

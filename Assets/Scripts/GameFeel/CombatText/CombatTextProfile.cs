@@ -6,7 +6,6 @@ using UnityEngine;
 public sealed class CombatTextStyleDefinition
 {
     public Color TextColor = new(1f, 0.93f, 0.78f, 1f);
-    public Color AccentColor = new(1f, 0.65f, 0.18f, 0.92f);
     [Range(8f, 128f)] public float FontSize = 34f;
     [Range(0.5f, 1.5f)] public float BaseScale = 1f;
     public FontStyles FontStyle = FontStyles.Bold;
@@ -17,7 +16,6 @@ public sealed class CombatTextStyleDefinition
         FontSize = Mathf.Clamp(FontSize, 8f, 128f);
         BaseScale = Mathf.Clamp(BaseScale, 0.5f, 1.5f);
         TextColor.a = Mathf.Clamp01(TextColor.a);
-        AccentColor.a = Mathf.Clamp01(AccentColor.a);
     }
 }
 
@@ -225,7 +223,6 @@ public sealed class CombatTextProfile : ScriptableObject
     [Header("Accessibility")]
     [Range(0f, 1f)] public float ReducedMotionLateralMultiplier = 0.35f;
     [Range(0f, 1f)] public float ReducedShakeMultiplier = 0f;
-    [Range(0f, 1f)] public float ReducedFlashAccentAlpha = 0.45f;
 
     private static CombatTextProfile s_fallback;
 
@@ -424,8 +421,7 @@ public sealed class CombatTextProfile : ScriptableObject
     {
         return new CombatTextStyleDefinition
         {
-            TextColor = jellified ? new Color(0.72f, 1f, 0.46f) : new Color(1f, 0.62f, 0.18f),
-            AccentColor = jellified ? new Color(0.34f, 0.92f, 0.24f) : new Color(1f, 0.30f, 0.05f),
+            TextColor = jellified ? new Color(0.34f, 0.92f, 0.24f) : new Color(1f, 0.42f, 0.04f),
             FontSize = 30f,
             BaseScale = 0.90f,
             FontStyle = FontStyles.Bold
@@ -434,27 +430,27 @@ public sealed class CombatTextProfile : ScriptableObject
 
     private static CombatTextStyleDefinition CreateCriticalStyle() => new()
     {
-        TextColor = new Color(1f, 0.82f, 0.22f), AccentColor = new Color(1f, 0.42f, 0.04f),
-        FontSize = 38f, BaseScale = 1.06f, FontStyle = FontStyles.Bold
+        TextColor = new Color(1f, 0.82f, 0.22f),
+        FontSize = 40f, BaseScale = 1.06f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateWeakPointStyle() => new()
     {
-        TextColor = Color.white, AccentColor = new Color(0.35f, 0.95f, 1f),
+        TextColor = new Color(0.35f, 0.95f, 1f),
         FontSize = 38f, BaseScale = 1.07f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateCriticalWeakPointStyle() => new()
     {
-        TextColor = new Color(1f, 0.94f, 0.54f), AccentColor = new Color(0.42f, 0.96f, 1f),
-        FontSize = 41f, BaseScale = 1.10f, FontStyle = FontStyles.Bold
+        TextColor = new Color(0.85f, 0.40f, 1f),
+        FontSize = 44f, BaseScale = 1.10f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateKillStyle() => new()
     {
-        TextColor = new Color(1f, 0.96f, 0.75f), AccentColor = new Color(1f, 0.36f, 0.10f),
-        FontSize = 42f, BaseScale = 1.10f, FontStyle = FontStyles.Bold
+        TextColor = new Color(1f, 0.23f, 0.302f),
+        FontSize = 46f, BaseScale = 1.10f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateAbilityStyle() => new()
     {
-        TextColor = new Color(0.82f, 0.92f, 1f), AccentColor = new Color(0.30f, 0.72f, 1f),
-        FontSize = 37f, BaseScale = 1.04f, FontStyle = FontStyles.Bold
+        TextColor = new Color(0.36f, 0.486f, 1f),
+        FontSize = 36f, BaseScale = 1.04f, FontStyle = FontStyles.Bold
     };
 }

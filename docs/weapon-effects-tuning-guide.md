@@ -220,7 +220,7 @@ The canonical authored assets are:
 - Builder recipe: `Assets/Scripts/Weapon/Editor/CombatTextAssetBuilder.cs`.
 - Builder command: `Tools > ScrapWaves > Game Feel > Rebuild Combat Text Assets`.
 
-The tables below record the serialized production values on 2026-08-19. They are
+The tables below record the serialized production values on 2026-08-21. They are
 the current authoring baseline, not evidence that the manual readability matrix
 or profiler targets have been completed.
 
@@ -230,17 +230,19 @@ The profile is enabled, uses a `1920 x 1080` reference resolution, renders at
 sorting order `800`, and enables compact formatting above the exact-number
 boundary. The sandbox should use exact formatting when validating applied totals.
 All current styles use bold text and the shared Liberation Sans SDF material.
+The pooled prefab and programmatic fallback contain only the numeric TMP visual:
+there is no backing panel, icon, slash, bar, diamond, or other accent geometry.
 
-| Style | Font size | Base scale | Text RGBA | Accent RGBA |
-| --- | ---: | ---: | --- | --- |
-| Normal | 34 | 1.00 | `1, 0.93, 0.78, 1` | `1, 0.65, 0.18, 0.92` |
-| Burn | 30 | 0.90 | `1, 0.62, 0.18, 1` | `1, 0.30, 0.05, 1` |
-| Jellified Burn | 30 | 0.90 | `0.72, 1, 0.46, 1` | `0.34, 0.92, 0.24, 1` |
-| Critical | 38 | 1.06 | `1, 0.82, 0.22, 1` | `1, 0.42, 0.04, 1` |
-| Weak point | 38 | 1.07 | `1, 1, 1, 1` | `0.35, 0.95, 1, 1` |
-| Critical weak point | 41 | 1.10 | `1, 0.94, 0.54, 1` | `0.42, 0.96, 1, 1` |
-| Kill | 42 | 1.10 | `1, 0.96, 0.75, 1` | `1, 0.36, 0.10, 1` |
-| Ability | 37 | 1.04 | `0.82, 0.92, 1, 1` | `0.30, 0.72, 1, 1` |
+| Style | Font size | Base scale | Text RGBA / hex |
+| --- | ---: | ---: | --- |
+| Normal | 34 | 1.00 | `1, 0.93, 0.78, 1` / `#FFEDC7` |
+| Burn | 30 | 0.90 | `1, 0.42, 0.04, 1` / `#FF6B0A` |
+| Jellified Burn | 30 | 0.90 | `0.34, 0.92, 0.24, 1` / `#57EB3D` |
+| Critical | 40 | 1.06 | `1, 0.82, 0.22, 1` / `#FFD138` |
+| Weak point | 38 | 1.07 | `0.35, 0.95, 1, 1` / `#59F2FF` |
+| Critical weak point | 44 | 1.10 | `0.85, 0.40, 1, 1` / `#D966FF` |
+| Kill | 46 | 1.10 | `1, 0.23, 0.302, 1` / `#FF3B4D` |
+| Ability | 36 | 1.04 | `0.36, 0.486, 1, 1` / `#5C7CFF` |
 
 #### Motion values
 
@@ -294,13 +296,13 @@ height is `1.25 m`, and burn anchors project at `20 Hz`. The major-ability ratio
 threshold is `1.15`; the elite/boss important threshold is `1.50`.
 
 The serialized accessibility constants are `0.35` for the Reduced Motion lateral
-multiplier, `0` for the Reduced Shake multiplier, and `0.45` for Reduced Flash
-accent alpha. The current director selects the Reduced Motion profile and gates
+multiplier and `0` for the Reduced Shake multiplier. The current director selects
+the Reduced Motion profile and gates
 local shake directly; the view applies the authored Reduced Motion lateral
 multiplier to horizontal velocity and jitter. The separate Reduced Shake scalar
 is retained in the profile but is not read as a runtime multiplier because local
-shake is disabled by policy. Reduced Flash consumes its authored accent-alpha
-value.
+shake is disabled by policy. Combat text has no flash or accent geometry, so
+Reduced Flash does not alter its stable text fill.
 
 The weapon sandbox defaults combat text to exact formatting, displays whether
 accessibility is using persisted settings or a local sandbox override, and can
@@ -318,7 +320,7 @@ accepted whole-game result.
 | Area | Current consumer contract | Audit state |
 | --- | --- | --- |
 | Persistence and settings UI | `SaveManager`, `PresentationAccessibilityRuntime`, and `PauseMenuUI` store and publish Reduced Motion, Reduced Shake, Reduced Flash, Combat Text mode, and text scale. | Implemented and covered by focused EditMode tests. |
-| Combat text | The director selects reduced motion, removes local shake, lowers accent alpha, and applies mode and scale. | Implemented in code; manual readability and stress validation remain. |
+| Combat text | The director selects reduced motion, removes local shake, and applies mode and scale. The view is number-only with no flash or accent geometry. | Implemented in code; manual readability and stress validation remain. |
 | Camera, recoil, and hit-stop | `CameraFeedbackController`, `ThirdPersonCamera`, `WeaponRecoilFeedback`, and `HitStopController` receive the shared runtime options. | Implemented in code; manual comfort validation remains. |
 | Enemy hit, death, and status feedback | Enemy reaction state reduces hit displacement/squash and flash-heavy hit, death, and status accents. | Implemented in code; manual silhouette validation remains. |
 | Weapon flash VFX | Automatic Cannon, Rocket Launcher, and Flamethrower cue components explicitly consume reduced-flash context. | Partial: Mortar and Rotating Blade need an explicit applicability audit before whole-game Reduced Flash can be accepted. |

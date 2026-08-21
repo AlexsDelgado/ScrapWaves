@@ -31,7 +31,7 @@ public sealed class CombatTextPresentationCoreTests
     }
 
     [Test]
-    public void BurnAndJellifiedBurnResolveToDistinctNonColorStyles()
+    public void BurnAndJellifiedBurnResolveToDistinctStyles()
     {
         CombatTextEvent burn = CombatTextAggregateCoreTests.CreateEvent(4, kind: DamageFeedbackKind.Burn, statusInstanceId: 1);
         CombatTextEvent jelly = CombatTextAggregateCoreTests.CreateEvent(
