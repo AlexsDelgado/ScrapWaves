@@ -83,15 +83,32 @@ public class PlayerHealth : MonoBehaviour
             _currentHealth = _maxHealth;
     }
 
+    /// <summary>
+    /// Applies a signed maximum-health change. Positive changes heal by the amount gained;
+    /// negative changes clamp current health to the new maximum.
+    /// </summary>
+    public void ApplyMaxHealthDelta(int delta)
+    {
+        if (delta == 0)
+            return;
+
+        int previousMax = _maxHealth;
+        _maxHealth = Mathf.Max(1, _maxHealth + delta);
+        int appliedDelta = _maxHealth - previousMax;
+
+        if (appliedDelta > 0)
+            _currentHealth = Mathf.Min(_maxHealth, _currentHealth + appliedDelta);
+        else if (appliedDelta < 0)
+            _currentHealth = Mathf.Min(_currentHealth, _maxHealth);
+
+        OnHealthChanged?.Invoke();
+    }
+
     /// <summary>Suma a vida maxima y cura la misma cantidad (mejoras de MaxHealth).</summary>
     public void ApplyMaxHealthIncrease(int delta)
     {
-        if (delta <= 0)
-            return;
-
-        _maxHealth += delta;
-        _currentHealth += delta;
-        OnHealthChanged?.Invoke();
+        if (delta > 0)
+            ApplyMaxHealthDelta(delta);
     }
 
     /// <summary>
@@ -108,6 +125,13 @@ public class PlayerHealth : MonoBehaviour
             _shieldCharges += _maxShieldCharges - previousMax;
 
         _shieldCharges = Mathf.Clamp(_shieldCharges, 0, _maxShieldCharges);
+        OnShieldChanged?.Invoke();
+    }
+
+    /// <summary>Restores every configured shield charge immediately.</summary>
+    public void RefillShields()
+    {
+        _shieldCharges = _maxShieldCharges;
         OnShieldChanged?.Invoke();
     }
 

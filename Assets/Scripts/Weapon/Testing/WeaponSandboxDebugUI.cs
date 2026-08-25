@@ -16,8 +16,13 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private TextMeshProUGUI _heatText;
     private TextMeshProUGUI _metricsText;
     private TextMeshProUGUI _statsText;
+    private TextMeshProUGUI _passiveSummaryText;
+    private TextMeshProUGUI _passiveWarningText;
     private TextMeshProUGUI _presentationAccessibilityText;
     private TMP_Dropdown[] _slotDropdowns;
+    private TMP_Dropdown[] _passiveItemDropdowns;
+    private TMP_Dropdown[] _passiveLevelDropdowns;
+    private TextMeshProUGUI[] _passiveSlotTexts;
     private TMP_Dropdown _levelSlotDropdown;
     private TMP_Dropdown _levelDropdown;
     private TMP_Dropdown _pathDropdown;
@@ -28,6 +33,8 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private Toggle _reducedShakeToggle;
     private Toggle _reducedFlashToggle;
     private Toggle _compactCombatTextToggle;
+    private Toggle _passiveBaselineToggle;
+    private readonly List<Selectable> _statOverrideControls = new();
     private readonly StringBuilder _sb = new(1024);
     private float _nextRefreshTime;
     private bool _isRefreshing;
@@ -37,6 +44,16 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private bool _autoCursorMode = true;
     private bool _temporaryCameraAim;
     private bool _pauseMenuOpen;
+
+    private static readonly PassiveUiSlot[] PassiveSlots =
+    {
+        new("Head", PassiveItemSlot.Head, 0),
+        new("Core", PassiveItemSlot.Core, 0),
+        new("Arm 1", PassiveItemSlot.Arm, 0),
+        new("Arm 2", PassiveItemSlot.Arm, 1),
+        new("Leg 1", PassiveItemSlot.Leg, 0),
+        new("Leg 2", PassiveItemSlot.Leg, 1)
+    };
 
     public void Bind(WeaponTestingSandboxManager sandbox)
     {
@@ -99,6 +116,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         GUILayout.Label("Weapon Testing Sandbox");
         DrawImmediateCursorMode();
         DrawImmediateLoadout();
+        DrawImmediatePassiveItems();
         DrawImmediateStats();
         DrawImmediateHeat();
         DrawImmediateRuntimeControls();
@@ -294,6 +312,121 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             _sandbox.ApplyWeaponLevelAndPath(_immediateUpgradeSlot, newLevel, selected.SelectedPath);
     }
 
+    private void DrawImmediatePassiveItems()
+    {
+        PassiveItemTestingController controller = _sandbox.PassiveItemController;
+        GUILayout.Space(6f);
+        GUILayout.Label("Base Passive Items");
+        if (controller == null)
+        {
+            GUILayout.Label("Passive testing controller is unavailable.");
+            return;
+        }
+
+        bool baseline = controller.PassiveBaselineMode;
+        GUILayout.BeginHorizontal();
+        bool selectBaseline = GUILayout.Toggle(baseline, "Passive Baseline", GUI.skin.button);
+        bool selectOverrides = GUILayout.Toggle(!baseline, "Exact Overrides", GUI.skin.button);
+        GUILayout.EndHorizontal();
+        if (selectBaseline && !baseline)
+            controller.SetPassiveBaselineMode(true);
+        else if (selectOverrides && baseline)
+            controller.SetPassiveBaselineMode(false);
+
+        if (controller.OverridesMaskPassives)
+            GUILayout.Label(controller.OverrideWarning);
+
+        for (int i = 0; i < PassiveSlots.Length; i++)
+        {
+            PassiveUiSlot uiSlot = PassiveSlots[i];
+            PassiveItemInstance equipped = controller.GetEquipped(uiSlot.Slot, uiSlot.Index);
+            GUILayout.Label(controller.BuildSlotSummary(uiSlot.Slot, uiSlot.Index));
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("None", GUILayout.Width(55f)))
+                controller.TryClearSlot(uiSlot.Slot, uiSlot.Index);
+            if (GUILayout.Button("< Item", GUILayout.Width(60f)))
+                CycleImmediatePassive(controller, uiSlot, -1);
+            if (GUILayout.Button("Item >", GUILayout.Width(60f)))
+                CycleImmediatePassive(controller, uiSlot, 1);
+
+            bool hasItem = equipped?.Data != null;
+            bool wasEnabled = GUI.enabled;
+            GUI.enabled = wasEnabled && hasItem;
+            if (GUILayout.Button("L1", GUILayout.Width(38f)))
+                controller.TrySetLevel(uiSlot.Slot, uiSlot.Index, 1);
+            if (GUILayout.Button("L6", GUILayout.Width(38f)))
+                controller.TrySetLevel(uiSlot.Slot, uiSlot.Index, equipped?.Data != null ? equipped.Data.MaxLevel : 1);
+            GUI.enabled = wasEnabled;
+            GUILayout.EndHorizontal();
+
+            if (hasItem)
+            {
+                int requestedLevel = Mathf.RoundToInt(GUILayout.HorizontalSlider(equipped.Level, 1f, equipped.Data.MaxLevel));
+                if (requestedLevel != equipped.Level)
+                    controller.TrySetLevel(uiSlot.Slot, uiSlot.Index, requestedLevel);
+            }
+        }
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Clear All")) controller.ClearAll();
+        if (GUILayout.Button("All L1")) controller.SetAllEquippedLevels(1);
+        if (GUILayout.Button("All L6")) controller.SetAllEquippedLevels(6);
+        GUILayout.EndHorizontal();
+
+        GUILayout.Label(controller.EffectiveStatsSummary);
+        GUILayout.Label(controller.HealthShieldSummary);
+        GUILayout.Label(controller.DropProbeSummary);
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Damage 25")) controller.DamagePlayer(25f);
+        if (GUILayout.Button("Full Heal")) controller.HealPlayerFull();
+        if (GUILayout.Button("Consume Shield")) controller.ConsumeShield();
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Recharge Shield")) controller.RechargeShield();
+        if (GUILayout.Button("Drop Probe 0.50")) controller.RunDropProbe(0.5f, 0.5f);
+        if (GUILayout.Button("Reset Scenario")) controller.ResetScenario();
+        GUILayout.EndHorizontal();
+    }
+
+    private static void CycleImmediatePassive(PassiveItemTestingController controller, PassiveUiSlot uiSlot, int direction)
+    {
+        IReadOnlyList<PassiveItemData> items = controller.GetCompatibleItems(uiSlot.Slot);
+        int optionCount = items.Count + 1;
+        if (optionCount <= 1)
+            return;
+
+        PassiveItemInstance equipped = controller.GetEquipped(uiSlot.Slot, uiSlot.Index);
+        int currentOption = 0;
+        if (equipped?.Data != null)
+        {
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (items[i] != equipped.Data)
+                    continue;
+                currentOption = i + 1;
+                break;
+            }
+        }
+
+        int nextOption = currentOption;
+        for (int attempt = 0; attempt < optionCount; attempt++)
+        {
+            nextOption = (nextOption + direction) % optionCount;
+            if (nextOption < 0)
+                nextOption += optionCount;
+            if (nextOption == 0)
+            {
+                controller.TryClearSlot(uiSlot.Slot, uiSlot.Index);
+                return;
+            }
+
+            PassiveItemData selected = items[nextOption - 1];
+            int level = equipped?.Data != null ? Mathf.Clamp(equipped.Level, 1, selected.MaxLevel) : 1;
+            if (controller.TrySetSlot(uiSlot.Slot, uiSlot.Index, selected, level))
+                return;
+        }
+    }
+
     private void DrawImmediateStats()
     {
         WeaponStatOverride stats = _sandbox.StatOverride;
@@ -302,6 +435,17 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
         GUILayout.Space(6f);
         GUILayout.Label("Stat Override");
+        PassiveItemTestingController passives = _sandbox.PassiveItemController;
+        bool wasEnabled = GUI.enabled;
+        GUI.enabled = wasEnabled && (passives == null || !passives.PassiveBaselineMode);
+        float previousDamage = stats.DamageMultiplier;
+        float previousEliteDamage = stats.EliteDamageMultiplier;
+        float previousAttackSpeed = stats.AttackSpeedMultiplier;
+        float previousAreaSize = stats.ProjectileAreaSizeMultiplier;
+        float previousCriticalChance = stats.CriticalChance;
+        float previousCriticalDamage = stats.CriticalDamageMultiplier;
+        float previousKnockback = stats.KnockbackMultiplier;
+        float previousAmmo = stats.AmmoMultiplier;
         stats.DamageMultiplier = DrawImmediateSlider("Damage", stats.DamageMultiplier, 0f, 5f);
         stats.EliteDamageMultiplier = DrawImmediateSlider("Elite Damage", stats.EliteDamageMultiplier, 0f, 5f);
         stats.AttackSpeedMultiplier = DrawImmediateSlider("Attack Speed", stats.AttackSpeedMultiplier, 0.1f, 5f);
@@ -310,10 +454,23 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         stats.CriticalDamageMultiplier = DrawImmediateSlider("Critical Damage", stats.CriticalDamageMultiplier, 1f, 6f);
         stats.KnockbackMultiplier = DrawImmediateSlider("Knockback", stats.KnockbackMultiplier, 0f, 5f);
         stats.AmmoMultiplier = DrawImmediateSlider("Ammo", stats.AmmoMultiplier, 0f, 5f);
-        stats.ApplyOverrides();
+        bool changed = !Mathf.Approximately(previousDamage, stats.DamageMultiplier)
+            || !Mathf.Approximately(previousEliteDamage, stats.EliteDamageMultiplier)
+            || !Mathf.Approximately(previousAttackSpeed, stats.AttackSpeedMultiplier)
+            || !Mathf.Approximately(previousAreaSize, stats.ProjectileAreaSizeMultiplier)
+            || !Mathf.Approximately(previousCriticalChance, stats.CriticalChance)
+            || !Mathf.Approximately(previousCriticalDamage, stats.CriticalDamageMultiplier)
+            || !Mathf.Approximately(previousKnockback, stats.KnockbackMultiplier)
+            || !Mathf.Approximately(previousAmmo, stats.AmmoMultiplier);
+        if (changed)
+            stats.ApplyOverrides();
 
         if (GUILayout.Button("Reset Stats To Default"))
             stats.ResetToDefaults();
+        GUI.enabled = wasEnabled;
+
+        if (passives != null && passives.PassiveBaselineMode)
+            GUILayout.Label("Exact stat controls are disabled while Passive Baseline is active.");
     }
 
     private void DrawImmediateHeat()
@@ -383,6 +540,11 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         if (GUILayout.Button("Elite Dummy")) spawner.SpawnEliteDummy();
         if (GUILayout.Button("Boss Dummy")) spawner.SpawnBossDummy();
         if (GUILayout.Button("Knockback Lane")) spawner.SpawnKnockbackLane();
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Close (<10m)")) spawner.SpawnCloseRangeDummy();
+        if (GUILayout.Button("Far (>15m)")) spawner.SpawnLongRangeDummy();
+        if (GUILayout.Button("Range Pair")) spawner.SpawnRangeComparisonDummies();
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("Clear")) spawner.ClearEnemies();
@@ -618,6 +780,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
     private void BuildUi()
     {
+        _statOverrideControls.Clear();
         GameObject canvasGo = new GameObject("WeaponSandboxDebugUI");
         canvasGo.transform.SetParent(transform, false);
         _canvas = canvasGo.AddComponent<Canvas>();
@@ -675,6 +838,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         scroll.content = contentRt;
 
         BuildLoadoutSection(content.transform);
+        BuildPassiveItemSection(content.transform);
         BuildStatOverrideSection(content.transform);
         BuildHeatSection(content.transform);
         BuildRuntimeControlSection(content.transform);
@@ -707,25 +871,121 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         _pathDropdown = CreateDropdown(section, "Upgrade Path", new List<string> { "None", "Path A", "Path B" }, 0, _ => ApplySelectedLevelPath());
     }
 
+    private void BuildPassiveItemSection(Transform parent)
+    {
+        Transform section = CreateSection(parent, "Base Passive Items");
+        PassiveItemTestingController controller = _sandbox.PassiveItemController;
+        if (controller == null)
+        {
+            _passiveWarningText = CreateText(section, "PassiveUnavailable", "Passive testing controller is unavailable.", 16, TextAlignmentOptions.TopLeft);
+            return;
+        }
+
+        _passiveBaselineToggle = CreateToggle(
+            section,
+            "Passive Baseline (off = Exact Overrides)",
+            controller.PassiveBaselineMode,
+            value =>
+            {
+                if (_isRefreshing)
+                    return;
+                controller.SetPassiveBaselineMode(value);
+                RefreshPassiveSelections();
+            });
+        _passiveWarningText = CreateText(section, "OverrideWarning", "", 15, TextAlignmentOptions.TopLeft);
+        _passiveWarningText.color = new Color(1f, 0.72f, 0.2f, 1f);
+
+        _passiveItemDropdowns = new TMP_Dropdown[PassiveSlots.Length];
+        _passiveLevelDropdowns = new TMP_Dropdown[PassiveSlots.Length];
+        _passiveSlotTexts = new TextMeshProUGUI[PassiveSlots.Length];
+        for (int i = 0; i < PassiveSlots.Length; i++)
+        {
+            int slotPosition = i;
+            PassiveUiSlot uiSlot = PassiveSlots[i];
+            Transform row = CreateRow(section, uiSlot.Label + "PassiveRow");
+            TextMeshProUGUI slotLabel = CreateText(row, uiSlot.Label + "Label", uiSlot.Label, 14, TextAlignmentOptions.Left);
+            LayoutElement slotLabelLayout = slotLabel.gameObject.AddComponent<LayoutElement>();
+            slotLabelLayout.minWidth = 58f;
+            slotLabelLayout.preferredWidth = 58f;
+
+            _passiveItemDropdowns[i] = CreateDropdownControl(
+                row,
+                uiSlot.Label + "Item",
+                PassiveItemOptions(controller, uiSlot.Slot),
+                0,
+                value => ApplyPassiveItemSelection(slotPosition, value));
+            _passiveLevelDropdowns[i] = CreateDropdownControl(
+                row,
+                uiSlot.Label + "Level",
+                PassiveLevelOptions(6),
+                0,
+                value => ApplyPassiveLevelSelection(slotPosition, value + 1));
+            LayoutElement levelLayout = _passiveLevelDropdowns[i].GetComponent<LayoutElement>();
+            levelLayout.minWidth = 72f;
+            levelLayout.preferredWidth = 72f;
+
+            _passiveSlotTexts[i] = CreateText(
+                section,
+                uiSlot.Label + "Summary",
+                "",
+                13,
+                TextAlignmentOptions.TopLeft);
+        }
+
+        Transform levelRow = CreateRow(section, "PassiveLevelShortcuts");
+        CreateButton(levelRow, "Set Equipped To L1", () =>
+        {
+            controller.SetAllEquippedLevels(1);
+            RefreshPassiveSelections();
+        });
+        CreateButton(levelRow, "Set Equipped To L6", () =>
+        {
+            controller.SetAllEquippedLevels(6);
+            RefreshPassiveSelections();
+        });
+        CreateButton(levelRow, "Clear All", () =>
+        {
+            controller.ClearAll();
+            RefreshPassiveSelections();
+        });
+
+        Transform healthRow = CreateRow(section, "PassiveHealthActions");
+        CreateButton(healthRow, "Damage 25", () => controller.DamagePlayer(25f));
+        CreateButton(healthRow, "Full Heal", controller.HealPlayerFull);
+        CreateButton(healthRow, "Consume Shield", controller.ConsumeShield);
+        Transform resetRow = CreateRow(section, "PassiveResetActions");
+        CreateButton(resetRow, "Recharge Shield", controller.RechargeShield);
+        CreateButton(resetRow, "Drop Probe 0.50 / 0.50", () => controller.RunDropProbe(0.5f, 0.5f));
+        CreateButton(resetRow, "Reset Passive Scenario", () =>
+        {
+            controller.ResetScenario();
+            RefreshPassiveSelections();
+        });
+
+        _passiveSummaryText = CreateText(section, "PassiveSummary", "", 15, TextAlignmentOptions.TopLeft);
+        RefreshPassiveSelections();
+    }
+
     private void BuildStatOverrideSection(Transform parent)
     {
         Transform section = CreateSection(parent, "Stat Override");
         _statsText = CreateText(section, "StatsText", "", 16, TextAlignmentOptions.TopLeft);
         WeaponStatOverride stats = _sandbox.StatOverride;
 
-        CreateStatSlider(section, "Damage Multiplier", 0f, 5f, stats.DamageMultiplier, v => { stats.DamageMultiplier = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Elite Damage Multiplier", 0f, 5f, stats.EliteDamageMultiplier, v => { stats.EliteDamageMultiplier = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Attack Speed Multiplier", 0.1f, 5f, stats.AttackSpeedMultiplier, v => { stats.AttackSpeedMultiplier = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Projectile / Area Size Multiplier", 0.1f, 5f, stats.ProjectileAreaSizeMultiplier, v => { stats.ProjectileAreaSizeMultiplier = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Critical Chance", 0f, 1f, stats.CriticalChance, v => { stats.CriticalChance = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Critical Damage Multiplier", 1f, 6f, stats.CriticalDamageMultiplier, v => { stats.CriticalDamageMultiplier = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Knockback Multiplier", 0f, 5f, stats.KnockbackMultiplier, v => { stats.KnockbackMultiplier = v; stats.ApplyOverrides(); });
-        CreateStatSlider(section, "Ammo Multiplier", 0f, 5f, stats.AmmoMultiplier, v => { stats.AmmoMultiplier = v; stats.ApplyOverrides(); });
-        CreateButton(section, "Reset Stats To Default", () =>
+        _statOverrideControls.Add(CreateStatSlider(section, "Damage Multiplier", 0f, 5f, stats.DamageMultiplier, v => ApplyStatOverride(v, value => stats.DamageMultiplier = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Elite Damage Multiplier", 0f, 5f, stats.EliteDamageMultiplier, v => ApplyStatOverride(v, value => stats.EliteDamageMultiplier = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Attack Speed Multiplier", 0.1f, 5f, stats.AttackSpeedMultiplier, v => ApplyStatOverride(v, value => stats.AttackSpeedMultiplier = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Projectile / Area Size Multiplier", 0.1f, 5f, stats.ProjectileAreaSizeMultiplier, v => ApplyStatOverride(v, value => stats.ProjectileAreaSizeMultiplier = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Critical Chance", 0f, 1f, stats.CriticalChance, v => ApplyStatOverride(v, value => stats.CriticalChance = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Critical Damage Multiplier", 1f, 6f, stats.CriticalDamageMultiplier, v => ApplyStatOverride(v, value => stats.CriticalDamageMultiplier = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Knockback Multiplier", 0f, 5f, stats.KnockbackMultiplier, v => ApplyStatOverride(v, value => stats.KnockbackMultiplier = value)));
+        _statOverrideControls.Add(CreateStatSlider(section, "Ammo Multiplier", 0f, 5f, stats.AmmoMultiplier, v => ApplyStatOverride(v, value => stats.AmmoMultiplier = value)));
+        Button resetButton = CreateButton(section, "Reset Stats To Default", () =>
         {
             stats.ResetToDefaults();
             RebuildUi();
         });
+        _statOverrideControls.Add(resetButton);
     }
 
     private void BuildHeatSection(Transform parent)
@@ -855,6 +1115,10 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         CreateButton(row3, "Packed Group", () => spawner.SpawnGroup(WeaponSandboxFormation.PackedGroup));
         CreateButton(row3, "Spread Group", () => spawner.SpawnGroup(WeaponSandboxFormation.SpreadGroup));
         CreateButton(row3, "Random Formation", () => spawner.SpawnGroup(WeaponSandboxFormation.Random));
+        Transform rangeRow = CreateRow(section, "PassiveRangeTestRow");
+        CreateButton(rangeRow, "Close Dummy (<10m)", spawner.SpawnCloseRangeDummy);
+        CreateButton(rangeRow, "Far Dummy (>15m)", spawner.SpawnLongRangeDummy);
+        CreateButton(rangeRow, "Close + Far", spawner.SpawnRangeComparisonDummies);
 
         CreateIntField(section, "Enemy Health", spawner.EnemyHealth, value => spawner.EnemyHealth = Mathf.Max(1, value));
         CreateFloatField(section, "Enemy Movement Speed", spawner.EnemyMovementSpeed, value => spawner.EnemyMovementSpeed = Mathf.Max(0f, value));
@@ -930,6 +1194,8 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
                 $"Attack Speed {stats.AttackSpeedMultiplier:0.##} | Size {stats.ProjectileAreaSizeMultiplier:0.##}\n" +
                 $"Crit {stats.CriticalChance:P0} x{stats.CriticalDamageMultiplier:0.##} | Knockback {stats.KnockbackMultiplier:0.##} | Ammo {stats.AmmoMultiplier:0.##}";
         }
+
+        RefreshPassiveSelections();
 
         RefreshPresentationAccessibility();
 
@@ -1022,7 +1288,146 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             _slotDropdowns[i].value = weapon?.Data == null ? 0 : DropdownFromWeaponType(weapon.Data.WeaponType);
         }
         RefreshLevelPathSelections();
+        RefreshPassiveSelections();
         _isRefreshing = false;
+    }
+
+    private void ApplyPassiveItemSelection(int slotPosition, int optionIndex)
+    {
+        if (_isRefreshing || slotPosition < 0 || slotPosition >= PassiveSlots.Length)
+            return;
+
+        PassiveItemTestingController controller = _sandbox.PassiveItemController;
+        if (controller == null)
+            return;
+
+        PassiveUiSlot uiSlot = PassiveSlots[slotPosition];
+        if (optionIndex <= 0)
+        {
+            controller.TryClearSlot(uiSlot.Slot, uiSlot.Index);
+            RefreshPassiveSelections();
+            return;
+        }
+
+        IReadOnlyList<PassiveItemData> items = controller.GetCompatibleItems(uiSlot.Slot);
+        int itemIndex = optionIndex - 1;
+        if (itemIndex < 0 || itemIndex >= items.Count)
+        {
+            RefreshPassiveSelections();
+            return;
+        }
+
+        PassiveItemData data = items[itemIndex];
+        int level = _passiveLevelDropdowns != null && _passiveLevelDropdowns[slotPosition] != null
+            ? Mathf.Clamp(_passiveLevelDropdowns[slotPosition].value + 1, 1, data.MaxLevel)
+            : 1;
+        controller.TrySetSlot(uiSlot.Slot, uiSlot.Index, data, level);
+        RefreshPassiveSelections();
+    }
+
+    private void ApplyPassiveLevelSelection(int slotPosition, int level)
+    {
+        if (_isRefreshing || slotPosition < 0 || slotPosition >= PassiveSlots.Length)
+            return;
+
+        PassiveItemTestingController controller = _sandbox.PassiveItemController;
+        if (controller == null)
+            return;
+
+        PassiveUiSlot uiSlot = PassiveSlots[slotPosition];
+        controller.TrySetLevel(uiSlot.Slot, uiSlot.Index, level);
+        RefreshPassiveSelections();
+    }
+
+    private void RefreshPassiveSelections()
+    {
+        PassiveItemTestingController controller = _sandbox != null ? _sandbox.PassiveItemController : null;
+        if (controller == null)
+            return;
+
+        bool previousRefreshing = _isRefreshing;
+        _isRefreshing = true;
+        _passiveBaselineToggle?.SetIsOnWithoutNotify(controller.PassiveBaselineMode);
+        if (_passiveWarningText != null)
+        {
+            if (controller.PassiveBaselineMode)
+                _passiveWarningText.text = "Mode: Passive Baseline. Exact weapon stat overrides are disabled so item bonuses remain visible.";
+            else if (controller.OverridesMaskPassives)
+                _passiveWarningText.text = controller.OverrideWarning;
+            else
+                _passiveWarningText.text = "Mode: Exact Overrides. Slider targets replace affected effective passive stats.";
+        }
+
+        bool statControlsEnabled = !controller.PassiveBaselineMode;
+        for (int i = 0; i < _statOverrideControls.Count; i++)
+        {
+            if (_statOverrideControls[i] != null)
+                _statOverrideControls[i].interactable = statControlsEnabled;
+        }
+
+        if (_passiveItemDropdowns != null && _passiveLevelDropdowns != null)
+        {
+            for (int i = 0; i < PassiveSlots.Length; i++)
+            {
+                PassiveUiSlot uiSlot = PassiveSlots[i];
+                PassiveItemInstance equipped = controller.GetEquipped(uiSlot.Slot, uiSlot.Index);
+                IReadOnlyList<PassiveItemData> items = controller.GetCompatibleItems(uiSlot.Slot);
+                int itemOption = FindPassiveItemOption(items, equipped?.Data);
+                _passiveItemDropdowns[i]?.SetValueWithoutNotify(itemOption);
+
+                int maxLevel = equipped?.Data != null ? equipped.Data.MaxLevel : 1;
+                EnsurePassiveLevelOptions(_passiveLevelDropdowns[i], maxLevel);
+                _passiveLevelDropdowns[i].SetValueWithoutNotify(equipped?.Data != null
+                    ? Mathf.Clamp(equipped.Level, 1, maxLevel) - 1
+                    : 0);
+                _passiveLevelDropdowns[i].interactable = equipped?.Data != null;
+                if (_passiveSlotTexts != null && i < _passiveSlotTexts.Length && _passiveSlotTexts[i] != null)
+                    _passiveSlotTexts[i].text = controller.BuildSlotSummary(uiSlot.Slot, uiSlot.Index);
+            }
+        }
+
+        if (_passiveSummaryText != null)
+            _passiveSummaryText.text = $"{controller.EffectiveStatsSummary}\n{controller.HealthShieldSummary}\n{controller.DropProbeSummary}";
+        _isRefreshing = previousRefreshing;
+    }
+
+    private void ApplyStatOverride(float value, System.Action<float> assign)
+    {
+        if (_isRefreshing || assign == null)
+            return;
+
+        assign(value);
+        PassiveItemTestingController controller = _sandbox.PassiveItemController;
+        if (controller == null || !controller.PassiveBaselineMode)
+            _sandbox.StatOverride?.ApplyOverrides();
+    }
+
+    private static int FindPassiveItemOption(IReadOnlyList<PassiveItemData> items, PassiveItemData selected)
+    {
+        if (selected == null)
+            return 0;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i] == selected)
+                return i + 1;
+        }
+
+        return 0;
+    }
+
+    private static void EnsurePassiveLevelOptions(TMP_Dropdown dropdown, int maxLevel)
+    {
+        if (dropdown == null)
+            return;
+
+        maxLevel = Mathf.Max(1, maxLevel);
+        if (dropdown.options.Count == maxLevel)
+            return;
+
+        dropdown.ClearOptions();
+        dropdown.AddOptions(PassiveLevelOptions(maxLevel));
+        dropdown.RefreshShownValue();
     }
 
     private void RefreshLevelPathSelections()
@@ -1148,7 +1553,12 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     {
         Transform row = CreateRow(parent, label + "Row");
         CreateText(row, label + "Label", label, 14, TextAlignmentOptions.Left);
-        GameObject go = CreateUiObject(label, row);
+        return CreateDropdownControl(row, label, options, value, onChanged);
+    }
+
+    private TMP_Dropdown CreateDropdownControl(Transform parent, string name, List<string> options, int value, UnityEngine.Events.UnityAction<int> onChanged)
+    {
+        GameObject go = CreateUiObject(name, parent);
         Image image = go.AddComponent<Image>();
         image.color = new Color(0.18f, 0.2f, 0.23f, 1f);
         TMP_Dropdown dropdown = go.AddComponent<TMP_Dropdown>();
@@ -1189,7 +1599,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         return slider;
     }
 
-    private void CreateStatSlider(Transform parent, string label, float min, float max, float value, UnityEngine.Events.UnityAction<float> onChanged)
+    private Slider CreateStatSlider(Transform parent, string label, float min, float max, float value, UnityEngine.Events.UnityAction<float> onChanged)
     {
         TextMeshProUGUI valueLabel = null;
         Slider slider = CreateSlider(parent, label, min, max, value, sliderValue =>
@@ -1198,6 +1608,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             onChanged(sliderValue);
         });
         valueLabel = CreateText(slider.transform.parent, label + "Value", value.ToString("0.##"), 14, TextAlignmentOptions.Right);
+        return slider;
     }
 
     private Toggle CreateToggle(Transform parent, string label, bool value, UnityEngine.Events.UnityAction<bool> onChanged)
@@ -1405,6 +1816,30 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         return levels;
     }
 
+    private static List<string> PassiveItemOptions(PassiveItemTestingController controller, PassiveItemSlot slot)
+    {
+        List<string> options = new() { "None" };
+        if (controller == null)
+            return options;
+
+        IReadOnlyList<PassiveItemData> items = controller.GetCompatibleItems(slot);
+        for (int i = 0; i < items.Count; i++)
+        {
+            PassiveItemData item = items[i];
+            options.Add(item != null ? item.DisplayName : "Missing Item");
+        }
+
+        return options;
+    }
+
+    private static List<string> PassiveLevelOptions(int maxLevel)
+    {
+        List<string> levels = new();
+        for (int level = 1; level <= Mathf.Max(1, maxLevel); level++)
+            levels.Add($"L{level}");
+        return levels;
+    }
+
     private static string FormatEnabled(bool value) => value ? "On" : "Off";
 
     private static string FormatCombatTextMode(CombatTextMode mode)
@@ -1446,5 +1881,19 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         if (pathData != null && !string.IsNullOrWhiteSpace(pathData.PathName))
             return pathData.PathName;
         return weapon.SelectedPath.ToString();
+    }
+
+    private readonly struct PassiveUiSlot
+    {
+        public readonly string Label;
+        public readonly PassiveItemSlot Slot;
+        public readonly int Index;
+
+        public PassiveUiSlot(string label, PassiveItemSlot slot, int index)
+        {
+            Label = label;
+            Slot = slot;
+            Index = index;
+        }
     }
 }

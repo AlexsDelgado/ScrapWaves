@@ -5028,6 +5028,7 @@ GameObject:
   - component: {fileID: 787552539}
   - component: {fileID: 787552538}
   - component: {fileID: 787552537}
+  - component: {fileID: 787552545}
   m_Layer: 0
   m_Name: WeaponTestingSandbox
   m_TagString: Untagged
@@ -5167,6 +5168,18 @@ MonoBehaviour:
   _slot1: 0
   _slot2: 2
   _slot3: 1
+--- !u!114 &787552545
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 787552536}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24d7f65b45c7461e98b8f2e401b2a972, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PassiveItemTestingController
 --- !u!4 &787552544
 Transform:
   m_ObjectHideFlags: 0
