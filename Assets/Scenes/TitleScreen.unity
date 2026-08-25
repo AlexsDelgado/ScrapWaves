@@ -166,7 +166,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 0.9490196, g: 0.9607843, b: 0.92156863, a: 1}
@@ -906,7 +906,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 96, y: 0}
+  m_AnchoredPosition: {x: 119, y: 258}
   m_SizeDelta: {x: 800, y: 300}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!225 &178082423
@@ -1869,9 +1869,37 @@ PrefabInstance:
       propertyPath: m_Name
       value: SettingsButton
       objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9986295
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.052335896
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 63
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: -6
+      objectReference: {fileID: 0}
     - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
       propertyPath: m_text
       value: SETTINGS
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4293654002
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2956,7 +2984,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4293654002
   m_fontColor: {r: 0.9490196, g: 0.9607843, b: 0.92156863, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -2969,7 +2997,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -2993,7 +3021,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 1
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -4670,9 +4698,37 @@ PrefabInstance:
       propertyPath: m_Name
       value: QuitButton
       objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9986295
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.052335896
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 63
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: -6
+      objectReference: {fileID: 0}
     - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
       propertyPath: m_text
       value: QUIT
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4293654002
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -9053,6 +9109,34 @@ PrefabInstance:
       propertyPath: m_Name
       value: PlayButton
       objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9986295
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.052335896
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 63
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: -6
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4293654002
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -9625,6 +9709,18 @@ PrefabInstance:
     - target: {fileID: 1145829052217766263, guid: e8efc97c968fcde459d5d788d2ffa49a, type: 3}
       propertyPath: m_Name
       value: PersistentTransitionRoot
+      objectReference: {fileID: 0}
+    - target: {fileID: 5479874680148173955, guid: e8efc97c968fcde459d5d788d2ffa49a, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 5678282151071521847, guid: e8efc97c968fcde459d5d788d2ffa49a, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4278848265
+      objectReference: {fileID: 0}
+    - target: {fileID: 5678282151071521847, guid: e8efc97c968fcde459d5d788d2ffa49a, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 7186869843247282797, guid: e8efc97c968fcde459d5d788d2ffa49a, type: 3}
       propertyPath: m_Pivot.x
@@ -10881,7 +10977,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4278848265
   m_fontColor: {r: 0.03529412, g: 0.043137256, b: 0.039215688, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -10894,7 +10990,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -10918,7 +11014,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 1
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -11794,9 +11890,37 @@ PrefabInstance:
       propertyPath: m_Name
       value: ObjectivesButton
       objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9986295
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.052335896
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 63
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 6822539116057492401, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: -6
+      objectReference: {fileID: 0}
     - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
       propertyPath: m_text
       value: OBJECTIVES
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4293654002
+      objectReference: {fileID: 0}
+    - target: {fileID: 7240288681050394364, guid: 575f6ae8b8e8fe74f861f09ce3febaf0, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -20325,7 +20449,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 1000
