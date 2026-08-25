@@ -53,6 +53,9 @@ public class WeaponManager : MonoBehaviour
     // Updates automatic fire, manual input, and cycle cooldown.
     private void Update()
     {
+        if (Time.timeScale <= 0f)
+            return;
+
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 

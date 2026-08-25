@@ -162,7 +162,7 @@ public sealed class PresentationAccessibilityTests
             TMP_Dropdown mode = panel.Find("Combat Text/Dropdown")?.GetComponent<TMP_Dropdown>();
             Assert.That(mode, Is.Not.Null);
             CollectionAssert.AreEqual(
-                new[] { "Off", "Important Only", "Full" },
+                new[] { "Off", "On" },
                 mode.options.ConvertAll(option => option.text));
 
             Slider scale = panel.Find("Combat Text Scale/Slider")?.GetComponent<Slider>();

@@ -327,7 +327,7 @@ public class PauseMenuUI : MonoBehaviour
         _reducedMotionToggle?.SetIsOnWithoutNotify(state.ReducedMotion);
         _reducedShakeToggle?.SetIsOnWithoutNotify(state.ReducedShake);
         _reducedFlashToggle?.SetIsOnWithoutNotify(state.ReducedFlash);
-        _combatTextModeDropdown?.SetValueWithoutNotify((int)state.CombatText);
+        _combatTextModeDropdown?.SetValueWithoutNotify(state.CombatText == CombatTextMode.Off ? 0 : 1);
         _combatTextModeDropdown?.RefreshShownValue();
         _combatTextScaleSlider?.SetValueWithoutNotify(state.CombatTextScale);
         UpdateCombatTextScaleLabel(state.CombatTextScale);
@@ -588,10 +588,7 @@ public class PauseMenuUI : MonoBehaviour
             PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedFlash(on)));
         _combatTextModeDropdown = CreateCombatTextModeRow(panel.transform, ref y, value =>
         {
-            CombatTextMode mode = (CombatTextMode)Mathf.Clamp(
-                value,
-                (int)CombatTextMode.Off,
-                (int)CombatTextMode.Full);
+            CombatTextMode mode = value <= 0 ? CombatTextMode.Off : CombatTextMode.Full;
             PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatText(mode));
         });
         _combatTextScaleSlider = CreateSettingRow(
@@ -763,7 +760,7 @@ public class PauseMenuUI : MonoBehaviour
         background.sprite = HudUiFactory.WhiteSprite;
         background.color = Color.white;
 
-        TMP_Dropdown dropdown = dropdownGo.AddComponent<TMP_Dropdown>();
+        TMP_Dropdown dropdown = dropdownGo.AddComponent<PauseMenuDropdown>();
         dropdown.targetGraphic = background;
         ColorBlock colors = dropdown.colors;
         colors.normalColor = Plate;
@@ -776,8 +773,7 @@ public class PauseMenuUI : MonoBehaviour
         dropdown.colors = colors;
         dropdown.options.Clear();
         dropdown.options.Add(new TMP_Dropdown.OptionData("Off"));
-        dropdown.options.Add(new TMP_Dropdown.OptionData("Important Only"));
-        dropdown.options.Add(new TMP_Dropdown.OptionData("Full"));
+        dropdown.options.Add(new TMP_Dropdown.OptionData("On"));
 
         TextMeshProUGUI caption = CreateLabel(
             dropdownGo.transform,
@@ -805,7 +801,7 @@ public class PauseMenuUI : MonoBehaviour
 
         dropdown.template = BuildCombatTextDropdownTemplate(dropdownGo.transform, out TextMeshProUGUI itemLabel);
         dropdown.itemText = itemLabel;
-        dropdown.SetValueWithoutNotify((int)CombatTextMode.Full);
+        dropdown.SetValueWithoutNotify(1);
         dropdown.onValueChanged.AddListener(onChanged);
         dropdown.RefreshShownValue();
 
@@ -856,17 +852,17 @@ public class PauseMenuUI : MonoBehaviour
         contentRt.anchorMax = new Vector2(1f, 1f);
         contentRt.pivot = new Vector2(0.5f, 1f);
         contentRt.anchoredPosition = Vector2.zero;
-        var layout = content.AddComponent<VerticalLayoutGroup>();
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-        ContentSizeFitter fitter = content.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        contentRt.sizeDelta = new Vector2(0f, 30f);
         scrollRect.content = contentRt;
 
         var item = new GameObject("Item", typeof(RectTransform));
         item.transform.SetParent(content.transform, false);
+        RectTransform itemRt = item.GetComponent<RectTransform>();
+        itemRt.anchorMin = new Vector2(0f, 0.5f);
+        itemRt.anchorMax = new Vector2(1f, 0.5f);
+        itemRt.pivot = new Vector2(0.5f, 0.5f);
+        itemRt.anchoredPosition = Vector2.zero;
+        itemRt.sizeDelta = new Vector2(0f, 30f);
         Image itemBackground = item.AddComponent<Image>();
         itemBackground.sprite = HudUiFactory.WhiteSprite;
         itemBackground.color = Color.white;
@@ -880,7 +876,6 @@ public class PauseMenuUI : MonoBehaviour
         itemColors.colorMultiplier = 1f;
         itemColors.fadeDuration = 0.08f;
         itemToggle.colors = itemColors;
-        item.AddComponent<LayoutElement>().minHeight = 30f;
 
         var checkmark = new GameObject("Item Checkmark", typeof(RectTransform));
         checkmark.transform.SetParent(item.transform, false);
@@ -903,8 +898,7 @@ public class PauseMenuUI : MonoBehaviour
             TextAlignmentOptions.MidlineLeft,
             Bone);
         RectTransform itemLabelRt = itemLabel.GetComponent<RectTransform>();
-        itemLabelRt.offsetMin = new Vector2(30f, 2f);
-        itemLabelRt.offsetMax = new Vector2(-6f, -2f);
+        Stretch(itemLabelRt, new Vector2(30f, 2f), new Vector2(-6f, -2f));
         return templateRt;
     }
 
@@ -945,14 +939,23 @@ public class PauseMenuUI : MonoBehaviour
         var toggleGo = new GameObject("Toggle", typeof(RectTransform));
         toggleGo.transform.SetParent(row.transform, false);
         var toggleRt = toggleGo.GetComponent<RectTransform>();
-        SetAnchoredRect(toggleRt, new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(30f, 30f), new Vector2(0f, 0.5f));
+        Stretch(toggleRt);
 
-        var bg = toggleGo.AddComponent<Image>();
+        var hitTarget = toggleGo.AddComponent<Image>();
+        hitTarget.sprite = HudUiFactory.WhiteSprite;
+        hitTarget.color = Color.clear;
+        hitTarget.raycastTarget = true;
+
+        var backgroundGo = new GameObject("Background", typeof(RectTransform));
+        backgroundGo.transform.SetParent(toggleGo.transform, false);
+        var backgroundRt = backgroundGo.GetComponent<RectTransform>();
+        SetAnchoredRect(backgroundRt, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(30f, 30f), new Vector2(0f, 0.5f));
+        var bg = backgroundGo.AddComponent<Image>();
         bg.sprite = HudUiFactory.WhiteSprite;
         bg.color = Color.white;
 
         var checkGo = new GameObject("Check", typeof(RectTransform));
-        checkGo.transform.SetParent(toggleGo.transform, false);
+        checkGo.transform.SetParent(backgroundGo.transform, false);
         var checkRt = checkGo.GetComponent<RectTransform>();
         checkRt.anchorMin = Vector2.zero;
         checkRt.anchorMax = Vector2.one;
@@ -968,8 +971,8 @@ public class PauseMenuUI : MonoBehaviour
         toggle.graphic = check;
         ColorBlock colors = toggle.colors;
         colors.normalColor = Plate;
-        colors.highlightedColor = ScrapGreen;
-        colors.selectedColor = ScrapGreen;
+        colors.highlightedColor = Plate;
+        colors.selectedColor = Plate;
         colors.pressedColor = WarningRust;
         colors.disabledColor = new Color(0.45f, 0.5f, 0.47f, 0.45f);
         colors.colorMultiplier = 1f;
@@ -977,7 +980,7 @@ public class PauseMenuUI : MonoBehaviour
         toggle.colors = colors;
         toggle.onValueChanged.AddListener(onChanged);
 
-        TextMeshProUGUI lbl = CreateLabel(row.transform, "Label", label, 15f, TextAlignmentOptions.MidlineLeft, Bone);
+        TextMeshProUGUI lbl = CreateLabel(toggleGo.transform, "Label", label, 15f, TextAlignmentOptions.MidlineLeft, Bone);
         Stretch(lbl.rectTransform, new Vector2(48f, 0f), Vector2.zero);
         lbl.fontStyle = FontStyles.Bold;
         lbl.characterSpacing = 2f;
@@ -994,6 +997,7 @@ public class PauseMenuUI : MonoBehaviour
 
         Image background = CreateSolidImage(go.transform, "Background", Plate);
         Stretch(background.rectTransform);
+        background.raycastTarget = true;
 
         var fillAreaGo = new GameObject("Fill Area", typeof(RectTransform));
         fillAreaGo.transform.SetParent(go.transform, false);
@@ -1222,5 +1226,22 @@ public class PauseMenuUI : MonoBehaviour
         GameObject selected = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
         if (selected != null && _root != null && selected.transform.IsChildOf(_root.transform))
             eventSystem.SetSelectedGameObject(null);
+    }
+}
+
+internal sealed class PauseMenuDropdown : TMP_Dropdown
+{
+    protected override GameObject CreateDropdownList(GameObject template)
+    {
+        GameObject dropdownList = base.CreateDropdownList(template);
+        Canvas pauseCanvas = transform.GetComponentInParent<Canvas>();
+        Canvas popupCanvas = dropdownList.GetComponent<Canvas>();
+        if (pauseCanvas == null || popupCanvas == null)
+            return dropdownList;
+
+        popupCanvas.overrideSorting = true;
+        popupCanvas.sortingLayerID = pauseCanvas.sortingLayerID;
+        popupCanvas.sortingOrder = pauseCanvas.sortingOrder + 2;
+        return dropdownList;
     }
 }

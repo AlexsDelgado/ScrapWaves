@@ -59,6 +59,34 @@ public sealed class WeaponManagerSandboxParityTests
     }
 
     [Test]
+    public void Update_WhenTimeScaleIsZero_DoesNotTickAutomaticOrManualWeapons()
+    {
+        GameObject owner = Track(new GameObject("Paused Weapon Manager Owner"));
+        WeaponManager manager = owner.AddComponent<WeaponManager>();
+        List<IWeaponBehaviour> equipped = ReadPrivate<List<IWeaponBehaviour>>(manager, "_equipped");
+        CountingWeapon manual = new(WeaponState.Manual);
+        CountingWeapon automatic = new(WeaponState.Automatic);
+        equipped.Add(manual);
+        equipped.Add(automatic);
+        SetPrivateField(manager, "_currentManualIndex", 0);
+
+        float previousTimeScale = Time.timeScale;
+        try
+        {
+            Time.timeScale = 0f;
+
+            InvokePrivate(manager, "Update");
+
+            Assert.That(manual.ManualTicks, Is.Zero, "Paused UI clicks must not reach the manual weapon.");
+            Assert.That(automatic.AutomaticTicks, Is.Zero, "Automatic weapons must also remain frozen while paused.");
+        }
+        finally
+        {
+            Time.timeScale = previousTimeScale;
+        }
+    }
+
+    [Test]
     public void CanUseAbility_AllowsRemainingManualAmmoBelowAbilityCost()
     {
         WeaponData weaponData = CreateWeapon("Cannon");
@@ -180,13 +208,15 @@ public sealed class WeaponManagerSandboxParityTests
     private sealed class CountingWeapon : IWeaponBehaviour
     {
         public int AutomaticTicks { get; private set; }
+        public int ManualTicks { get; private set; }
         public WeaponInstance Runtime { get; }
 
         public CountingWeapon(WeaponState state)
         {
             Runtime = new WeaponInstance
             {
-                State = state
+                State = state,
+                CurrentAmmo = 1f
             };
         }
 
@@ -201,6 +231,7 @@ public sealed class WeaponManagerSandboxParityTests
 
         public void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
         {
+            ManualTicks++;
         }
 
         public void UseActiveAbility(Vector3 aimDirection)

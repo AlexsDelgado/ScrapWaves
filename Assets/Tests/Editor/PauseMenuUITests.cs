@@ -175,6 +175,211 @@ public class PauseMenuUITests
     }
 
     [Test]
+    public void SettingsSliders_HaveFullTrackPointerRaycastTargets()
+    {
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+        Slider[] sliders =
+        {
+            GetPrivateField<Slider>(pauseMenu, "_hSensSlider"),
+            GetPrivateField<Slider>(pauseMenu, "_vSensSlider"),
+            GetPrivateField<Slider>(pauseMenu, "_sfxSlider"),
+            GetPrivateField<Slider>(pauseMenu, "_musicSlider"),
+            GetPrivateField<Slider>(pauseMenu, "_combatTextScaleSlider")
+        };
+
+        foreach (Slider slider in sliders)
+        {
+            Image background = slider.transform.Find("Background")?.GetComponent<Image>();
+
+            Assert.That(background, Is.Not.Null, $"{slider.name} should keep its full-track background.");
+            Assert.That(background.raycastTarget, Is.True, $"{slider.name} must receive pointer clicks and drags across the track.");
+            Assert.That(background.rectTransform.anchorMin, Is.EqualTo(Vector2.zero));
+            Assert.That(background.rectTransform.anchorMax, Is.EqualTo(Vector2.one));
+            Assert.That(background.rectTransform.offsetMin, Is.EqualTo(Vector2.zero));
+            Assert.That(background.rectTransform.offsetMax, Is.EqualTo(Vector2.zero));
+        }
+    }
+
+    [Test]
+    public void SettingsToggles_UseOneFullRowPointerTargetIncludingTheirLabels()
+    {
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+        Toggle[] toggles =
+        {
+            GetPrivateField<Toggle>(pauseMenu, "_invertYToggle"),
+            GetPrivateField<Toggle>(pauseMenu, "_reducedMotionToggle"),
+            GetPrivateField<Toggle>(pauseMenu, "_reducedShakeToggle"),
+            GetPrivateField<Toggle>(pauseMenu, "_reducedFlashToggle")
+        };
+
+        foreach (Toggle toggle in toggles)
+        {
+            RectTransform hitArea = toggle.transform as RectTransform;
+            TextMeshProUGUI label = toggle.GetComponentInChildren<TextMeshProUGUI>(true);
+            Graphic pointerTarget = toggle.GetComponent<Graphic>();
+
+            Assert.That(hitArea, Is.Not.Null);
+            Assert.That(label, Is.Not.Null, $"{toggle.transform.parent.name} should keep its visible label inside the toggle hit area.");
+            Assert.That(pointerTarget, Is.Not.Null);
+            Assert.That(pointerTarget.raycastTarget, Is.True);
+            Assert.That(hitArea.anchorMin, Is.EqualTo(Vector2.zero));
+            Assert.That(hitArea.anchorMax, Is.EqualTo(Vector2.one));
+            Assert.That(hitArea.offsetMin, Is.EqualTo(Vector2.zero));
+            Assert.That(hitArea.offsetMax, Is.EqualTo(Vector2.zero));
+        }
+    }
+
+    [Test]
+    public void SettingsToggles_TurnOnAndOffWithConsecutiveClicksWhileFocused()
+    {
+        EventSystem eventSystem = new GameObject("EventSystem").AddComponent<EventSystem>();
+        try
+        {
+            CreateSettingsService();
+            Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+            InvokePrivate(pauseMenu, "ShowPause");
+            InvokePrivate(pauseMenu, "OpenSettings");
+            Toggle[] toggles =
+            {
+                GetPrivateField<Toggle>(pauseMenu, "_invertYToggle"),
+                GetPrivateField<Toggle>(pauseMenu, "_reducedMotionToggle"),
+                GetPrivateField<Toggle>(pauseMenu, "_reducedShakeToggle"),
+                GetPrivateField<Toggle>(pauseMenu, "_reducedFlashToggle")
+            };
+            var click = new PointerEventData(eventSystem)
+            {
+                button = PointerEventData.InputButton.Left
+            };
+
+            foreach (Toggle toggle in toggles)
+            {
+                toggle.SetIsOnWithoutNotify(false);
+                eventSystem.SetSelectedGameObject(toggle.gameObject);
+
+                toggle.OnPointerClick(click);
+                Assert.That(toggle.isOn, Is.True, $"{toggle.transform.parent.name} should turn on with one click.");
+
+                toggle.OnPointerClick(click);
+                Assert.That(toggle.isOn, Is.False, $"{toggle.transform.parent.name} should turn off with the next click.");
+                Assert.That(eventSystem.currentSelectedGameObject, Is.SameAs(toggle.gameObject));
+                Assert.That(toggle.colors.highlightedColor, Is.EqualTo(toggle.colors.normalColor));
+                Assert.That(toggle.colors.selectedColor, Is.EqualTo(toggle.colors.normalColor));
+            }
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(eventSystem.gameObject);
+        }
+    }
+
+    [Test]
+    public void CombatTextDropdown_ReopensFromOffWithEveryOptionVisible()
+    {
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+        InvokePrivate(pauseMenu, "ShowPause");
+        InvokePrivate(pauseMenu, "OpenSettings");
+
+        GameObject pauseRoot = GetPrivateField<GameObject>(pauseMenu, "_root");
+        TMP_Dropdown dropdown = GetPrivateField<TMP_Dropdown>(pauseMenu, "_combatTextModeDropdown");
+        InitializeDropdownForEditMode(dropdown);
+
+        dropdown.SetValueWithoutNotify(1);
+        dropdown.Show();
+        CleanupDropdownForEditMode(dropdown, pauseRoot);
+
+        dropdown.SetValueWithoutNotify((int)CombatTextMode.Off);
+        dropdown.RefreshShownValue();
+        dropdown.Show();
+
+        GameObject popup = dropdown.transform.Find("Dropdown List")?.gameObject;
+        try
+        {
+            Assert.That(popup, Is.Not.Null, "Reopening Combat Text from Off should create the option popup.");
+            RectTransform viewport = popup.transform.Find("Viewport") as RectTransform;
+            RectTransform content = popup.transform.Find("Viewport/Content") as RectTransform;
+            Assert.That(viewport, Is.Not.Null);
+            Assert.That(content, Is.Not.Null);
+
+            string[] visibleOptions = content
+                .GetComponentsInChildren<TextMeshProUGUI>(true)
+                .Where(label => label.gameObject.activeInHierarchy && !string.IsNullOrWhiteSpace(label.text))
+                .Select(label => label.text)
+                .ToArray();
+
+            CollectionAssert.AreEquivalent(new[] { "Off", "On" }, visibleOptions);
+            Assert.That(
+                content.rect.height,
+                Is.LessThanOrEqualTo(viewport.rect.height + 0.01f),
+                "Both combat-text choices should fit in the popup without hiding either option.");
+        }
+        finally
+        {
+            CleanupDropdownForEditMode(dropdown, pauseRoot);
+        }
+    }
+
+    [Test]
+    public void CombatTextDropdown_MapsLegacyImportantModeToOnAndOnSelectionToFull()
+    {
+        PresentationAccessibilityState previous = PresentationAccessibilityRuntime.Current;
+        try
+        {
+            PresentationAccessibilityRuntime.Apply(previous.WithCombatText(CombatTextMode.ImportantOnly));
+            Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+            TMP_Dropdown dropdown = GetPrivateField<TMP_Dropdown>(pauseMenu, "_combatTextModeDropdown");
+
+            CollectionAssert.AreEqual(
+                new[] { "Off", "On" },
+                dropdown.options.Select(option => option.text).ToArray());
+            Assert.That(dropdown.value, Is.EqualTo(1));
+            Assert.That(dropdown.captionText.text, Is.EqualTo("On"));
+
+            dropdown.value = 0;
+            Assert.That(PresentationAccessibilityRuntime.Current.CombatText, Is.EqualTo(CombatTextMode.Off));
+
+            dropdown.value = 1;
+            Assert.That(PresentationAccessibilityRuntime.Current.CombatText, Is.EqualTo(CombatTextMode.Full));
+        }
+        finally
+        {
+            PresentationAccessibilityRuntime.Apply(previous);
+        }
+    }
+
+    [Test]
+    public void CombatTextDropdown_PopupAndBlockerSortAbovePauseCanvas()
+    {
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+        InvokePrivate(pauseMenu, "ShowPause");
+        InvokePrivate(pauseMenu, "OpenSettings");
+
+        GameObject pauseRoot = GetPrivateField<GameObject>(pauseMenu, "_root");
+        Canvas pauseCanvas = pauseRoot.GetComponent<Canvas>();
+        TMP_Dropdown dropdown = GetPrivateField<TMP_Dropdown>(pauseMenu, "_combatTextModeDropdown");
+
+        InitializeDropdownForEditMode(dropdown);
+        dropdown.Show();
+
+        GameObject popup = dropdown.transform.Find("Dropdown List")?.gameObject;
+        GameObject blocker = pauseRoot.transform.Find("Blocker")?.gameObject;
+        try
+        {
+            Canvas popupCanvas = popup?.GetComponent<Canvas>();
+            Canvas blockerCanvas = blocker?.GetComponent<Canvas>();
+            Assert.That(popupCanvas, Is.Not.Null, "Opening Combat Text should create its option popup.");
+            Assert.That(blockerCanvas, Is.Not.Null, "Opening Combat Text should create its click blocker.");
+            Assert.That(popupCanvas.sortingLayerID, Is.EqualTo(pauseCanvas.sortingLayerID));
+            Assert.That(blockerCanvas.sortingLayerID, Is.EqualTo(pauseCanvas.sortingLayerID));
+            Assert.That(popupCanvas.sortingOrder, Is.EqualTo(pauseCanvas.sortingOrder + 2));
+            Assert.That(blockerCanvas.sortingOrder, Is.EqualTo(pauseCanvas.sortingOrder + 1));
+        }
+        finally
+        {
+            CleanupDropdownForEditMode(dropdown, pauseRoot);
+        }
+    }
+
+    [Test]
     public void ShowPause_UnlocksAndShowsCursorWithoutCamera()
     {
         GameObject root = new("PauseMenuRoot");
@@ -364,18 +569,56 @@ public class PauseMenuUITests
         return (T)method.Invoke(component, null);
     }
 
+    private static void InitializeDropdownForEditMode(TMP_Dropdown dropdown)
+    {
+        MethodInfo dropdownStart = typeof(TMP_Dropdown).GetMethod(
+            "Start",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(dropdownStart, Is.Not.Null);
+        dropdownStart.Invoke(dropdown, null);
+        dropdown.alphaFadeSpeed = 0f;
+    }
+
+    private static void CleanupDropdownForEditMode(TMP_Dropdown dropdown, GameObject pauseRoot)
+    {
+        GameObject popup = dropdown.transform.Find("Dropdown List")?.gameObject;
+        GameObject blocker = pauseRoot.transform.Find("Blocker")?.gameObject;
+        if (popup != null)
+            UnityEngine.Object.DestroyImmediate(popup);
+        if (blocker != null)
+            UnityEngine.Object.DestroyImmediate(blocker);
+
+        GetPrivateField<IList>(dropdown, "m_Items").Clear();
+        SetPrivateField(dropdown, "m_Dropdown", null);
+        SetPrivateField(dropdown, "m_Blocker", null);
+    }
+
     private static T GetPrivateField<T>(object instance, string fieldName)
     {
-        FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        FieldInfo field = FindInstanceField(instance.GetType(), fieldName);
         Assert.That(field, Is.Not.Null);
         return (T)field.GetValue(instance);
     }
 
     private static void SetPrivateField(object instance, string fieldName, object value)
     {
-        FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        FieldInfo field = FindInstanceField(instance.GetType(), fieldName);
         Assert.That(field, Is.Not.Null);
         field.SetValue(instance, value);
+    }
+
+    private static FieldInfo FindInstanceField(Type type, string fieldName)
+    {
+        for (Type current = type; current != null; current = current.BaseType)
+        {
+            FieldInfo field = current.GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field;
+        }
+
+        return null;
     }
 
     private static string GetButtonLabel(Button button)
