@@ -7,18 +7,20 @@ using UnityEngine;
 /// </summary>
 public sealed class CombatTextView : MonoBehaviour
 {
-    [SerializeField] private RectTransform _root;
-    [SerializeField] private TMP_Text _text;
-    [SerializeField] private CanvasGroup _canvasGroup;
+    [SerializeField] private Transform _root;
+    [SerializeField] private TextMeshPro _text;
 
     private readonly char[] _numberBuffer = new char[32];
     private CombatTextProfile _profile;
     private CombatTextMotionSettings _motion;
     private MotionEnvelope _motionEnvelope;
-    private Vector2 _anchorPosition;
-    private Vector2 _position;
-    private Vector2 _velocity;
-    private Vector2 _spawnOffset;
+    private Vector3 _anchorPosition;
+    private Vector3 _position;
+    private Vector3 _velocity;
+    private Vector3 _spawnOffset;
+    private Vector3 _motionRight = Vector3.right;
+    private Color _styleColor = Color.white;
+    private float _renderAlpha;
     private float _age;
     private float _releaseAge;
     private float _resolvedScale;
@@ -50,17 +52,18 @@ public sealed class CombatTextView : MonoBehaviour
     public void Initialize(CombatTextProfile profile)
     {
         _profile = CombatTextProfile.Resolve(profile);
-        _root ??= transform as RectTransform;
-        _text ??= GetComponentInChildren<TMP_Text>(true);
-        _canvasGroup ??= GetComponent<CanvasGroup>();
-        if (_canvasGroup == null)
-            _canvasGroup = gameObject.AddComponent<CanvasGroup>();
-        _canvasGroup.interactable = false;
-        _canvasGroup.blocksRaycasts = false;
+        _root ??= transform;
+        _text ??= GetComponentInChildren<TextMeshPro>(true);
+        if (_text != null)
+        {
+            if (_text.transform != _root)
+                _text.transform.localScale = Vector3.one * _profile.WorldTextScale;
+            ConfigureRenderer(_text, _profile.RendererSortingOrder);
+        }
         ReleaseImmediately();
     }
 
-    public void Play(in CombatTextPresentation presentation)
+    public void Play(in CombatTextPresentation presentation, Camera camera)
     {
         if (_text == null || _root == null || presentation.Motion == null)
             return;
@@ -81,22 +84,26 @@ public sealed class CombatTextView : MonoBehaviour
         _rePunchDuration = 0f;
         _seed = presentation.DeterministicSeed;
         Priority = presentation.Priority;
-        _anchorPosition = presentation.ScreenPosition;
+        _anchorPosition = presentation.WorldPosition;
+        _motionRight = ResolveCameraRight(camera);
+        float worldUnits = _profile.WorldUnitsPerMotionUnit;
         float lateralMultiplier = _reducedMotion
             ? _profile.ReducedMotionLateralMultiplier
             : 1f;
-        _spawnOffset = new Vector2(
-            HashSigned(_seed ^ 0x51ed270b) * _motion.InitialJitterX * lateralMultiplier,
-            HashUnit(_seed ^ 0x3c6ef372) * _motion.InitialJitterY);
+        _spawnOffset =
+            _motionRight * (HashSigned(_seed ^ 0x51ed270b) * _motion.InitialJitterX * lateralMultiplier * worldUnits) +
+            Vector3.up * (HashUnit(_seed ^ 0x3c6ef372) * _motion.InitialJitterY * worldUnits);
         _position = _anchorPosition + _spawnOffset;
-        _velocity = new Vector2(
-            HashSigned(_seed ^ 0x7f4a7c15) * _motion.HorizontalSpeed * lateralMultiplier,
-            _motion.UpwardSpeed);
+        _velocity =
+            _motionRight * (HashSigned(_seed ^ 0x7f4a7c15) * _motion.HorizontalSpeed * lateralMultiplier * worldUnits) +
+            Vector3.up * (_motion.UpwardSpeed * worldUnits);
+        _renderAlpha = 1f;
         SetNumber(presentation.TotalAppliedDamage, presentation.CompactLargeNumbers);
         ApplyStyle(presentation.Style);
-        _canvasGroup.alpha = 1f;
-        _root.anchoredPosition = _position;
+        SetTextAlpha(1f);
+        _root.position = _position;
         _root.localScale = Vector3.one * Mathf.Max(0.01f, _resolvedScale * _motion.SpawnScale);
+        ApplyRenderPose(camera);
     }
 
     public void Merge(in CombatTextMergePresentation merge)
@@ -111,16 +118,16 @@ public sealed class CombatTextView : MonoBehaviour
             _rePunchDuration = Mathf.Max(0.01f, merge.RePunchDuration);
             _rePunchRemaining = _rePunchDuration;
         }
-        _position.y += Mathf.Max(0f, merge.UpwardNudge);
+        _position += Vector3.up * (Mathf.Max(0f, merge.UpwardNudge) * _profile.WorldUnitsPerMotionUnit);
         SetNumber(merge.TotalAppliedDamage, merge.CompactLargeNumbers);
         ApplyStyle(merge.Style);
     }
 
-    public void SetAnchorPosition(Vector2 screenPosition, bool snap)
+    public void SetAnchorPosition(Vector3 worldPosition, bool snap)
     {
-        _anchorPosition = screenPosition;
+        _anchorPosition = worldPosition;
         if (snap)
-            _position = screenPosition + _spawnOffset;
+            _position = worldPosition + _spawnOffset;
     }
 
     public void BeginRelease()
@@ -132,13 +139,14 @@ public sealed class CombatTextView : MonoBehaviour
         float lateralMultiplier = _reducedMotion
             ? _profile.ReducedMotionLateralMultiplier
             : 1f;
-        _velocity = new Vector2(
-            HashSigned(_seed ^ 0x2c1b3c6d) * _motion.HorizontalSpeed * lateralMultiplier,
-            _motion.UpwardSpeed);
+        float worldUnits = _profile.WorldUnitsPerMotionUnit;
+        _velocity =
+            _motionRight * (HashSigned(_seed ^ 0x2c1b3c6d) * _motion.HorizontalSpeed * lateralMultiplier * worldUnits) +
+            Vector3.up * (_motion.UpwardSpeed * worldUnits);
     }
 
     /// <returns>True when the view has completed and should return to the pool.</returns>
-    public bool Tick(float unscaledDeltaTime)
+    public bool Tick(float unscaledDeltaTime, Camera camera)
     {
         if (!_active || _motion == null)
             return true;
@@ -151,9 +159,9 @@ public sealed class CombatTextView : MonoBehaviour
         float scaleOverLife;
         if (_burnTally && !_burnReleased)
         {
-            _position = Vector2.Lerp(_position, _anchorPosition + _spawnOffset, Mathf.Clamp01(delta * 18f));
+            _position = Vector3.Lerp(_position, _anchorPosition + _spawnOffset, Mathf.Clamp01(delta * 18f));
             scaleOverLife = _motionEnvelope.EvaluateIntroScale(_age);
-            _canvasGroup.alpha = 1f;
+            SetTextAlpha(1f);
         }
         else
         {
@@ -162,19 +170,20 @@ public sealed class CombatTextView : MonoBehaviour
 
             if (!_burnTally && _age <= _motion.ConnectionDuration)
             {
-                _position = Vector2.Lerp(_position, _anchorPosition + _spawnOffset, Mathf.Clamp01(delta * 24f));
+                _position = Vector3.Lerp(_position, _anchorPosition + _spawnOffset, Mathf.Clamp01(delta * 24f));
             }
             else
             {
                 _position += _velocity * delta;
-                _velocity.y -= _motion.DownwardAcceleration * delta;
+                _velocity += Vector3.down *
+                    (_motion.DownwardAcceleration * _profile.WorldUnitsPerMotionUnit * delta);
             }
 
             float lifeAge = _burnTally ? _releaseAge : _age;
             scaleOverLife = _burnTally
                 ? _motionEnvelope.EvaluateReleaseScale(lifeAge)
                 : _motionEnvelope.EvaluateScale(lifeAge);
-            _canvasGroup.alpha = _motionEnvelope.EvaluateAlpha(lifeAge);
+            SetTextAlpha(_motionEnvelope.EvaluateAlpha(lifeAge));
         }
 
         float rePunch = _rePunchRemaining > 0f
@@ -182,18 +191,37 @@ public sealed class CombatTextView : MonoBehaviour
             : 0f;
         _root.localScale = Vector3.one * Mathf.Max(0.01f, _resolvedScale * (scaleOverLife + rePunch));
 
-        Vector2 renderedPosition = _position;
-        if (_allowLocalShake && _age < _motion.LocalShakeDuration && _motion.LocalShakeAmplitude > 0f)
-        {
-            float fade = 1f - _age / Mathf.Max(0.01f, _motion.LocalShakeDuration);
-            renderedPosition.x += Mathf.Sin((_age * 73f) + (_seed & 31)) * _motion.LocalShakeAmplitude * fade;
-            renderedPosition.y += Mathf.Sin((_age * 91f) + ((_seed >> 5) & 31)) * _motion.LocalShakeAmplitude * 0.55f * fade;
-        }
-        _root.anchoredPosition = renderedPosition;
+        ApplyRenderPose(camera);
 
         return _burnTally
             ? _burnReleased && _releaseAge >= _motion.Lifetime
             : _age >= _motion.Lifetime;
+    }
+
+    public void ApplyRenderPose(Camera camera)
+    {
+        if (!_active || _root == null)
+            return;
+
+        Vector3 renderedPosition = _position;
+        if (_allowLocalShake && _age < _motion.LocalShakeDuration && _motion.LocalShakeAmplitude > 0f)
+        {
+            float fade = 1f - _age / Mathf.Max(0.01f, _motion.LocalShakeDuration);
+            float amplitude = _motion.LocalShakeAmplitude * _profile.WorldUnitsPerMotionUnit * fade;
+            Vector3 cameraRight = ResolveCameraRight(camera);
+            Vector3 cameraUp = camera != null ? camera.transform.up : Vector3.up;
+            renderedPosition += cameraRight *
+                (Mathf.Sin((_age * 73f) + (_seed & 31)) * amplitude);
+            renderedPosition += cameraUp *
+                (Mathf.Sin((_age * 91f) + ((_seed >> 5) & 31)) * amplitude * 0.55f);
+        }
+        _root.position = renderedPosition;
+
+        if (camera == null)
+            return;
+        Vector3 awayFromCamera = renderedPosition - camera.transform.position;
+        if (awayFromCamera.sqrMagnitude > 0.0001f)
+            _root.rotation = Quaternion.LookRotation(awayFromCamera, camera.transform.up);
     }
 
     public void ReleaseImmediately()
@@ -204,36 +232,31 @@ public sealed class CombatTextView : MonoBehaviour
         _reducedMotion = false;
         _motion = null;
         Priority = CombatTextPriority.Decorative;
-        if (_canvasGroup != null)
-            _canvasGroup.alpha = 0f;
+        SetTextAlpha(0f);
         if (gameObject.activeSelf)
             gameObject.SetActive(false);
     }
 
-    internal static CombatTextView CreateProgrammatic(RectTransform parent, CombatTextProfile profile, int index)
+    internal static CombatTextView CreateProgrammatic(Transform parent, CombatTextProfile profile, int index)
     {
-        GameObject rootObject = new($"CombatTextView_{index:00}", typeof(RectTransform), typeof(CanvasGroup));
-        RectTransform root = (RectTransform)rootObject.transform;
+        GameObject rootObject = new($"CombatTextView_{index:00}");
+        Transform root = rootObject.transform;
         root.SetParent(parent, false);
-        root.sizeDelta = new Vector2(190f, 72f);
-        root.pivot = new Vector2(0.5f, 0.5f);
 
-        GameObject textObject = new("Value", typeof(RectTransform), typeof(TextMeshProUGUI));
-        RectTransform textRect = (RectTransform)textObject.transform;
-        textRect.SetParent(root, false);
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(8f, 4f);
-        textRect.offsetMax = new Vector2(-8f, -4f);
-        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        GameObject textObject = new("Value");
+        textObject.transform.SetParent(root, false);
+        TextMeshPro text = textObject.AddComponent<TextMeshPro>();
         text.alignment = TextAlignmentOptions.Center;
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.overflowMode = TextOverflowModes.Overflow;
+        text.enableAutoSizing = false;
+        text.richText = false;
         text.raycastTarget = false;
+        textObject.transform.localScale = Vector3.one * profile.WorldTextScale;
+        ConfigureRenderer(text, profile.RendererSortingOrder);
 
         CombatTextView view = rootObject.AddComponent<CombatTextView>();
         view._root = root;
-        view._canvasGroup = rootObject.GetComponent<CanvasGroup>();
         view._text = text;
         view.Initialize(profile);
         return view;
@@ -255,7 +278,40 @@ public sealed class CombatTextView : MonoBehaviour
             _text.fontSharedMaterial = sharedMaterial;
         _text.fontSize = style.FontSize;
         _text.fontStyle = style.FontStyle;
-        _text.color = style.TextColor;
+        _styleColor = style.TextColor;
+        SetTextAlpha(_renderAlpha);
+    }
+
+    private void SetTextAlpha(float alpha)
+    {
+        _renderAlpha = Mathf.Clamp01(alpha);
+        if (_text == null)
+            return;
+        Color color = _styleColor;
+        color.a *= _renderAlpha;
+        _text.color = color;
+    }
+
+    private static Vector3 ResolveCameraRight(Camera camera)
+    {
+        if (camera == null || camera.transform.right.sqrMagnitude <= 0.0001f)
+            return Vector3.right;
+        return camera.transform.right.normalized;
+    }
+
+    private static void ConfigureRenderer(TextMeshPro text, int sortingOrder)
+    {
+        if (text == null)
+            return;
+        text.sortingOrder = sortingOrder;
+        Renderer textRenderer = text.renderer;
+        if (textRenderer == null)
+            return;
+        textRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        textRenderer.receiveShadows = false;
+        textRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+        textRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        textRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
     }
 
     private static float HashUnit(int value)

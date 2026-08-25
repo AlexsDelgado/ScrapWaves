@@ -40,7 +40,8 @@ public static class CombatTextAssetBuilder
             Debug.LogWarning($"Combat text could not find the shared TMP font at '{LiberationSansPath}'.");
 
         CombatTextProfile profile = EnsureProfile();
-        CombatTextView viewPrefab = BuildViewPrefab(font, sharedFontMaterial);
+        profile.Sanitize();
+        CombatTextView viewPrefab = BuildViewPrefab(profile, font, sharedFontMaterial);
         ConfigureProfile(profile, viewPrefab, font, sharedFontMaterial);
         AssignPlayerProfile(profile);
 
@@ -90,35 +91,29 @@ public static class CombatTextAssetBuilder
         EditorUtility.SetDirty(profile);
     }
 
-    private static CombatTextView BuildViewPrefab(TMP_FontAsset font, Material sharedFontMaterial)
+    private static CombatTextView BuildViewPrefab(
+        CombatTextProfile profile,
+        TMP_FontAsset font,
+        Material sharedFontMaterial)
     {
         GameObject rootObject = new(
             "CombatTextView",
-            typeof(RectTransform),
-            typeof(CanvasGroup),
             typeof(CombatTextView));
 
         try
         {
-            RectTransform root = (RectTransform)rootObject.transform;
-            root.anchorMin = new Vector2(0.5f, 0.5f);
-            root.anchorMax = new Vector2(0.5f, 0.5f);
-            root.pivot = new Vector2(0.5f, 0.5f);
-            root.sizeDelta = new Vector2(190f, 72f);
-
-            CanvasGroup canvasGroup = rootObject.GetComponent<CanvasGroup>();
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-
-            TMP_Text value = CreateValueText(root, font, sharedFontMaterial);
+            Transform root = rootObject.transform;
+            TextMeshPro value = CreateValueText(
+                root,
+                profile,
+                font,
+                sharedFontMaterial);
 
             CombatTextView view = rootObject.GetComponent<CombatTextView>();
             SerializedObject serializedView = new(view);
             serializedView.Update();
             SetReference(serializedView, "_root", root);
             SetReference(serializedView, "_text", value);
-            SetReference(serializedView, "_canvasGroup", canvasGroup);
             serializedView.ApplyModifiedPropertiesWithoutUndo();
 
             rootObject.SetActive(false);
@@ -133,24 +128,23 @@ public static class CombatTextAssetBuilder
         }
     }
 
-    private static TMP_Text CreateValueText(
-        RectTransform parent,
+    private static TextMeshPro CreateValueText(
+        Transform parent,
+        CombatTextProfile profile,
         TMP_FontAsset font,
         Material sharedFontMaterial)
     {
-        GameObject textObject = new("Value", typeof(RectTransform), typeof(TextMeshProUGUI));
-        RectTransform rect = (RectTransform)textObject.transform;
-        rect.SetParent(parent, false);
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = new Vector2(8f, 4f);
-        rect.offsetMax = new Vector2(-8f, -4f);
+        GameObject textObject = new("Value");
+        textObject.transform.SetParent(parent, false);
+        textObject.transform.localScale = Vector3.one * profile.WorldTextScale;
 
-        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        TextMeshPro text = textObject.AddComponent<TextMeshPro>();
         text.text = "9999";
         text.alignment = TextAlignmentOptions.Center;
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.overflowMode = TextOverflowModes.Overflow;
+        text.enableAutoSizing = false;
+        text.richText = false;
         text.raycastTarget = false;
         text.fontSize = 38f;
         text.fontStyle = FontStyles.Bold;
@@ -159,6 +153,14 @@ public static class CombatTextAssetBuilder
             text.font = font;
         if (sharedFontMaterial != null)
             text.fontSharedMaterial = sharedFontMaterial;
+
+        text.sortingOrder = profile.RendererSortingOrder;
+        Renderer textRenderer = text.renderer;
+        textRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        textRenderer.receiveShadows = false;
+        textRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+        textRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        textRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
         return text;
     }
 

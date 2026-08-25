@@ -206,16 +206,14 @@ public static class CombatTextVisibilityPolicy
         return new CombatTextVisibilityDecision(true, CombatTextSuppressionReason.None);
     }
 
-    public static bool TryProject(
+    public static bool TryEvaluateWorld(
         Camera camera,
         Vector3 worldPosition,
         CombatTextPriority priority,
         CombatTextProfile profile,
-        out Vector2 screenPoint,
         out float distanceScale,
         out CombatTextSuppressionReason reason)
     {
-        screenPoint = default;
         distanceScale = 1f;
         reason = CombatTextSuppressionReason.None;
         if (camera == null)
@@ -244,9 +242,6 @@ public static class CombatTextVisibilityPolicy
             return false;
         }
 
-        viewport.x = Mathf.Clamp(viewport.x, profile.HorizontalViewportInset, 1f - profile.HorizontalViewportInset);
-        viewport.y = Mathf.Clamp(viewport.y, profile.VerticalViewportInset, 1f - profile.VerticalViewportInset);
-        screenPoint = new Vector2(viewport.x * Screen.width, viewport.y * Screen.height);
         distanceScale = distanceDecision.DistanceScale;
         return true;
     }

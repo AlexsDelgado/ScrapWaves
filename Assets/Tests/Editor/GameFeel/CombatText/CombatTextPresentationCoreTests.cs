@@ -214,7 +214,7 @@ public sealed class CombatTextPresentationCoreTests
         }
         finally
         {
-            director?.StopAll();
+            director?.Dispose();
             Object.DestroyImmediate(root);
         }
     }
@@ -247,7 +247,7 @@ public sealed class CombatTextPresentationCoreTests
         finally
         {
             DamageFeedbackSequenceRuntime.Configure(_profile.SequenceCapacity, _profile.SequenceOrphanTimeout);
-            director?.StopAll();
+            director?.Dispose();
             Object.DestroyImmediate(root);
         }
     }
@@ -271,7 +271,7 @@ public sealed class CombatTextPresentationCoreTests
         finally
         {
             DamageFeedbackSequenceRuntime.Configure(_profile.SequenceCapacity, _profile.SequenceOrphanTimeout);
-            director?.StopAll();
+            director?.Dispose();
             Object.DestroyImmediate(root);
         }
     }
@@ -330,7 +330,7 @@ public sealed class CombatTextPresentationCoreTests
         }
         finally
         {
-            director?.StopAll();
+            director?.Dispose();
             Object.DestroyImmediate(secondTarget);
             Object.DestroyImmediate(firstTarget);
             Object.DestroyImmediate(root);

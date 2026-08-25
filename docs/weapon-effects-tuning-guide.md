@@ -210,7 +210,7 @@ visual tuning, then polish them in a separate pass.
 Combat text is another channel of the semantic presentation pipeline. Gameplay
 applies damage first, then sends the authoritative applied amount and its action
 or status identity through `WeaponFeedbackContext`. The shared combat-text
-director aggregates compatible events and drives pooled screen-space views. Do
+director aggregates compatible events and drives pooled world-space views. Do
 not tune weapon damage, target health, or cadence to change a displayed number.
 
 The canonical authored assets are:
@@ -220,18 +220,20 @@ The canonical authored assets are:
 - Builder recipe: `Assets/Scripts/Weapon/Editor/CombatTextAssetBuilder.cs`.
 - Builder command: `Tools > ScrapWaves > Game Feel > Rebuild Combat Text Assets`.
 
-The tables below record the serialized production values on 2026-08-21. They are
+The tables below record the serialized production values on 2026-08-25. They are
 the current authoring baseline, not evidence that the manual readability matrix
 or profiler targets have been completed.
 
 #### Master and style values
 
-The profile is enabled, uses a `1920 x 1080` reference resolution, renders at
-sorting order `800`, and enables compact formatting above the exact-number
-boundary. The sandbox should use exact formatting when validating applied totals.
-All current styles use bold text and the shared Liberation Sans SDF material.
-The pooled prefab and programmatic fallback contain only the numeric TMP visual:
-there is no backing panel, icon, slash, bar, diamond, or other accent geometry.
+The profile is enabled, renders its depth-tested MeshRenderer at sorting order
+`800`, uses a `0.08` world-text scale, converts authored motion units at
+`0.015 m` per unit, and enables compact formatting above the exact-number
+boundary. The sandbox should use exact formatting when validating applied
+totals. All current styles use bold text and the shared Liberation Sans SDF
+material. The pooled prefab and programmatic fallback contain one world
+`TextMeshPro` number and no Canvas, backing panel, icon, slash, bar, diamond, or
+other accent geometry.
 
 | Style | Font size | Base scale | Text RGBA / hex |
 | --- | ---: | ---: | --- |
@@ -246,7 +248,9 @@ there is no backing panel, icon, slash, bar, diamond, or other accent geometry.
 
 #### Motion values
 
-Speeds and accelerations are screen-space units per second. Fade start is a
+Speeds, acceleration, jitter, lane spacing, and merge nudges use authored motion
+units; multiply them by `0.015` to obtain world meters. Vertical motion follows
+world up, lateral motion captures camera right at spawn, and fade start is a
 normalized fraction of lifetime.
 
 | Motion | Lifetime | Connection | Horizontal | Upward | Downward acceleration | Spawn / overshoot | Fade start | Local shake |
@@ -289,11 +293,19 @@ sequence until every contributor releases. Rocket parent explosions and fragment
 descendants likewise share one numeric aggregation family while retaining their
 event kind for presentation.
 
-Visibility uses four lanes at `20` pixels spacing. Full-size distance is `26 m`;
-routine and important maximum distances are `38 m` and `50 m`; distant scale is
-`0.82`. Viewport insets are `0.04` horizontal and `0.06` vertical, world-anchor
-height is `1.25 m`, and burn anchors project at `20 Hz`. The major-ability ratio
-threshold is `1.15`; the elite/boss important threshold is `1.50`.
+Visibility uses four lanes at `20` motion units (`0.30 m`) spacing. Full-size
+distance is `26 m`; routine and important maximum distances are `38 m` and
+`50 m`; the additional distant scale is `1` because perspective already shrinks
+world text. Every anchor receives a `0.05 m` camera-facing surface bias to avoid
+z-fighting. Burn anchors sit at least `1.25 m` above the target origin and at
+least `0.25 m` above its collider or renderer bounds, then follow it every frame.
+The major-ability ratio threshold is `1.15`; the elite/boss important threshold
+is `1.50`.
+
+Active numbers live under a detached scene-level `CombatText World` root, so the
+player hierarchy cannot drag their trajectories. A single late render driver
+updates all active billboards after camera movement. The TMP material remains
+non-overlay and uses scene depth, so opaque world geometry can occlude numbers.
 
 The serialized accessibility constants are `0.35` for the Reduced Motion lateral
 multiplier and `0` for the Reduced Shake multiplier. The current director selects
