@@ -59,28 +59,101 @@ public class TitleScreenControllerTests
         Button[] productionButtons =
         {
             controller.PlayButton,
-            controller.ObjectivesButton,
             controller.SettingsButton,
+            controller.ObjectivesButton,
             controller.QuitButton
         };
 
         Assert.That(productionButtons, Has.All.Not.Null, "Every production destination must be assigned in the scene.");
         CollectionAssert.AreEqual(
-            new[] { "PLAY", "OBJECTIVES", "SETTINGS", "QUIT" },
+            new[] { "PLAY", "SETTINGS", "OBJECTIVES", "QUIT" },
             productionButtons.Select(ReadButtonLabel).ToArray());
 
-        MainMenuItemView[] productionItems = productionButtons
-            .Select(button => button.GetComponent<MainMenuItemView>())
+        MainMenuItemView[] productionItems = FindAllInScene<MainMenuItemView>(scene)
+            .Where(item => !item.IsDeveloperEntry)
+            .OrderBy(item => item.transform.GetSiblingIndex())
             .ToArray();
+        Assert.That(productionItems, Has.Length.EqualTo(4),
+            "The production menu must not retain an unreferenced destination such as Credits.");
         Assert.That(productionItems, Has.All.Not.Null);
         Assert.That(productionItems, Has.All.Matches<MainMenuItemView>(item => item.HasRequiredReferences));
         Assert.That(productionItems, Has.All.Matches<MainMenuItemView>(item => !item.IsDeveloperEntry));
+        Assert.That(productionItems, Has.All.Matches<MainMenuItemView>(item => HasAncestorNamed(item.transform, "MenuRoot")));
         Assert.That(productionItems.Select(item => item.transform.GetSiblingIndex()), Is.Ordered);
+        CollectionAssert.AreEqual(
+            productionButtons.Select(button => button.GetComponent<MainMenuItemView>()).ToArray(),
+            productionItems,
+            "Controller references must follow the same order as the four authored production slots.");
+        Assert.That(
+            FindAllInScene<TMP_Text>(scene).Any(text =>
+                string.Equals(text.text?.Trim(), "CREDITS", StringComparison.OrdinalIgnoreCase)),
+            Is.False,
+            "Credits must be replaced by Objectives rather than left as hidden or decorative text.");
 
         VerticalLayoutGroup[] automaticLayouts = FindAllInScene<VerticalLayoutGroup>(scene)
             .Where(layout => HasAncestorNamed(layout.transform, "MenuRoot"))
             .ToArray();
         Assert.That(automaticLayouts, Is.Empty, "The angled menu uses individually authored slots, not an automatic vertical layout.");
+    }
+
+    [Test]
+    public void TitleScreenScene_UsesBackgroundOnlyWireframeComposition()
+    {
+        Scene scene = OpenTitleScene();
+        Transform[] transforms = FindAllInScene<Transform>(scene);
+        string[] forbiddenNames =
+        {
+            "ShowcaseRoot",
+            "ShowcaseSubject",
+            "ShowcaseLabel",
+            "TitleStencil"
+        };
+
+        for (int index = 0; index < forbiddenNames.Length; index++)
+        {
+            Assert.That(
+                transforms.Any(transform => transform.name == forbiddenNames[index]),
+                Is.False,
+                $"Legacy presentation object '{forbiddenNames[index]}' should not remain in the background-only main menu.");
+        }
+
+        RectTransform mainMenuScreen = FindNamedRectTransform(scene, "MainMenuScreen");
+        Assert.That(
+            mainMenuScreen.GetComponentsInChildren<Transform>(true)
+                .Any(transform => transform.name == "InputHints"),
+            Is.False,
+            "Navigation tips are forbidden only on the main screen; local Objectives/Settings hints may remain.");
+
+        ScrapMenuBackgroundController background = FindExactlyOneInScene<ScrapMenuBackgroundController>(scene);
+        Graphic proceduralGraphic = ReadObjectReference<Graphic>(background, "_proceduralBackground");
+        Material proceduralMaterial = ReadObjectReference<Material>(background, "_proceduralBackgroundMaterial");
+        RectTransform backgroundRect = proceduralGraphic.rectTransform;
+        const float tolerance = 0.01f;
+
+        Assert.That(Vector2.Distance(backgroundRect.anchorMin, Vector2.zero), Is.LessThan(tolerance));
+        Assert.That(Vector2.Distance(backgroundRect.anchorMax, Vector2.one), Is.LessThan(tolerance));
+        Assert.That(backgroundRect.offsetMin.sqrMagnitude, Is.LessThan(tolerance * tolerance));
+        Assert.That(backgroundRect.offsetMax.sqrMagnitude, Is.LessThan(tolerance * tolerance));
+        Assert.That(proceduralMaterial.shader, Is.Not.Null);
+        Assert.That(proceduralMaterial.shader.isSupported, Is.True);
+        Assert.That(ShaderUtil.ShaderHasError(proceduralMaterial.shader), Is.False);
+        Assert.That(proceduralMaterial.HasProperty("_MainTex"), Is.True);
+    }
+
+    [Test]
+    public void TitleScreenScene_PlacesTitleLeftAndMenuRightWithinSafeArea()
+    {
+        Scene scene = OpenTitleScene();
+        RectTransform safeArea = FindNamedRectTransform(scene, "SafeArea");
+        RectTransform titleRoot = FindNamedRectTransform(scene, "TitleRoot");
+        RectTransform menuRoot = FindNamedRectTransform(scene, "MenuRoot");
+
+        Canvas.ForceUpdateCanvases();
+        float safeCenterX = safeArea.rect.center.x;
+        Assert.That(CenterXRelativeTo(safeArea, titleRoot), Is.LessThan(safeCenterX),
+            "The title treatment should occupy the left side of the wireframe.");
+        Assert.That(CenterXRelativeTo(safeArea, menuRoot), Is.GreaterThan(safeCenterX),
+            "The production action stack should occupy the right side of the wireframe.");
     }
 
     [Test]
@@ -294,6 +367,22 @@ public class TitleScreenControllerTests
             FindAllInScene<Transform>(scene).Any(transform => transform.name == objectName),
             Is.True,
             $"Expected authored object '{objectName}' in the title scene.");
+    }
+
+    private static RectTransform FindNamedRectTransform(Scene scene, string objectName)
+    {
+        RectTransform[] matches = FindAllInScene<RectTransform>(scene)
+            .Where(transform => transform.name == objectName)
+            .ToArray();
+        Assert.That(matches, Has.Length.EqualTo(1),
+            $"Expected exactly one authored RectTransform named '{objectName}'.");
+        return matches[0];
+    }
+
+    private static float CenterXRelativeTo(RectTransform reference, RectTransform target)
+    {
+        Vector3 worldCenter = target.TransformPoint(target.rect.center);
+        return reference.InverseTransformPoint(worldCenter).x;
     }
 
     private static bool HasAncestorNamed(Transform transform, string name)

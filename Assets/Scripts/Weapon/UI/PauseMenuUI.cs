@@ -1,6 +1,7 @@
 using System.Text;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
@@ -9,7 +10,19 @@ public class PauseMenuUI : MonoBehaviour
 {
     private const int PauseCanvasSortingOrder = 32760;
 
+    // Pause-local presentation values. Keep these scoped here so changing the pause
+    // presentation cannot unexpectedly restyle the gameplay HUD or run-end screen.
+    private static readonly Color CoalOverlay = new(0.018f, 0.026f, 0.022f, 0.88f);
+    private static readonly Color DeepSteel = new(0.067f, 0.078f, 0.075f, 0.97f);
+    private static readonly Color Plate = new(0.122f, 0.145f, 0.133f, 1f);
+    private static readonly Color Bone = new(0.949f, 0.961f, 0.922f, 1f);
+    private static readonly Color MutedSteel = new(0.678f, 0.741f, 0.69f, 1f);
+    private static readonly Color ScrapGreen = new(0.659f, 0.78f, 0.561f, 1f);
+    private static readonly Color WarningRust = new(0.851f, 0.416f, 0.196f, 1f);
+    private static readonly Color Danger = new(0.78f, 0.29f, 0.263f, 1f);
+
     [SerializeField] private PlayerStats _playerStats;
+    [SerializeField] private PlayerHealth _playerHealth;
     [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
     [SerializeField] private CraftingUI _craftingUi;
     [SerializeField] private ThirdPersonCamera _camera;
@@ -17,8 +30,14 @@ public class PauseMenuUI : MonoBehaviour
     [SerializeField] private WeaponSandboxDebugUI _sandboxDebugUi;
 
     private GameObject _root;
+    private GameObject _mainActionPanel;
+    private GameObject _settingsPanel;
     private TextMeshProUGUI _statsText;
     private TextMeshProUGUI _runStatsText;
+    private Button _resumeButton;
+    private Button _settingsButton;
+    private Button _quitButton;
+    private Button _settingsBackButton;
     private Slider _hSensSlider;
     private Slider _vSensSlider;
     private Toggle _invertYToggle;
@@ -61,7 +80,7 @@ public class PauseMenuUI : MonoBehaviour
 
         if (_isPaused)
         {
-            Resume();
+            HandlePauseCancel();
             return;
         }
 
@@ -75,6 +94,10 @@ public class PauseMenuUI : MonoBehaviour
     {
         if (_playerStats == null)
             _playerStats = FindAnyObjectByType<PlayerStats>();
+        if (_playerHealth == null && _playerStats != null)
+            _playerHealth = _playerStats.GetComponent<PlayerHealth>();
+        if (_playerHealth == null)
+            _playerHealth = FindAnyObjectByType<PlayerHealth>();
         if (_levelUpChoiceUi == null)
             _levelUpChoiceUi = FindAnyObjectByType<LevelUpChoiceUI>();
         if (_craftingUi == null)
@@ -119,18 +142,45 @@ public class PauseMenuUI : MonoBehaviour
     {
         ResolveRefs();
         _savedTimeScale = Time.timeScale > 0.001f ? Time.timeScale : 1f;
+        SetSettingsView(false, false);
         SetPauseState(true, 0f);
         SyncSettingsFromSources();
         RefreshStats();
+        FocusSelectable(_resumeButton);
     }
 
     private void Resume()
     {
+        SetSettingsView(false, false);
         SetPauseState(false, _savedTimeScale > 0.001f ? _savedTimeScale : 1f);
+    }
+
+    private void OpenSettings()
+    {
+        SetSettingsView(true, true);
+        SyncSettingsFromSources();
+    }
+
+    private void CloseSettings()
+    {
+        _settingsService?.FlushPendingSave();
+        SetSettingsView(false, true);
+    }
+
+    private void HandlePauseCancel()
+    {
+        if (_settingsPanel != null && _settingsPanel.activeSelf)
+        {
+            CloseSettings();
+            return;
+        }
+
+        Resume();
     }
 
     private void ReturnToTitle()
     {
+        SetSettingsView(false, false);
         SetPauseState(false, 1f);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
@@ -141,6 +191,7 @@ public class PauseMenuUI : MonoBehaviour
         SetPauseState(true, 0f);
         SyncSettingsFromSources();
         RefreshStats();
+        FocusSelectable(_resumeButton);
     }
 
     private void SetPauseState(bool paused, float timeScale)
@@ -148,6 +199,8 @@ public class PauseMenuUI : MonoBehaviour
         if (!paused)
             _settingsService?.FlushPendingSave();
         _isPaused = paused;
+        if (!paused)
+            ClearPauseSelection();
         if (_root != null)
             _root.SetActive(paused);
         Time.timeScale = timeScale;
@@ -245,17 +298,23 @@ public class PauseMenuUI : MonoBehaviour
     {
         RefreshRunStats();
 
-        if (_statsText == null || _playerStats == null)
+        if (_statsText == null)
             return;
 
         var sb = new StringBuilder();
-        foreach (StatDefinition definition in _playerStats.GetAllDefinitions())
-        {
-            if (definition == null)
-                continue;
-            float value = _playerStats.GetStat(definition.StatType);
-            sb.AppendLine($"{StatDisplayNames.GetDisplayName(definition.StatType)}: {value:0.##}");
-        }
+
+        if (_playerHealth != null)
+            AppendStatLine(sb, "HEALTH", $"{_playerHealth.CurrentHealth} / {_playerHealth.MaxHealth}");
+        else
+            AppendPlayerStat(sb, "MAX HEALTH", StatType.MaxHealth);
+
+        AppendPlayerStat(sb, "MOVE SPEED", StatType.MovementSpeed);
+        AppendPlayerStat(sb, "DAMAGE", StatType.DamageFlat);
+        AppendPlayerStat(sb, "DASH CHARGES", StatType.DashCharges);
+        AppendPlayerStat(sb, "DASH SPEED", StatType.DashSpeed);
+
+        if (sb.Length == 0)
+            sb.Append("PLAYER DATA UNAVAILABLE");
 
         _statsText.text = sb.ToString();
     }
@@ -266,8 +325,9 @@ public class PauseMenuUI : MonoBehaviour
             return;
 
         _runStatsText.text =
-            $"Time: {RunSessionStats.FormatElapsed()}\n" +
-            $"Kills: {RunCombatStats.EnemiesEliminated}";
+            $"TIME          {RunSessionStats.FormatElapsed()}\n" +
+            $"KILLS         {RunCombatStats.EnemiesEliminated}\n" +
+            $"BOSS KILLS    {RunSessionStats.BossKills}";
     }
 
     private void BuildUi()
@@ -285,66 +345,116 @@ public class PauseMenuUI : MonoBehaviour
         rootRt.offsetMin = Vector2.zero;
         rootRt.offsetMax = Vector2.zero;
 
-        var overlay = HudUiFactory.CreatePanel(_root.transform, "Overlay", Vector2.zero);
-        var overlayRt = overlay.GetComponent<RectTransform>();
-        overlayRt.anchorMin = Vector2.zero;
-        overlayRt.anchorMax = Vector2.one;
-        overlayRt.offsetMin = Vector2.zero;
-        overlayRt.offsetMax = Vector2.zero;
-        overlay.color = new Color(0f, 0f, 0f, 0.72f);
+        Image overlay = CreateSolidImage(_root.transform, "Overlay", CoalOverlay);
+        Stretch(overlay.rectTransform);
         overlay.raycastTarget = true;
 
-        var title = HudUiFactory.CreateLabel(_root.transform, "Title", "PAUSED", 48f, TextAlignmentOptions.Center);
-        var titleRt = title.GetComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0.5f, 1f);
-        titleRt.anchorMax = new Vector2(0.5f, 1f);
-        titleRt.pivot = new Vector2(0.5f, 1f);
-        titleRt.anchoredPosition = new Vector2(0f, -32f);
-        titleRt.sizeDelta = new Vector2(500f, 64f);
-        title.fontStyle = FontStyles.Bold;
-
-        var resumeBtn = HudUiFactory.CreateButton(_root.transform, "Resume", new Vector2(220f, 48f));
-        var resumeRt = resumeBtn.GetComponent<RectTransform>();
-        resumeRt.anchorMin = new Vector2(0.5f, 0.5f);
-        resumeRt.anchorMax = new Vector2(0.5f, 0.5f);
-        resumeRt.pivot = new Vector2(0.5f, 0.5f);
-        resumeRt.anchoredPosition = new Vector2(0f, -12f);
-        resumeBtn.onClick.AddListener(Resume);
-
-        var titleBtn = HudUiFactory.CreateButton(_root.transform, "Main Menu", new Vector2(220f, 48f));
-        var titleButtonRt = titleBtn.GetComponent<RectTransform>();
-        titleButtonRt.anchorMin = new Vector2(0.5f, 0.5f);
-        titleButtonRt.anchorMax = new Vector2(0.5f, 0.5f);
-        titleButtonRt.pivot = new Vector2(0.5f, 0.5f);
-        titleButtonRt.anchoredPosition = new Vector2(0f, -72f);
-        titleBtn.onClick.AddListener(ReturnToTitle);
-
+        CreateBackgroundRail(_root.transform, "TopRail", true);
+        CreateBackgroundRail(_root.transform, "BottomRail", false);
+        BuildTitle();
+        BuildRunStatsPanel();
+        BuildPlayerStatsPanel();
+        BuildMainActionPanel();
         BuildSettingsPanel();
-        BuildStatsPanel();
+        SetSettingsView(false, false);
+    }
+
+    private void BuildTitle()
+    {
+        Image titlePlate = CreateIndustrialPanel(_root.transform, "PauseTitlePlate", new Vector2(440f, 90f), WarningRust);
+        SetAnchoredRect(titlePlate.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -64f), new Vector2(440f, 90f), new Vector2(0.5f, 1f));
+
+        TextMeshProUGUI title = CreateLabel(titlePlate.transform, "Title", "PAUSED", 48f, TextAlignmentOptions.Center, Bone);
+        Stretch(title.rectTransform, new Vector2(20f, 12f), new Vector2(-20f, -12f));
+        title.fontStyle = FontStyles.Bold;
+        title.characterSpacing = 7f;
+    }
+
+    private void BuildMainActionPanel()
+    {
+        Image panel = CreateIndustrialPanel(_root.transform, "MainActionPanel", new Vector2(430f, 360f), ScrapGreen);
+        _mainActionPanel = panel.gameObject;
+        SetAnchoredRect(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -24f), new Vector2(430f, 360f));
+
+        TextMeshProUGUI header = CreateLabel(panel.transform, "Header", "SYSTEM PAUSED", 16f, TextAlignmentOptions.Center, MutedSteel);
+        SetAnchoredRect(header.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -38f), new Vector2(360f, 30f), new Vector2(0.5f, 1f));
+        header.characterSpacing = 5f;
+
+        _resumeButton = CreateIndustrialButton(panel.transform, "ResumeButton", "RESUME", new Vector2(330f, 64f), ScrapGreen);
+        SetAnchoredRect((RectTransform)_resumeButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 82f), new Vector2(330f, 64f));
+        _resumeButton.onClick.AddListener(Resume);
+
+        _settingsButton = CreateIndustrialButton(panel.transform, "SettingsButton", "SETTINGS", new Vector2(330f, 64f), WarningRust);
+        SetAnchoredRect((RectTransform)_settingsButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(330f, 64f));
+        _settingsButton.onClick.AddListener(OpenSettings);
+
+        _quitButton = CreateIndustrialButton(panel.transform, "QuitButton", "QUIT", new Vector2(330f, 64f), Danger);
+        SetAnchoredRect((RectTransform)_quitButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -82f), new Vector2(330f, 64f));
+        _quitButton.onClick.AddListener(ReturnToTitle);
+
+        ConfigureVerticalNavigation(_resumeButton, _settingsButton, _quitButton);
+    }
+
+    private void BuildRunStatsPanel()
+    {
+        Image panel = CreateIndustrialPanel(_root.transform, "RunStatsPanel", new Vector2(380f, 440f), WarningRust);
+        SetAnchoredRect(panel.rectTransform, new Vector2(0.2f, 0.5f), new Vector2(0f, -20f), new Vector2(380f, 440f));
+
+        TextMeshProUGUI header = CreatePanelHeader(panel.transform, "RUN STATS");
+        header.characterSpacing = 4f;
+
+        GameObject runGo = new("RunStats", typeof(RectTransform));
+        runGo.transform.SetParent(panel.transform, false);
+        RectTransform runRt = runGo.GetComponent<RectTransform>();
+        Stretch(runRt, new Vector2(34f, 34f), new Vector2(-34f, -94f));
+        _runStatsText = runGo.AddComponent<TextMeshProUGUI>();
+        TmpUiHelper.ApplyDefaultFont(_runStatsText);
+        _runStatsText.fontSize = 22f;
+        _runStatsText.fontStyle = FontStyles.Bold;
+        _runStatsText.alignment = TextAlignmentOptions.TopLeft;
+        _runStatsText.color = Bone;
+        _runStatsText.lineSpacing = 34f;
+        _runStatsText.raycastTarget = false;
+    }
+
+    private void BuildPlayerStatsPanel()
+    {
+        Image panel = CreateIndustrialPanel(_root.transform, "PlayerStatsPanel", new Vector2(380f, 440f), ScrapGreen);
+        SetAnchoredRect(panel.rectTransform, new Vector2(0.8f, 0.5f), new Vector2(0f, -20f), new Vector2(380f, 440f));
+
+        TextMeshProUGUI header = CreatePanelHeader(panel.transform, "PLAYER STATS");
+        header.characterSpacing = 4f;
+
+        GameObject contentGo = new("StatsContent", typeof(RectTransform));
+        contentGo.transform.SetParent(panel.transform, false);
+        RectTransform contentRt = contentGo.GetComponent<RectTransform>();
+        Stretch(contentRt, new Vector2(34f, 34f), new Vector2(-34f, -94f));
+
+        _statsText = contentGo.AddComponent<TextMeshProUGUI>();
+        TmpUiHelper.ApplyDefaultFont(_statsText);
+        _statsText.fontSize = 20f;
+        _statsText.fontStyle = FontStyles.Bold;
+        _statsText.alignment = TextAlignmentOptions.TopLeft;
+        _statsText.color = Bone;
+        _statsText.lineSpacing = 18f;
+        _statsText.textWrappingMode = TextWrappingModes.NoWrap;
+        _statsText.overflowMode = TextOverflowModes.Overflow;
+        _statsText.raycastTarget = false;
     }
 
     private void BuildSettingsPanel()
     {
-        var panel = HudUiFactory.CreatePanel(_root.transform, "SettingsPanel", new Vector2(400f, 520f));
-        var panelRt = panel.GetComponent<RectTransform>();
-        panelRt.anchorMin = new Vector2(0f, 0.5f);
-        panelRt.anchorMax = new Vector2(0f, 0.5f);
-        panelRt.pivot = new Vector2(0f, 0.5f);
-        panelRt.anchoredPosition = new Vector2(24f, 0f);
+        Image panel = CreateIndustrialPanel(_root.transform, "SettingsPanel", new Vector2(650f, 640f), ScrapGreen);
+        _settingsPanel = panel.gameObject;
+        SetAnchoredRect(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(650f, 640f));
 
-        var header = HudUiFactory.CreateLabel(panel.transform, "Header", "Settings", 22f, TextAlignmentOptions.TopLeft);
-        var headerRt = header.GetComponent<RectTransform>();
-        headerRt.anchorMin = new Vector2(0f, 1f);
-        headerRt.anchorMax = new Vector2(1f, 1f);
-        headerRt.pivot = new Vector2(0f, 1f);
-        headerRt.offsetMin = new Vector2(12f, -40f);
-        headerRt.offsetMax = new Vector2(-12f, -8f);
-        header.fontStyle = FontStyles.Bold;
+        TextMeshProUGUI header = CreatePanelHeader(panel.transform, "SETTINGS");
+        header.characterSpacing = 5f;
 
-        float y = -56f;
+        float y = -94f;
         _hSensSlider = CreateSettingRow(
             panel.transform,
-            "Horizontal Sensitivity",
+            "HORIZONTAL SENSITIVITY",
             ref y,
             UserSettingsData.MinimumSensitivity,
             UserSettingsData.MaximumSensitivity,
@@ -356,7 +466,7 @@ public class PauseMenuUI : MonoBehaviour
         });
         _vSensSlider = CreateSettingRow(
             panel.transform,
-            "Vertical Sensitivity",
+            "VERTICAL SENSITIVITY",
             ref y,
             UserSettingsData.MinimumSensitivity,
             UserSettingsData.MaximumSensitivity,
@@ -367,7 +477,7 @@ public class PauseMenuUI : MonoBehaviour
                 settings.VerticalSensitivity = v;
         });
 
-        _invertYToggle = CreateToggleRow(panel.transform, "Invert Y", ref y, on =>
+        _invertYToggle = CreateToggleRow(panel.transform, "INVERT Y", ref y, on =>
         {
             if (TryGetSettingsService(out UserSettingsService settings))
                 settings.InvertY = on;
@@ -375,7 +485,7 @@ public class PauseMenuUI : MonoBehaviour
 
         _sfxSlider = CreateSettingRow(
             panel.transform,
-            "SFX Volume",
+            "SFX VOLUME",
             ref y,
             0f,
             1f,
@@ -387,7 +497,7 @@ public class PauseMenuUI : MonoBehaviour
         });
         _musicSlider = CreateSettingRow(
             panel.transform,
-            "Music Volume",
+            "MUSIC VOLUME",
             ref y,
             0f,
             1f,
@@ -397,96 +507,84 @@ public class PauseMenuUI : MonoBehaviour
             if (TryGetSettingsService(out UserSettingsService settings))
                 settings.MusicVolume = v;
         });
+
+        _settingsBackButton = CreateIndustrialButton(panel.transform, "BackButton", "BACK", new Vector2(280f, 58f), WarningRust);
+        SetAnchoredRect((RectTransform)_settingsBackButton.transform, new Vector2(0.5f, 0f), new Vector2(0f, 42f), new Vector2(280f, 58f), new Vector2(0.5f, 0f));
+        _settingsBackButton.onClick.AddListener(CloseSettings);
+
+        ConfigureVerticalNavigation(
+            _hSensSlider,
+            _vSensSlider,
+            _invertYToggle,
+            _sfxSlider,
+            _musicSlider,
+            _settingsBackButton);
+        _settingsPanel.SetActive(false);
     }
 
-    private void BuildStatsPanel()
+    private void SetSettingsView(bool showSettings, bool updateFocus)
     {
-        var panel = HudUiFactory.CreatePanel(_root.transform, "StatsPanel", new Vector2(380f, 720f));
-        var panelRt = panel.GetComponent<RectTransform>();
-        panelRt.anchorMin = new Vector2(1f, 0.5f);
-        panelRt.anchorMax = new Vector2(1f, 0.5f);
-        panelRt.pivot = new Vector2(1f, 0.5f);
-        panelRt.anchoredPosition = new Vector2(-24f, 0f);
+        if (_mainActionPanel != null)
+            _mainActionPanel.SetActive(!showSettings);
+        if (_settingsPanel != null)
+            _settingsPanel.SetActive(showSettings);
 
-        var runHeader = HudUiFactory.CreateLabel(panel.transform, "RunHeader", "Run", 22f, TextAlignmentOptions.TopLeft);
-        var runHeaderRt = runHeader.GetComponent<RectTransform>();
-        runHeaderRt.anchorMin = new Vector2(0f, 1f);
-        runHeaderRt.anchorMax = new Vector2(1f, 1f);
-        runHeaderRt.pivot = new Vector2(0f, 1f);
-        runHeaderRt.offsetMin = new Vector2(12f, -40f);
-        runHeaderRt.offsetMax = new Vector2(-12f, -8f);
-        runHeader.fontStyle = FontStyles.Bold;
+        if (!updateFocus || _root == null || !_root.activeInHierarchy)
+            return;
 
-        var runGo = new GameObject("RunStats", typeof(RectTransform));
-        runGo.transform.SetParent(panel.transform, false);
-        var runRt = runGo.GetComponent<RectTransform>();
-        runRt.anchorMin = new Vector2(0f, 1f);
-        runRt.anchorMax = new Vector2(1f, 1f);
-        runRt.pivot = new Vector2(0f, 1f);
-        runRt.offsetMin = new Vector2(12f, -100f);
-        runRt.offsetMax = new Vector2(-12f, -48f);
-        _runStatsText = runGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(_runStatsText);
-        _runStatsText.fontSize = 16f;
-        _runStatsText.alignment = TextAlignmentOptions.TopLeft;
-        _runStatsText.color = HudUiFactory.MutedTextColor;
-
-        var header = HudUiFactory.CreateLabel(panel.transform, "StatsHeader", "Player Stats", 22f, TextAlignmentOptions.TopLeft);
-        var headerRt = header.GetComponent<RectTransform>();
-        headerRt.anchorMin = new Vector2(0f, 1f);
-        headerRt.anchorMax = new Vector2(1f, 1f);
-        headerRt.pivot = new Vector2(0f, 1f);
-        headerRt.offsetMin = new Vector2(12f, -140f);
-        headerRt.offsetMax = new Vector2(-12f, -108f);
-        header.fontStyle = FontStyles.Bold;
-
-        var contentGo = new GameObject("StatsContent", typeof(RectTransform));
-        contentGo.transform.SetParent(panel.transform, false);
-        var contentRt = contentGo.GetComponent<RectTransform>();
-        contentRt.anchorMin = Vector2.zero;
-        contentRt.anchorMax = Vector2.one;
-        contentRt.offsetMin = new Vector2(12f, 12f);
-        contentRt.offsetMax = new Vector2(-12f, -148f);
-
-        _statsText = contentGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(_statsText);
-        _statsText.fontSize = 15f;
-        _statsText.alignment = TextAlignmentOptions.TopLeft;
-        _statsText.color = HudUiFactory.MutedTextColor;
-        _statsText.enableWordWrapping = true;
-        _statsText.overflowMode = TextOverflowModes.Overflow;
-        _statsText.raycastTarget = false;
+        if (showSettings)
+        {
+            Selectable firstSetting = _hSensSlider != null && _hSensSlider.IsInteractable()
+                ? _hSensSlider
+                : _settingsBackButton;
+            FocusSelectable(firstSetting);
+        }
+        else
+        {
+            FocusSelectable(_settingsButton != null && _settingsButton.gameObject.activeInHierarchy
+                ? _settingsButton
+                : _resumeButton);
+        }
     }
 
-    private static Slider CreateSettingRow(Transform parent, string label, ref float y, float min, float max, float defaultValue, UnityEngine.Events.UnityAction<float> onChanged)
+    private void AppendPlayerStat(StringBuilder builder, string label, StatType statType)
+    {
+        if (_playerStats == null || _playerStats.GetDefinition(statType) == null)
+            return;
+
+        AppendStatLine(builder, label, _playerStats.GetStat(statType).ToString("0.##"));
+    }
+
+    private static void AppendStatLine(StringBuilder builder, string label, string value)
+    {
+        builder.Append(label.PadRight(15));
+        builder.AppendLine(value);
+    }
+
+    private static Slider CreateSettingRow(
+        Transform parent,
+        string label,
+        ref float y,
+        float min,
+        float max,
+        float defaultValue,
+        UnityEngine.Events.UnityAction<float> onChanged)
     {
         var row = new GameObject(label, typeof(RectTransform));
         row.transform.SetParent(parent, false);
         var rowRt = row.GetComponent<RectTransform>();
-        rowRt.anchorMin = new Vector2(0f, 1f);
-        rowRt.anchorMax = new Vector2(1f, 1f);
-        rowRt.pivot = new Vector2(0f, 1f);
-        rowRt.anchoredPosition = new Vector2(0f, y);
-        rowRt.sizeDelta = new Vector2(-24f, 56f);
+        SetAnchoredRect(rowRt, new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(540f, 62f), new Vector2(0.5f, 1f));
 
-        var lbl = HudUiFactory.CreateLabel(row.transform, "Label", label, 14f, TextAlignmentOptions.TopLeft);
-        var lblRt = lbl.GetComponent<RectTransform>();
-        lblRt.anchorMin = new Vector2(0f, 1f);
-        lblRt.anchorMax = new Vector2(1f, 1f);
-        lblRt.offsetMin = new Vector2(12f, -22f);
-        lblRt.offsetMax = new Vector2(-12f, 0f);
+        TextMeshProUGUI lbl = CreateLabel(row.transform, "Label", label, 15f, TextAlignmentOptions.TopLeft, Bone);
+        SetAnchoredRect(lbl.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(540f, 24f), new Vector2(0f, 1f));
+        lbl.fontStyle = FontStyles.Bold;
+        lbl.characterSpacing = 2f;
 
-        var slider = HudUiFactory.CreateSlider(row.transform, "Slider", new Vector2(320f, 24f), min, max, defaultValue);
-        var sliderRt = slider.GetComponent<RectTransform>();
-        sliderRt.anchorMin = new Vector2(0f, 0f);
-        sliderRt.anchorMax = new Vector2(1f, 0f);
-        sliderRt.pivot = new Vector2(0.5f, 0f);
-        sliderRt.anchoredPosition = new Vector2(0f, 4f);
-        sliderRt.offsetMin = new Vector2(12f, 4f);
-        sliderRt.offsetMax = new Vector2(-12f, 28f);
+        Slider slider = CreateIndustrialSlider(row.transform, "Slider", new Vector2(540f, 24f), min, max, defaultValue);
+        SetAnchoredRect((RectTransform)slider.transform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(540f, 24f), new Vector2(0.5f, 0f));
         slider.onValueChanged.AddListener(onChanged);
 
-        y -= 64f;
+        y -= 72f;
         return slider;
     }
 
@@ -495,49 +593,287 @@ public class PauseMenuUI : MonoBehaviour
         var row = new GameObject(label, typeof(RectTransform));
         row.transform.SetParent(parent, false);
         var rowRt = row.GetComponent<RectTransform>();
-        rowRt.anchorMin = new Vector2(0f, 1f);
-        rowRt.anchorMax = new Vector2(1f, 1f);
-        rowRt.pivot = new Vector2(0f, 1f);
-        rowRt.anchoredPosition = new Vector2(0f, y);
-        rowRt.sizeDelta = new Vector2(-24f, 40f);
+        SetAnchoredRect(rowRt, new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(540f, 48f), new Vector2(0.5f, 1f));
 
         var toggleGo = new GameObject("Toggle", typeof(RectTransform));
         toggleGo.transform.SetParent(row.transform, false);
         var toggleRt = toggleGo.GetComponent<RectTransform>();
-        toggleRt.anchorMin = new Vector2(0f, 0.5f);
-        toggleRt.anchorMax = new Vector2(0f, 0.5f);
-        toggleRt.pivot = new Vector2(0f, 0.5f);
-        toggleRt.anchoredPosition = new Vector2(12f, 0f);
-        toggleRt.sizeDelta = new Vector2(24f, 24f);
+        SetAnchoredRect(toggleRt, new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(30f, 30f), new Vector2(0f, 0.5f));
 
         var bg = toggleGo.AddComponent<Image>();
         bg.sprite = HudUiFactory.WhiteSprite;
-        bg.color = HudUiFactory.EmptySlotColor;
+        bg.color = Color.white;
 
         var checkGo = new GameObject("Check", typeof(RectTransform));
         checkGo.transform.SetParent(toggleGo.transform, false);
         var checkRt = checkGo.GetComponent<RectTransform>();
         checkRt.anchorMin = Vector2.zero;
         checkRt.anchorMax = Vector2.one;
-        checkRt.offsetMin = new Vector2(4f, 4f);
-        checkRt.offsetMax = new Vector2(-4f, -4f);
+        checkRt.offsetMin = new Vector2(6f, 6f);
+        checkRt.offsetMax = new Vector2(-6f, -6f);
         var check = checkGo.AddComponent<Image>();
         check.sprite = HudUiFactory.WhiteSprite;
-        check.color = new Color(0.4f, 0.8f, 1f, 1f);
+        check.color = ScrapGreen;
+        check.raycastTarget = false;
 
         var toggle = toggleGo.AddComponent<Toggle>();
         toggle.targetGraphic = bg;
         toggle.graphic = check;
+        ColorBlock colors = toggle.colors;
+        colors.normalColor = Plate;
+        colors.highlightedColor = ScrapGreen;
+        colors.selectedColor = ScrapGreen;
+        colors.pressedColor = WarningRust;
+        colors.disabledColor = new Color(0.45f, 0.5f, 0.47f, 0.45f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        toggle.colors = colors;
         toggle.onValueChanged.AddListener(onChanged);
 
-        var lbl = HudUiFactory.CreateLabel(row.transform, "Label", label, 14f, TextAlignmentOptions.MidlineLeft);
-        var lblRt = lbl.GetComponent<RectTransform>();
-        lblRt.anchorMin = new Vector2(0f, 0f);
-        lblRt.anchorMax = new Vector2(1f, 1f);
-        lblRt.offsetMin = new Vector2(44f, 0f);
-        lblRt.offsetMax = new Vector2(-12f, 0f);
+        TextMeshProUGUI lbl = CreateLabel(row.transform, "Label", label, 15f, TextAlignmentOptions.MidlineLeft, Bone);
+        Stretch(lbl.rectTransform, new Vector2(48f, 0f), Vector2.zero);
+        lbl.fontStyle = FontStyles.Bold;
+        lbl.characterSpacing = 2f;
 
-        y -= 48f;
+        y -= 58f;
         return toggle;
+    }
+
+    private static Slider CreateIndustrialSlider(Transform parent, string name, Vector2 size, float min, float max, float value)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<RectTransform>().sizeDelta = size;
+
+        Image background = CreateSolidImage(go.transform, "Background", Plate);
+        Stretch(background.rectTransform);
+
+        var fillAreaGo = new GameObject("Fill Area", typeof(RectTransform));
+        fillAreaGo.transform.SetParent(go.transform, false);
+        RectTransform fillAreaRt = fillAreaGo.GetComponent<RectTransform>();
+        Stretch(fillAreaRt, new Vector2(5f, 5f), new Vector2(-5f, -5f));
+
+        Image fill = CreateSolidImage(fillAreaGo.transform, "Fill", ScrapGreen);
+        Stretch(fill.rectTransform);
+
+        Image handle = CreateSolidImage(go.transform, "Handle", Color.white);
+        RectTransform handleRt = handle.rectTransform;
+        handleRt.sizeDelta = new Vector2(16f, 34f);
+
+        Slider slider = go.AddComponent<Slider>();
+        slider.fillRect = fill.rectTransform;
+        slider.handleRect = handleRt;
+        slider.targetGraphic = handle;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = min;
+        slider.maxValue = max;
+        slider.value = value;
+
+        ColorBlock colors = slider.colors;
+        colors.normalColor = WarningRust;
+        colors.highlightedColor = ScrapGreen;
+        colors.selectedColor = ScrapGreen;
+        colors.pressedColor = WarningRust;
+        colors.disabledColor = new Color(0.45f, 0.5f, 0.47f, 0.45f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        slider.colors = colors;
+        return slider;
+    }
+
+    private static Button CreateIndustrialButton(Transform parent, string name, string label, Vector2 size, Color accent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<RectTransform>().sizeDelta = size;
+
+        Image plate = go.AddComponent<Image>();
+        plate.sprite = HudUiFactory.WhiteSprite;
+        plate.color = Color.white;
+
+        Button button = go.AddComponent<Button>();
+        button.targetGraphic = plate;
+        button.transition = Selectable.Transition.ColorTint;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Plate;
+        colors.highlightedColor = accent;
+        colors.selectedColor = accent;
+        colors.pressedColor = WarningRust;
+        colors.disabledColor = new Color(0.4f, 0.44f, 0.42f, 0.45f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        Image edge = CreateSolidImage(go.transform, "SelectedEdge", accent);
+        RectTransform edgeRt = edge.rectTransform;
+        edgeRt.anchorMin = new Vector2(0f, 0f);
+        edgeRt.anchorMax = new Vector2(0f, 1f);
+        edgeRt.pivot = new Vector2(0f, 0.5f);
+        edgeRt.anchoredPosition = Vector2.zero;
+        edgeRt.sizeDelta = new Vector2(9f, 0f);
+
+        Image boltLeft = CreateSolidImage(go.transform, "BoltLeft", MutedSteel);
+        SetAnchoredRect(boltLeft.rectTransform, new Vector2(0f, 0.5f), new Vector2(22f, 0f), new Vector2(8f, 8f), new Vector2(0.5f, 0.5f));
+        Image boltRight = CreateSolidImage(go.transform, "BoltRight", MutedSteel);
+        SetAnchoredRect(boltRight.rectTransform, new Vector2(1f, 0.5f), new Vector2(-22f, 0f), new Vector2(8f, 8f), new Vector2(0.5f, 0.5f));
+
+        TextMeshProUGUI buttonLabel = CreateLabel(go.transform, "Label", label, 25f, TextAlignmentOptions.Center, Bone);
+        Stretch(buttonLabel.rectTransform, new Vector2(34f, 4f), new Vector2(-34f, -4f));
+        buttonLabel.fontStyle = FontStyles.Bold;
+        buttonLabel.characterSpacing = 4f;
+        return button;
+    }
+
+    private static Image CreateIndustrialPanel(Transform parent, string name, Vector2 size, Color accent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.sizeDelta = size;
+
+        Image border = go.AddComponent<Image>();
+        border.sprite = HudUiFactory.WhiteSprite;
+        border.color = accent;
+        border.raycastTarget = false;
+
+        Image inner = CreateSolidImage(go.transform, "Plate", DeepSteel);
+        Stretch(inner.rectTransform, new Vector2(4f, 4f), new Vector2(-4f, -4f));
+
+        Image topEdge = CreateSolidImage(go.transform, "TopEdge", accent);
+        RectTransform topEdgeRt = topEdge.rectTransform;
+        topEdgeRt.anchorMin = new Vector2(0f, 1f);
+        topEdgeRt.anchorMax = new Vector2(1f, 1f);
+        topEdgeRt.pivot = new Vector2(0.5f, 1f);
+        topEdgeRt.anchoredPosition = new Vector2(0f, -4f);
+        topEdgeRt.sizeDelta = new Vector2(-8f, 7f);
+
+        Image corner = CreateSolidImage(go.transform, "CornerNotch", WarningRust);
+        SetAnchoredRect(corner.rectTransform, new Vector2(1f, 1f), new Vector2(-20f, -19f), new Vector2(24f, 8f));
+        corner.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f);
+        return border;
+    }
+
+    private static TextMeshProUGUI CreatePanelHeader(Transform parent, string text)
+    {
+        TextMeshProUGUI header = CreateLabel(parent, "Header", text, 24f, TextAlignmentOptions.Center, Bone);
+        SetAnchoredRect(header.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -42f), new Vector2(320f, 42f), new Vector2(0.5f, 1f));
+        header.fontStyle = FontStyles.Bold;
+
+        Image divider = CreateSolidImage(parent, "HeaderDivider", WarningRust);
+        SetAnchoredRect(divider.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(280f, 3f), new Vector2(0.5f, 1f));
+        return header;
+    }
+
+    private static TextMeshProUGUI CreateLabel(
+        Transform parent,
+        string name,
+        string text,
+        float fontSize,
+        TextAlignmentOptions alignment,
+        Color color)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        TextMeshProUGUI label = go.AddComponent<TextMeshProUGUI>();
+        TmpUiHelper.ApplyDefaultFont(label);
+        label.text = text;
+        label.fontSize = fontSize;
+        label.alignment = alignment;
+        label.color = color;
+        label.raycastTarget = false;
+        return label;
+    }
+
+    private static Image CreateSolidImage(Transform parent, string name, Color color)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        Image image = go.AddComponent<Image>();
+        image.sprite = HudUiFactory.WhiteSprite;
+        image.type = Image.Type.Simple;
+        image.color = color;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    private static void CreateBackgroundRail(Transform parent, string name, bool top)
+    {
+        Image rail = CreateSolidImage(parent, name, new Color(WarningRust.r, WarningRust.g, WarningRust.b, 0.36f));
+        RectTransform rt = rail.rectTransform;
+        float anchorY = top ? 1f : 0f;
+        rt.anchorMin = new Vector2(0f, anchorY);
+        rt.anchorMax = new Vector2(1f, anchorY);
+        rt.pivot = new Vector2(0.5f, anchorY);
+        rt.anchoredPosition = new Vector2(0f, top ? -18f : 18f);
+        rt.sizeDelta = new Vector2(-80f, 4f);
+    }
+
+    private static void ConfigureVerticalNavigation(params Selectable[] controls)
+    {
+        if (controls == null || controls.Length == 0)
+            return;
+
+        for (int i = 0; i < controls.Length; i++)
+        {
+            Selectable current = controls[i];
+            if (current == null)
+                continue;
+
+            Navigation navigation = current.navigation;
+            navigation.mode = Navigation.Mode.Explicit;
+            navigation.selectOnUp = controls[(i - 1 + controls.Length) % controls.Length];
+            navigation.selectOnDown = controls[(i + 1) % controls.Length];
+            navigation.selectOnLeft = null;
+            navigation.selectOnRight = null;
+            current.navigation = navigation;
+        }
+    }
+
+    private static void SetAnchoredRect(
+        RectTransform rect,
+        Vector2 anchor,
+        Vector2 position,
+        Vector2 size,
+        Vector2? pivot = null)
+    {
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = pivot ?? new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+    }
+
+    private static void Stretch(RectTransform rect)
+    {
+        Stretch(rect, Vector2.zero, Vector2.zero);
+    }
+
+    private static void Stretch(RectTransform rect, Vector2 offsetMin, Vector2 offsetMax)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = offsetMin;
+        rect.offsetMax = offsetMax;
+    }
+
+    private static void FocusSelectable(Selectable selectable)
+    {
+        if (selectable == null || !selectable.gameObject.activeInHierarchy || !selectable.IsInteractable())
+            return;
+
+        EventSystem eventSystem = EventSystem.current;
+        if (eventSystem == null)
+            return;
+
+        eventSystem.SetSelectedGameObject(null);
+        eventSystem.SetSelectedGameObject(selectable.gameObject);
+    }
+
+    private void ClearPauseSelection()
+    {
+        EventSystem eventSystem = EventSystem.current;
+        GameObject selected = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
+        if (selected != null && _root != null && selected.transform.IsChildOf(_root.transform))
+            eventSystem.SetSelectedGameObject(null);
     }
 }

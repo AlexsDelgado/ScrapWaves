@@ -277,8 +277,8 @@ public sealed class TitleScreenController : MonoBehaviour
     {
         List<Button> destinations = new(6);
         AddVisibleDestination(destinations, _playButton);
-        AddVisibleDestination(destinations, _objectivesButton);
         AddVisibleDestination(destinations, _settingsButton);
+        AddVisibleDestination(destinations, _objectivesButton);
         AddVisibleDestination(destinations, _quitButton);
         if (_includeTestingButtons)
         {

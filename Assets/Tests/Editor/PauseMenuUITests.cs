@@ -7,6 +7,7 @@ using NUnit.Framework;
 using TMPro;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
@@ -17,6 +18,7 @@ public class PauseMenuUITests
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         Time.timeScale = 1f;
+        RunSessionStats.Reset();
         PlayerPrefs.DeleteKey(UserSettingsService.PlayerPrefsKey);
     }
 
@@ -29,16 +31,22 @@ public class PauseMenuUITests
     }
 
     [Test]
-    public void Awake_CreatesResumeAndReturnToTitleButtons()
+    public void Awake_CreatesExactMainActionColumnWithoutCredits()
     {
         GameObject root = new("PauseMenuRoot");
 
         CreatePauseMenu(root);
 
-        Button[] buttons = root.GetComponentsInChildren<Button>(true);
+        Transform mainActions = root.transform.Find("PauseRoot/MainActionPanel");
+        Assert.That(mainActions, Is.Not.Null);
+        Button[] buttons = mainActions.GetComponentsInChildren<Button>(true);
         string[] labels = buttons.Select(GetButtonLabel).ToArray();
 
-        CollectionAssert.AreEqual(new[] { "Resume", "Main Menu" }, labels);
+        CollectionAssert.AreEqual(new[] { "RESUME", "SETTINGS", "QUIT" }, labels);
+        Assert.That(
+            root.GetComponentsInChildren<TextMeshProUGUI>(true).Any(text =>
+                string.Equals(text.text, "CREDITS", StringComparison.OrdinalIgnoreCase)),
+            Is.False);
     }
 
     [Test]
@@ -48,8 +56,104 @@ public class PauseMenuUITests
 
         CreatePauseMenu(root);
 
-        AssertButtonInvokes(root, "Resume", "Resume");
-        AssertButtonInvokes(root, "Main Menu", "ReturnToTitle");
+        AssertButtonInvokes(root, "RESUME", "Resume");
+        AssertButtonInvokes(root, "SETTINGS", "OpenSettings");
+        AssertButtonInvokes(root, "QUIT", "ReturnToTitle");
+        AssertButtonInvokes(root, "BACK", "CloseSettings");
+    }
+
+    [Test]
+    public void Awake_CreatesThreeColumnWireframeWithInitiallyHiddenSettings()
+    {
+        GameObject root = new("PauseMenuRoot");
+
+        CreatePauseMenu(root);
+
+        Transform pauseRoot = root.transform.Find("PauseRoot");
+        RectTransform runStats = pauseRoot.Find("RunStatsPanel") as RectTransform;
+        RectTransform actions = pauseRoot.Find("MainActionPanel") as RectTransform;
+        RectTransform playerStats = pauseRoot.Find("PlayerStatsPanel") as RectTransform;
+        Transform settings = pauseRoot.Find("SettingsPanel");
+        TextMeshProUGUI title = pauseRoot.Find("PauseTitlePlate/Title")?.GetComponent<TextMeshProUGUI>();
+
+        Assert.That(runStats, Is.Not.Null);
+        Assert.That(actions, Is.Not.Null);
+        Assert.That(playerStats, Is.Not.Null);
+        Assert.That(runStats.anchorMin.x, Is.LessThan(0.5f));
+        Assert.That(actions.anchorMin.x, Is.EqualTo(0.5f));
+        Assert.That(playerStats.anchorMin.x, Is.GreaterThan(0.5f));
+        Assert.That(settings, Is.Not.Null);
+        Assert.That(settings.gameObject.activeSelf, Is.False);
+        Assert.That(title, Is.Not.Null);
+        Assert.That(title.text, Is.EqualTo("PAUSED"));
+    }
+
+    [Test]
+    public void SettingsView_OpensAndEscapeClosesItBeforeResuming()
+    {
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+        InvokePrivate(pauseMenu, "ShowPause");
+        GameObject pauseRoot = GetPrivateField<GameObject>(pauseMenu, "_root");
+        GameObject mainActions = GetPrivateField<GameObject>(pauseMenu, "_mainActionPanel");
+        GameObject settings = GetPrivateField<GameObject>(pauseMenu, "_settingsPanel");
+
+        InvokePrivate(pauseMenu, "OpenSettings");
+
+        Assert.That(pauseRoot.activeSelf, Is.True);
+        Assert.That(mainActions.activeSelf, Is.False);
+        Assert.That(settings.activeSelf, Is.True);
+        Assert.That(Time.timeScale, Is.Zero);
+
+        InvokePrivate(pauseMenu, "HandlePauseCancel");
+
+        Assert.That(pauseRoot.activeSelf, Is.True, "First Escape should close Settings without resuming gameplay.");
+        Assert.That(mainActions.activeSelf, Is.True);
+        Assert.That(settings.activeSelf, Is.False);
+        Assert.That(Time.timeScale, Is.Zero);
+
+        InvokePrivate(pauseMenu, "HandlePauseCancel");
+
+        Assert.That(pauseRoot.activeSelf, Is.False, "Second Escape should resume gameplay.");
+        Assert.That(Time.timeScale, Is.EqualTo(1f));
+    }
+
+    [Test]
+    public void ShowPause_SelectsResumeAndUsesExplicitWrappedNavigation()
+    {
+        EventSystem eventSystem = new GameObject("EventSystem").AddComponent<EventSystem>();
+        MethodInfo eventSystemOnEnable = typeof(EventSystem).GetMethod(
+            "OnEnable",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(eventSystemOnEnable, Is.Not.Null);
+        eventSystemOnEnable.Invoke(eventSystem, null);
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+
+        InvokePrivate(pauseMenu, "ShowPause");
+
+        Button resume = GetPrivateField<Button>(pauseMenu, "_resumeButton");
+        Button settings = GetPrivateField<Button>(pauseMenu, "_settingsButton");
+        Button quit = GetPrivateField<Button>(pauseMenu, "_quitButton");
+        Assert.That(eventSystem.currentSelectedGameObject, Is.SameAs(resume.gameObject));
+        Assert.That(resume.navigation.mode, Is.EqualTo(Navigation.Mode.Explicit));
+        Assert.That(resume.navigation.selectOnDown, Is.SameAs(settings));
+        Assert.That(resume.navigation.selectOnUp, Is.SameAs(quit));
+        Assert.That(settings.navigation.selectOnDown, Is.SameAs(quit));
+        Assert.That(quit.navigation.selectOnDown, Is.SameAs(resume));
+    }
+
+    [Test]
+    public void RefreshRunStats_ShowsTimeKillsAndBossKills()
+    {
+        RunCombatStats.RegisterEnemyEliminated();
+        RunSessionStats.RegisterBossKill();
+        Component pauseMenu = CreatePauseMenu(new GameObject("PauseMenuRoot"));
+
+        InvokePrivate(pauseMenu, "RefreshRunStats");
+
+        string text = GetPrivateField<TextMeshProUGUI>(pauseMenu, "_runStatsText").text;
+        StringAssert.Contains("TIME", text);
+        StringAssert.Contains("KILLS         1", text);
+        StringAssert.Contains("BOSS KILLS    1", text);
     }
 
     [Test]

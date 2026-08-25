@@ -153,6 +153,7 @@ public static class TitleScreenAuthoringValidator
         {
             RequireSerializedReference(backgrounds[0], "_proceduralBackground", result);
             RequireSerializedReference(backgrounds[0], "_proceduralBackgroundMaterial", result);
+            ValidateBackgroundMaterial(backgrounds[0], result);
         }
         if (audioFeedback.Length == 1)
         {
@@ -174,11 +175,15 @@ public static class TitleScreenAuthoringValidator
         RequireNamedObject(roots, "ObjectivesScreen", result);
         RequireNamedObject(roots, "SettingsScreen", result);
         RequireNamedObject(roots, "QuitConfirmation", result);
-        RequireNamedObject(roots, "ShowcaseRoot", result);
+        RequireNamedObject(roots, "SafeArea", result);
+        RequireNamedObject(roots, "TitleRoot", result);
+        RequireNamedObject(roots, "MenuRoot", result);
+        RequireNamedObject(roots, "ProceduralScrapyardBackground", result);
         RequireNamedObject(roots, "FeedbackCanvas", result);
         RequireNamedObject(roots, "PersistentSystemsRoot", result);
 
         Transform[] transforms = roots.SelectMany(root => root.GetComponentsInChildren<Transform>(true)).ToArray();
+        ValidateMainMenuComposition(transforms, backgrounds, result);
         if (transforms.Any(transform => transform.name.IndexOf("Version", StringComparison.OrdinalIgnoreCase) >= 0 ||
                                         transform.name.IndexOf("BuildLabel", StringComparison.OrdinalIgnoreCase) >= 0))
         {
@@ -202,7 +207,7 @@ public static class TitleScreenAuthoringValidator
         if (controllers.Length == 1)
         {
             ValidateControllerReferences(controllers[0], result);
-            ValidateProductionOrder(controllers[0], result);
+            ValidateProductionOrder(controllers[0], items, result);
             if (eventSystems.Length == 1)
                 ValidateEventSystem(eventSystems[0], controllers[0], result);
         }
@@ -217,6 +222,104 @@ public static class TitleScreenAuthoringValidator
         }
 
         ValidateBuildSettings(result);
+    }
+
+    private static void ValidateMainMenuComposition(
+        Transform[] transforms,
+        ScrapMenuBackgroundController[] backgrounds,
+        Result result)
+    {
+        string[] forbiddenNames =
+        {
+            "ShowcaseRoot",
+            "ShowcaseSubject",
+            "ShowcaseLabel",
+            "TitleStencil"
+        };
+        for (int index = 0; index < forbiddenNames.Length; index++)
+        {
+            if (transforms.Any(transform => transform.name == forbiddenNames[index]))
+                result.Error($"Legacy main-menu presentation object '{forbiddenNames[index]}' must be removed.");
+        }
+
+        RectTransform mainMenuScreen = FindNamedRectTransform(transforms, "MainMenuScreen");
+        if (mainMenuScreen == null)
+        {
+            result.Error("MainMenuScreen must be authored as a RectTransform.");
+        }
+        else
+        {
+            if (mainMenuScreen.GetComponentsInChildren<Transform>(true)
+                .Any(transform => transform.name == "InputHints"))
+            {
+                result.Error("MainMenuScreen must not contain InputHints; local-screen hints may remain on their own screens.");
+            }
+
+            if (mainMenuScreen.GetComponentsInChildren<TMP_Text>(true)
+                .Any(text => string.Equals(text.text?.Trim(), "CREDITS", StringComparison.OrdinalIgnoreCase)))
+            {
+                result.Error("MainMenuScreen still contains player-facing CREDITS text; the production destination is OBJECTIVES.");
+            }
+        }
+
+        RectTransform safeArea = FindNamedRectTransform(transforms, "SafeArea");
+        RectTransform titleRoot = FindNamedRectTransform(transforms, "TitleRoot");
+        RectTransform menuRoot = FindNamedRectTransform(transforms, "MenuRoot");
+        if (safeArea == null || titleRoot == null || menuRoot == null)
+        {
+            result.Error("SafeArea, TitleRoot, and MenuRoot must all be authored as RectTransforms.");
+        }
+        else
+        {
+            Canvas.ForceUpdateCanvases();
+            float safeCenterX = safeArea.rect.center.x;
+            float titleCenterX = CenterXRelativeTo(safeArea, titleRoot);
+            float menuCenterX = CenterXRelativeTo(safeArea, menuRoot);
+            if (titleCenterX >= safeCenterX)
+                result.Error("TitleRoot must occupy the left side of SafeArea.");
+            if (menuCenterX <= safeCenterX)
+                result.Error("MenuRoot must occupy the right side of SafeArea.");
+        }
+
+        if (backgrounds.Length != 1)
+            return;
+
+        SerializedProperty graphicProperty = new SerializedObject(backgrounds[0])
+            .FindProperty("_proceduralBackground");
+        Graphic graphic = graphicProperty?.objectReferenceValue as Graphic;
+        if (graphic == null)
+            return;
+
+        RectTransform rect = graphic.rectTransform;
+        const float tolerance = 0.01f;
+        if (Vector2.Distance(rect.anchorMin, Vector2.zero) > tolerance ||
+            Vector2.Distance(rect.anchorMax, Vector2.one) > tolerance ||
+            rect.offsetMin.sqrMagnitude > tolerance * tolerance ||
+            rect.offsetMax.sqrMagnitude > tolerance * tolerance)
+        {
+            result.Error("The authored procedural background must stretch edge-to-edge with zero offsets.");
+        }
+    }
+
+    private static void ValidateBackgroundMaterial(ScrapMenuBackgroundController background, Result result)
+    {
+        SerializedProperty materialProperty = new SerializedObject(background)
+            .FindProperty("_proceduralBackgroundMaterial");
+        Material material = materialProperty?.objectReferenceValue as Material;
+        if (material == null)
+            return;
+
+        Shader shader = material.shader;
+        if (shader == null)
+        {
+            result.Error("The authored procedural background material has no shader.");
+            return;
+        }
+
+        if (!shader.isSupported || ShaderUtil.ShaderHasError(shader))
+            result.Error($"The authored procedural background shader '{shader.name}' is unsupported or has compiler errors.");
+        if (!material.HasProperty("_MainTex"))
+            result.Error("The authored procedural background material is missing the UI _MainTex property.");
     }
 
     private static void ValidateControllerReferences(TitleScreenController controller, Result result)
@@ -237,18 +340,63 @@ public static class TitleScreenAuthoringValidator
         }
     }
 
-    private static void ValidateProductionOrder(TitleScreenController controller, Result result)
+    private static void ValidateProductionOrder(
+        TitleScreenController controller,
+        MainMenuItemView[] allItems,
+        Result result)
     {
+        string[] expected = { "PLAY", "SETTINGS", "OBJECTIVES", "QUIT" };
+        Button[] controllerButtons =
+        {
+            controller.PlayButton,
+            controller.SettingsButton,
+            controller.ObjectivesButton,
+            controller.QuitButton
+        };
         string[] labels =
         {
             ReadButtonLabel(controller.PlayButton),
-            ReadButtonLabel(controller.ObjectivesButton),
             ReadButtonLabel(controller.SettingsButton),
+            ReadButtonLabel(controller.ObjectivesButton),
             ReadButtonLabel(controller.QuitButton)
         };
-        string[] expected = { "PLAY", "OBJECTIVES", "SETTINGS", "QUIT" };
         if (!labels.SequenceEqual(expected))
-            result.Error($"Production menu order/labels are '{string.Join(", ", labels)}'; expected PLAY, OBJECTIVES, SETTINGS, QUIT.");
+            result.Error($"Production menu controller labels are '{string.Join(", ", labels)}'; expected PLAY, SETTINGS, OBJECTIVES, QUIT.");
+
+        MainMenuItemView[] productionItems = allItems
+            .Where(item => item != null && !item.IsDeveloperEntry)
+            .OrderBy(item => item.transform.GetSiblingIndex())
+            .ToArray();
+        if (productionItems.Length != expected.Length)
+        {
+            result.Error($"Expected exactly four non-developer production items; found {productionItems.Length}.");
+        }
+        else
+        {
+            string[] authoredLabels = productionItems
+                .Select(item => ReadButtonLabel(item.Button))
+                .ToArray();
+            if (!authoredLabels.SequenceEqual(expected))
+                result.Error($"Authored production item order/labels are '{string.Join(", ", authoredLabels)}'; expected PLAY, SETTINGS, OBJECTIVES, QUIT.");
+
+            MainMenuItemView[] controllerItems = controllerButtons
+                .Select(button => button != null ? button.GetComponent<MainMenuItemView>() : null)
+                .ToArray();
+            if (!controllerItems.SequenceEqual(productionItems))
+                result.Error("The four production controller references must match the authored MenuRoot item order.");
+        }
+
+        if (productionItems.Any(item => !IsUnderNamedParent(item.transform, "MenuRoot")))
+            result.Error("Every non-developer production item must be authored beneath MenuRoot.");
+
+        if (allItems.Any(item => item != null &&
+                                string.Equals(
+                                    ReadButtonLabel(item.Button),
+                                    "CREDITS",
+                                    StringComparison.OrdinalIgnoreCase)))
+        {
+            result.Error("A CREDITS MainMenuItemView remains in the authored title scene.");
+        }
     }
 
     private static void ValidateEventSystem(
@@ -286,7 +434,7 @@ public static class TitleScreenAuthoringValidator
         if (button == null)
             return "<missing>";
         TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
-        return label != null ? label.text : "<missing label>";
+        return label != null ? label.text?.Trim() ?? string.Empty : "<missing label>";
     }
 
     private static T[] FindInScene<T>(IEnumerable<GameObject> roots) where T : Component
@@ -306,6 +454,17 @@ public static class TitleScreenAuthoringValidator
             .Any(transform => transform.name == name);
         if (!found)
             result.Error($"Required authored object '{name}' is missing.");
+    }
+
+    private static RectTransform FindNamedRectTransform(IEnumerable<Transform> transforms, string name)
+    {
+        return transforms.FirstOrDefault(transform => transform.name == name) as RectTransform;
+    }
+
+    private static float CenterXRelativeTo(RectTransform reference, RectTransform target)
+    {
+        Vector3 worldCenter = target.TransformPoint(target.rect.center);
+        return reference.InverseTransformPoint(worldCenter).x;
     }
 
     private static void RequireSerializedReference(Component component, string fieldName, Result result)

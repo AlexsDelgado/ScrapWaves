@@ -2,6 +2,7 @@ Shader "ScrapWaves/UI/Scrap Menu Background"
 {
     Properties
     {
+        [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (0.035, 0.043, 0.039, 1)
         _SecondaryColor ("Secondary Steel", Color) = (0.067, 0.078, 0.075, 1)
         _AccentColor ("Accent", Color) = (0.659, 0.78, 0.561, 1)
@@ -81,11 +82,11 @@ Shader "ScrapWaves/UI/Scrap Menu Background"
                 return output;
             }
 
-            float Hash21(float2 point)
+            float Hash21(float2 samplePosition)
             {
-                point = frac(point * float2(123.34, 456.21));
-                point += dot(point, point + 45.32);
-                return frac(point.x * point.y);
+                samplePosition = frac(samplePosition * float2(123.34, 456.21));
+                samplePosition += dot(samplePosition, samplePosition + 45.32);
+                return frac(samplePosition.x * samplePosition.y);
             }
 
             fixed4 frag(v2f input) : SV_Target
