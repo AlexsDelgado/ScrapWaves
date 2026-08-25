@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Diferencias: Diseño vs Código — Dumpster Fire</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-alt: #161922;
+    --card: #1b1f2a;
+    --border: #2a2f3d;
+    --text: #e7e9ee;
+    --text-dim: #9aa1b2;
+    --accent: #ff8a3d;
+    --accent-soft: #3a2a20;
+    --ok: #4fd1a5;
+    --warn: #f5c451;
+    --bad: #ff6b6b;
+    --link: #7fb8ff;
+    --code-bg: #10131a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f7f5;
+      --bg-alt: #ffffff;
+      --card: #ffffff;
+      --border: #e2e2e0;
+      --text: #1d1f24;
+      --text-dim: #5b6070;
+      --accent: #d9601a;
+      --accent-soft: #fbe6d6;
+      --ok: #1f9d6f;
+      --warn: #a97a06;
+      --bad: #c0392b;
+      --link: #1a5fb4;
+      --code-bg: #f0f0ee;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 24px 100px; }
+  header.hero {
+    background: linear-gradient(135deg, var(--accent-soft), transparent 70%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 28px;
+    margin-bottom: 32px;
+  }
+  header.hero .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  header.hero h1 { margin: 0 0 10px; font-size: 28px; }
+  header.hero p { margin: 0; color: var(--text-dim); font-size: 14.5px; max-width: 70ch; }
+
+  nav.toc {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 36px;
+  }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin: 0 0 10px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 24px; }
+  nav.toc li { margin-bottom: 6px; font-size: 14px; break-inside: avoid; }
+  nav.toc a { color: var(--link); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  section.area { margin-bottom: 44px; }
+  section.area > h2 {
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 18px;
+    scroll-margin-top: 20px;
+  }
+  section.area > h2 .tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  h3.sub {
+    font-size: 15px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin: 22px 0 10px;
+    scroll-margin-top: 20px;
+  }
+
+  .finding {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--bad);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  .finding.info { border-left-color: var(--link); }
+  .finding.note { border-left-color: var(--text-dim); }
+  .finding .label { font-weight: 700; color: var(--text); }
+  .finding p { margin: 6px 0 0; color: var(--text); font-size: 14.5px; }
+  .finding code, code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 12.5px;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    color: var(--accent);
+  }
+
+  table.match { width: 100%; border-collapse: collapse; margin: 10px 0 20px; font-size: 13.5px; }
+  table.match th, table.match td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; }
+  table.match th { background: var(--bg-alt); color: var(--text-dim); font-weight: 600; }
+  table.match td.ok { color: var(--ok); }
+
+  ul.match-list { margin: 10px 0 22px; padding-left: 20px; font-size: 14px; color: var(--text-dim); }
+  ul.match-list li { margin-bottom: 4px; }
+
+  .priority {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+  }
+  .priority h2 { margin-top: 0; }
+  .priority ol { padding-left: 22px; }
+  .priority li { margin-bottom: 10px; font-size: 14.5px; }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 12.5px;
+  }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; font-size: 12.5px; color: var(--text-dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .legend i.bad { background: var(--bad); }
+  .legend i.info { background: var(--link); }
+  .legend i.note { background: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Dumpster Fire / ScrapWaves2 — Auditoría de diseño</div>
+    <h1>Diferencias entre la documentación de diseño y el código</h1>
+    <p>
+      Comparación de los 7 documentos en <code>docs/design docs/</code> (Combat Design, Player &amp; Progression
+      System, Balance table - Armas, UI Design Document, Game Treatment y "HC") contra la implementación real en
+      <code>Assets/Scripts/</code>. Solo lectura — no se modificó código ni assets. Se ignoraron secciones marcadas
+      como TBD / stub en los documentos, ya que no son discrepancias sino contenido pendiente de definir.
+    </p>
+  </header>
+
+  <div class="legend">
+    <span><i class="bad"></i> Diferencia / discrepancia</span>
+    <span><i class="info"></i> Funcionalidad en código no documentada</span>
+    <span><i class="note"></i> Nota / contexto</span>
+  </div>
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#combate">1. Combate — Overheat, Ciclos, Spawners, Enemigos</a></li>
+      <li><a href="#progresion">2. Jugador y Progresión</a></li>
+      <li><a href="#ui">3. UI y Visión general</a></li>
+      <li><a href="#resumen">Resumen priorizado</a></li>
+    </ol>
+  </nav>
+
+  <section class="area" id="combate">
+    <h2>1. Combate — Overheat, Ciclos, Spawners, Enemigos <span class="tag">Combat Design Doc</span></h2>
+
+    <h3 class="sub">Overheat</h3>
+    <div class="finding">
+      <span class="label">Reset a 0% al matar boss.</span>
+      <p>El doc dice que la barra baja a 0% instantáneamente. El código (<code>OverheatManager.EndOverheat</code>,
+      <code>Overheat/OverheatManager.cs:157-193</code>) deja un heat residual (~90%) que decae gradualmente vía
+      <code>HeatManager.BeginPostOverheatCooldown</code> (12 pts/seg), no un reset inmediato.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Spawn de elites en cada cuarto (25/50/75/100%).</span>
+      <p><strong>No implementado.</strong> <code>HeatManager.cs</code> solo maneja dos tramos (0-80% y 80-100%); no
+      hay lógica de cuartos. Los elites solo se spawnean una vez, al llegar al 100%.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Escalado exponencial.</span>
+      <p>El código sí escala exponencialmente (<code>_heatRequirementEscalation *= 1.12</code> por ciclo en
+      <code>HeatManager.ApplyEscalationAfterOverheat</code>), pero escala el requisito total de puntos, no
+      literalmente el "monto de overheat anterior" como describe el doc.</p>
+    </div>
+    <div class="finding info">
+      <span class="label">Mecánica de "Overheat permanente" no documentada.</span>
+      <p>Al reunir todas las llaves se activa un estado de overheat permanente
+      (<code>OverheatManager.EnterPermanentOverheat()</code>, <code>LevelExitPressure.cs</code>,
+      <code>ExitSpawnPressure.cs</code>) que no aparece en el doc de combate.</p>
+    </div>
+
+    <h3 class="sub">Ciclos de Overheat</h3>
+    <div class="finding">
+      <span class="label">Selección de boss no aleatoria.</span>
+      <p>El doc sugiere elección entre los dos bosses; el código alterna determinísticamente por ciclo
+      (<code>BossManager.SelectBossPrefabForCurrentCycle</code>).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Múltiples bosses simultáneos.</span>
+      <p>El doc es explícito con "un solo boss a la vez"; el código soporta spawnear 2 bosses en un ciclo
+      configurable (<code>_multiBossOverheatCycle = 3</code>). Inconsistencia interna adicional: el ciclo 3 es
+      impar y los bosses solo spawnean en ciclos pares, por lo que con la config por defecto esta función nunca
+      se dispara.</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Fin de ciclo impar por "matar todos los elites".</span>
+      <p><code>OverheatEliteWaveSpawner.OnEliteDied</code> — interpretación razonable no explicitada en el doc.</p>
+    </div>
+
+    <h3 class="sub">Spawners</h3>
+    <div class="finding">
+      <span class="label">Orbital Spawner — fórmula de cadencia.</span>
+      <p>No implementada literalmente. El aumento de intensidad al 80-100% se logra vía multiplicador de tamaño de
+      oleada y velocidad de enemigos, no cambiando el intervalo de spawn.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Boss Spawner — posición fija en el "dumpster inferior".</span>
+      <p>El doc lo pide explícito; el código spawnea al boss en un anillo alrededor de la
+      <strong>posición actual del jugador</strong> (<code>BossManager.OnOverheatStarted</code>), no en una
+      ubicación fija del mapa.</p>
+    </div>
+
+    <h3 class="sub">Límite de enemigos (300 en pantalla)</h3>
+    <div class="finding">
+      <span class="label">Cap solo verificado parcialmente.</span>
+      <p>El límite de 300 solo se verifica en <code>OrbitalSpawner</code>. <code>ZoneSpawner</code>,
+      <code>OverheatEliteWaveSpawner</code> y <code>BossManager</code> no verifican el límite antes de
+      instanciar enemigos.</p>
+    </div>
+
+    <h3 class="sub">Enemigos</h3>
+    <div class="finding info">
+      <span class="label">Bonus de peso de variantes con el tiempo, no documentado.</span>
+      <p><code>EnemySpawnRouletteConfig</code>: +3 cada 2 minutos al peso de spawn de variantes. El doc marca esa
+      spawn chance como TBD.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Movement speed — contradicción directa.</span>
+      <p>El doc dice explícitamente que la velocidad de enemigos comunes <em>"no debe escalar"</em>. El código sí
+      la escala hasta x1.35 con el tiempo (<code>DifficultyManager._scaleEnemyMoveSpeed = true</code>).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Damage no escala con el tiempo</span>
+      <p>pese a que el doc lo pide explícitamente ("Damage... will have to be scalable with game time").</p>
+    </div>
+    <div class="finding">
+      <span class="label">Vigilance Drone — lock-in distance.</span>
+      <p>Doc: 3m. Código: 9m (<code>FlyingRangedBehavior._approachUntilDistance</code>).</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Shocker Bot comparte defaults del Chaser Bot.</span>
+      <p>5m/5s en vez de los 3m/2s documentados; no se pudo confirmar si el prefab los sobreescribe (no se
+      inspeccionaron prefabs binarios).</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Nombre del boss: "Stalker" (doc) vs "GigaWorm" (código).</span>
+      <p>Solo nomenclatura — el comportamiento (spawn subterráneo, telegraph, salto parabólico) coincide bien.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Elites como "+100% de stats" no implementado como fórmula.</span>
+      <p>En cambio usan prefabs "elite" preconfigurados a mano, sin relación programática con la versión normal.</p>
+    </div>
+
+    <ul class="match-list">
+      <li>✓ Drop chance / drop pool coinciden muy bien con el doc en todos los enemigos comunes y variantes.</li>
+      <li>✓ Zone Spawner (posición fija, spawn fijo por trigger, rearme por ciclo) coincide bien.</li>
+      <li>✓ Boss "Destroyer": succión al 25% de vida, inmunidad, weak point — coincide extremadamente bien.</li>
+      <li>✓ Roulette de spawn de comunes (Junk Slime, Vigilance Drone, Chaser Bot) coincide en peso y batch size.</li>
+    </ul>
+  </section>
+
+  <section class="area" id="progresion">
+    <h2>2. Jugador y Progresión <span class="tag">Player &amp; Progression + Balance table Armas</span></h2>
+
+    <h3 class="sub">Movimiento</h3>
+    <div class="finding">
+      <span class="label">Fricción en el aire.</span>
+      <p>Doc: 40%. Código: <strong>20%</strong> (<code>PlayerMovement._airFrictionMultiplier = 0.2f</code>).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Fricción durante slide.</span>
+      <p>Doc: reducción del 60%. Código: reducción del <strong>90%</strong>
+      (<code>_slideFrictionMultiplier = 0.1f</code>).</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Crouch (-80% aceleración), dash (0.25s sin fricción), cargas de dash (2s suelo / 4s aire) coinciden con el doc.</li>
+    </ul>
+
+    <h3 class="sub">Stats de combate — crecimiento por nivel</h3>
+    <div class="finding">
+      <span class="label">Health Regeneration no es upgradable por nivel.</span>
+      <p>El asset tiene <code>UpgradeableByLevel: 0</code> pese a que el doc lo marca "Yes". Reduce el pool de
+      stats elegibles de 13 a 12.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Crecimiento aditivo fijo, no porcentual/compuesto.</span>
+      <p>Para stats con "%" en el doc (Movement speed, Jump height, Dash speed), <code>StatMath.CalculateStatUpgradeAmount</code>
+      aplica un monto fijo, no un porcentaje del valor actual.</p>
+    </div>
+
+    <table class="match">
+      <thead><tr><th>Stat</th><th>Doc</th><th>Código</th></tr></thead>
+      <tbody>
+        <tr><td>MaxHealth (por nivel)</td><td>5</td><td>4</td></tr>
+        <tr><td>Jump height</td><td>2.5%</td><td>4%</td></tr>
+        <tr><td>Dash speed</td><td>2.5%</td><td>3.5%</td></tr>
+        <tr><td>Damage multiplier</td><td>0.05</td><td>0.06</td></tr>
+        <tr><td>Attack speed multiplier</td><td>0.03</td><td>0.05</td></tr>
+        <tr><td>Projectile / area size</td><td>0.03</td><td>0.04</td></tr>
+        <tr><td>Ammo multiplier</td><td>0.01</td><td>0.05 (5x)</td></tr>
+        <tr><td>Critical Chance</td><td>1 pto</td><td>~1.5 pts</td></tr>
+        <tr><td>Damage Resistance</td><td>0.6</td><td>~5 pts (8x)</td></tr>
+        <tr><td>Pickup Range</td><td>0.2</td><td>0.35</td></tr>
+      </tbody>
+    </table>
+
+    <div class="finding note">
+      <span class="label">Bug de techo de upgrades.</span>
+      <p><code>GetUpgradeCountForLevel</code> da 20 para cualquier nivel ≥36 (no vuelve a 7 como pide la tabla),
+      aunque inalcanzable en la práctica porque el level cap es 36.</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Base values (MaxHealth, HealthRegen, multiplicadores, etc.) coinciden bien con el doc.</li>
+    </ul>
+
+    <h3 class="sub">Passive items</h3>
+    <div class="finding">
+      <span class="label">Sistema "Rusted/Pure" documentado no existe en el código.</span>
+      <p>Sin rastro de tier, penalización acumulativa ni evolución a "Pure" en <code>PassiveItemData</code> /
+      <code>PassiveItemInstance</code>.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Algoritmo de oferta al subir de nivel distinto.</span>
+      <p>El doc especifica un roll de probabilidad "mejora vs. ítem nuevo" por opción; el código usa una ruleta de
+      pesos determinista sobre el conjunto combinado de ítems elegibles.</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Slots (Head/Core/Arm×2/Leg×2), pool de 17 ítems y nivel máximo 6 coinciden exactamente con el doc.</li>
+    </ul>
+
+    <h3 class="sub">Armas</h3>
+    <div class="finding">
+      <span class="label">Progresión de daño/cadencia del CSV desconectada del gameplay.</span>
+      <p>Los 4 <code>WeaponData</code> de producción tienen <code>BalanceStats</code> vacío;
+      <code>AttackRateMultiplier</code> queda fijo en 1 en <strong>todos</strong> los niveles de las 4 armas.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Cooldown de habilidad no baja con el nivel del arma,</span>
+      <p>solo con el stat del jugador (Ability Cooldown Reduction).</p>
+    </div>
+    <div class="finding">
+      <span class="label"><code>BaseRange</code> único para modo auto y manual.</span>
+      <p>El CSV documenta columnas separadas y distintas por arma (no coincide en Automatic Cannon ni Mortar).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Delay de ciclo manual (1.25s/2.5s) no implementado.</span>
+      <p><code>WeaponManager._manualCooldownTimer</code> nunca se asigna; el ciclo entre armas es instantáneo.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Critical Chance del arma no se suma</span>
+      <p>al del personaje al calcular el crítico final (<code>WeaponDamageResolver.RollCrit</code>).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Rocket launcher.</span>
+      <p>Knockback de Fragmentation Cap: doc=0.25x, código=0.75x. Debuff de Kinetic Explosion hardcodeado (no
+      escala por nivel como el CSV).</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Mortar.</span>
+      <p>Bonus de firerate por heat implementado como rampa lineal continua 50-100%, no como escalón inmediato al
+      cruzar 50% (posible diferencia de interpretación del doc).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Automatic cannon.</span>
+      <p>Falta el weak point x2 como mecánica base del modo manual (solo existe dentro del path Head Hunter).
+      Weak point multiplier calculado solo por heat, ignorando el nivel del arma. Continuous Fire fijo en 40
+      balas/s en todos los niveles (CSV documenta salto a 80 en nivel 10).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Rotating blade.</span>
+      <p>Multi-blade da 6 hojas en nivel 10 (fórmula <code>1 + Max(1, Level-5)</code>); CSV documenta 9.</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Flamethrower coincide bien con el doc en todos los aspectos revisados.</li>
+    </ul>
+
+    <h3 class="sub">Crafting</h3>
+    <div class="finding">
+      <span class="label">Advanced Tinkering sin aleatoriedad.</span>
+      <p>El doc dice que el path (A o B) se ofrece al azar; en código el jugador elige libremente entre
+      Path A / Path B / Rechazar.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Bug: path garantizado al rechazar siempre es Path B</span>
+      <p>(hardcodeado en <code>CraftingUI.cs:184</code>), nunca Path A.</p>
+    </div>
+    <div class="finding">
+      <span class="label">XP por material.</span>
+      <p>Doc: 1 (común) / 5 (raro). Código: 4 / 12 — ni el valor ni la proporción coinciden.</p>
+    </div>
+    <div class="finding info">
+      <span class="label">Sistema doble de XP no documentado.</span>
+      <p>Además del XP por material recogido, cada muerte de enemigo otorga XP fija garantizada vía
+      <code>EnemyDropExperience</code> / <code>XPDrop</code>, independiente del flujo descrito en el doc.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Pausa no muestra costos de upgrade de armas equipadas</span>
+      <p>como indica el doc; esa vista solo existe en la estación de crafting.</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Tecla E, pausa real del tiempo, primera arma gratis entre 2 random, tope de 3 armas, costos de
+      Tinkering/Advanced Tinkering, mapeo de materiales por enemigo — todo coincide exactamente.</li>
+    </ul>
+
+    <h3 class="sub">Power-ups temporales &amp; Meta-progresión</h3>
+    <div class="finding note">
+      <span class="label">Power-ups temporales: sin implementación.</span>
+      <p>Consistente con que la sección del doc es un stub vacío.</p>
+    </div>
+    <div class="finding info">
+      <span class="label">Meta-progresión funcional no documentada.</span>
+      <p><code>SaveManager</code>, moneda <code>Scrap</code>, <code>UnlockCatalog</code>,
+      <code>AchievementDefinition</code> — el doc no la detalla (stub).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Level cap 36 es un hard-stop total,</span>
+      <p>mientras el doc da a entender que solo limita las ofertas de ítems (no las stats).</p>
+    </div>
+    <div class="finding info">
+      <span class="label">Funcionalidad no documentada:</span>
+      <p><code>PlayerAutoAttack</code> — ataque automático de respaldo cuando el jugador tiene 0 armas equipadas.</p>
+    </div>
+  </section>
+
+  <section class="area" id="ui">
+    <h2>3. UI y Visión general <span class="tag">UI Design Doc / Game Treatment / HC</span></h2>
+
+    <h3 class="sub">HUD de gameplay</h3>
+    <div class="finding">
+      <span class="label">Sin texto numérico de HP/XP/Overheat% en el HUD principal.</span>
+      <p><code>PlayerBarsHud</code> solo maneja <code>fillAmount</code>, sin <code>TextMeshProUGUI</code>, pese a
+      que el doc lo pide explícitamente en varios puntos.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Sin indicador de nivel visible</span>
+      <p>en el HUD principal (solo existe en HUDs alternativos no usados como HUD principal).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Overheat indicator distinto.</span>
+      <p>Doc pide indicador circular con % visible; el código usa un fill vertical sin texto.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Resource Counters mal ubicados.</span>
+      <p>Doc los pone centro-inferior junto a nivel/slots; <code>MaterialInventoryHUD</code> crea su propio Canvas
+      arriba-izquierda, desconectado del resto del HUD.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Slots de pasivos sin cooldown overlay, lock-state ni selection highlight</span>
+      <p>que pide el doc (<code>PassiveLoadoutHud</code> solo maneja icono + nivel).</p>
+    </div>
+    <div class="finding">
+      <span class="label">Barra de munición no segmentada.</span>
+      <p>Doc pide barra segmentada; código usa <code>Image.Type.Filled</code> continuo.</p>
+    </div>
+    <div class="finding">
+      <span class="label">Icono de arma sin jerarquía "principal + 2 secundarios circulares".</span>
+      <p>Los 3 slots de arma son cuadrados del mismo tamaño; el activo solo se distingue por color de borde.</p>
+    </div>
+    <div class="finding info">
+      <span class="label">Elementos implementados no documentados:</span>
+      <p>DashCharges, AbilityCooldown/RotationCooldown con estados de texto, OverheatObjectiveHud,
+      OffscreenObjectiveIndicators, variedad de retículas por arma, PlayerCombatFeedback/WeaponWeakPointFeedback.</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Coexisten 3 sistemas de HUD activos en la escena</span>
+      <p>(oficial + <code>SurvivorHud</code> + <code>UIManager</code> de debug) — posible deuda técnica; implica
+      que el doc no corresponde 1:1 al HUD real.</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Boss Health Bar (fill horizontal, se vacía de derecha a izquierda) coincide bien con el doc.</li>
+    </ul>
+
+    <h3 class="sub">Menú principal, pausa, fin de partida</h3>
+    <div class="finding info">
+      <span class="label">El doc de UI no cubre estas pantallas en absoluto.</span>
+      <p>Están ampliamente implementadas en código (<code>MainMenuPresentationController</code>,
+      <code>PauseMenuUI</code> con panel de settings/accesibilidad, <code>RunEndScreenUI</code>), sin contraparte
+      documental.</p>
+    </div>
+
+    <h3 class="sub">Pilares / sistemas centrales</h3>
+    <div class="finding">
+      <span class="label">Level-ups: 2-3 opciones, no 6.</span>
+      <p>El Game Treatment dice "elegir entre 6 buffs"; el código ofrece 2-3 opciones
+      (<code>_choicesOffered = 3</code>, rango 2-3).</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Mecánica "Tinker" mencionada en el Game Treatment: sin rastro en el código.</span>
+      <p>Puede existir bajo otro nombre, no confirmado por búsqueda directa del término.</p>
+    </div>
+    <div class="finding note">
+      <span class="label">Endgame/Keys-Gate más maduro que lo que sugiere el doc</span>
+      <p>(marcado como stub en el Treatment, pero ya implementado funcionalmente). Diferencia terminológica menor:
+      "power cells"/"batteries" en el doc vs. "Key" en el código.</p>
+    </div>
+    <ul class="match-list">
+      <li>✓ Overheat de dos tramos y bosses cada dos ciclos coincide bien con el Game Treatment.</li>
+      <li>✓ Passive items — 6 slots — coincide.</li>
+      <li>— Diseño de nivel en dos capas (islas flotantes + scrapyard): no verificado, fuera del alcance de los scripts revisados.</li>
+    </ul>
+  </section>
+
+  <section class="area priority" id="resumen">
+    <h2>Resumen de hallazgos más relevantes</h2>
+    <ol>
+      <li><strong>Balance de armas del CSV desconectado del gameplay real</strong> — la progresión de daño/cadencia por nivel documentada no se aplica en 4 de las 5 armas.</li>
+      <li><strong>Sistema de ítems "Rusted/Pure" completo, documentado, no implementado.</strong></li>
+      <li><strong>HUD principal sin texto numérico de HP/XP/Overheat%</strong> ni nivel visible, y con 3 implementaciones de HUD coexistiendo.</li>
+      <li><strong>Boss Spawner no respeta la posición fija del "dumpster"</strong> que pide el diseño de combate.</li>
+      <li><strong>Enemy movement speed escala</strong> pese a que el doc prohíbe explícitamente que escale.</li>
+      <li><strong>Múltiples valores numéricos de stats/armas desalineados</strong> entre balance table y ScriptableObjects/código.</li>
+      <li><strong>Advanced Tinkering y level-up de pasivos sin la aleatoriedad</strong> que describe el diseño.</li>
+      <li><strong>Documentos de UI y Combat no cubren funcionalidad ya construida</strong> (menús, meta-progresión, HUD extra) — vacíos de documentación, no discrepancias.</li>
+    </ol>
+  </section>
+
+  <footer>
+    Generado a partir de <code>docs/design docs/*.docx</code> y <code>Assets/Scripts/</code> — análisis de solo
+    lectura, ningún archivo de código o diseño fue modificado.
+  </footer>
+</div>
+</body>
+</html>

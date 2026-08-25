@@ -36,7 +36,7 @@ public sealed class MainMenuItemView : MonoBehaviour, ISelectHandler, IDeselectH
 
     private MainMenuPresentationController _presentationController;
     private Vector2 _restingPosition;
-    private Vector3 _restingScale;
+    private Vector3 _restingScale = Vector3.one;
     private bool _restingPoseCaptured;
     private bool _selected;
     private bool _stateAnimating;
@@ -209,7 +209,13 @@ public sealed class MainMenuItemView : MonoBehaviour, ISelectHandler, IDeselectH
             return;
 
         _restingPosition = _visualRoot.anchoredPosition;
-        _restingScale = _visualRoot.localScale;
+        // Guard against a degenerate (zero) scale read: in player builds the visual
+        // root can report a zero localScale on the first frame, which would otherwise
+        // be baked into every state/intro pose and leave the item permanently invisible.
+        Vector3 capturedScale = _visualRoot.localScale;
+        _restingScale = capturedScale.x != 0f && capturedScale.y != 0f && capturedScale.z != 0f
+            ? capturedScale
+            : Vector3.one;
         _restingPoseCaptured = true;
     }
 
