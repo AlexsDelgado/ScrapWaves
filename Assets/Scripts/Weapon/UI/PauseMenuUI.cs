@@ -43,6 +43,12 @@ public class PauseMenuUI : MonoBehaviour
     private Toggle _invertYToggle;
     private Slider _sfxSlider;
     private Slider _musicSlider;
+    private Toggle _reducedMotionToggle;
+    private Toggle _reducedShakeToggle;
+    private Toggle _reducedFlashToggle;
+    private TMP_Dropdown _combatTextModeDropdown;
+    private Slider _combatTextScaleSlider;
+    private TextMeshProUGUI _combatTextScaleLabel;
     private float _savedTimeScale = 1f;
     private bool _isPaused;
     private bool _missingSettingsServiceReported;
@@ -59,6 +65,8 @@ public class PauseMenuUI : MonoBehaviour
     {
         UserSettingsService.InstanceChanged -= HandleSettingsServiceInstanceChanged;
         UserSettingsService.InstanceChanged += HandleSettingsServiceInstanceChanged;
+        PresentationAccessibilityRuntime.Changed -= HandleAccessibilityChanged;
+        PresentationAccessibilityRuntime.Changed += HandleAccessibilityChanged;
         if (_root != null)
             BindSettingsService(_settingsService != null ? _settingsService : UserSettingsService.Instance);
     }
@@ -66,6 +74,7 @@ public class PauseMenuUI : MonoBehaviour
     private void OnDisable()
     {
         UserSettingsService.InstanceChanged -= HandleSettingsServiceInstanceChanged;
+        PresentationAccessibilityRuntime.Changed -= HandleAccessibilityChanged;
         if (_settingsService != null)
             _settingsService.Changed -= HandleSettingsChanged;
     }
@@ -222,20 +231,23 @@ public class PauseMenuUI : MonoBehaviour
         if (_settingsService == null)
         {
             SetSettingsControlsInteractable(false);
-            return;
+        }
+        else
+        {
+            if (_hSensSlider != null)
+                _hSensSlider.SetValueWithoutNotify(_settingsService.HorizontalSensitivity);
+            if (_vSensSlider != null)
+                _vSensSlider.SetValueWithoutNotify(_settingsService.VerticalSensitivity);
+            if (_invertYToggle != null)
+                _invertYToggle.SetIsOnWithoutNotify(_settingsService.InvertY);
+            if (_sfxSlider != null)
+                _sfxSlider.SetValueWithoutNotify(_settingsService.SfxVolume);
+            if (_musicSlider != null)
+                _musicSlider.SetValueWithoutNotify(_settingsService.MusicVolume);
+            SetSettingsControlsInteractable(true);
         }
 
-        if (_hSensSlider != null)
-            _hSensSlider.SetValueWithoutNotify(_settingsService.HorizontalSensitivity);
-        if (_vSensSlider != null)
-            _vSensSlider.SetValueWithoutNotify(_settingsService.VerticalSensitivity);
-        if (_invertYToggle != null)
-            _invertYToggle.SetIsOnWithoutNotify(_settingsService.InvertY);
-        if (_sfxSlider != null)
-            _sfxSlider.SetValueWithoutNotify(_settingsService.SfxVolume);
-        if (_musicSlider != null)
-            _musicSlider.SetValueWithoutNotify(_settingsService.MusicVolume);
-        SetSettingsControlsInteractable(true);
+        SyncAccessibilityControls(PresentationAccessibilityRuntime.Current);
     }
 
     private void HandleSettingsServiceInstanceChanged(UserSettingsService service)
@@ -252,6 +264,7 @@ public class PauseMenuUI : MonoBehaviour
         if (_settingsService == null)
         {
             SetSettingsControlsInteractable(false);
+            SyncAccessibilityControls(PresentationAccessibilityRuntime.Current);
             if (!_missingSettingsServiceReported && Application.isPlaying)
             {
                 Debug.LogError(
@@ -264,12 +277,27 @@ public class PauseMenuUI : MonoBehaviour
 
         _settingsService.Changed -= HandleSettingsChanged;
         _settingsService.Changed += HandleSettingsChanged;
+        SyncReducedMotionToPresentationRuntime();
         SyncSettingsFromSources();
     }
 
-    private void HandleSettingsChanged(UserSettingsChange _)
+    private void HandleSettingsChanged(UserSettingsChange change)
     {
+        if ((change & UserSettingsChange.ReducedMotion) != 0)
+            SyncReducedMotionToPresentationRuntime();
         SyncSettingsFromSources();
+    }
+
+    private void SyncReducedMotionToPresentationRuntime()
+    {
+        if (_settingsService == null)
+            return;
+
+        PresentationAccessibilityState current = PresentationAccessibilityRuntime.Current;
+        if (current.ReducedMotion == _settingsService.ReducedMotion)
+            return;
+
+        PersistAccessibility(current.WithReducedMotion(_settingsService.ReducedMotion));
     }
 
     private void SetSettingsControlsInteractable(bool interactable)
@@ -292,6 +320,42 @@ public class PauseMenuUI : MonoBehaviour
             BindSettingsService(UserSettingsService.Instance);
         service = _settingsService;
         return service != null;
+    }
+
+    private void SyncAccessibilityControls(PresentationAccessibilityState state)
+    {
+        _reducedMotionToggle?.SetIsOnWithoutNotify(state.ReducedMotion);
+        _reducedShakeToggle?.SetIsOnWithoutNotify(state.ReducedShake);
+        _reducedFlashToggle?.SetIsOnWithoutNotify(state.ReducedFlash);
+        _combatTextModeDropdown?.SetValueWithoutNotify((int)state.CombatText);
+        _combatTextModeDropdown?.RefreshShownValue();
+        _combatTextScaleSlider?.SetValueWithoutNotify(state.CombatTextScale);
+        UpdateCombatTextScaleLabel(state.CombatTextScale);
+    }
+
+    private void HandleAccessibilityChanged(PresentationAccessibilityState state)
+    {
+        if (_isPaused)
+            SyncAccessibilityControls(state);
+    }
+
+    private static void PersistAccessibility(PresentationAccessibilityState state)
+    {
+        if (SaveManager.Instance != null)
+        {
+            SaveManager.Instance.SetPresentationAccessibility(state);
+            return;
+        }
+
+        // Edit-mode previews and isolated testing scenes can still use the authoritative
+        // runtime snapshot even when the persistent bootstrap is intentionally absent.
+        PresentationAccessibilityRuntime.Apply(state);
+    }
+
+    private void UpdateCombatTextScaleLabel(float value)
+    {
+        if (_combatTextScaleLabel != null)
+            _combatTextScaleLabel.text = $"{Mathf.RoundToInt(value * 100f)}%";
     }
 
     private void RefreshStats()
@@ -444,9 +508,9 @@ public class PauseMenuUI : MonoBehaviour
 
     private void BuildSettingsPanel()
     {
-        Image panel = CreateIndustrialPanel(_root.transform, "SettingsPanel", new Vector2(650f, 640f), ScrapGreen);
+        Image panel = CreateIndustrialPanel(_root.transform, "SettingsPanel", new Vector2(650f, 900f), ScrapGreen);
         _settingsPanel = panel.gameObject;
-        SetAnchoredRect(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(650f, 640f));
+        SetAnchoredRect(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -64f), new Vector2(650f, 900f));
 
         TextMeshProUGUI header = CreatePanelHeader(panel.transform, "SETTINGS");
         header.characterSpacing = 5f;
@@ -508,8 +572,44 @@ public class PauseMenuUI : MonoBehaviour
                 settings.MusicVolume = v;
         });
 
+        CreateSectionHeader(panel.transform, "ACCESSIBILITY", ref y);
+        _reducedMotionToggle = CreateToggleRow(panel.transform, "Reduced Motion", ref y, on =>
+        {
+            if (TryGetSettingsService(out UserSettingsService settings))
+                settings.ReducedMotion = on;
+
+            PresentationAccessibilityState current = PresentationAccessibilityRuntime.Current;
+            if (current.ReducedMotion != on)
+                PersistAccessibility(current.WithReducedMotion(on));
+        });
+        _reducedShakeToggle = CreateToggleRow(panel.transform, "Reduced Shake", ref y, on =>
+            PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedShake(on)));
+        _reducedFlashToggle = CreateToggleRow(panel.transform, "Reduced Flash", ref y, on =>
+            PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedFlash(on)));
+        _combatTextModeDropdown = CreateCombatTextModeRow(panel.transform, ref y, value =>
+        {
+            CombatTextMode mode = (CombatTextMode)Mathf.Clamp(
+                value,
+                (int)CombatTextMode.Off,
+                (int)CombatTextMode.Full);
+            PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatText(mode));
+        });
+        _combatTextScaleSlider = CreateSettingRow(
+            panel.transform,
+            "Combat Text Scale",
+            ref y,
+            PresentationAccessibilitySettings.MinimumCombatTextScale,
+            PresentationAccessibilitySettings.MaximumCombatTextScale,
+            1f,
+            value =>
+            {
+                UpdateCombatTextScaleLabel(value);
+                PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatTextScale(value));
+            });
+        _combatTextScaleLabel = CreateSettingValueLabel(_combatTextScaleSlider, "100%");
+
         _settingsBackButton = CreateIndustrialButton(panel.transform, "BackButton", "BACK", new Vector2(280f, 58f), WarningRust);
-        SetAnchoredRect((RectTransform)_settingsBackButton.transform, new Vector2(0.5f, 0f), new Vector2(0f, 42f), new Vector2(280f, 58f), new Vector2(0.5f, 0f));
+        SetAnchoredRect((RectTransform)_settingsBackButton.transform, new Vector2(0.5f, 0f), new Vector2(0f, 30f), new Vector2(280f, 58f), new Vector2(0.5f, 0f));
         _settingsBackButton.onClick.AddListener(CloseSettings);
 
         ConfigureVerticalNavigation(
@@ -518,6 +618,11 @@ public class PauseMenuUI : MonoBehaviour
             _invertYToggle,
             _sfxSlider,
             _musicSlider,
+            _reducedMotionToggle,
+            _reducedShakeToggle,
+            _reducedFlashToggle,
+            _combatTextModeDropdown,
+            _combatTextScaleSlider,
             _settingsBackButton);
         _settingsPanel.SetActive(false);
     }
@@ -536,7 +641,9 @@ public class PauseMenuUI : MonoBehaviour
         {
             Selectable firstSetting = _hSensSlider != null && _hSensSlider.IsInteractable()
                 ? _hSensSlider
-                : _settingsBackButton;
+                : _reducedMotionToggle != null && _reducedMotionToggle.IsInteractable()
+                    ? _reducedMotionToggle
+                    : _settingsBackButton;
             FocusSelectable(firstSetting);
         }
         else
@@ -559,6 +666,246 @@ public class PauseMenuUI : MonoBehaviour
     {
         builder.Append(label.PadRight(15));
         builder.AppendLine(value);
+    }
+
+    private static void CreateSectionHeader(Transform parent, string text, ref float y)
+    {
+        TextMeshProUGUI header = CreateLabel(
+            parent,
+            text + "Header",
+            text,
+            17f,
+            TextAlignmentOptions.TopLeft,
+            MutedSteel);
+        SetAnchoredRect(
+            header.rectTransform,
+            new Vector2(0.5f, 1f),
+            new Vector2(0f, y),
+            new Vector2(540f, 30f),
+            new Vector2(0.5f, 1f));
+        header.fontStyle = FontStyles.Bold;
+        header.characterSpacing = 3f;
+
+        Image divider = CreateSolidImage(parent, text + "Divider", WarningRust);
+        SetAnchoredRect(
+            divider.rectTransform,
+            new Vector2(0.5f, 1f),
+            new Vector2(0f, y - 28f),
+            new Vector2(540f, 2f),
+            new Vector2(0.5f, 1f));
+        y -= 36f;
+    }
+
+    private static TextMeshProUGUI CreateSettingValueLabel(Slider slider, string value)
+    {
+        if (slider == null)
+            return null;
+
+        TextMeshProUGUI label = CreateLabel(
+            slider.transform.parent,
+            "Value",
+            value,
+            14f,
+            TextAlignmentOptions.TopRight,
+            ScrapGreen);
+        SetAnchoredRect(
+            label.rectTransform,
+            new Vector2(1f, 1f),
+            Vector2.zero,
+            new Vector2(140f, 24f),
+            new Vector2(1f, 1f));
+        label.fontStyle = FontStyles.Bold;
+        return label;
+    }
+
+    private static TMP_Dropdown CreateCombatTextModeRow(
+        Transform parent,
+        ref float y,
+        UnityEngine.Events.UnityAction<int> onChanged)
+    {
+        var row = new GameObject("Combat Text", typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+        RectTransform rowRt = row.GetComponent<RectTransform>();
+        SetAnchoredRect(
+            rowRt,
+            new Vector2(0.5f, 1f),
+            new Vector2(0f, y),
+            new Vector2(540f, 48f),
+            new Vector2(0.5f, 1f));
+
+        TextMeshProUGUI label = CreateLabel(
+            row.transform,
+            "Label",
+            "COMBAT TEXT",
+            15f,
+            TextAlignmentOptions.MidlineLeft,
+            Bone);
+        SetAnchoredRect(
+            label.rectTransform,
+            new Vector2(0f, 0.5f),
+            Vector2.zero,
+            new Vector2(220f, 48f),
+            new Vector2(0f, 0.5f));
+        label.fontStyle = FontStyles.Bold;
+        label.characterSpacing = 2f;
+
+        var dropdownGo = new GameObject("Dropdown", typeof(RectTransform));
+        dropdownGo.transform.SetParent(row.transform, false);
+        RectTransform dropdownRt = dropdownGo.GetComponent<RectTransform>();
+        SetAnchoredRect(
+            dropdownRt,
+            new Vector2(1f, 0.5f),
+            Vector2.zero,
+            new Vector2(300f, 38f),
+            new Vector2(1f, 0.5f));
+
+        Image background = dropdownGo.AddComponent<Image>();
+        background.sprite = HudUiFactory.WhiteSprite;
+        background.color = Color.white;
+
+        TMP_Dropdown dropdown = dropdownGo.AddComponent<TMP_Dropdown>();
+        dropdown.targetGraphic = background;
+        ColorBlock colors = dropdown.colors;
+        colors.normalColor = Plate;
+        colors.highlightedColor = ScrapGreen;
+        colors.selectedColor = ScrapGreen;
+        colors.pressedColor = WarningRust;
+        colors.disabledColor = new Color(0.45f, 0.5f, 0.47f, 0.45f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        dropdown.colors = colors;
+        dropdown.options.Clear();
+        dropdown.options.Add(new TMP_Dropdown.OptionData("Off"));
+        dropdown.options.Add(new TMP_Dropdown.OptionData("Important Only"));
+        dropdown.options.Add(new TMP_Dropdown.OptionData("Full"));
+
+        TextMeshProUGUI caption = CreateLabel(
+            dropdownGo.transform,
+            "Caption",
+            string.Empty,
+            14f,
+            TextAlignmentOptions.MidlineLeft,
+            Bone);
+        Stretch(caption.rectTransform, new Vector2(12f, 2f), new Vector2(-34f, -2f));
+        dropdown.captionText = caption;
+
+        TextMeshProUGUI arrow = CreateLabel(
+            dropdownGo.transform,
+            "Arrow",
+            "V",
+            13f,
+            TextAlignmentOptions.Center,
+            MutedSteel);
+        SetAnchoredRect(
+            arrow.rectTransform,
+            new Vector2(1f, 0.5f),
+            new Vector2(-8f, 0f),
+            new Vector2(24f, 38f),
+            new Vector2(1f, 0.5f));
+
+        dropdown.template = BuildCombatTextDropdownTemplate(dropdownGo.transform, out TextMeshProUGUI itemLabel);
+        dropdown.itemText = itemLabel;
+        dropdown.SetValueWithoutNotify((int)CombatTextMode.Full);
+        dropdown.onValueChanged.AddListener(onChanged);
+        dropdown.RefreshShownValue();
+
+        y -= 54f;
+        return dropdown;
+    }
+
+    private static RectTransform BuildCombatTextDropdownTemplate(
+        Transform parent,
+        out TextMeshProUGUI itemLabel)
+    {
+        var template = new GameObject("Template", typeof(RectTransform));
+        template.transform.SetParent(parent, false);
+        template.SetActive(false);
+        RectTransform templateRt = template.GetComponent<RectTransform>();
+        templateRt.anchorMin = new Vector2(0f, 0f);
+        templateRt.anchorMax = new Vector2(1f, 0f);
+        templateRt.pivot = new Vector2(0.5f, 1f);
+        templateRt.anchoredPosition = new Vector2(0f, -2f);
+        templateRt.sizeDelta = new Vector2(0f, 96f);
+
+        Image templateImage = template.AddComponent<Image>();
+        templateImage.sprite = HudUiFactory.WhiteSprite;
+        templateImage.color = DeepSteel;
+        ScrollRect scrollRect = template.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+
+        var viewport = new GameObject("Viewport", typeof(RectTransform));
+        viewport.transform.SetParent(template.transform, false);
+        RectTransform viewportRt = viewport.GetComponent<RectTransform>();
+        viewportRt.anchorMin = Vector2.zero;
+        viewportRt.anchorMax = Vector2.one;
+        viewportRt.offsetMin = Vector2.zero;
+        viewportRt.offsetMax = Vector2.zero;
+        Image viewportImage = viewport.AddComponent<Image>();
+        viewportImage.sprite = HudUiFactory.WhiteSprite;
+        viewportImage.color = Color.white;
+        Mask mask = viewport.AddComponent<Mask>();
+        mask.showMaskGraphic = false;
+        scrollRect.viewport = viewportRt;
+
+        var content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(viewport.transform, false);
+        RectTransform contentRt = content.GetComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0f, 1f);
+        contentRt.anchorMax = new Vector2(1f, 1f);
+        contentRt.pivot = new Vector2(0.5f, 1f);
+        contentRt.anchoredPosition = Vector2.zero;
+        var layout = content.AddComponent<VerticalLayoutGroup>();
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        ContentSizeFitter fitter = content.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        scrollRect.content = contentRt;
+
+        var item = new GameObject("Item", typeof(RectTransform));
+        item.transform.SetParent(content.transform, false);
+        Image itemBackground = item.AddComponent<Image>();
+        itemBackground.sprite = HudUiFactory.WhiteSprite;
+        itemBackground.color = Color.white;
+        Toggle itemToggle = item.AddComponent<Toggle>();
+        itemToggle.targetGraphic = itemBackground;
+        ColorBlock itemColors = itemToggle.colors;
+        itemColors.normalColor = Plate;
+        itemColors.highlightedColor = ScrapGreen;
+        itemColors.selectedColor = ScrapGreen;
+        itemColors.pressedColor = WarningRust;
+        itemColors.colorMultiplier = 1f;
+        itemColors.fadeDuration = 0.08f;
+        itemToggle.colors = itemColors;
+        item.AddComponent<LayoutElement>().minHeight = 30f;
+
+        var checkmark = new GameObject("Item Checkmark", typeof(RectTransform));
+        checkmark.transform.SetParent(item.transform, false);
+        RectTransform checkRt = checkmark.GetComponent<RectTransform>();
+        checkRt.anchorMin = new Vector2(0f, 0.2f);
+        checkRt.anchorMax = new Vector2(0f, 0.8f);
+        checkRt.pivot = new Vector2(0f, 0.5f);
+        checkRt.anchoredPosition = new Vector2(8f, 0f);
+        checkRt.sizeDelta = new Vector2(14f, 0f);
+        Image checkImage = checkmark.AddComponent<Image>();
+        checkImage.sprite = HudUiFactory.WhiteSprite;
+        checkImage.color = ScrapGreen;
+        itemToggle.graphic = checkImage;
+
+        itemLabel = CreateLabel(
+            item.transform,
+            "Item Label",
+            string.Empty,
+            14f,
+            TextAlignmentOptions.MidlineLeft,
+            Bone);
+        RectTransform itemLabelRt = itemLabel.GetComponent<RectTransform>();
+        itemLabelRt.offsetMin = new Vector2(30f, 2f);
+        itemLabelRt.offsetMax = new Vector2(-6f, -2f);
+        return templateRt;
     }
 
     private static Slider CreateSettingRow(
@@ -584,7 +931,7 @@ public class PauseMenuUI : MonoBehaviour
         SetAnchoredRect((RectTransform)slider.transform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(540f, 24f), new Vector2(0.5f, 0f));
         slider.onValueChanged.AddListener(onChanged);
 
-        y -= 72f;
+        y -= 68f;
         return slider;
     }
 
@@ -635,7 +982,7 @@ public class PauseMenuUI : MonoBehaviour
         lbl.fontStyle = FontStyles.Bold;
         lbl.characterSpacing = 2f;
 
-        y -= 58f;
+        y -= 54f;
         return toggle;
     }
 

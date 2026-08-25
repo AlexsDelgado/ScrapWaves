@@ -380,14 +380,25 @@ public sealed class RocketLauncherPresentationTests
         Assert.That(cue.Cue, Is.EqualTo(expected));
     }
 
-    private sealed class TestDamageable : MonoBehaviour, IDamageable
+    private sealed class TestDamageable : MonoBehaviour, IAuthoritativeDamageable
     {
+        private int _health = 100000;
+
         public int TotalDamage { get; private set; }
 
         public bool ApplyDamage(int amount)
         {
-            TotalDamage += amount;
-            return true;
+            DamageRequest request = new(amount, amount, DamageChannel.Direct);
+            return ApplyDamage(in request).Applied;
+        }
+
+        public DamageApplicationResult ApplyDamage(in DamageRequest request)
+        {
+            int before = _health;
+            int after = Mathf.Max(0, before - request.ModifiedDamage);
+            _health = after;
+            TotalDamage += before - after;
+            return DamageApplicationResult.FromHealthDelta(in request, before, after);
         }
     }
 

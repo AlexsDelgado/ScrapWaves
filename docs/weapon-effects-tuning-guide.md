@@ -23,7 +23,9 @@ For most changes, use this loop:
 5. Tune one cue or one visual layer at a time.
 6. Test at 0%, 25%, 50%, 75%, 80%, and 100% heat.
 7. Re-enable the other feedback channels one at a time.
-8. Test Low, Medium, and High quality and both Reduced Flash and Reduced Shake.
+8. Test Low, Medium, and High quality; test Reduced Motion, Reduced Shake, and
+   Reduced Flash independently and together; then test Combat Text in Off,
+   Important Only, and Full modes at `0.75x`, `1.00x`, and `1.25x` scale.
 9. Test while standing still, moving toward the effect, moving sideways, and
    looking from a low camera angle.
 10. Turn on Debug Geometry and verify that visual range, radius, cone, or path
@@ -202,6 +204,133 @@ already supports clip variants or simultaneous layers, volume, mechanical-layer
 volume, heat strain, progress-driven pitch, pitch range, spatial blend,
 attenuation distance, priority, and looping. Leave these stable while isolating
 visual tuning, then polish them in a separate pass.
+
+### 3.3 Combat text and authored production values
+
+Combat text is another channel of the semantic presentation pipeline. Gameplay
+applies damage first, then sends the authoritative applied amount and its action
+or status identity through `WeaponFeedbackContext`. The shared combat-text
+director aggregates compatible events and drives pooled screen-space views. Do
+not tune weapon damage, target health, or cadence to change a displayed number.
+
+The canonical authored assets are:
+
+- Profile: `Assets/ScriptableObjects/GameFeel/CombatTextProfile.asset`.
+- Pooled view prefab: `Assets/GameFeel/Prefabs/CombatText/CombatTextView.prefab`.
+- Builder recipe: `Assets/Scripts/Weapon/Editor/CombatTextAssetBuilder.cs`.
+- Builder command: `Tools > ScrapWaves > Game Feel > Rebuild Combat Text Assets`.
+
+The tables below record the serialized production values on 2026-08-21. They are
+the current authoring baseline, not evidence that the manual readability matrix
+or profiler targets have been completed.
+
+#### Master and style values
+
+The profile is enabled, uses a `1920 x 1080` reference resolution, renders at
+sorting order `800`, and enables compact formatting above the exact-number
+boundary. The sandbox should use exact formatting when validating applied totals.
+All current styles use bold text and the shared Liberation Sans SDF material.
+The pooled prefab and programmatic fallback contain only the numeric TMP visual:
+there is no backing panel, icon, slash, bar, diamond, or other accent geometry.
+
+| Style | Font size | Base scale | Text RGBA / hex |
+| --- | ---: | ---: | --- |
+| Normal | 34 | 1.00 | `1, 0.93, 0.78, 1` / `#FFEDC7` |
+| Burn | 30 | 0.90 | `1, 0.42, 0.04, 1` / `#FF6B0A` |
+| Jellified Burn | 30 | 0.90 | `0.34, 0.92, 0.24, 1` / `#57EB3D` |
+| Critical | 40 | 1.06 | `1, 0.82, 0.22, 1` / `#FFD138` |
+| Weak point | 38 | 1.07 | `0.35, 0.95, 1, 1` / `#59F2FF` |
+| Critical weak point | 44 | 1.10 | `0.85, 0.40, 1, 1` / `#D966FF` |
+| Kill | 46 | 1.10 | `1, 0.23, 0.302, 1` / `#FF3B4D` |
+| Ability | 36 | 1.04 | `0.36, 0.486, 1, 1` / `#5C7CFF` |
+
+#### Motion values
+
+Speeds and accelerations are screen-space units per second. Fade start is a
+normalized fraction of lifetime.
+
+| Motion | Lifetime | Connection | Horizontal | Upward | Downward acceleration | Spawn / overshoot | Fade start | Local shake |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |
+| Normal | 0.78 s | 0.10 s | 20 | 120 | 255 | 0.60 / 1.15 | 0.64 | 3 |
+| Burn tally release | 0.48 s | 0 s | 4 | 62 | 100 | 0.82 / 1.07 | 0.52 | 0 |
+| Critical | 0.86 s | 0.10 s | 20 | 120 | 255 | 0.60 / 1.20 | 0.64 | 3 |
+| Weak point | 0.84 s | 0.10 s | 20 | 138 | 255 | 0.60 / 1.18 | 0.64 | 3 |
+| Kill | 0.92 s | 0.10 s | 20 | 145 | 255 | 0.60 / 1.20 | 0.64 | 3 |
+| Reduced Motion | 0.66 s | 0.08 s | 7 | 72 | 90 | 0.78 / 1.05 | 0.60 | 0 |
+
+Normal, critical, weak-point, and kill motion use `0.14 s` settle time,
+`0.93` end scale, `8 x 5` initial jitter, and `0.13 s` local-shake duration.
+Burn uses `0.10 s`, `0.94`, and `3 x 2`; Reduced Motion uses `0.10 s`,
+`0.95`, and `2 x 1`. The authored normalized scale curve is
+`(0, 0.60), (0.10, 1.15), (0.19, 1), (0.72, 1), (1, 0.93)` and the alpha
+curve is `(0, 1), (0.62, 1), (0.82, 0.55), (1, 0)`.
+
+#### Magnitude, aggregation, and limits
+
+| Group | Authored values |
+| --- | --- |
+| Magnitude curve | Damage ratios `0.25 / 0.5 / 1 / 2 / 4 / 8` map to scales `0.86 / 0.93 / 1 / 1.13 / 1.27 / 1.38` |
+| Scale bounds | Magnitude `0.85–1.42`; final resolved `0.82–1.48` |
+| Semantic scale | Critical `1.08`; weak point `1.08`; combined cap `1.16`; kill `1.05`; elite/boss `1.03`; burn `0.90` |
+| Cannon fallbacks | Automatic `0.16 s`; manual `0.24 s`; active scatter `0.18 s`; Head Hunter `0.08 s`; sustained contact `0.14 s` |
+| Rocket fallbacks | Explosion `0.14 s`; fragment `0.30 s` |
+| Other fallbacks | Flamethrower direct `0.30 s`; burn `0.65 s`; mortar `0.18 s`; blade sustained `0.22 s`; manual multi-hit `0.18 s` |
+| Re-punch | Direct `0.08` scale / `6` nudge; burn `0.04` / `2`; duration `0.10 s` |
+| Maximum segment lifetime | Direct `1.10 s`; rocket `1.10 s`; burn `3.25 s`; completion grace `0.12 s` |
+| Prewarm views, Low / Medium / High | `18 / 26 / 36` |
+| Active views, Low / Medium / High | `16 / 24 / 32` |
+| Starts per frame, Low / Medium / High | `3 / 5 / 7` |
+| Visible burn tallies, Low / Medium / High | `6 / 10 / 16` |
+| Fixed capacities | Maximum pooled views `40`; aggregates `128`; sequences `64`; orphan timeout `1.25 s` |
+
+Ordinary Mortar shells own one explicit action sequence. Active rain groups the
+authored `5` shells per sub-volley, and grapeshot descendants retain the parent
+sequence until every contributor releases. Rocket parent explosions and fragment
+descendants likewise share one numeric aggregation family while retaining their
+event kind for presentation.
+
+Visibility uses four lanes at `20` pixels spacing. Full-size distance is `26 m`;
+routine and important maximum distances are `38 m` and `50 m`; distant scale is
+`0.82`. Viewport insets are `0.04` horizontal and `0.06` vertical, world-anchor
+height is `1.25 m`, and burn anchors project at `20 Hz`. The major-ability ratio
+threshold is `1.15`; the elite/boss important threshold is `1.50`.
+
+The serialized accessibility constants are `0.35` for the Reduced Motion lateral
+multiplier and `0` for the Reduced Shake multiplier. The current director selects
+the Reduced Motion profile and gates
+local shake directly; the view applies the authored Reduced Motion lateral
+multiplier to horizontal velocity and jitter. The separate Reduced Shake scalar
+is retained in the profile but is not read as a runtime multiplier because local
+shake is disabled by policy. Combat text has no flash or accent geometry, so
+Reduced Flash does not alter its stable text fill.
+
+The weapon sandbox defaults combat text to exact formatting, displays whether
+accessibility is using persisted settings or a local sandbox override, and can
+reset the override without writing a second settings source. Its metrics include
+active/cap values, exact applied-damage totals, merges, suppression reasons,
+sequence/record state, pool state, update time, and per-update managed-allocation
+delta.
+
+### 3.4 Presentation-accessibility consumer audit
+
+This table records code-level coverage, not completion of the manual comfort or
+readability matrix. A row marked partial or pending must not be treated as an
+accepted whole-game result.
+
+| Area | Current consumer contract | Audit state |
+| --- | --- | --- |
+| Persistence and settings UI | `SaveManager`, `PresentationAccessibilityRuntime`, and `PauseMenuUI` store and publish Reduced Motion, Reduced Shake, Reduced Flash, Combat Text mode, and text scale. | Implemented and covered by focused EditMode tests. |
+| Combat text | The director selects reduced motion, removes local shake, and applies mode and scale. The view is number-only with no flash or accent geometry. | Implemented in code; manual readability and stress validation remain. |
+| Camera, recoil, and hit-stop | `CameraFeedbackController`, `ThirdPersonCamera`, `WeaponRecoilFeedback`, and `HitStopController` receive the shared runtime options. | Implemented in code; manual comfort validation remains. |
+| Enemy hit, death, and status feedback | Enemy reaction state reduces hit displacement/squash and flash-heavy hit, death, and status accents. | Implemented in code; manual silhouette validation remains. |
+| Weapon flash VFX | Automatic Cannon, Rocket Launcher, and Flamethrower cue components explicitly consume reduced-flash context. | Partial: Mortar and Rotating Blade need an explicit applicability audit before whole-game Reduced Flash can be accepted. |
+| Non-essential weapon motion | There is no general reduced-motion multiplier on all weapon VFX components. | Pending applicability audit and any required implementation. Gameplay paths and telegraphs must not be changed. |
+| HUD, menus, overlays, and background motion | The pause menu edits the global state; no shared transition/background-motion consumer is currently documented. | Pending per-screen audit. Static screens may be marked not applicable only after inspection. |
+| Gameplay telegraphs | Accessibility is presentation-only and must preserve targeting, warning boundaries, collision, cadence, and enemy gameplay movement. | Requires manual verification in every reduced mode. |
+
+When adding a presentation system, consume the published runtime state or the
+game-feel snapshot derived from it. Do not read or write independent `PlayerPrefs`
+keys, and do not turn a sandbox override into a second persisted settings source.
 
 ## 4. Heat tuning
 
@@ -671,9 +800,12 @@ and profiles:
 - `Tools > ScrapWaves > Game Feel > Rebuild Flamethrower Production Assets`
 - `Tools > ScrapWaves > Game Feel > Rebuild Mortar Production Assets`
 - `Tools > ScrapWaves > Game Feel > Rebuild Rotating Blade Production Assets`
+- `Tools > ScrapWaves > Game Feel > Rebuild Combat Text Assets`
 
 Running a rebuild can overwrite direct Inspector tuning with constants from its
-editor builder script in `Assets/Scripts/Weapon/Editor`.
+editor builder script in `Assets/Scripts/Weapon/Editor`. The combat-text builder
+can replace both `CombatTextProfile.asset` and `CombatTextView.prefab` and can
+rewire the player prefab's profile reference.
 
 Before rebuilding:
 
@@ -727,7 +859,10 @@ Do not tune everything simultaneously. Use these passes in order.
 - Spawn groups and repeat the most expensive ability.
 - Compare Low/Medium/High.
 - Confirm essential cues are never suppressed.
+- Verify Reduced Motion preserves causality without excessive travel or shake.
 - Verify Reduced Flash preserves shape and causality.
+- Verify Combat Text Off, Important Only, and Full plus `0.75x` and `1.25x`
+  scale extremes.
 
 ### Pass G: audio and enemy-status polish
 
@@ -747,7 +882,8 @@ For every weapon, test:
 | Target | No collision, ground, normal enemy, elite/boss where relevant |
 | Camera | Normal, close, low angle, looking across the effect |
 | Quality | Low, Medium, High |
-| Accessibility | Default, Reduced Flash, Reduced Shake, both |
+| Accessibility | Default, Reduced Motion, Reduced Shake, Reduced Flash, and combinations |
+| Combat text | Off, Important Only, Full; `0.75x`, `1.00x`, and `1.25x` scale |
 | Density | Single target, group, repeated ability/barrage |
 
 Acceptance questions:
@@ -762,6 +898,8 @@ Acceptance questions:
 - Does the effect end smoothly with no particles surviving after pool release?
 - Are active FX and audio voices below capacity in the worst expected case?
 - Does managed memory remain stable after warm-up?
+- Do displayed values remain exact under overkill, amplification, multi-hit, and burn cases?
+- Do Combat Text Off and Important Only preserve gameplay while enforcing their visibility policy?
 
 ## 17. Troubleshooting
 
@@ -847,7 +985,7 @@ A cue is ready when:
 4. It remains readable at every heat preset.
 5. It behaves correctly while the player and target move.
 6. It has a deliberate Low/Medium/High degradation path.
-7. Reduced Flash and Reduced Shake preserve the gameplay read.
+7. Reduced Motion, Reduced Flash, and Reduced Shake preserve the gameplay read.
 8. Pool and suppression metrics remain healthy after warm-up.
 9. The relevant automated tests pass.
 10. The generated-asset builder cannot unexpectedly erase the accepted tuning,

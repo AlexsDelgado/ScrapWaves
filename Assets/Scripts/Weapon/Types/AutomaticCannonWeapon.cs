@@ -35,6 +35,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private WeaponPresentationCue _lineBurstShotCue;
     private WeaponPresentationCue _lineBurstEventCue;
     private bool _lineBurstEventEmitted;
+    private int _lineBurstSequenceId;
+    private DamageFeedbackKind _lineBurstDamageKind = DamageFeedbackKind.Direct;
 
     private bool _continuousFireActive;
     private float _continuousFireActiveRemainingDuration;
@@ -775,17 +777,24 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             Mathf.Max(1, maxTargets),
             _piercingTargets,
             _piercingHitOrigins);
+        int actionSequenceId = hitCount > 0
+            ? DamageFeedbackSequenceRuntime.BeginSequence(DamageFeedbackKind.Piercing, hitCount)
+            : 0;
 
         for (int i = 0; i < hitCount; i++)
         {
             IDamageable damageable = _piercingTargets[i].GetComponentInParent<IDamageable>();
             if (damageable == null)
+            {
+                DamageFeedbackSequenceRuntime.CompleteContributor(actionSequenceId);
                 continue;
+            }
 
             WeaponEnemyKind kind = WeaponEnemyClassifier.GetKind(_piercingTargets[i]);
             bool eliteOrBoss = kind == WeaponEnemyKind.Elite || kind == WeaponEnemyKind.Boss;
             bool weakPointHit = allowWeakPointHits && IsWeakPointHit(_piercingTargets[i], _piercingLine[0], _piercingLine[1]);
-            WeaponDamageContext damageContext = CreateDamageContext(1f, isAbilityDamage);
+            WeaponDamageContext damageContext = CreateDamageContext(1f, isAbilityDamage)
+                .WithFeedbackMetadata(actionSequenceId, DamageFeedbackKind.Piercing);
             float damage = damageContext.CalculateDamageValue(eliteOrBoss, _piercingTargets[i].position);
             float scale = GetHeadHunterDamageScale(kind, i, weakPointHit, isAbilityDamage);
 
@@ -802,8 +811,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 hitPoint,
                 direction,
                 i,
-                GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed));
+                GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed),
+                actionSequenceId,
+                damageContext.ReferenceDamage);
         }
+
+        DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
     }
 
     private bool TrySpawnHeadHunterProjectileVisual(
@@ -918,10 +931,15 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Vector3 impactPosition,
         Vector3 direction,
         int pierceIndex,
-        float delay)
+        float delay,
+        int actionSequenceId,
+        float referenceDamage)
     {
         if (target == null || damage <= 0)
+        {
+            DamageFeedbackSequenceRuntime.CompleteContributor(actionSequenceId);
             return;
+        }
 
         _pendingHeadHunterImpacts.Add(new PendingHeadHunterImpact
         {
@@ -934,7 +952,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             ImpactPosition = impactPosition,
             Direction = direction,
             PierceIndex = Mathf.Max(0, pierceIndex),
-            RemainingDelay = Mathf.Max(0f, delay)
+            RemainingDelay = Mathf.Max(0f, delay),
+            ActionSequenceId = actionSequenceId,
+            ReferenceDamage = Mathf.Max(0f, referenceDamage)
         });
     }
 
@@ -1023,20 +1043,25 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private void ApplyHeadHunterImpact(PendingHeadHunterImpact impact)
     {
         if (impact.Target == null)
+        {
+            DamageFeedbackSequenceRuntime.CompleteContributor(impact.ActionSequenceId);
             return;
+        }
 
         IDamageable damageable = impact.Target.GetComponentInParent<IDamageable>();
         if (damageable == null)
+        {
+            DamageFeedbackSequenceRuntime.CompleteContributor(impact.ActionSequenceId);
             return;
+        }
 
-        int healthBefore = GetRemainingHealth(damageable);
-        if (WeaponDamageApplier.TryApplyDamage(damageable, impact.Damage))
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, impact.Damage);
+        if (result.Applied)
         {
             ApplyKnockback(damageable, impact.ImpactOrigin, impact.Damage, 1f);
             if (impact.WeakPointHit)
                 WeaponWeakPointFeedback.NotifyWeakPointHit();
 
-            bool kill = healthBefore > 0 && GetRemainingHealth(damageable) <= 0;
             if (Presentation is IWeaponFeedbackSink semantic)
             {
                 Collider surfaceCollider = impact.Target.GetComponentInChildren<Collider>();
@@ -1050,15 +1075,20 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 WeaponFeedbackContext feedback = baseFeedback.WithImpact(
                     impact.ImpactPosition,
                     -impact.Direction,
-                    impact.Damage,
+                    result.AppliedDamage,
                     impact.CriticalHit,
                     impact.WeakPointHit,
-                    kill,
+                    result.Killed,
                     impact.Target,
                     WeaponEnemyClassifier.GetKind(impact.Target),
                     ImpactSurfaceResolver.Resolve(surfaceCollider, damageable));
+                feedback = feedback.WithDamageMetadata(
+                    impact.ReferenceDamage,
+                    impact.ActionSequenceId,
+                    DamageFeedbackKind.Piercing);
                 semantic.OnProjectileImpact(in feedback);
-                semantic.OnDamageConfirmed(in feedback);
+                if (result.IsAuthoritative && result.AppliedDamage > 0)
+                    semantic.OnDamageConfirmed(in feedback);
             }
             else
             {
@@ -1077,6 +1107,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                     impact.WeakPointHit);
             }
         }
+        DamageFeedbackSequenceRuntime.CompleteContributor(impact.ActionSequenceId);
     }
 
     private bool IsWeakPointHit(Transform target, Vector3 lineStart, Vector3 lineEnd)
@@ -1130,6 +1161,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public Vector3 Direction;
         public int PierceIndex;
         public float RemainingDelay;
+        public int ActionSequenceId;
+        public float ReferenceDamage;
     }
 
     private struct PendingHeadHunterWorldImpact
@@ -1212,6 +1245,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstShotCue = shotCue;
         _lineBurstEventCue = eventCue;
         _lineBurstEventEmitted = false;
+        _lineBurstDamageKind = IsContinuousFirePath()
+            ? DamageFeedbackKind.SustainedContact
+            : DamageFeedbackKind.Direct;
+        _lineBurstSequenceId = IsContinuousFirePath()
+            ? 0
+            : DamageFeedbackSequenceRuntime.BeginSequence(_lineBurstDamageKind, Mathf.Max(1, count));
         _lineBurstIndex = 0;
         _lineBurstRemaining = Mathf.Max(0, count);
         _lineBurstTimer = 0f;
@@ -1284,7 +1323,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             _lineBurstEliteOrBoss,
             _lineBurstShotCue,
             isAbilityDamage: false,
-            projectileArchetype: projectileArchetype);
+            projectileArchetype: projectileArchetype,
+            actionSequenceId: _lineBurstSequenceId,
+            damageKind: _lineBurstDamageKind);
         if (spawned && !_lineBurstEventEmitted && _lineBurstEventCue != WeaponPresentationCue.None)
         {
             EmitPresentationCue(
@@ -1328,6 +1369,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private void CompleteLineBurst()
     {
+        if (_lineBurstSequenceId != 0)
+        {
+            for (int i = 0; i < Mathf.Max(0, _lineBurstRemaining); i++)
+                DamageFeedbackSequenceRuntime.CompleteContributor(_lineBurstSequenceId);
+            DamageFeedbackSequenceRuntime.CompleteSequence(_lineBurstSequenceId);
+            _lineBurstSequenceId = 0;
+        }
         if (_continuousBurstFeedbackActive)
         {
             EndSustainedFeedback(_lineBurstDirection, isAbility: false);
@@ -1369,6 +1417,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Quaternion aimRotation = Quaternion.LookRotation(baseDirection, GetStableUp(baseDirection));
         int successfulShots = 0;
         bool eventEmitted = false;
+        DamageFeedbackKind damageKind = IsContinuousFirePath()
+            ? DamageFeedbackKind.SustainedContact
+            : DamageFeedbackKind.Ability;
+        int actionSequenceId = IsContinuousFirePath()
+            ? 0
+            : DamageFeedbackSequenceRuntime.BeginSequence(damageKind, Mathf.Max(1, count));
 
         for (int i = 0; i < count; i++)
         {
@@ -1381,7 +1435,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 eliteOrBoss: false,
                 shotCue: shotCue,
                 isAbilityDamage: true,
-                emitSemanticShotFeedback: successfulShots == 0);
+                emitSemanticShotFeedback: successfulShots == 0,
+                actionSequenceId: actionSequenceId,
+                damageKind: damageKind);
             if (!spawned)
                 continue;
 
@@ -1397,6 +1453,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             }
         }
 
+        DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
+
         return successfulShots;
     }
 
@@ -1408,7 +1466,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         WeaponPresentationCue shotCue,
         bool isAbilityDamage,
         bool emitSemanticShotFeedback = true,
-        ProjectilePresentationArchetypeId projectileArchetype = ProjectilePresentationArchetypeId.Default)
+        ProjectilePresentationArchetypeId projectileArchetype = ProjectilePresentationArchetypeId.Default,
+        int actionSequenceId = 0,
+        DamageFeedbackKind damageKind = DamageFeedbackKind.Direct)
     {
         bool spawned = FireFromPositionInDirection(
             position,
@@ -1418,7 +1478,16 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             out Projectile projectile,
             isAbilityDamage);
         if (!spawned || projectile == null)
+        {
+            if (actionSequenceId != 0)
+                DamageFeedbackSequenceRuntime.CompleteContributor(actionSequenceId);
             return false;
+        }
+
+        projectile.ConfigureDamageFeedback(
+            actionSequenceId,
+            damageKind,
+            completesSequenceContributor: actionSequenceId != 0);
 
         Vector3 origin = Spawn != null ? Spawn.position : position;
         if (Presentation is IWeaponFeedbackSink semantic)

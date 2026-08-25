@@ -495,6 +495,168 @@ public sealed class MortarPresentationTests
         }
     }
 
+    [Test]
+    public void ActiveBarrage_UsesAuthoredSubVolleySequencesUntilEveryShellReleases()
+    {
+        WeaponData source = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Mortar.asset");
+        WeaponData data = Object.Instantiate(source);
+        WeaponPresentationProfile profile = ScriptableObject.CreateInstance<WeaponPresentationProfile>();
+        GameObject owner = new("Mortar Sequence Owner");
+        GameObject floor = null;
+        MortarShellImpact[] shells = null;
+        DamageFeedbackSequenceRuntime.Configure(64, 10f);
+        try
+        {
+            profile.Mortar.DamageFeedbackSubVolleyShellCount = 2;
+            data.PresentationProfile = profile;
+            WeaponInstance runtime = new()
+            {
+                Data = data,
+                Level = 1,
+                State = WeaponState.Manual,
+                CurrentAmmo = 100f
+            };
+            MortarWeapon weapon = new(null, null, owner.transform);
+            weapon.Setup(runtime, owner.transform, null, null);
+
+            floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "Mortar Sequence Floor";
+            floor.transform.position = new Vector3(0f, -0.5f, data.BaseRange);
+            floor.transform.localScale = new Vector3(100f, 1f, 100f);
+            Physics.SyncTransforms();
+
+            weapon.UseActiveAbility(Vector3.forward);
+
+            shells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
+            Assert.That(shells, Has.Length.EqualTo(5));
+            System.Array.Sort(shells, (left, right) =>
+                GetField<float>(left, "_travelTime").CompareTo(GetField<float>(right, "_travelTime")));
+            int[] sequenceIds = new int[shells.Length];
+            for (int i = 0; i < shells.Length; i++)
+            {
+                sequenceIds[i] = GetField<WeaponDamageContext>(shells[i], "_weaponDamageContext").ActionSequenceId;
+                Assert.That(sequenceIds[i], Is.GreaterThan(0));
+                Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceIds[i]), Is.False);
+            }
+
+            Assert.That(sequenceIds[1], Is.EqualTo(sequenceIds[0]));
+            Assert.That(sequenceIds[2], Is.Not.EqualTo(sequenceIds[0]));
+            Assert.That(sequenceIds[3], Is.EqualTo(sequenceIds[2]));
+            Assert.That(sequenceIds[4], Is.Not.EqualTo(sequenceIds[3]));
+
+            Invoke(shells[0], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceIds[0]), Is.False);
+            Invoke(shells[1], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceIds[0]), Is.True);
+
+            Invoke(shells[2], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceIds[2]), Is.False);
+            Invoke(shells[3], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceIds[2]), Is.True);
+
+            Invoke(shells[4], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceIds[4]), Is.True);
+        }
+        finally
+        {
+            if (shells != null)
+            {
+                for (int i = 0; i < shells.Length; i++)
+                    if (shells[i] != null)
+                        Object.DestroyImmediate(shells[i].gameObject);
+            }
+            if (floor != null)
+                Object.DestroyImmediate(floor);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(data);
+            Object.DestroyImmediate(profile);
+            DamageFeedbackSequenceRuntime.Configure(64, 1.25f);
+        }
+    }
+
+    [Test]
+    public void GrapeshotChildren_InheritShellSequenceAndOwnContributorCompletion()
+    {
+        const int grapeshotCount = 2;
+        MortarShellImpact parent = null;
+        MortarShellImpact[] children = null;
+        DamageFeedbackSequenceRuntime.Configure(16, 10f);
+        int sequenceId = DamageFeedbackSequenceRuntime.BeginSequence(
+            DamageFeedbackKind.Explosion,
+            1 + grapeshotCount);
+        try
+        {
+            WeaponDamageContext damageContext = default(WeaponDamageContext).WithFeedbackMetadata(
+                sequenceId,
+                DamageFeedbackKind.Explosion);
+            WeaponFeedbackContext feedback = new(
+                null,
+                WeaponFeedbackMode.Manual,
+                0f,
+                Vector3.zero,
+                Vector3.forward,
+                actionSequenceId: sequenceId,
+                damageKind: DamageFeedbackKind.Explosion);
+            parent = MortarShellImpact.LaunchAuthored(
+                Vector3.zero,
+                Vector3.forward * 4f,
+                1f,
+                0f,
+                20,
+                2f,
+                0f,
+                0f,
+                0.2f,
+                null,
+                new MortarUpgradePayload(true, grapeshotCount, 70f, 0.5f, 1, 0f),
+                useGrapeshotVfx: true,
+                damageContext,
+                null,
+                0,
+                true,
+                true,
+                null,
+                feedback,
+                completesSequenceContributor: true);
+            DamageFeedbackSequenceRuntime.CompleteSequence(sequenceId);
+
+            Invoke(parent, "Detonate", Vector3.up * 2f);
+
+            children = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
+            Assert.That(children, Has.Length.EqualTo(grapeshotCount));
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceId), Is.False,
+                "The airburst parent must not close the sequence before its descendants finish.");
+            for (int i = 0; i < children.Length; i++)
+            {
+                WeaponDamageContext childContext = GetField<WeaponDamageContext>(children[i], "_weaponDamageContext");
+                WeaponFeedbackContext childFeedback = GetField<WeaponFeedbackContext>(children[i], "_feedbackTemplate");
+                Assert.That(childContext.ActionSequenceId, Is.EqualTo(sequenceId));
+                Assert.That(childContext.DamageKind, Is.EqualTo(DamageFeedbackKind.Fragment));
+                Assert.That(childFeedback.ActionSequenceId, Is.EqualTo(sequenceId));
+                Assert.That(GetField<bool>(children[i], "_completesDamageSequenceContributor"), Is.True);
+            }
+
+            Invoke(children[0], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceId), Is.False);
+            Invoke(children[1], "ReleaseShell");
+            Assert.That(DamageFeedbackSequenceRuntime.IsComplete(sequenceId), Is.True);
+        }
+        finally
+        {
+            if (parent != null)
+                Object.DestroyImmediate(parent.gameObject);
+            if (children != null)
+            {
+                for (int i = 0; i < children.Length; i++)
+                    if (children[i] != null)
+                        Object.DestroyImmediate(children[i].gameObject);
+            }
+            foreach (WeaponUpgradeVfx vfx in Object.FindObjectsByType<WeaponUpgradeVfx>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(vfx.gameObject);
+            DamageFeedbackSequenceRuntime.Configure(64, 1.25f);
+        }
+    }
+
     private static MortarShellImpact LaunchAuthored(
         WeaponPresentationProfile profile,
         Vector3 target,

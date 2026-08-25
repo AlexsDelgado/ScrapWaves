@@ -16,11 +16,18 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private TextMeshProUGUI _heatText;
     private TextMeshProUGUI _metricsText;
     private TextMeshProUGUI _statsText;
+    private TextMeshProUGUI _presentationAccessibilityText;
     private TMP_Dropdown[] _slotDropdowns;
     private TMP_Dropdown _levelSlotDropdown;
     private TMP_Dropdown _levelDropdown;
     private TMP_Dropdown _pathDropdown;
+    private TMP_Dropdown _combatTextModeDropdown;
     private Slider _heatSlider;
+    private Slider _combatTextScaleSlider;
+    private Toggle _reducedMotionToggle;
+    private Toggle _reducedShakeToggle;
+    private Toggle _reducedFlashToggle;
+    private Toggle _compactCombatTextToggle;
     private readonly StringBuilder _sb = new(1024);
     private float _nextRefreshTime;
     private bool _isRefreshing;
@@ -41,6 +48,9 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         if (_sandbox == null)
             _sandbox = GetComponent<WeaponTestingSandboxManager>();
 
+        // Validation uses exact totals by default without mutating the authored
+        // production profile, which may still opt into compact large numbers.
+        _sandbox?.PresentationController?.SetCombatTextCompactFormatting(false);
         BuildUi();
         ApplyUiMouseMode();
         RefreshAllStaticSelections();
@@ -397,6 +407,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         bool enemy = GUILayout.Toggle(options.EnemyReactionEnabled, "Enemy Reactions Enabled");
         bool heat = GUILayout.Toggle(options.HeatPresentationEnabled, "Heat Presentation Enabled");
         bool debug = GUILayout.Toggle(options.DebugGeometryEnabled, "Debug Geometry Enabled");
+        bool reducedMotion = GUILayout.Toggle(options.ReducedMotion, "Reduced Motion");
         bool reducedShake = GUILayout.Toggle(options.ReducedShake, "Reduced Shake");
         bool reducedFlash = GUILayout.Toggle(options.ReducedFlash, "Reduced Flash");
 
@@ -408,8 +419,35 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         presentation.SetEnemyReactionEnabled(enemy);
         presentation.SetHeatPresentationEnabled(heat);
         presentation.SetDebugGeometryEnabled(debug);
+        presentation.SetReducedMotion(reducedMotion);
         presentation.SetReducedShake(reducedShake);
         presentation.SetReducedFlash(reducedFlash);
+
+        GUILayout.Label($"Combat Text: {FormatCombatTextMode(options.CombatText)}");
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Toggle(options.CombatText == CombatTextMode.Off, "Off", GUI.skin.button))
+            presentation.SetCombatTextMode(CombatTextMode.Off);
+        if (GUILayout.Toggle(options.CombatText == CombatTextMode.ImportantOnly, "Important Only", GUI.skin.button))
+            presentation.SetCombatTextMode(CombatTextMode.ImportantOnly);
+        if (GUILayout.Toggle(options.CombatText == CombatTextMode.Full, "Full", GUI.skin.button))
+            presentation.SetCombatTextMode(CombatTextMode.Full);
+        GUILayout.EndHorizontal();
+        float combatTextScale = DrawImmediateSlider(
+            "Combat Text Scale",
+            options.CombatTextScale,
+            PresentationAccessibilitySettings.MinimumCombatTextScale,
+            PresentationAccessibilitySettings.MaximumCombatTextScale);
+        if (!Mathf.Approximately(combatTextScale, options.CombatTextScale))
+            presentation.SetCombatTextScale(combatTextScale);
+        bool compactCombatText = GUILayout.Toggle(
+            presentation.CombatTextCompactFormatting,
+            "Compact Large Numbers (off = exact)");
+        if (compactCombatText != presentation.CombatTextCompactFormatting)
+            presentation.SetCombatTextCompactFormatting(compactCombatText);
+
+        GUILayout.Label($"Accessibility source: {(presentation.HasLocalAccessibilityOverride ? "Sandbox override" : "Persisted player settings")}");
+        if (GUILayout.Button("Reset Accessibility To Persisted"))
+            presentation.ApplyPersistedAccessibility();
 
         GUILayout.BeginHorizontal();
         if (GUILayout.Toggle(options.Quality == GameFeelQualityLevel.Low, "Low", GUI.skin.button))
@@ -477,9 +515,12 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         GUILayout.Label($"Ammo: {metrics.AmmoConsumed} | Damage/Ammo: {metrics.DamagePerAmmo:0.###} | Avg Knockback: {metrics.AverageKnockbackDistance:0.###}m");
         GUILayout.Label($"Projectiles: {metrics.ActiveProjectileCount} | FX: {metrics.ActiveEffectCount}/{metrics.TotalEffectPoolCapacity} | Voices: {metrics.ActiveAudioVoiceCount}");
         GUILayout.Label($"Frame: {metrics.FrameTimeMilliseconds:0.##} ms | Managed: {metrics.ManagedMemoryBytes / (1024f * 1024f):0.##} MB | Suppressed: {metrics.EffectSuppressionCount}");
+        CombatTextMetrics combatTextMetrics = _sandbox.PresentationController?.CombatTextMetrics;
+        if (combatTextMetrics != null)
+            GUILayout.Label(FormatCombatTextMetrics(combatTextMetrics));
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Reset Metrics")) metrics.ResetMetrics();
-        if (GUILayout.Button("Export Metrics To Console")) metrics.ExportToConsole();
+        if (GUILayout.Button("Reset Metrics")) ResetAllMetrics();
+        if (GUILayout.Button("Export Metrics To Console")) ExportAllMetrics();
         GUILayout.EndHorizontal();
     }
 
@@ -637,6 +678,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         BuildStatOverrideSection(content.transform);
         BuildHeatSection(content.transform);
         BuildRuntimeControlSection(content.transform);
+        BuildPresentationAccessibilitySection(content.transform);
         BuildEnemySpawnSection(content.transform);
         BuildMetricsSection(content.transform);
         BuildDebugTogglesSection(content.transform);
@@ -726,6 +768,73 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         CreateButton(row3, "Reset Weapon Cooldowns", _sandbox.ResetWeaponCooldowns);
     }
 
+    private void BuildPresentationAccessibilitySection(Transform parent)
+    {
+        WeaponPresentationController presentation = _sandbox.PresentationController;
+        if (presentation == null)
+            return;
+
+        GameFeelRuntimeOptions options = presentation.RuntimeOptions;
+        Transform section = CreateSection(parent, "Presentation Accessibility");
+        _presentationAccessibilityText = CreateText(
+            section,
+            "PresentationAccessibilityText",
+            "",
+            16,
+            TextAlignmentOptions.TopLeft);
+
+        _reducedMotionToggle = CreateToggle(section, "Reduced Motion", options.ReducedMotion, value =>
+        {
+            if (!_isRefreshing)
+                presentation.SetReducedMotion(value);
+        });
+        _reducedShakeToggle = CreateToggle(section, "Reduced Shake", options.ReducedShake, value =>
+        {
+            if (!_isRefreshing)
+                presentation.SetReducedShake(value);
+        });
+        _reducedFlashToggle = CreateToggle(section, "Reduced Flash", options.ReducedFlash, value =>
+        {
+            if (!_isRefreshing)
+                presentation.SetReducedFlash(value);
+        });
+
+        _combatTextModeDropdown = CreateDropdown(
+            section,
+            "Combat Text",
+            new List<string> { "Off", "Important Only", "Full" },
+            (int)options.CombatText,
+            value =>
+            {
+                if (!_isRefreshing)
+                    presentation.SetCombatTextMode((CombatTextMode)value);
+            });
+        _combatTextScaleSlider = CreateSlider(
+            section,
+            "Combat Text Scale",
+            PresentationAccessibilitySettings.MinimumCombatTextScale,
+            PresentationAccessibilitySettings.MaximumCombatTextScale,
+            options.CombatTextScale,
+            value =>
+            {
+                if (!_isRefreshing)
+                    presentation.SetCombatTextScale(value);
+            });
+        _compactCombatTextToggle = CreateToggle(
+            section,
+            "Compact Large Numbers (off = exact)",
+            presentation.CombatTextCompactFormatting,
+            value =>
+            {
+                if (!_isRefreshing)
+                    presentation.SetCombatTextCompactFormatting(value);
+            });
+
+        Transform accessibilityRow = CreateRow(section, "AccessibilitySourceButtons");
+        CreateButton(accessibilityRow, "Apply Persisted Settings", presentation.ApplyPersistedAccessibility);
+        CreateButton(accessibilityRow, "Reset Sandbox Override", presentation.ApplyPersistedAccessibility);
+    }
+
     private void BuildEnemySpawnSection(Transform parent)
     {
         Transform section = CreateSection(parent, "Enemy Spawn");
@@ -770,8 +879,8 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         Transform section = CreateSection(parent, "Metrics");
         _metricsText = CreateText(section, "MetricsText", "", 16, TextAlignmentOptions.TopLeft);
         Transform row = CreateRow(section, "MetricsButtons");
-        CreateButton(row, "Reset Metrics", _sandbox.Metrics.ResetMetrics);
-        CreateButton(row, "Export Metrics To Console", _sandbox.Metrics.ExportToConsole);
+        CreateButton(row, "Reset Metrics", ResetAllMetrics);
+        CreateButton(row, "Export Metrics To Console", ExportAllMetrics);
     }
 
     private void BuildDebugTogglesSection(Transform parent)
@@ -822,9 +931,12 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
                 $"Crit {stats.CriticalChance:P0} x{stats.CriticalDamageMultiplier:0.##} | Knockback {stats.KnockbackMultiplier:0.##} | Ammo {stats.AmmoMultiplier:0.##}";
         }
 
+        RefreshPresentationAccessibility();
+
         WeaponTestMetrics metrics = _sandbox.Metrics;
         if (_metricsText != null && metrics != null)
         {
+            CombatTextMetrics combatTextMetrics = _sandbox.PresentationController?.CombatTextMetrics;
             _metricsText.text =
                 $"Total Damage Dealt: {metrics.TotalDamage:0.#}\n" +
                 $"Damage Per Second: {metrics.DamagePerSecond:0.#}\n" +
@@ -837,9 +949,65 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
                 $"Damage Per Ammo: {metrics.DamagePerAmmo:0.###}\n" +
                 $"Active Ability Uses: {metrics.ActiveAbilityUses}\n" +
                 $"Knockback Distance: {metrics.AverageKnockbackDistance:0.###}m\n" +
-                $"Status Effects Applied: {metrics.StatusEffectsApplied}";
+                $"Status Effects Applied: {metrics.StatusEffectsApplied}" +
+                (combatTextMetrics != null ? $"\n\n{FormatCombatTextMetrics(combatTextMetrics)}" : "\n\nCombat Text: unavailable");
         }
         _isRefreshing = false;
+    }
+
+    private void RefreshPresentationAccessibility()
+    {
+        WeaponPresentationController presentation = _sandbox.PresentationController;
+        if (presentation == null)
+            return;
+
+        GameFeelRuntimeOptions options = presentation.RuntimeOptions;
+        if (_presentationAccessibilityText != null)
+        {
+            _presentationAccessibilityText.text =
+                $"Reduced Motion: {FormatEnabled(options.ReducedMotion)} | " +
+                $"Reduced Shake: {FormatEnabled(options.ReducedShake)} | " +
+                $"Reduced Flash: {FormatEnabled(options.ReducedFlash)}\n" +
+                $"Combat Text: {FormatCombatTextMode(options.CombatText)} | " +
+                $"Scale: {options.CombatTextScale:0.00}x | " +
+                $"Numbers: {(presentation.CombatTextCompactFormatting ? "Compact" : "Exact")}\n" +
+                $"Source: {(presentation.HasLocalAccessibilityOverride ? "Sandbox override" : "Persisted player settings")}";
+        }
+
+        _reducedMotionToggle?.SetIsOnWithoutNotify(options.ReducedMotion);
+        _reducedShakeToggle?.SetIsOnWithoutNotify(options.ReducedShake);
+        _reducedFlashToggle?.SetIsOnWithoutNotify(options.ReducedFlash);
+        _combatTextModeDropdown?.SetValueWithoutNotify((int)options.CombatText);
+        _combatTextScaleSlider?.SetValueWithoutNotify(options.CombatTextScale);
+        _compactCombatTextToggle?.SetIsOnWithoutNotify(presentation.CombatTextCompactFormatting);
+    }
+
+    private void ResetAllMetrics()
+    {
+        _sandbox?.Metrics?.ResetMetrics();
+        _sandbox?.PresentationController?.ResetCombatTextMetrics();
+    }
+
+    private void ExportAllMetrics()
+    {
+        _sandbox?.Metrics?.ExportToConsole();
+        CombatTextMetrics combatTextMetrics = _sandbox?.PresentationController?.CombatTextMetrics;
+        if (combatTextMetrics != null)
+            Debug.Log($"[CombatTextMetrics]\n{FormatCombatTextMetrics(combatTextMetrics)}");
+    }
+
+    private static string FormatCombatTextMetrics(CombatTextMetrics metrics)
+    {
+        return
+            $"Combat Text Views: {metrics.ActiveViews}/{metrics.ActiveViewLimit} (peak {metrics.MaximumActiveViewsObserved}) | " +
+            $"Burn: {metrics.VisibleBurnTallies}/{metrics.VisibleBurnTallyLimit} | Starts/frame cap: {metrics.ViewStartsPerFrameLimit}\n" +
+            $"Pool: {metrics.PoolAvailable}/{metrics.PoolCapacity} | Aggregates active/created: {metrics.ActiveAggregates}/{metrics.AggregatesCreated} | Sequences: {metrics.ActiveSequences}\n" +
+            $"Events: {metrics.DamageEventsReceived} | Applied total: {metrics.SumAppliedDamageReceived} | Merged: {metrics.MergedEvents} | Views spawned: {metrics.ViewsSpawned}\n" +
+            $"Suppressed mode/distance/density/behind: {metrics.SuppressedByMode}/{metrics.SuppressedByDistance}/{metrics.SuppressedByDensity}/{metrics.SuppressedBehindCamera} | Hidden: {metrics.HiddenAggregatesWithoutViews}\n" +
+            $"Sequence fallback/timeout: {metrics.SequenceFallbacks}/{metrics.SequenceTimeouts} | Record overflow: {metrics.RecordCapacityOverflows} | Replaced: {metrics.ReplacedByHigherPriority}\n" +
+            $"Update: {metrics.LastUpdateMilliseconds:0.###} ms (peak {metrics.MaximumUpdateMillisecondsObserved:0.###}) | Alloc: {metrics.LastUpdateManagedAllocationBytes} B (peak {metrics.MaximumUpdateManagedAllocationBytesObserved} B)\n" +
+            $"Applied: {metrics.AppliedQuality}, Motion {FormatEnabled(metrics.AppliedReducedMotion)}, Shake {FormatEnabled(metrics.AppliedReducedShake)}, Flash {FormatEnabled(metrics.AppliedReducedFlash)}, " +
+            $"Text {FormatCombatTextMode(metrics.AppliedCombatTextMode)} {metrics.AppliedCombatTextScale:0.00}x {(metrics.AppliedCompactFormatting ? "compact" : "exact")} | Last suppression: {metrics.LastSuppressionReason}";
     }
 
     private void RefreshAllStaticSelections()
@@ -1032,7 +1200,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         valueLabel = CreateText(slider.transform.parent, label + "Value", value.ToString("0.##"), 14, TextAlignmentOptions.Right);
     }
 
-    private void CreateToggle(Transform parent, string label, bool value, UnityEngine.Events.UnityAction<bool> onChanged)
+    private Toggle CreateToggle(Transform parent, string label, bool value, UnityEngine.Events.UnityAction<bool> onChanged)
     {
         Transform row = CreateRow(parent, label + "Row");
         GameObject go = CreateUiObject(label, row);
@@ -1058,6 +1226,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         toggleLayout.preferredWidth = 24f;
         toggleLayout.minHeight = 24f;
         CreateText(row, label + "Label", label, 14, TextAlignmentOptions.Left);
+        return toggle;
     }
 
     private void CreateIntField(Transform parent, string label, int value, System.Action<int> onChanged)
@@ -1234,6 +1403,13 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         for (int i = 1; i <= 10; i++)
             levels.Add(i.ToString());
         return levels;
+    }
+
+    private static string FormatEnabled(bool value) => value ? "On" : "Off";
+
+    private static string FormatCombatTextMode(CombatTextMode mode)
+    {
+        return mode == CombatTextMode.ImportantOnly ? "Important Only" : mode.ToString();
     }
 
     private static WeaponType? WeaponTypeFromDropdown(int value)

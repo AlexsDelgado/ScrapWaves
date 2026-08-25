@@ -881,6 +881,7 @@ MonoBehaviour:
   _camera: {fileID: 0}
   _audioManager: {fileID: 0}
   _recoilFeedback: {fileID: 1631330456484713432}
+  _combatTextProfile: {fileID: 11400000, guid: 158b85d446ecd984f8e6c1dc30e76f16, type: 2}
   _audioVoiceCount: 16
   _audioSpatialBlend: 1
   _runtimeOptions:
@@ -892,8 +893,11 @@ MonoBehaviour:
     EnemyReactionEnabled: 1
     HeatPresentationEnabled: 1
     DebugGeometryEnabled: 0
+    ReducedMotion: 0
     ReducedShake: 0
     ReducedFlash: 0
+    CombatText: 2
+    CombatTextScale: 1
     Quality: 2
   _cameraFeedback:
     _masterScale: 1
@@ -903,6 +907,7 @@ MonoBehaviour:
   _hitStop:
     _minimumReplayInterval: 0.035
     _reducedFeedbackScale: 0.5
+    _reducedMotionImportantDurationCap: 0.015
 --- !u!114 &4494072351083282055
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1045,6 +1050,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  _reducedMotionRecoilScale: 0.2
 --- !u!1 &7910010443108889442
 GameObject:
   m_ObjectHideFlags: 0

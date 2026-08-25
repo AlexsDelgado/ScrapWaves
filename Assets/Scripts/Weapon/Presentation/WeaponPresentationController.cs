@@ -4,7 +4,8 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-40)]
-public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbackSink
+public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbackSink,
+    ICombatTextStatusLifecycleSink
 {
     public static event Action<WeaponPresentationController> BecameAvailable;
 
@@ -30,6 +31,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     [SerializeField] private ThirdPersonCamera _camera;
     [SerializeField] private AudioManager _audioManager;
     [SerializeField] private WeaponRecoilFeedback _recoilFeedback;
+    [SerializeField] private CombatTextProfile _combatTextProfile;
 
     [Header("Pooled audio")]
     [SerializeField, Range(1, 64)] private int _audioVoiceCount = 16;
@@ -45,6 +47,9 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     private readonly Dictionary<WeaponPresentationProfile, DirectorRuntime> _directors = new();
     private readonly Dictionary<int, LegacyLoopRoute> _legacyLoopRoutes = new();
     private Transform _runtimeRoot;
+    private CombatTextDirector _combatText;
+    private bool? _combatTextCompactOverride;
+    private bool _hasLocalAccessibilityOverride;
     private HeadHunterChargeVfx _debugChargeVfx;
     private int _nextLegacyLoopId = 1;
 
@@ -56,6 +61,17 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     public int ActiveVfxCount => SumActiveVfx();
     public int TotalVfxCapacity => SumVfxCapacity();
     public int SuppressionCount => SumSuppressions();
+    public CombatTextMetrics CombatTextMetrics => _combatText?.Metrics;
+    public int ActiveCombatTextCount => _combatText?.ActiveViewCount ?? 0;
+    public bool HasLocalAccessibilityOverride => _hasLocalAccessibilityOverride;
+    public bool CombatTextCompactFormatting => _combatText?.CompactLargeNumbers ??
+        _combatTextCompactOverride ?? (_combatTextProfile == null || _combatTextProfile.CompactLargeNumbers);
+    public PresentationAccessibilityState AppliedAccessibilityState => new(
+        _runtimeOptions.ReducedMotion,
+        _runtimeOptions.ReducedShake,
+        _runtimeOptions.ReducedFlash,
+        _runtimeOptions.CombatText,
+        _runtimeOptions.CombatTextScale);
 
     public void Configure(
         WeaponPresentationProfile profile,
@@ -183,7 +199,13 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             context.ExplosionRadius,
             Mathf.Clamp01(normalizedProgress),
             context.Target,
-            context.Anchor);
+            context.Anchor,
+            context.ReferenceDamage,
+            context.ActionSequenceId,
+            context.DamageKind,
+            context.StatusInstanceId,
+            context.StatusKind,
+            context.SegmentIndex);
         ResolveDirector(context.Weapon)?.UpdateSemanticLoop(
             WeaponFeedbackEvent.ChargeStarted,
             in scaled,
@@ -222,8 +244,39 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     public void OnProjectileImpact(in WeaponFeedbackContext context) =>
         EmitSemantic(WeaponFeedbackEvent.ProjectileImpact, in context);
 
-    public void OnDamageConfirmed(in WeaponFeedbackContext context) =>
-        EmitSemantic(WeaponFeedbackEvent.DamageConfirmed, in context);
+    public void OnDamageConfirmed(in WeaponFeedbackContext context)
+    {
+        EnsureCombatTextDirector();
+        CombatFeedbackDirector director = ResolveDirector(context.Weapon);
+        if (director != null)
+        {
+            director.EmitSemantic(
+                WeaponFeedbackEvent.DamageConfirmed,
+                in context,
+                ResolveSfxVolume(),
+                Time.unscaledTime);
+            return;
+        }
+
+        _combatText?.TryEmit(in context, Time.unscaledTime);
+    }
+
+    public void OnStatusSegmentClosed(
+        Transform target,
+        WeaponStatusKind statusKind,
+        int statusInstanceId,
+        int segmentIndex)
+    {
+        if (statusInstanceId <= 0)
+            return;
+        EnsureCombatTextDirector();
+        _combatText?.NotifyStatusSegmentClosed(
+            target,
+            statusKind,
+            statusInstanceId,
+            segmentIndex,
+            Time.unscaledTime);
+    }
 
     public void OnStatusApplied(in WeaponFeedbackContext context) =>
         EmitSemantic(WeaponFeedbackEvent.StatusApplied, in context);
@@ -251,7 +304,13 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             context.ExplosionRadius,
             Mathf.Lerp(0.65f, 1.2f, Mathf.Clamp01(normalizedThreshold)),
             context.Target,
-            context.Anchor);
+            context.Anchor,
+            context.ReferenceDamage,
+            context.ActionSequenceId,
+            context.DamageKind,
+            context.StatusInstanceId,
+            context.StatusKind,
+            context.SegmentIndex);
         EmitSemantic(WeaponFeedbackEvent.HeatThresholdCrossed, in threshold);
     }
 
@@ -280,56 +339,126 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         if (!value)
             DismissDebugCharge();
     }
-    public void SetReducedShake(bool value) => _runtimeOptions.ReducedShake = value;
+    public void SetReducedShake(bool value)
+    {
+        if (_runtimeOptions.ReducedShake == value)
+            return;
+        _hasLocalAccessibilityOverride = true;
+        _runtimeOptions.ReducedShake = value;
+    }
+    public void SetReducedMotion(bool value)
+    {
+        if (_runtimeOptions.ReducedMotion == value)
+            return;
+        _hasLocalAccessibilityOverride = true;
+        _runtimeOptions.ReducedMotion = value;
+        EnemyReactionRuntime.Apply(_runtimeOptions);
+    }
     public void SetReducedFlash(bool value)
     {
+        if (_runtimeOptions.ReducedFlash == value)
+            return;
+        _hasLocalAccessibilityOverride = true;
         _runtimeOptions.ReducedFlash = value;
         EnemyReactionRuntime.Apply(_runtimeOptions);
     }
+    public void SetCombatTextMode(CombatTextMode value)
+    {
+        CombatTextMode sanitized = PresentationAccessibilitySettings.SanitizeCombatTextMode(value);
+        if (_runtimeOptions.CombatText == sanitized)
+            return;
+        _hasLocalAccessibilityOverride = true;
+        _runtimeOptions.CombatText = sanitized;
+    }
+    public void SetCombatTextScale(float value)
+    {
+        float sanitized = PresentationAccessibilitySettings.SanitizeCombatTextScale(value);
+        if (Mathf.Approximately(_runtimeOptions.CombatTextScale, sanitized))
+            return;
+        _hasLocalAccessibilityOverride = true;
+        _runtimeOptions.CombatTextScale = sanitized;
+    }
+    public void ApplyPersistedAccessibility()
+    {
+        _hasLocalAccessibilityOverride = false;
+        ApplyAccessibilityState(PresentationAccessibilityRuntime.Current);
+    }
+    public void SetCombatTextCompactFormatting(bool compact)
+    {
+        _combatTextCompactOverride = compact;
+        _combatText?.SetCompactLargeNumbersOverride(compact);
+    }
+    public void ResetCombatTextMetrics() => _combatText?.ResetMetrics();
     public void SetQuality(GameFeelQualityLevel value)
     {
+        if (_runtimeOptions.Quality == value)
+            return;
         _runtimeOptions.Quality = value;
         EnemyReactionRuntime.Apply(_runtimeOptions);
+        if (!Application.isPlaying)
+            return;
+
+        // Quality-specific pools are fixed after construction, so a deliberate
+        // quality switch rebuilds them instead of growing during combat.
+        ReleaseRuntimeState();
+        DestroyRuntimeRoot();
+        EnsureCombatTextDirector();
+        RegisterProfile(_profile);
     }
 
     public void ApplyUserFeedbackPreferences(bool reducedMotion, bool screenShake, bool screenFlash)
     {
         _runtimeOptions ??= new GameFeelRuntimeOptions();
-        _runtimeOptions.ReducedMotion = reducedMotion;
-        _runtimeOptions.ScreenShakeEnabled = screenShake && !reducedMotion;
+        if (!_hasLocalAccessibilityOverride)
+            _runtimeOptions.ReducedMotion = reducedMotion;
+
+        bool effectiveReducedMotion = _runtimeOptions.ReducedMotion;
+        _runtimeOptions.ScreenShakeEnabled = screenShake && !effectiveReducedMotion;
         _runtimeOptions.ScreenFlashEnabled = screenFlash;
-        if (!screenShake || reducedMotion)
+        if (!screenShake || effectiveReducedMotion)
             _camera?.ClearPresentationImpulses();
-        EnemyReactionRuntime.ApplyUserPreferences(reducedMotion, screenFlash);
+        EnemyReactionRuntime.ApplyUserPreferences(effectiveReducedMotion, screenFlash);
     }
 
     private void OnEnable()
     {
+        PresentationAccessibilityRuntime.Changed += HandleAccessibilityChanged;
+        HandleAccessibilityChanged(PresentationAccessibilityRuntime.Current);
         ResolveSceneDependencies();
         EnemyReactionRuntime.Apply(_runtimeOptions);
         BecameAvailable?.Invoke(this);
         if (Application.isPlaying)
+        {
+            EnsureCombatTextDirector();
             RegisterProfile(_profile);
+        }
     }
 
     private void Update()
     {
+        bool hitStopWasActive = _hitStop.IsActive;
         bool tickSharedState = true;
         foreach (DirectorRuntime runtime in _directors.Values)
         {
             runtime.Director.Tick(Time.unscaledTime, Time.unscaledDeltaTime, tickSharedState);
             tickSharedState = false;
         }
+        bool pausedOutsideHitStop = Time.timeScale <= 0f && !hitStopWasActive;
+        if (!pausedOutsideHitStop)
+            _combatText?.Tick(Time.unscaledTime, Time.unscaledDeltaTime);
     }
 
     private void OnDisable()
     {
+        PresentationAccessibilityRuntime.Changed -= HandleAccessibilityChanged;
         ReleaseRuntimeState();
+        _combatText?.StopAll();
     }
 
     private void OnDestroy()
     {
         ReleaseRuntimeState();
+        _combatText?.StopAll();
     }
 
     private void OnValidate()
@@ -375,6 +504,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         ResolveSceneDependencies();
         profile.RebuildCache();
         EnsureRuntimeRoot();
+        EnsureCombatTextDirector();
         GameObject profileRootObject = new($"{profile.name} Presentation");
         profileRootObject.transform.SetParent(_runtimeRoot, false);
         CombatFeedbackDirector director = new(
@@ -386,7 +516,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             _cameraFeedback,
             _hitStop,
             _audioVoiceCount,
-            _audioSpatialBlend);
+            _audioSpatialBlend,
+            _combatText);
         _directors.Add(profile, new DirectorRuntime
         {
             Director = director
@@ -401,6 +532,32 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         GameObject rootObject = new("Weapon Presentation Runtime");
         rootObject.transform.SetParent(transform, false);
         _runtimeRoot = rootObject.transform;
+    }
+
+    private void EnsureCombatTextDirector()
+    {
+        if (_combatText != null)
+        {
+            _combatText.SetCamera(ResolveRenderingCamera());
+            return;
+        }
+
+        ResolveSceneDependencies();
+        EnsureRuntimeRoot();
+        _combatText = new CombatTextDirector(
+            _runtimeRoot,
+            ResolveRenderingCamera(),
+            _combatTextProfile,
+            _runtimeOptions);
+        if (_combatTextCompactOverride.HasValue)
+            _combatText.SetCompactLargeNumbersOverride(_combatTextCompactOverride.Value);
+    }
+
+    private Camera ResolveRenderingCamera()
+    {
+        if (_camera != null && _camera.TryGetComponent(out Camera renderingCamera))
+            return renderingCamera;
+        return Camera.main;
     }
 
     private void ResolveSceneDependencies()
@@ -423,6 +580,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void DestroyRuntimeRoot()
     {
+        _combatText?.StopAll();
+        _combatText = null;
         _directors.Clear();
         _legacyLoopRoutes.Clear();
         if (_runtimeRoot == null)
@@ -431,7 +590,10 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         GameObject rootObject = _runtimeRoot.gameObject;
         _runtimeRoot = null;
         if (Application.isPlaying)
+        {
+            rootObject.SetActive(false);
             Destroy(rootObject);
+        }
         else
             DestroyImmediate(rootObject);
     }
@@ -456,6 +618,24 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             return;
         _debugChargeVfx.Dismiss();
         _debugChargeVfx = null;
+    }
+
+    private void HandleAccessibilityChanged(PresentationAccessibilityState state)
+    {
+        if (_hasLocalAccessibilityOverride)
+            return;
+        ApplyAccessibilityState(state);
+    }
+
+    private void ApplyAccessibilityState(PresentationAccessibilityState state)
+    {
+        _runtimeOptions ??= new GameFeelRuntimeOptions();
+        _runtimeOptions.ReducedMotion = state.ReducedMotion;
+        _runtimeOptions.ReducedShake = state.ReducedShake;
+        _runtimeOptions.ReducedFlash = state.ReducedFlash;
+        _runtimeOptions.CombatText = state.CombatText;
+        _runtimeOptions.CombatTextScale = state.CombatTextScale;
+        EnemyReactionRuntime.Apply(_runtimeOptions);
     }
 
     private int GetNextLegacyLoopId()

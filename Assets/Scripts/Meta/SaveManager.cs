@@ -24,6 +24,8 @@ public class SaveManager : MonoBehaviour
 
     public int Scrap => _data.Scrap;
     public IReadOnlyList<AchievementDefinition> AchievementCatalog => _achievementCatalog;
+    public PresentationAccessibilityState PresentationAccessibility =>
+        _data?.PresentationAccessibility?.ToState() ?? PresentationAccessibilityState.Default;
 
     public event Action OnUnlocksChanged;
     public event Action OnScrapChanged;
@@ -198,10 +200,50 @@ public class SaveManager : MonoBehaviour
     /// </summary>
     public void ResetProgress()
     {
-        _data = new SaveData();
+        PresentationAccessibilitySettings preservedAccessibility =
+            _data?.PresentationAccessibility?.CloneSanitized() ?? new PresentationAccessibilitySettings();
+        _data = new SaveData
+        {
+            PresentationAccessibility = preservedAccessibility
+        };
+        _data.Sanitize();
+        PresentationAccessibilityRuntime.Apply(_data.PresentationAccessibility);
         Save();
         OnScrapChanged?.Invoke();
         OnUnlocksChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Persists a global presentation snapshot without replacing or resetting meta progression.
+    /// Sandbox-local GameFeelRuntimeOptions must not call this method.
+    /// </summary>
+    public void SetPresentationAccessibility(PresentationAccessibilityState state)
+    {
+        _data ??= new SaveData();
+        _data.Sanitize();
+
+        PresentationAccessibilityState sanitized = new(
+            state.ReducedMotion,
+            state.ReducedShake,
+            state.ReducedFlash,
+            state.CombatText,
+            state.CombatTextScale);
+
+        if (_data.PresentationAccessibility.ToState() == sanitized)
+        {
+            PresentationAccessibilityRuntime.Apply(sanitized);
+            return;
+        }
+
+        _data.PresentationAccessibility = new PresentationAccessibilitySettings(sanitized);
+        PresentationAccessibilityRuntime.Apply(sanitized);
+        Save();
+    }
+
+    public void SetPresentationAccessibility(PresentationAccessibilitySettings settings)
+    {
+        SetPresentationAccessibility(
+            settings != null ? settings.ToState() : PresentationAccessibilityState.Default);
     }
 
     public void AddScrap(int amount)
@@ -276,6 +318,10 @@ public class SaveManager : MonoBehaviour
             Debug.LogWarning($"SaveManager: no se pudo leer el save ({e.Message}). Se arranca desde cero.");
             _data = new SaveData();
         }
+
+        _data ??= new SaveData();
+        _data.Sanitize();
+        PresentationAccessibilityRuntime.Apply(_data.PresentationAccessibility);
     }
 
     private void Save()

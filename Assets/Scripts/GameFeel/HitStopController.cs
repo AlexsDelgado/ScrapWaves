@@ -10,6 +10,9 @@ public sealed class HitStopController
     [SerializeField, Range(0f, 1f), Tooltip("Accessibility multiplier applied when reduced shake/flash feedback is requested.")]
     private float _reducedFeedbackScale = 0.5f;
 
+    [SerializeField, Min(0f), Tooltip("Maximum important-event hit-stop duration under Reduced Motion. Routine requests are suppressed.")]
+    private float _reducedMotionImportantDurationCap = 0.015f;
+
     private float _remaining;
     private float _nextRequestTime;
     private float _restoreTimeScale = 1f;
@@ -17,6 +20,7 @@ public sealed class HitStopController
     private bool _ownsTimeScale;
 
     public bool IsActive => _remaining > 0f;
+    public float RemainingDuration => _remaining;
 
     public bool Request(
         float duration,
@@ -25,10 +29,42 @@ public sealed class HitStopController
         bool reducedFeedback,
         float now)
     {
+        return Request(duration, priority, enabled, reducedFeedback, reducedMotion: false, important: true, now: now);
+    }
+
+    /// <summary>
+    /// Transitional Reduced Motion overload. Positive-priority cues are treated as important;
+    /// callers with semantic context should prefer the explicit overload below.
+    /// </summary>
+    public bool Request(
+        float duration,
+        int priority,
+        bool enabled,
+        bool reducedFeedback,
+        bool reducedMotion,
+        float now)
+    {
+        return Request(duration, priority, enabled, reducedFeedback, reducedMotion, important: priority > 0, now: now);
+    }
+
+    public bool Request(
+        float duration,
+        int priority,
+        bool enabled,
+        bool reducedFeedback,
+        bool reducedMotion,
+        bool important,
+        float now)
+    {
         if (!enabled || duration <= 0f || now < _nextRequestTime)
             return false;
 
+        if (reducedMotion && !important)
+            return false;
+
         float scaledDuration = duration * (reducedFeedback ? _reducedFeedbackScale : 1f);
+        if (reducedMotion)
+            scaledDuration = Mathf.Min(scaledDuration, _reducedMotionImportantDurationCap);
         if (scaledDuration <= 0.0001f)
             return false;
 
@@ -72,5 +108,6 @@ public sealed class HitStopController
     {
         _minimumReplayInterval = Mathf.Max(0f, _minimumReplayInterval);
         _reducedFeedbackScale = Mathf.Clamp01(_reducedFeedbackScale);
+        _reducedMotionImportantDurationCap = Mathf.Max(0f, _reducedMotionImportantDurationCap);
     }
 }

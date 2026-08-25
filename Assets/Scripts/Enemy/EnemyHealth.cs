@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class EnemyHealth : MonoBehaviour, IDamageable
+public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 {
     [SerializeField, Min(1)] private int _maxHealth = 12;
 
@@ -82,33 +82,50 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     /// </summary>
     public bool ApplyDotDamage(int amount)
     {
-        if (amount <= 0 || _currentHealth <= 0 || (_isInvincible && _blockDotWhileInvincible))
-            return false;
-
-        _currentHealth -= amount;
-        if (_currentHealth > 0)
-            return true;
-
-        _currentHealth = 0;
-        CompleteDeath();
-        return true;
+        DamageRequest request = new(
+            amount,
+            amount,
+            DamageChannel.Status,
+            WeaponStatusKind.Burn,
+            canTriggerLifesteal: false);
+        return ApplyDamage(in request).Applied;
     }
 
     public bool ApplyDamage(int amount)
     {
-        if (amount <= 0 || _currentHealth <= 0 || _isInvincible)
-            return false;
+        DamageRequest request = new(amount, amount, DamageChannel.Direct);
+        return ApplyDamage(in request).Applied;
+    }
 
-        _currentHealth -= amount;
-        if (_currentHealth > 0)
+    public DamageApplicationResult ApplyDamage(in DamageRequest request)
+    {
+        int healthBefore = Mathf.Max(0, _currentHealth);
+        if (request.ModifiedDamage <= 0 || healthBefore <= 0)
+            return DamageApplicationResult.Rejected(in request, healthBefore);
+
+        bool blocked = request.Channel == DamageChannel.Direct
+            ? _isInvincible
+            : _isInvincible && _blockDotWhileInvincible;
+        if (blocked)
+            return DamageApplicationResult.BlockedResult(in request, healthBefore);
+
+        int healthAfter = Mathf.Max(0, healthBefore - request.ModifiedDamage);
+        _currentHealth = healthAfter;
+        DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
+            in request,
+            healthBefore,
+            healthAfter);
+
+        if (result.Killed)
+        {
+            CompleteDeath();
+        }
+        else if (request.Channel == DamageChannel.Direct)
         {
             AudioManager.TryPlayEnemyHit();
-            return true;
         }
 
-        _currentHealth = 0;
-        CompleteDeath();
-        return true;
+        return result;
     }
 
     private void CompleteDeath()
@@ -128,6 +145,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         }
 
         EnemyPoolProfiler.RegisterDestroy();
-        Destroy(gameObject);
+        if (Application.isPlaying)
+            Destroy(gameObject);
     }
 }

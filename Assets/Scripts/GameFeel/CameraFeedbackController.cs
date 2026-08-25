@@ -34,6 +34,18 @@ public sealed class CameraFeedbackController
         bool reducedShake,
         float now)
     {
+        return Request(cueData, in context, heat, enabled, reducedShake, reducedMotion: false, now: now);
+    }
+
+    public bool Request(
+        WeaponPresentationCueData cueData,
+        in WeaponFeedbackContext context,
+        WeaponHeatPresentationSettings heat,
+        bool enabled,
+        bool reducedShake,
+        bool reducedMotion,
+        float now)
+    {
         if (!enabled || _camera == null || cueData == null || now < _nextImpulseTime)
             return false;
 
@@ -56,7 +68,8 @@ public sealed class CameraFeedbackController
         bool accepted = _camera.AddPresentationImpulse(
             cueData.CameraPositionImpulse * scale,
             cueData.CameraRotationImpulse * scale,
-            cueData.CameraFovKick * scale);
+            cueData.CameraFovKick * scale,
+            reducedMotion);
         if (accepted)
             _nextImpulseTime = now + Mathf.Max(_minimumImpulseInterval, cueData.CameraMinReplayInterval);
         return accepted;

@@ -374,12 +374,15 @@ public sealed class MortarPresentationSettings
     public int ShellPoolCapacity = 128;
     [Min(1), Tooltip("Maximum shells in a dense active rain that receive full smoke, trail, and landing-warning detail.")]
     public int MaximumDetailedRainShells = 14;
+    [Min(1), Tooltip("Active-rain shells grouped into one combat-text action sequence.")]
+    public int DamageFeedbackSubVolleyShellCount = 5;
 
     public void Sanitize()
     {
         ShellPoolCapacity = Mathf.Max(1, ShellPoolCapacity);
         ShellPrewarmCount = Mathf.Clamp(ShellPrewarmCount, 0, ShellPoolCapacity);
         MaximumDetailedRainShells = Mathf.Clamp(MaximumDetailedRainShells, 1, ShellPoolCapacity);
+        DamageFeedbackSubVolleyShellCount = Mathf.Clamp(DamageFeedbackSubVolleyShellCount, 1, ShellPoolCapacity);
     }
 }
 
@@ -397,11 +400,19 @@ public sealed class GameFeelRuntimeOptions
     public bool DebugGeometryEnabled;
 
     [Header("Accessibility")]
-    public bool ReducedShake;
-    public bool ReducedFlash;
+    [Tooltip("Runtime mirror of the global setting, or a sandbox-only local override.")]
     public bool ReducedMotion;
+    [Tooltip("Runtime mirror of the global setting, or a sandbox-only local override.")]
+    public bool ReducedShake;
+    [Tooltip("Runtime mirror of the global setting, or a sandbox-only local override.")]
+    public bool ReducedFlash;
     public bool ScreenShakeEnabled = true;
     public bool ScreenFlashEnabled = true;
+    [Tooltip("Runtime mirror of the global combat-text visibility setting, or a sandbox-only local override.")]
+    public CombatTextMode CombatText = CombatTextMode.Full;
+    [Range(PresentationAccessibilitySettings.MinimumCombatTextScale, PresentationAccessibilitySettings.MaximumCombatTextScale)]
+    [Tooltip("Runtime mirror of the global combat-text scale setting, or a sandbox-only local override.")]
+    public float CombatTextScale = 1f;
 
     [Header("Performance")]
     public GameFeelQualityLevel Quality = GameFeelQualityLevel.High;

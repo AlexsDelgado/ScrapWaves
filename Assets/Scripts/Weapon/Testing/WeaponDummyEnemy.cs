@@ -5,7 +5,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider))]
 [RequireComponent(typeof(EnemyRegistryMember))]
-public sealed class WeaponDummyEnemy : MonoBehaviour, IDamageable, IWeaponEnemyMetadata
+public sealed class WeaponDummyEnemy : MonoBehaviour, IAuthoritativeDamageable, IWeaponEnemyMetadata
 {
     [SerializeField, Min(1)] private int _maxHealth = 500;
     [SerializeField, Range(0f, 0.95f)] private float _damageResistance;
@@ -118,12 +118,24 @@ public sealed class WeaponDummyEnemy : MonoBehaviour, IDamageable, IWeaponEnemyM
 
     public bool ApplyDamage(int amount)
     {
-        return ApplyDamageInternal(amount, 1f);
+        DamageRequest request = new(amount, amount, DamageChannel.Direct);
+        return ApplyDamage(in request).Applied;
+    }
+
+    public DamageApplicationResult ApplyDamage(in DamageRequest request)
+    {
+        return ApplyDamageInternal(in request, 1f);
     }
 
     public bool ApplyWeakPointDamage(int amount)
     {
-        return ApplyDamageInternal(amount, _weakPointDamageMultiplier);
+        DamageRequest request = new(amount, amount, DamageChannel.Direct);
+        return ApplyWeakPointDamage(in request).Applied;
+    }
+
+    public DamageApplicationResult ApplyWeakPointDamage(in DamageRequest request)
+    {
+        return ApplyDamageInternal(in request, _weakPointDamageMultiplier);
     }
 
     public void ApplyStatus(string statusName, float duration)
@@ -144,23 +156,34 @@ public sealed class WeaponDummyEnemy : MonoBehaviour, IDamageable, IWeaponEnemyM
         _metrics?.RecordStatusEffectApplied();
     }
 
-    private bool ApplyDamageInternal(int amount, float weakPointMultiplier)
+    private DamageApplicationResult ApplyDamageInternal(in DamageRequest request, float weakPointMultiplier)
     {
-        if (amount <= 0 || _currentHealth <= 0)
-            return false;
+        int healthBefore = Mathf.Max(0, _currentHealth);
+        if (request.ModifiedDamage <= 0 || healthBefore <= 0)
+            return DamageApplicationResult.Rejected(in request, healthBefore);
 
-        int finalDamage = Mathf.Max(1, Mathf.RoundToInt(amount * Mathf.Max(0f, weakPointMultiplier) * (1f - _damageResistance)));
-        _currentHealth = Mathf.Max(0, _currentHealth - finalDamage);
-        _lastDamageReceived = finalDamage;
-        _metrics?.RecordDamage(finalDamage);
+        int targetAdjustedDamage = Mathf.Max(
+            1,
+            Mathf.RoundToInt(
+                request.ModifiedDamage *
+                Mathf.Max(0f, weakPointMultiplier) *
+                (1f - _damageResistance)));
+        int healthAfter = Mathf.Max(0, healthBefore - targetAdjustedDamage);
+        _currentHealth = healthAfter;
+        DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
+            in request,
+            healthBefore,
+            healthAfter);
+        _lastDamageReceived = result.AppliedDamage;
+        _metrics?.RecordDamage(result.AppliedDamage);
 
-        if (_currentHealth > 0)
-            return true;
+        if (!result.Killed)
+            return result;
 
         _metrics?.RecordKill(Time.time - _spawnTime);
         Died?.Invoke(this);
         gameObject.SetActive(false);
-        return true;
+        return result;
     }
 
     private void ApplyMovement(float deltaTime)
@@ -316,7 +339,7 @@ public sealed class WeaponDummyEnemy : MonoBehaviour, IDamageable, IWeaponEnemyM
     }
 }
 
-public sealed class WeaponDummyWeakPoint : MonoBehaviour, IDamageable
+public sealed class WeaponDummyWeakPoint : MonoBehaviour, IAuthoritativeDamageable
 {
     private WeaponDummyEnemy _dummy;
 
@@ -327,9 +350,17 @@ public sealed class WeaponDummyWeakPoint : MonoBehaviour, IDamageable
 
     public bool ApplyDamage(int amount)
     {
+        DamageRequest request = new(amount, amount, DamageChannel.Direct);
+        return ApplyDamage(in request).Applied;
+    }
+
+    public DamageApplicationResult ApplyDamage(in DamageRequest request)
+    {
         if (_dummy == null)
             _dummy = GetComponentInParent<WeaponDummyEnemy>();
 
-        return _dummy != null && _dummy.ApplyWeakPointDamage(amount);
+        return _dummy != null
+            ? _dummy.ApplyWeakPointDamage(in request)
+            : DamageApplicationResult.Rejected(in request, health: 0);
     }
 }

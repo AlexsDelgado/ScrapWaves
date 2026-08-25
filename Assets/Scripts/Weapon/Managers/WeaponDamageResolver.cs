@@ -8,9 +8,18 @@ public readonly struct WeaponDamageRoll
     public readonly bool IsCritical;
     public readonly bool IsAbilityDamage;
     public readonly float BaseDamage;
+    public readonly float ReferenceDamage;
     public readonly float FinalDamage;
 
-    public WeaponDamageRoll(WeaponInstance weapon, bool eliteOrBoss, bool canCrit, bool isCritical, float baseDamage, float finalDamage, bool isAbilityDamage = false)
+    public WeaponDamageRoll(
+        WeaponInstance weapon,
+        bool eliteOrBoss,
+        bool canCrit,
+        bool isCritical,
+        float baseDamage,
+        float finalDamage,
+        bool isAbilityDamage = false,
+        float referenceDamage = 0f)
     {
         Weapon = weapon;
         EliteOrBoss = eliteOrBoss;
@@ -18,6 +27,7 @@ public readonly struct WeaponDamageRoll
         IsCritical = isCritical;
         IsAbilityDamage = isAbilityDamage;
         BaseDamage = baseDamage;
+        ReferenceDamage = Mathf.Max(0f, referenceDamage);
         FinalDamage = finalDamage;
     }
 }
@@ -33,8 +43,14 @@ public readonly struct WeaponDamageContext
     public readonly float KnockbackScale;
     public readonly bool IsCritical;
     public readonly float BaseDamage;
+    public readonly float ReferenceDamage;
     public readonly float TargetNeutralDamage;
     public readonly float EliteDamageMultiplier;
+    public readonly int ActionSequenceId;
+    public readonly DamageFeedbackKind DamageKind;
+    public readonly int StatusInstanceId;
+    public readonly WeaponStatusKind StatusKind;
+    public readonly int SegmentIndex;
 
     public WeaponDamageContext(
         PlayerStats stats,
@@ -43,7 +59,12 @@ public readonly struct WeaponDamageContext
         float critMultiplierOverride,
         float damageScale,
         bool isAbilityDamage,
-        float knockbackScale)
+        float knockbackScale,
+        int actionSequenceId = 0,
+        DamageFeedbackKind damageKind = DamageFeedbackKind.Direct,
+        int statusInstanceId = 0,
+        WeaponStatusKind statusKind = WeaponStatusKind.Burn,
+        int segmentIndex = 0)
     {
         Stats = stats;
         Weapon = weapon;
@@ -54,8 +75,14 @@ public readonly struct WeaponDamageContext
         KnockbackScale = Mathf.Max(0f, knockbackScale);
         IsCritical = false;
         BaseDamage = 0f;
+        ReferenceDamage = 0f;
         TargetNeutralDamage = 0f;
         EliteDamageMultiplier = 1f;
+        ActionSequenceId = Mathf.Max(0, actionSequenceId);
+        DamageKind = damageKind;
+        StatusInstanceId = Mathf.Max(0, statusInstanceId);
+        StatusKind = statusKind;
+        SegmentIndex = Mathf.Max(0, segmentIndex);
 
         if (stats == null || weapon?.Data == null)
             return;
@@ -70,6 +97,7 @@ public readonly struct WeaponDamageContext
             damage *= WeaponMath.GetStatScale(stats, StatType.AbilityDamageMultiplier);
 
         EliteDamageMultiplier = Mathf.Max(0f, stats.GetStat(StatType.EliteDamageMultiplier));
+        ReferenceDamage = damage * DamageScale;
 
         IsCritical = canCrit && WeaponDamageResolver.RollCrit(stats);
         if (IsCritical)
@@ -78,7 +106,69 @@ public readonly struct WeaponDamageContext
         TargetNeutralDamage = damage;
     }
 
+    private WeaponDamageContext(
+        in WeaponDamageContext source,
+        int actionSequenceId,
+        DamageFeedbackKind damageKind,
+        int statusInstanceId,
+        WeaponStatusKind statusKind,
+        int segmentIndex,
+        float damageScaleMultiplier = 1f,
+        float knockbackScaleMultiplier = 1f)
+    {
+        Stats = source.Stats;
+        Weapon = source.Weapon;
+        CanCrit = source.CanCrit;
+        CritMultiplierOverride = source.CritMultiplierOverride;
+        float safeDamageScale = Mathf.Max(0f, damageScaleMultiplier);
+        DamageScale = source.DamageScale * safeDamageScale;
+        IsAbilityDamage = source.IsAbilityDamage;
+        KnockbackScale = source.KnockbackScale * Mathf.Max(0f, knockbackScaleMultiplier);
+        IsCritical = source.IsCritical;
+        BaseDamage = source.BaseDamage;
+        ReferenceDamage = source.ReferenceDamage * safeDamageScale;
+        TargetNeutralDamage = source.TargetNeutralDamage;
+        EliteDamageMultiplier = source.EliteDamageMultiplier;
+        ActionSequenceId = Mathf.Max(0, actionSequenceId);
+        DamageKind = damageKind;
+        StatusInstanceId = Mathf.Max(0, statusInstanceId);
+        StatusKind = statusKind;
+        SegmentIndex = Mathf.Max(0, segmentIndex);
+    }
+
     public bool IsValid => Stats != null && Weapon?.Data != null;
+
+    public WeaponDamageContext WithFeedbackMetadata(
+        int actionSequenceId,
+        DamageFeedbackKind damageKind,
+        int statusInstanceId = 0,
+        WeaponStatusKind statusKind = WeaponStatusKind.Burn,
+        int segmentIndex = 0)
+    {
+        return new WeaponDamageContext(
+            in this,
+            actionSequenceId,
+            damageKind,
+            statusInstanceId,
+            statusKind,
+            segmentIndex);
+    }
+
+    public WeaponDamageContext WithScales(
+        float damageScaleMultiplier,
+        float knockbackScaleMultiplier,
+        DamageFeedbackKind? damageKind = null)
+    {
+        return new WeaponDamageContext(
+            in this,
+            ActionSequenceId,
+            damageKind ?? DamageKind,
+            StatusInstanceId,
+            StatusKind,
+            SegmentIndex,
+            damageScaleMultiplier,
+            knockbackScaleMultiplier);
+    }
 
     public int CalculateDamage(Transform target, float additionalScale = 1f)
     {
@@ -134,7 +224,8 @@ public readonly struct WeaponDamageContext
                 IsCritical,
                 BaseDamage,
                 damage,
-                IsAbilityDamage));
+                IsAbilityDamage,
+                ReferenceDamage));
 
         return damage;
     }
@@ -149,9 +240,9 @@ public readonly struct WeaponDamageContext
 
         float distance = Vector3.Distance(Stats.transform.position, targetPosition.Value);
         if (distance > LongRangeDistance)
-            return Mathf.Max(0f, Stats.GetStat(StatType.LongRangeDamageMultiplier));
+            return WeaponMath.GetStatScale(Stats, StatType.LongRangeDamageMultiplier);
         if (distance < CloseRangeDistance)
-            return Mathf.Max(0f, Stats.GetStat(StatType.CloseRangeDamageMultiplier));
+            return WeaponMath.GetStatScale(Stats, StatType.CloseRangeDamageMultiplier);
 
         return 1f;
     }

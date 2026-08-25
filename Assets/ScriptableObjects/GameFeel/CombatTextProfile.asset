@@ -1,0 +1,837 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f70cfe8b78f2d6d4e8f7953217483eea, type: 3}
+  m_Name: CombatTextProfile
+  m_EditorClassIdentifier: Assembly-CSharp::CombatTextProfile
+  Enabled: 1
+  ViewPrefab: {fileID: 1993236972265241321, guid: df23d8c8fbf90c74fba36f5789323313, type: 3}
+  FontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  DefaultFontMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  CompactLargeNumbers: 1
+  CanvasSortingOrder: 800
+  ReferenceResolution: {x: 1920, y: 1080}
+  Normal:
+    TextColor: {r: 1, g: 0.93, b: 0.78, a: 1}
+    FontSize: 34
+    BaseScale: 1
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  Burn:
+    TextColor: {r: 1, g: 0.42, b: 0.04, a: 1}
+    FontSize: 30
+    BaseScale: 0.9
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  JellifiedBurn:
+    TextColor: {r: 0.34, g: 0.92, b: 0.24, a: 1}
+    FontSize: 30
+    BaseScale: 0.9
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  Critical:
+    TextColor: {r: 1, g: 0.82, b: 0.22, a: 1}
+    FontSize: 40
+    BaseScale: 1.06
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  WeakPoint:
+    TextColor: {r: 0.35, g: 0.95, b: 1, a: 1}
+    FontSize: 38
+    BaseScale: 1.07
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  CriticalWeakPoint:
+    TextColor: {r: 0.85, g: 0.4, b: 1, a: 1}
+    FontSize: 44
+    BaseScale: 1.1
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  Kill:
+    TextColor: {r: 1, g: 0.23, b: 0.302, a: 1}
+    FontSize: 46
+    BaseScale: 1.1
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  Ability:
+    TextColor: {r: 0.36, g: 0.486, b: 1, a: 1}
+    FontSize: 36
+    BaseScale: 1.04
+    FontStyle: 1
+    SharedMaterial: {fileID: 0}
+  NormalMotion:
+    Lifetime: 0.78
+    ConnectionDuration: 0.1
+    HorizontalSpeed: 20
+    UpwardSpeed: 120
+    DownwardAcceleration: 255
+    SpawnScale: 0.6
+    PopOvershoot: 1.15
+    SettleTime: 0.14
+    FadeStartNormalized: 0.64
+    EndScaleMultiplier: 0.93
+    InitialJitterX: 8
+    InitialJitterY: 5
+    LocalShakeAmplitude: 3
+    LocalShakeDuration: 0.13
+    ScaleOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1
+        value: 1.15
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.19
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0.93
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AlphaOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.62
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.82
+        value: 0.55
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  BurnTallyMotion:
+    Lifetime: 0.48
+    ConnectionDuration: 0
+    HorizontalSpeed: 4
+    UpwardSpeed: 62
+    DownwardAcceleration: 100
+    SpawnScale: 0.82
+    PopOvershoot: 1.07
+    SettleTime: 0.1
+    FadeStartNormalized: 0.52
+    EndScaleMultiplier: 0.94
+    InitialJitterX: 3
+    InitialJitterY: 2
+    LocalShakeAmplitude: 0
+    LocalShakeDuration: 0
+    ScaleOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1
+        value: 1.15
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.19
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0.93
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AlphaOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.62
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.82
+        value: 0.55
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  CriticalMotion:
+    Lifetime: 0.86
+    ConnectionDuration: 0.1
+    HorizontalSpeed: 20
+    UpwardSpeed: 120
+    DownwardAcceleration: 255
+    SpawnScale: 0.6
+    PopOvershoot: 1.2
+    SettleTime: 0.14
+    FadeStartNormalized: 0.64
+    EndScaleMultiplier: 0.93
+    InitialJitterX: 8
+    InitialJitterY: 5
+    LocalShakeAmplitude: 3
+    LocalShakeDuration: 0.13
+    ScaleOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1
+        value: 1.15
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.19
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0.93
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AlphaOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.62
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.82
+        value: 0.55
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  WeakPointMotion:
+    Lifetime: 0.84
+    ConnectionDuration: 0.1
+    HorizontalSpeed: 20
+    UpwardSpeed: 138
+    DownwardAcceleration: 255
+    SpawnScale: 0.6
+    PopOvershoot: 1.18
+    SettleTime: 0.14
+    FadeStartNormalized: 0.64
+    EndScaleMultiplier: 0.93
+    InitialJitterX: 8
+    InitialJitterY: 5
+    LocalShakeAmplitude: 3
+    LocalShakeDuration: 0.13
+    ScaleOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1
+        value: 1.15
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.19
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0.93
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AlphaOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.62
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.82
+        value: 0.55
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  KillMotion:
+    Lifetime: 0.92
+    ConnectionDuration: 0.1
+    HorizontalSpeed: 20
+    UpwardSpeed: 145
+    DownwardAcceleration: 255
+    SpawnScale: 0.6
+    PopOvershoot: 1.2
+    SettleTime: 0.14
+    FadeStartNormalized: 0.64
+    EndScaleMultiplier: 0.93
+    InitialJitterX: 8
+    InitialJitterY: 5
+    LocalShakeAmplitude: 3
+    LocalShakeDuration: 0.13
+    ScaleOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1
+        value: 1.15
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.19
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0.93
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AlphaOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.62
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.82
+        value: 0.55
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  ReducedMotion:
+    Lifetime: 0.66
+    ConnectionDuration: 0.08
+    HorizontalSpeed: 7
+    UpwardSpeed: 72
+    DownwardAcceleration: 90
+    SpawnScale: 0.78
+    PopOvershoot: 1.05
+    SettleTime: 0.1
+    FadeStartNormalized: 0.6
+    EndScaleMultiplier: 0.95
+    InitialJitterX: 2
+    InitialJitterY: 1
+    LocalShakeAmplitude: 0
+    LocalShakeDuration: 0
+    ScaleOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.1
+        value: 1.15
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.19
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0.93
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    AlphaOverLife:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.62
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.82
+        value: 0.55
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  DamageRatioToScale:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0.25
+      value: 0.86
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.93
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 2
+      value: 1.13
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 4
+      value: 1.27
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 8
+      value: 1.38
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  MinimumMagnitudeScale: 0.85
+  MaximumMagnitudeScale: 1.42
+  MinimumResolvedScale: 0.82
+  MaximumResolvedScale: 1.48
+  CriticalScaleMultiplier: 1.08
+  WeakPointScaleMultiplier: 1.08
+  CriticalWeakPointScaleCap: 1.16
+  KillScaleMultiplier: 1.05
+  EliteBossScaleMultiplier: 1.03
+  BurnScaleMultiplier: 0.9
+  CannonAutomaticFallbackWindow: 0.16
+  CannonManualFallbackWindow: 0.24
+  CannonActiveScatterFallbackWindow: 0.18
+  HeadHunterFallbackWindow: 0.08
+  SustainedContactFallbackWindow: 0.14
+  RocketExplosionFallbackWindow: 0.14
+  FragmentFallbackWindow: 0.3
+  FlamethrowerDirectFallbackWindow: 0.3
+  BurnFallbackWindow: 0.65
+  MortarFallbackWindow: 0.18
+  BladeSustainedFallbackWindow: 0.22
+  ManualMultiHitFallbackWindow: 0.18
+  DirectRePunchScale: 0.08
+  BurnRePunchScale: 0.04
+  RePunchDuration: 0.1
+  DirectRePunchNudge: 6
+  BurnRePunchNudge: 2
+  DirectMaximumSegmentLifetime: 1.1
+  RocketMaximumSegmentLifetime: 1.1
+  BurnMaximumSegmentLifetime: 3.25
+  SequenceCompletionGrace: 0.12
+  LowPrewarmViews: 18
+  MediumPrewarmViews: 26
+  HighPrewarmViews: 36
+  LowActiveViews: 16
+  MediumActiveViews: 24
+  HighActiveViews: 32
+  LowStartsPerFrame: 3
+  MediumStartsPerFrame: 5
+  HighStartsPerFrame: 7
+  LowVisibleBurnTallies: 6
+  MediumVisibleBurnTallies: 10
+  HighVisibleBurnTallies: 16
+  MaximumPooledViews: 40
+  AggregateCapacity: 128
+  SequenceCapacity: 64
+  SequenceOrphanTimeout: 1.25
+  LaneSpacing: 20
+  FullSizeDistance: 26
+  RoutineMaximumDistance: 38
+  ImportantMaximumDistance: 50
+  DistantScaleMultiplier: 0.82
+  HorizontalViewportInset: 0.04
+  VerticalViewportInset: 0.06
+  WorldAnchorHeight: 1.25
+  BurnAnchorProjectionRate: 20
+  MajorAbilityRatioThreshold: 1.15
+  EliteBossImportantRatioThreshold: 1.5
+  ReducedMotionLateralMultiplier: 0.35
+  ReducedShakeMultiplier: 0

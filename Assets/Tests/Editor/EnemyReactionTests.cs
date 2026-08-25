@@ -65,6 +65,107 @@ public sealed class EnemyReactionTests
         }
     }
 
+    [TestCase(DamageFeedbackKind.Burn)]
+    [TestCase(DamageFeedbackKind.JellifiedBurn)]
+    public void CombatFeedbackDirector_BurnFamilyKeepsStatusChannelWithoutOrdinaryHitReaction(
+        DamageFeedbackKind damageKind)
+    {
+        GameObject runtimeRoot = new("Burn Feedback Runtime");
+        GameObject target = new("Burn Feedback Target");
+        WeaponPresentationProfile profile = ScriptableObject.CreateInstance<WeaponPresentationProfile>();
+        CombatFeedbackDirector director = null;
+        HitStopController hitStop = new();
+        try
+        {
+            WeaponPresentationCueData killCue = new()
+            {
+                Cue = WeaponPresentationCue.AutomaticCannonKillImpact,
+                HitStopDuration = 0.04f,
+                HitStopPriority = 3
+            };
+            WeaponFeedbackBinding killBinding = new()
+            {
+                Event = WeaponFeedbackEvent.DamageConfirmed,
+                Kill = FeedbackFilter.Required,
+                Cue = killCue.Cue
+            };
+            SetPrivateField(
+                profile,
+                "_cues",
+                new System.Collections.Generic.List<WeaponPresentationCueData> { killCue });
+            SetPrivateField(
+                profile,
+                "_feedbackBindings",
+                new System.Collections.Generic.List<WeaponFeedbackBinding> { killBinding });
+            profile.RebuildCache();
+
+            EnemyHitFeedback hitFeedback = target.AddComponent<EnemyHitFeedback>();
+            GameFeelRuntimeOptions options = new()
+            {
+                ProductionPresentationEnabled = false,
+                AudioEnabled = false,
+                CameraFeedbackEnabled = false,
+                HitStopEnabled = true,
+                EnemyReactionEnabled = true
+            };
+            director = new CombatFeedbackDirector(
+                profile,
+                runtimeRoot.transform,
+                null,
+                null,
+                options,
+                new CameraFeedbackController(),
+                hitStop,
+                1,
+                0f);
+            WeaponFeedbackContext burn = new(
+                null,
+                WeaponFeedbackMode.Manual,
+                0f,
+                Vector3.zero,
+                Vector3.forward,
+                damageAmount: 5,
+                isKill: true,
+                target: target.transform,
+                damageKind: damageKind,
+                statusInstanceId: 1,
+                statusKind: damageKind == DamageFeedbackKind.JellifiedBurn
+                    ? WeaponStatusKind.JellifiedBurn
+                    : WeaponStatusKind.Burn);
+
+            director.EmitSemantic(WeaponFeedbackEvent.DamageConfirmed, in burn, 0f, 1f);
+
+            Assert.That(hitFeedback.IsPlaying, Is.False,
+                "Burn ticks retain their combat-text/status channels but must not play the ordinary hit flash or displacement.");
+            Assert.That(hitStop.IsActive, Is.False,
+                "Burn-family confirmations must not request per-tick hit-stop, including a final kill tick.");
+
+            WeaponFeedbackContext direct = new(
+                null,
+                WeaponFeedbackMode.Manual,
+                0f,
+                Vector3.zero,
+                Vector3.forward,
+                damageAmount: 5,
+                isKill: true,
+                target: target.transform,
+                damageKind: DamageFeedbackKind.Direct);
+            director.EmitSemantic(WeaponFeedbackEvent.DamageConfirmed, in direct, 0f, 1.1f);
+            Assert.That(hitFeedback.IsPlaying, Is.True,
+                "The burn gate must not suppress ordinary direct-hit reactions.");
+            Assert.That(hitStop.IsActive, Is.True,
+                "The burn gate must not suppress an authored direct-hit kill stop.");
+        }
+        finally
+        {
+            director?.StopAll();
+            hitStop.Restore();
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(runtimeRoot);
+            Object.DestroyImmediate(profile);
+        }
+    }
+
     [Test]
     public void StatusFeedback_UsesJellifiedBurnInsteadOfRegularBurn()
     {
@@ -317,5 +418,14 @@ public sealed class EnemyReactionTests
             isCritical: critical,
             isWeakPoint: weakPoint,
             isKill: kill);
+    }
+
+    private static void SetPrivateField(object target, string fieldName, object value)
+    {
+        System.Reflection.FieldInfo field = target.GetType().GetField(
+            fieldName,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, fieldName);
+        field.SetValue(target, value);
     }
 }

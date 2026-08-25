@@ -36,6 +36,7 @@ public sealed class CombatFeedbackDirector
     private readonly CameraFeedbackController _camera;
     private readonly HitStopController _hitStop;
     private readonly WeaponRecoilFeedback _recoil;
+    private readonly CombatTextDirector _combatText;
     private readonly Dictionary<WeaponPresentationCue, float> _nextCueTimes = new();
     private readonly Dictionary<LoopKey, ActiveLoop> _activeSemanticLoops = new();
     private readonly Dictionary<int, ActiveLoop> _activeLegacyLoops = new();
@@ -50,13 +51,15 @@ public sealed class CombatFeedbackDirector
         CameraFeedbackController cameraFeedback,
         HitStopController hitStop,
         int audioVoiceCount,
-        float audioSpatialBlend)
+        float audioSpatialBlend,
+        CombatTextDirector combatText = null)
     {
         _profile = profile;
         _options = options;
         _camera = cameraFeedback ?? new CameraFeedbackController();
         _hitStop = hitStop ?? new HitStopController();
         _recoil = recoil;
+        _combatText = combatText;
         _camera.Bind(camera);
         _fx = new WeaponFxDirector(profile, runtimeRoot, options);
         _audio = new WeaponAudioDirector(
@@ -136,21 +139,34 @@ public sealed class CombatFeedbackDirector
         float globalVolume,
         float now)
     {
-        if (_profile == null)
-            return;
-
         WeaponFeedbackContext routedContext = feedbackEvent == WeaponFeedbackEvent.DamageConfirmed && context.IsKill
             ? context.WithIntensity(context.EventIntensity * EnemyDeathFeedback.ResolveIntensity(context.Target))
             : context;
 
+        if (feedbackEvent == WeaponFeedbackEvent.DamageConfirmed)
+        {
+            _combatText?.TryEmit(in routedContext, now);
+            if (_options.EnemyReactionEnabled && !routedContext.DamageKind.IsBurnFamily())
+            {
+                EnemyHitFeedback.TryPlay(
+                    in routedContext,
+                    ShouldReduceFlash(),
+                    _options.ReducedMotion);
+            }
+        }
+
+        if (_profile == null)
+            return;
+
         if (feedbackEvent == WeaponFeedbackEvent.ShotFired)
         {
             EndSemanticLoop(WeaponFeedbackEvent.ChargeStarted, in routedContext);
-            _recoil?.Request(in routedContext, _profile.Heat, _options.HeatPresentationEnabled);
+            _recoil?.Request(
+                in routedContext,
+                _profile.Heat,
+                _options.HeatPresentationEnabled,
+                _options.ReducedMotion);
         }
-
-        if (feedbackEvent == WeaponFeedbackEvent.DamageConfirmed && _options.EnemyReactionEnabled)
-            EnemyHitFeedback.TryPlay(in routedContext, ShouldReduceFlash());
 
         if (!_profile.TryResolveCue(feedbackEvent, in routedContext, out WeaponPresentationCueData cueData) ||
             cueData.Loop || IsRateLimited(cueData.Cue, now))
@@ -163,13 +179,15 @@ public sealed class CombatFeedbackDirector
         if (playPresentation)
             played = PlayCue(cueData, in routedContext, globalVolume, now, playHitStop: false, playEnemyReaction: false);
 
-        if (feedbackEvent == WeaponFeedbackEvent.DamageConfirmed)
+        if (feedbackEvent == WeaponFeedbackEvent.DamageConfirmed && !routedContext.DamageKind.IsBurnFamily())
         {
             played |= _hitStop.Request(
                 cueData.HitStopDuration * Mathf.Clamp01(routedContext.EventIntensity),
                 cueData.HitStopPriority,
                 _options.HitStopEnabled,
                 _options.ReducedShake || _options.ReducedFlash,
+                _options.ReducedMotion,
+                IsImportant(in routedContext),
                 now);
         }
 
@@ -291,12 +309,16 @@ public sealed class CombatFeedbackDirector
             cueData,
             in context,
             _profile.Heat,
-            _options.CameraFeedbackEnabled && _options.ScreenShakeEnabled && !_options.ReducedMotion,
+            _options.CameraFeedbackEnabled && _options.ScreenShakeEnabled,
             _options.ReducedShake,
+            _options.ReducedMotion,
             now);
 
         if (playEnemyReaction && _options.EnemyReactionEnabled)
-            played |= EnemyHitFeedback.TryPlay(in context, ShouldReduceFlash());
+            played |= EnemyHitFeedback.TryPlay(
+                in context,
+                ShouldReduceFlash(),
+                _options.ReducedMotion);
         if (playHitStop)
         {
             played |= _hitStop.Request(
@@ -304,6 +326,8 @@ public sealed class CombatFeedbackDirector
                 cueData.HitStopPriority,
                 _options.HitStopEnabled,
                 _options.ReducedShake || _options.ReducedFlash,
+                _options.ReducedMotion,
+                IsImportant(in context),
                 now);
         }
 
@@ -332,8 +356,9 @@ public sealed class CombatFeedbackDirector
             cueData,
             in context,
             _profile.Heat,
-            _options.CameraFeedbackEnabled && _options.ScreenShakeEnabled && !_options.ReducedMotion,
+            _options.CameraFeedbackEnabled && _options.ScreenShakeEnabled,
             _options.ReducedShake,
+            _options.ReducedMotion,
             now);
 
         if (vfx == null && !audio.IsValid)
@@ -386,6 +411,11 @@ public sealed class CombatFeedbackDirector
     private bool ShouldReduceFlash()
     {
         return _options.ReducedFlash || !_options.ScreenFlashEnabled;
+    }
+
+    private static bool IsImportant(in WeaponFeedbackContext context)
+    {
+        return context.IsKill || context.IsCritical || context.IsWeakPoint || context.IsAbilityDamage;
     }
 
     private static WeaponFeedbackContext ConvertLegacy(in WeaponPresentationContext context)
