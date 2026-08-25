@@ -268,6 +268,7 @@ public static class WeaponTestingSandboxSceneBuilder
         GameObject go = new GameObject("WeaponTestingSandbox");
         WeaponTestingSandboxManager manager = go.AddComponent<WeaponTestingSandboxManager>();
         go.AddComponent<WeaponStatOverride>();
+        go.AddComponent<PassiveItemTestingController>();
         go.AddComponent<WeaponHeatOverride>();
         go.AddComponent<WeaponTestMetrics>();
         go.AddComponent<WeaponDummySpawner>();

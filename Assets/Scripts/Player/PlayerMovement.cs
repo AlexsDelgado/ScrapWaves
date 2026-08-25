@@ -104,6 +104,23 @@ public class PlayerMovement : MonoBehaviour
 
     public int MaxDashCharges => _stats != null ? Mathf.Max(0, _stats.GetStatInt(StatType.DashCharges)) : 0;
 
+    public int RemainingAirJumps => _remainingAirJumps;
+
+    public int MaxAirJumps => _stats != null ? Mathf.Max(0, _stats.GetStatInt(StatType.AirJumps)) : 0;
+
+    /// <summary>Refills movement resources after passive stats are changed at runtime.</summary>
+    public void RefreshPassiveResources()
+    {
+        if (_stats == null)
+            _stats = GetComponent<PlayerStats>();
+
+        _remainingAirJumps = _stats != null
+            ? Mathf.Max(0, _stats.GetStatInt(StatType.AirJumps))
+            : 0;
+        _dashRegenTimer = 0f;
+        SyncDashChargesToStatMax();
+    }
+
     /// <summary>
     /// Empuje horizontal desde <paramref name="fromPoint"/> con la fuerza dada (Chaser/Shocker).
     /// Abre una ventana sin speed-cap y con fricción reducida para que el impulso se note.
@@ -263,8 +280,7 @@ public class PlayerMovement : MonoBehaviour
 
         _isGrounded = IsGrounded();
         _wasGrounded = _isGrounded;
-        _remainingAirJumps = Mathf.Max(0, _stats.GetStatInt(StatType.AirJumps));
-        SyncDashChargesToStatMax();
+        RefreshPassiveResources();
     }
 
     // Read buffered player inputs and trigger stateful actions.
@@ -757,7 +773,7 @@ public class PlayerMovement : MonoBehaviour
     // Initialize current dash charges to stat-provided maximum.
     private void SyncDashChargesToStatMax()
     {
-        int maxCharges = Mathf.Max(0, _stats.GetStatInt(StatType.DashCharges));
+        int maxCharges = _stats != null ? Mathf.Max(0, _stats.GetStatInt(StatType.DashCharges)) : 0;
         _currentDashCharges = maxCharges;
         OnDashChargesChanged?.Invoke(_currentDashCharges, maxCharges);
     }

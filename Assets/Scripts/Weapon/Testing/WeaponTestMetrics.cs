@@ -152,9 +152,29 @@ public sealed class WeaponTestMetrics : MonoBehaviour
         sb.Append("Heat: ").Append(heatPercent.ToString("0.#")).AppendLine("%");
         if (stats != null)
         {
-            sb.Append("Damage Multiplier: ").AppendLine(stats.DamageMultiplier.ToString("0.###"));
-            sb.Append("Attack Speed Multiplier: ").AppendLine(stats.AttackSpeedMultiplier.ToString("0.###"));
-            sb.Append("Projectile Size Multiplier: ").AppendLine(stats.ProjectileAreaSizeMultiplier.ToString("0.###"));
+            sb.Append("Manual Stat Overrides: ").AppendLine(stats.UseOverrides ? "Enabled" : "Disabled");
+            if (stats.UseOverrides)
+            {
+                sb.Append("Override Damage Multiplier: ").AppendLine(stats.DamageMultiplier.ToString("0.###"));
+                sb.Append("Override Attack Speed Multiplier: ").AppendLine(stats.AttackSpeedMultiplier.ToString("0.###"));
+                sb.Append("Override Projectile Size Multiplier: ").AppendLine(stats.ProjectileAreaSizeMultiplier.ToString("0.###"));
+            }
+        }
+
+        PassiveItemTestingController passives = _sandbox != null ? _sandbox.PassiveItemController : null;
+        if (passives != null)
+        {
+            sb.Append("Passive Test Mode: ").AppendLine(passives.PassiveBaselineMode ? "Passive Baseline" : "Manual Overrides");
+            for (int i = 0; i < PassiveItemTestingController.Slots.Count; i++)
+            {
+                PassiveItemTestingController.SlotDescriptor slot = PassiveItemTestingController.Slots[i];
+                sb.AppendLine(passives.BuildSlotSummary(slot.Slot, slot.SlotIndex));
+            }
+            sb.Append("Effective Passive Stats: ").AppendLine(passives.EffectiveStatsSummary);
+            sb.AppendLine(passives.HealthShieldSummary);
+            sb.AppendLine(passives.DropProbeSummary);
+            if (passives.OverridesMaskPassives)
+                sb.AppendLine(passives.OverrideWarning);
         }
         sb.Append("Total Damage: ").AppendLine(TotalDamage.ToString("0.#"));
         sb.Append("DPS: ").AppendLine(DamagePerSecond.ToString("0.#"));

@@ -12,6 +12,9 @@ public class PassiveItemLevelUpHandler : MonoBehaviour
 
     private readonly PassiveItemRoulette _roulette = new();
 
+    /// <summary>Unfiltered production pool, used by deterministic testing tools.</summary>
+    public IReadOnlyList<PassiveItemData> ItemPool => _itemPool;
+
     private void Awake()
     {
         if (_passiveItemManager == null)

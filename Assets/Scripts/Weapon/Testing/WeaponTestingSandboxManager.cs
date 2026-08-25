@@ -53,6 +53,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     public Transform PlayerTransform { get; private set; }
     public Transform ProjectileSpawn { get; private set; }
     public WeaponStatOverride StatOverride { get; private set; }
+    public PassiveItemTestingController PassiveItemController { get; private set; }
     public WeaponHeatOverride HeatOverride { get; private set; }
     public WeaponTestMetrics Metrics { get; private set; }
     public WeaponDummySpawner Spawner { get; private set; }
@@ -216,6 +217,12 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     public void RefillAmmo()
     {
         RefillAmmo(_manualSlot);
+    }
+
+    public void RefillAllAmmo()
+    {
+        for (int i = 0; i < WeaponSlots; i++)
+            RefillAmmo(i);
     }
 
     public void EmptyAmmo()
@@ -505,6 +512,18 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         if (StatOverride == null)
             StatOverride = gameObject.AddComponent<WeaponStatOverride>();
         StatOverride.Bind(_playerStats);
+
+        PassiveItemController = gameObject.GetComponent<PassiveItemTestingController>();
+        if (PassiveItemController == null)
+            PassiveItemController = gameObject.AddComponent<PassiveItemTestingController>();
+        PassiveItemController.Bind(
+            this,
+            PlayerTransform.GetComponent<PassiveItemManager>(),
+            PlayerTransform.GetComponent<PassiveItemLevelUpHandler>(),
+            _playerStats,
+            PlayerTransform.GetComponent<PlayerHealth>(),
+            _playerMovement,
+            StatOverride);
 
         HeatOverride = gameObject.GetComponent<WeaponHeatOverride>();
         if (HeatOverride == null)

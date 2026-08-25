@@ -51,6 +51,28 @@ public sealed class WeaponDummySpawner : MonoBehaviour
         SpawnDummy(_singleTargetCenter, EnemyType, WeaponSandboxMovementPattern.None, false);
     }
 
+    /// <summary>Spawns one stationary target safely inside the CQB passive threshold.</summary>
+    public void SpawnCloseRangeDummy()
+    {
+        ClearEnemies();
+        SpawnDummy(GetPlayerRelativePosition(7f, 0f), EnemyType, WeaponSandboxMovementPattern.None, false);
+    }
+
+    /// <summary>Spawns one stationary target safely beyond the Sharpshooter passive threshold.</summary>
+    public void SpawnLongRangeDummy()
+    {
+        ClearEnemies();
+        SpawnDummy(GetPlayerRelativePosition(20f, 0f), EnemyType, WeaponSandboxMovementPattern.None, false);
+    }
+
+    /// <summary>Spawns close and long range targets side-by-side for passive damage comparisons.</summary>
+    public void SpawnRangeComparisonDummies()
+    {
+        ClearEnemies();
+        SpawnDummy(GetPlayerRelativePosition(7f, -2.5f), EnemyType, WeaponSandboxMovementPattern.None, false);
+        SpawnDummy(GetPlayerRelativePosition(20f, 2.5f), EnemyType, WeaponSandboxMovementPattern.None, false);
+    }
+
     public void SpawnEliteDummy()
     {
         ClearEnemies();
@@ -165,6 +187,21 @@ public sealed class WeaponDummySpawner : MonoBehaviour
         int row = index / Mathf.Max(1, columns);
         int col = index % Mathf.Max(1, columns);
         return new Vector3((col - (columns - 1) * 0.5f) * spacing, 0f, row * spacing);
+    }
+
+    private Vector3 GetPlayerRelativePosition(float forwardDistance, float lateralOffset)
+    {
+        Vector3 origin = _player != null ? _player.position : Vector3.zero;
+        Vector3 forward = _player != null ? _player.forward : Vector3.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.forward;
+        forward.Normalize();
+
+        Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+        Vector3 position = origin + forward * Mathf.Max(0f, forwardDistance) + right * lateralOffset;
+        position.y = 0f;
+        return position;
     }
 
     private WeaponDummyEnemy SpawnDummy(
