@@ -13,7 +13,7 @@ public readonly struct CombatTextPresentation
     public readonly bool CompactLargeNumbers;
     public readonly bool ReducedFlash;
     public readonly bool AllowLocalShake;
-    public readonly Vector2 ScreenPosition;
+    public readonly Vector3 WorldPosition;
     public readonly float ResolvedScale;
     public readonly int DeterministicSeed;
     public readonly CombatTextMotionSettings Motion;
@@ -30,7 +30,7 @@ public readonly struct CombatTextPresentation
         bool compactLargeNumbers,
         bool reducedFlash,
         bool allowLocalShake,
-        Vector2 screenPosition,
+        Vector3 worldPosition,
         float resolvedScale,
         int deterministicSeed,
         CombatTextMotionSettings motion)
@@ -46,7 +46,7 @@ public readonly struct CombatTextPresentation
         CompactLargeNumbers = compactLargeNumbers;
         ReducedFlash = reducedFlash;
         AllowLocalShake = allowLocalShake;
-        ScreenPosition = screenPosition;
+        WorldPosition = worldPosition;
         ResolvedScale = resolvedScale;
         DeterministicSeed = deterministicSeed;
         Motion = motion;

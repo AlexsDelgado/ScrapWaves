@@ -1,6 +1,7 @@
 using System;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [Serializable]
 public sealed class CombatTextStyleDefinition
@@ -132,8 +133,13 @@ public sealed class CombatTextProfile : ScriptableObject
     public TMP_FontAsset FontAsset;
     public Material DefaultFontMaterial;
     public bool CompactLargeNumbers = true;
-    [Range(0, 32000)] public int CanvasSortingOrder = 800;
-    public Vector2 ReferenceResolution = new(1920f, 1080f);
+
+    [Header("Spatial Rendering")]
+    [FormerlySerializedAs("CanvasSortingOrder")]
+    [Range(-32768, 32767)] public int RendererSortingOrder = 800;
+    [Min(0.001f)] public float WorldTextScale = 0.08f;
+    [Min(0.0001f)] public float WorldUnitsPerMotionUnit = 0.015f;
+    [Min(0f)] public float CameraSurfaceBias = 0.05f;
 
     [Header("Styles")]
     public CombatTextStyleDefinition Normal = new();
@@ -212,11 +218,9 @@ public sealed class CombatTextProfile : ScriptableObject
     [Min(0f)] public float FullSizeDistance = 26f;
     [Min(0f)] public float RoutineMaximumDistance = 38f;
     [Min(0f)] public float ImportantMaximumDistance = 50f;
-    [Range(0.5f, 1f)] public float DistantScaleMultiplier = 0.82f;
-    [Range(0f, 0.25f)] public float HorizontalViewportInset = 0.04f;
-    [Range(0f, 0.25f)] public float VerticalViewportInset = 0.06f;
+    [Range(0.5f, 1f)] public float DistantScaleMultiplier = 1f;
     [Min(0f)] public float WorldAnchorHeight = 1.25f;
-    [Range(1f, 60f)] public float BurnAnchorProjectionRate = 20f;
+    [Min(0f)] public float WorldAnchorClearance = 0.25f;
     [Min(0f)] public float MajorAbilityRatioThreshold = 1.15f;
     [Min(0f)] public float EliteBossImportantRatioThreshold = 1.50f;
 
@@ -365,8 +369,9 @@ public sealed class CombatTextProfile : ScriptableObject
         MaximumMagnitudeScale = Mathf.Max(1f, MaximumMagnitudeScale);
         MinimumResolvedScale = Mathf.Clamp(MinimumResolvedScale, 0.5f, 1f);
         MaximumResolvedScale = Mathf.Max(1f, MaximumResolvedScale);
-        ReferenceResolution.x = Mathf.Max(320f, ReferenceResolution.x);
-        ReferenceResolution.y = Mathf.Max(180f, ReferenceResolution.y);
+        WorldTextScale = Mathf.Max(0.001f, WorldTextScale);
+        WorldUnitsPerMotionUnit = Mathf.Max(0.0001f, WorldUnitsPerMotionUnit);
+        CameraSurfaceBias = Mathf.Max(0f, CameraSurfaceBias);
 
         CannonAutomaticFallbackWindow = Mathf.Max(0.01f, CannonAutomaticFallbackWindow);
         CannonManualFallbackWindow = Mathf.Max(0.01f, CannonManualFallbackWindow);
@@ -401,7 +406,8 @@ public sealed class CombatTextProfile : ScriptableObject
         FullSizeDistance = Mathf.Max(0f, FullSizeDistance);
         RoutineMaximumDistance = Mathf.Max(FullSizeDistance, RoutineMaximumDistance);
         ImportantMaximumDistance = Mathf.Max(RoutineMaximumDistance, ImportantMaximumDistance);
-        BurnAnchorProjectionRate = Mathf.Clamp(BurnAnchorProjectionRate, 1f, 60f);
+        WorldAnchorHeight = Mathf.Max(0f, WorldAnchorHeight);
+        WorldAnchorClearance = Mathf.Max(0f, WorldAnchorClearance);
     }
 
     private void OnValidate() => Sanitize();

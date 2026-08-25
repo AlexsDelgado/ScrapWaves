@@ -7,7 +7,7 @@ public sealed class CombatTextPool
     private readonly CombatTextView[] _available;
     private int _availableCount;
 
-    public CombatTextPool(RectTransform parent, CombatTextProfile profile, int capacity)
+    public CombatTextPool(Transform parent, CombatTextProfile profile, int capacity)
     {
         int count = Mathf.Clamp(capacity, 1, profile.MaximumPooledViews);
         _views = new CombatTextView[count];

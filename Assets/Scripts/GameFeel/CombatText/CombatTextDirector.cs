@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
 /// One scene-level owner for combat-text aggregation, visibility, pooling and motion.
@@ -15,7 +14,6 @@ public sealed class CombatTextDirector
         public CombatTextView View;
         public CombatTextPriority Priority;
         public float DistanceScale;
-        public float NextAnchorProjectionTime;
         public int Lane;
     }
 
@@ -23,7 +21,8 @@ public sealed class CombatTextDirector
     private readonly GameFeelRuntimeOptions _options;
     private readonly AggregateSlot[] _slots;
     private readonly bool[] _laneOccupied = new bool[CombatTextProfile.LaneCount];
-    private readonly RectTransform _viewRoot;
+    private readonly GameObject _worldRootObject;
+    private readonly Transform _viewRoot;
     private readonly CombatTextPool _pool;
     private PresentationAccessibilityState _accessibility;
     private Camera _camera;
@@ -32,6 +31,7 @@ public sealed class CombatTextDirector
     private int _startsThisFrame;
     private bool _mirrorRuntimeOptions;
     private bool? _compactLargeNumbersOverride;
+    private bool _disposed;
 
     public CombatTextDirector(
         Transform runtimeRoot,
@@ -68,27 +68,19 @@ public sealed class CombatTextDirector
         _accessibility = accessibility;
         _slots = new AggregateSlot[_profile.AggregateCapacity];
 
-        GameObject canvasObject = new("CombatTextCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
-        RectTransform canvasRect = (RectTransform)canvasObject.transform;
-        if (runtimeRoot != null)
-            canvasRect.SetParent(runtimeRoot, false);
-        Canvas = canvasObject.GetComponent<Canvas>();
-        Canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        Canvas.overrideSorting = true;
-        Canvas.sortingOrder = _profile.CanvasSortingOrder;
-        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = _profile.ReferenceResolution;
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.5f;
+        _worldRootObject = new GameObject("CombatText World");
+        if (runtimeRoot != null && runtimeRoot.gameObject.scene.IsValid() &&
+            _worldRootObject.scene != runtimeRoot.gameObject.scene)
+        {
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(
+                _worldRootObject,
+                runtimeRoot.gameObject.scene);
+        }
 
-        GameObject viewRootObject = new("Views", typeof(RectTransform));
-        _viewRoot = (RectTransform)viewRootObject.transform;
-        _viewRoot.SetParent(canvasRect, false);
-        _viewRoot.anchorMin = Vector2.zero;
-        _viewRoot.anchorMax = Vector2.one;
-        _viewRoot.offsetMin = Vector2.zero;
-        _viewRoot.offsetMax = Vector2.zero;
+        GameObject viewRootObject = new("Views");
+        _viewRoot = viewRootObject.transform;
+        _viewRoot.SetParent(_worldRootObject.transform, false);
+        _worldRootObject.AddComponent<CombatTextWorldRenderDriver>().Initialize(this);
 
         GameFeelQualityLevel quality = CurrentQuality;
         _pool = new CombatTextPool(_viewRoot, _profile, _profile.GetPrewarmCount(quality));
@@ -97,7 +89,7 @@ public sealed class CombatTextDirector
         DamageFeedbackSequenceRuntime.EnsureCapacity(_profile.SequenceCapacity, _profile.SequenceOrphanTimeout);
     }
 
-    public Canvas Canvas { get; }
+    public Transform WorldRoot => _worldRootObject != null ? _worldRootObject.transform : null;
     public CombatTextMetrics Metrics { get; }
     public int ActiveAggregateCount => _activeAggregateCount;
     public int ActiveViewCount => _pool.ActiveCount;
@@ -105,6 +97,9 @@ public sealed class CombatTextDirector
 
     public bool TryEmit(in WeaponFeedbackContext context, float now)
     {
+        if (_disposed)
+            return false;
+
         SyncAccessibilityFromOptions();
         if (context.DamageAmount > 0)
         {
@@ -214,6 +209,8 @@ public sealed class CombatTextDirector
 
     public void Tick(float now, float unscaledDeltaTime)
     {
+        if (_disposed)
+            return;
         long allocationBefore = System.GC.GetAllocatedBytesForCurrentThread();
         long timestampBefore = System.Diagnostics.Stopwatch.GetTimestamp();
         SyncAccessibilityFromOptions();
@@ -228,10 +225,11 @@ public sealed class CombatTextDirector
             UpdateClosure(ref slot, now);
             if (slot.View != null)
             {
-                UpdateViewAnchor(ref slot, now);
                 if (slot.Aggregate.IsBurnFamily && slot.Aggregate.IsClosed)
                     slot.View.BeginRelease();
-                if (slot.View.Tick(unscaledDeltaTime))
+                else
+                    UpdateViewAnchor(ref slot, now);
+                if (slot.View.Tick(unscaledDeltaTime, _camera))
                     ReleaseView(ref slot);
             }
 
@@ -258,6 +256,8 @@ public sealed class CombatTextDirector
 
     public void StopAll()
     {
+        if (_disposed)
+            return;
         for (int i = 0; i < _slots.Length; i++)
             _slots[i] = default;
         _pool.ReleaseAll();
@@ -268,7 +268,37 @@ public sealed class CombatTextDirector
         UpdateLiveMetrics();
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        StopAll();
+        _disposed = true;
+        if (_worldRootObject == null)
+            return;
+
+        _worldRootObject.SetActive(false);
+        if (Application.isPlaying)
+            Object.Destroy(_worldRootObject);
+        else
+            Object.DestroyImmediate(_worldRootObject);
+    }
+
     public void SetCamera(Camera camera) => _camera = camera;
+
+    public void RefreshRenderPoses()
+    {
+        if (_disposed)
+            return;
+
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            CombatTextView view = _slots[i].View;
+            if (view != null)
+                view.ApplyRenderPose(_camera);
+        }
+    }
 
     public void ResetMetrics()
     {
@@ -340,12 +370,11 @@ public sealed class CombatTextDirector
         }
 
         Vector3 worldPosition = ResolveWorldPosition(in slot.Aggregate);
-        if (!CombatTextVisibilityPolicy.TryProject(
+        if (!CombatTextVisibilityPolicy.TryEvaluateWorld(
                 _camera,
                 worldPosition,
                 slot.Priority,
                 _profile,
-                out Vector2 screenPoint,
                 out float distanceScale,
                 out CombatTextSuppressionReason projectionReason))
         {
@@ -394,13 +423,10 @@ public sealed class CombatTextDirector
             return false;
         }
 
-        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_viewRoot, screenPoint, null, out Vector2 localPoint))
-            localPoint = screenPoint - new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
         int lane = AssignLane(slot.Aggregate.Key.GetHashCode(), slot.Priority);
-        localPoint.y += GetLaneOffset(lane);
+        worldPosition = ApplySpatialOffset(worldPosition, lane);
         slot.Lane = lane;
         slot.DistanceScale = distanceScale;
-        slot.NextAnchorProjectionTime = now;
         slot.View = view;
 
         CombatTextStyleId style = CombatTextStyleResolver.ResolveStyle(in slot.Aggregate);
@@ -423,11 +449,11 @@ public sealed class CombatTextDirector
             _accessibility.ReducedFlash,
             !_accessibility.ReducedMotion && !_accessibility.ReducedShake &&
                 (slot.Aggregate.IsCritical || slot.Aggregate.IsWeakPoint),
-            localPoint,
+            worldPosition,
             scale,
             slot.Aggregate.Key.GetHashCode(),
             motion);
-        view.Play(in presentation);
+        view.Play(in presentation, _camera);
         if (!view.IsActive)
         {
             _pool.Release(view);
@@ -510,16 +536,12 @@ public sealed class CombatTextDirector
     {
         if (slot.View == null || !slot.View.IsAnchored)
             return;
-        if (slot.Aggregate.IsBurnFamily && now < slot.NextAnchorProjectionTime)
-            return;
-
         Vector3 worldPosition = ResolveWorldPosition(in slot.Aggregate);
-        if (!CombatTextVisibilityPolicy.TryProject(
+        if (!CombatTextVisibilityPolicy.TryEvaluateWorld(
                 _camera,
                 worldPosition,
                 slot.Priority,
                 _profile,
-                out Vector2 screenPoint,
                 out _,
                 out _))
         {
@@ -530,12 +552,8 @@ public sealed class CombatTextDirector
             }
             return;
         }
-        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_viewRoot, screenPoint, null, out Vector2 localPoint))
-            return;
-        localPoint.y += GetLaneOffset(slot.Lane);
-        slot.View.SetAnchorPosition(localPoint, false);
-        if (slot.Aggregate.IsBurnFamily)
-            slot.NextAnchorProjectionTime = now + 1f / _profile.BurnAnchorProjectionRate;
+        worldPosition = ApplySpatialOffset(worldPosition, slot.Lane);
+        slot.View.SetAnchorPosition(worldPosition, false);
     }
 
     private int AssignLane(int hash, CombatTextPriority priority)
@@ -571,6 +589,18 @@ public sealed class CombatTextDirector
             3 => _profile.LaneSpacing * 2f,
             _ => 0f
         };
+    }
+
+    private Vector3 ApplySpatialOffset(Vector3 worldPosition, int lane)
+    {
+        worldPosition += Vector3.up * GetLaneOffset(lane) * _profile.WorldUnitsPerMotionUnit;
+        if (_camera != null && _profile.CameraSurfaceBias > 0f)
+        {
+            Vector3 towardCamera = _camera.transform.position - worldPosition;
+            if (towardCamera.sqrMagnitude > 0.0001f)
+                worldPosition += towardCamera.normalized * _profile.CameraSurfaceBias;
+        }
+        return worldPosition;
     }
 
     private bool TryReclaimLowerPriority(CombatTextPriority incoming)
@@ -713,8 +743,29 @@ public sealed class CombatTextDirector
     private Vector3 ResolveWorldPosition(in CombatTextAggregate aggregate)
     {
         if (aggregate.IsBurnFamily && aggregate.Target != null)
-            return aggregate.Target.position + Vector3.up * _profile.WorldAnchorHeight;
+            return ResolveBurnAnchor(aggregate.Target);
         return aggregate.WorldPosition;
+    }
+
+    private Vector3 ResolveBurnAnchor(Transform target)
+    {
+        Vector3 anchor = target.position + Vector3.up * _profile.WorldAnchorHeight;
+        Bounds bounds;
+        Collider targetCollider = target.GetComponent<Collider>();
+        if (targetCollider != null && targetCollider.enabled)
+            bounds = targetCollider.bounds;
+        else
+        {
+            Renderer targetRenderer = target.GetComponentInChildren<Renderer>();
+            if (targetRenderer == null || !targetRenderer.enabled)
+                return anchor;
+            bounds = targetRenderer.bounds;
+        }
+
+        anchor.x = bounds.center.x;
+        anchor.z = bounds.center.z;
+        anchor.y = Mathf.Max(anchor.y, bounds.max.y + _profile.WorldAnchorClearance);
+        return anchor;
     }
 
     private static long SaturatingAdd(long current, int value)

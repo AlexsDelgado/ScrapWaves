@@ -458,7 +458,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     private void OnDestroy()
     {
         ReleaseRuntimeState();
-        _combatText?.StopAll();
+        _combatText?.Dispose();
+        _combatText = null;
     }
 
     private void OnValidate()
@@ -580,7 +581,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void DestroyRuntimeRoot()
     {
-        _combatText?.StopAll();
+        _combatText?.Dispose();
         _combatText = null;
         _directors.Clear();
         _legacyLoopRoutes.Clear();

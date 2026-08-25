@@ -17,8 +17,10 @@ MonoBehaviour:
   FontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   DefaultFontMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   CompactLargeNumbers: 1
-  CanvasSortingOrder: 800
-  ReferenceResolution: {x: 1920, y: 1080}
+  RendererSortingOrder: 800
+  WorldTextScale: 0.08
+  WorldUnitsPerMotionUnit: 0.015
+  CameraSurfaceBias: 0.05
   Normal:
     TextColor: {r: 1, g: 0.93, b: 0.78, a: 1}
     FontSize: 34
@@ -826,11 +828,9 @@ MonoBehaviour:
   FullSizeDistance: 26
   RoutineMaximumDistance: 38
   ImportantMaximumDistance: 50
-  DistantScaleMultiplier: 0.82
-  HorizontalViewportInset: 0.04
-  VerticalViewportInset: 0.06
+  DistantScaleMultiplier: 1
   WorldAnchorHeight: 1.25
-  BurnAnchorProjectionRate: 20
+  WorldAnchorClearance: 0.25
   MajorAbilityRatioThreshold: 1.15
   EliteBossImportantRatioThreshold: 1.5
   ReducedMotionLateralMultiplier: 0.35

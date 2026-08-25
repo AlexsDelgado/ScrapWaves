@@ -20,7 +20,7 @@ public sealed class CombatTextCleanStyleAssetTests
         Assert.That(authoredRoot.GetComponent<CombatTextView>(), Is.Not.Null);
         AssertNumberOnly(authoredRoot, "authored prefab");
 
-        GameObject parentObject = new("Programmatic Combat Text Parent", typeof(RectTransform));
+        GameObject parentObject = new("Programmatic Combat Text Parent");
         try
         {
             CombatTextProfile profile = AssetDatabase.LoadAssetAtPath<CombatTextProfile>(ProfilePath);
@@ -84,16 +84,30 @@ public sealed class CombatTextCleanStyleAssetTests
     private static void AssertNumberOnly(GameObject viewObject, string source)
     {
         TMP_Text[] textVisuals = viewObject.GetComponentsInChildren<TMP_Text>(true);
+        TextMeshPro[] worldTexts = viewObject.GetComponentsInChildren<TextMeshPro>(true);
+        TextMeshProUGUI[] uiTexts = viewObject.GetComponentsInChildren<TextMeshProUGUI>(true);
         Graphic[] graphics = viewObject.GetComponentsInChildren<Graphic>(true);
+        MeshRenderer[] meshRenderers = viewObject.GetComponentsInChildren<MeshRenderer>(true);
         Assert.That(
             textVisuals,
             Has.Length.EqualTo(1),
             $"The {source} must contain exactly one numeric TMP visual.");
         Assert.That(
+            worldTexts,
+            Has.Length.EqualTo(1),
+            $"The {source} must use one spatial TextMeshPro mesh.");
+        Assert.That(textVisuals[0], Is.SameAs(worldTexts[0]));
+        Assert.That(uiTexts, Is.Empty, $"The {source} must not use TextMeshProUGUI.");
+        Assert.That(meshRenderers, Has.Length.EqualTo(1), $"The {source} must have one MeshRenderer.");
+        Assert.That(worldTexts[0].isOverlay, Is.False, $"The {source} must remain depth tested.");
+        Assert.That(
             graphics,
             Has.Length.EqualTo(1),
-            $"The {source} must contain no visual Graphic besides the number.");
-        Assert.That(graphics[0], Is.SameAs(textVisuals[0]));
+            $"The {source} must contain no Graphic besides the world TMP base component.");
+        Assert.That(graphics[0], Is.SameAs(worldTexts[0]));
+        Assert.That(viewObject.GetComponentsInChildren<Canvas>(true), Is.Empty);
+        Assert.That(viewObject.GetComponentsInChildren<CanvasGroup>(true), Is.Empty);
+        Assert.That(viewObject.GetComponentsInChildren<CanvasRenderer>(true), Is.Empty);
         Assert.That(
             viewObject.GetComponentsInChildren<Image>(true),
             Is.Empty,
