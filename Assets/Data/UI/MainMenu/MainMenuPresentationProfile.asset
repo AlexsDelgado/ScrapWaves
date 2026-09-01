@@ -94,7 +94,7 @@ MonoBehaviour:
   _navigationPunchRotation: 0.55
   _punchDuration: 0.1
   _hoverPunchMultiplier: 0.4
-  _flashOpacity: 0.06
+  _flashOpacity: 0
   _flashDuration: 0.09
   _punchCooldown: 0.035
   _punchCurve:

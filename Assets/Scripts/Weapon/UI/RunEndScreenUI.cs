@@ -16,15 +16,21 @@ public class RunEndScreenUI : MonoBehaviour
     private TextMeshProUGUI _titleText;
     private TextMeshProUGUI _statsText;
     private Button _retryButton;
+    private Button _mainMenuButton;
     private ThirdPersonCamera _camera;
+    private bool _isWired;
 
     private void Awake()
     {
         Instance = this;
-        if (!TryWireFromHierarchy())
-            BuildUiFallback();
-        if (_root != null)
+        _isWired = TryWireFromHierarchy();
+        if (_isWired)
             _root.SetActive(false);
+        else
+            Debug.LogError(
+                $"[{nameof(RunEndScreenUI)}] The authored RunEndRoot hierarchy is incomplete. " +
+                "Expected RunEndRoot/Panel with Title and Stats.",
+                this);
     }
 
     private void OnDestroy()
@@ -35,8 +41,14 @@ public class RunEndScreenUI : MonoBehaviour
 
     public void Show(GameManager.GameState state, string title)
     {
-        if (_root == null && !TryWireFromHierarchy())
-            BuildUiFallback();
+        if (!_isWired)
+            _isWired = TryWireFromHierarchy();
+
+        if (!_isWired)
+        {
+            Debug.LogError($"[{nameof(RunEndScreenUI)}] Cannot show the end screen because its authored UI is incomplete.", this);
+            return;
+        }
 
         _titleText.text = title;
         _titleText.color = state == GameManager.GameState.Victory ? _victoryTextColor : _defeatTextColor;
@@ -68,6 +80,7 @@ public class RunEndScreenUI : MonoBehaviour
         _titleText = panel != null ? HudUiWire.FindTmp(panel, "Title") : HudUiWire.FindTmp(runEndRoot, "Title");
         _statsText = panel != null ? HudUiWire.FindTmp(panel, "Stats") : HudUiWire.FindTmp(runEndRoot, "Stats");
         _retryButton = panel != null ? HudUiWire.FindButton(panel, "RetryButton") : HudUiWire.FindButton(runEndRoot, "RetryButton");
+        _mainMenuButton = panel != null ? HudUiWire.FindButton(panel, "MainMenuButton") : HudUiWire.FindButton(runEndRoot, "MainMenuButton");
 
         if (_titleText == null || _statsText == null)
             return false;
@@ -78,13 +91,13 @@ public class RunEndScreenUI : MonoBehaviour
             _retryButton.onClick.AddListener(Retry);
         }
 
-        return true;
-    }
+        if (_mainMenuButton != null)
+        {
+            _mainMenuButton.onClick.RemoveListener(ReturnToMainMenu);
+            _mainMenuButton.onClick.AddListener(ReturnToMainMenu);
+        }
 
-    private void BuildUiFallback()
-    {
-        GameplayHudHierarchyBuilder.BuildRunEndHierarchy(transform);
-        TryWireFromHierarchy();
+        return true;
     }
 
     private void Retry()
@@ -96,5 +109,10 @@ public class RunEndScreenUI : MonoBehaviour
 
         Scene scene = SceneManager.GetActiveScene();
         SceneManager.LoadScene(scene.buildIndex);
+    }
+
+    private void ReturnToMainMenu()
+    {
+        SceneNavigation.LoadTitle();
     }
 }

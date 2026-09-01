@@ -1,9 +1,11 @@
+#if UNITY_EDITOR
+
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Construye la jerarquía del HUD de gameplay para prefab o fallback runtime.
+/// Construye la jerarquía del HUD de gameplay durante el authoring en editor.
 /// </summary>
 public static class GameplayHudHierarchyBuilder
 {
@@ -253,10 +255,11 @@ public static class GameplayHudHierarchyBuilder
 
         CreateRunEndLabel(panelGo.transform, "Title", 52f, FontStyles.Bold, 80f);
         CreateRunEndLabel(panelGo.transform, "Stats", 24f, FontStyles.Normal, 160f);
-        var btn = HudUiFactory.CreateButton(panelGo.transform, "RetryButton", new Vector2(240f, 52f));
-        var btnLabel = btn.GetComponentInChildren<TextMeshProUGUI>();
-        if (btnLabel != null)
-            btnLabel.text = "Retry";
+        var retryButton = HudUiFactory.CreateButton(panelGo.transform, "Retry", new Vector2(240f, 52f));
+        retryButton.gameObject.name = "RetryButton";
+
+        var mainMenuButton = HudUiFactory.CreateButton(panelGo.transform, "Main Menu", new Vector2(240f, 52f));
+        mainMenuButton.gameObject.name = "MainMenuButton";
 
         rootGo.SetActive(false);
     }
@@ -279,3 +282,5 @@ public static class GameplayHudHierarchyBuilder
         tmp.raycastTarget = false;
     }
 }
+
+#endif
