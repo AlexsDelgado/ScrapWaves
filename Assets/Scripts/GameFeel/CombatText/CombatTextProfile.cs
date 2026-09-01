@@ -137,7 +137,7 @@ public sealed class CombatTextProfile : ScriptableObject
     [Header("Spatial Rendering")]
     [FormerlySerializedAs("CanvasSortingOrder")]
     [Range(-32768, 32767)] public int RendererSortingOrder = 800;
-    [Min(0.001f)] public float WorldTextScale = 0.08f;
+    [Min(0.001f)] public float WorldTextScale = 0.10f;
     [Min(0.0001f)] public float WorldUnitsPerMotionUnit = 0.015f;
     [Min(0f)] public float CameraSurfaceBias = 0.05f;
 

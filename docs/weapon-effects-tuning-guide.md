@@ -227,7 +227,7 @@ or profiler targets have been completed.
 #### Master and style values
 
 The profile is enabled, renders its depth-tested MeshRenderer at sorting order
-`800`, uses a `0.08` world-text scale, converts authored motion units at
+`800`, uses a `0.10` world-text scale, converts authored motion units at
 `0.015 m` per unit, and enables compact formatting above the exact-number
 boundary. The sandbox should use exact formatting when validating applied
 totals. All current styles use bold text and the shared Liberation Sans SDF

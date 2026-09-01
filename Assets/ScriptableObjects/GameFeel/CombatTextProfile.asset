@@ -18,7 +18,7 @@ MonoBehaviour:
   DefaultFontMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   CompactLargeNumbers: 1
   RendererSortingOrder: 800
-  WorldTextScale: 0.08
+  WorldTextScale: 0.1
   WorldUnitsPerMotionUnit: 0.015
   CameraSurfaceBias: 0.05
   Normal:
