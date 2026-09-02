@@ -246,7 +246,7 @@ MonoBehaviour:
   _dashMaxDistance: 12
   _contactRadius: 1.5
   _hitDamage: 12
-  _pushForce: 12
+  _pushForce: 20
   _maxEngageSeconds: 2
   _overheatSeconds: 2.5
   _overheatSpeed: 1

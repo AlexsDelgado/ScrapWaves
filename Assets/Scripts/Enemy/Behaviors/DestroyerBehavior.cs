@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Boss Destroyer: Hunt (camina lento, dispara misiles seeking) y Suction (una sola vez, al caer
-/// a <see cref="_suctionHealthThreshold"/> de vida; inmune total, succiona jugador y swarm hacia
-/// la boca, come enemigos y se cura). Ver docs/boss-destroyer.md para el diseño completo.
+/// Boss Destroyer: Hunt (camina lento, dispara misiles seeking) y Suction (al cruzar 75%, 50% y
+/// 25% de vida, una vez cada umbral; inmune total, succiona jugador y swarm hacia la boca, come
+/// enemigos y se cura). Ver docs/boss-destroyer.md para el diseño completo.
 /// </summary>
 [RequireComponent(typeof(EnemyHealth))]
 public class DestroyerBehavior : EnemyBehaviorBase
@@ -17,8 +17,8 @@ public class DestroyerBehavior : EnemyBehaviorBase
     }
 
     [Header("Fase de succión")]
-    [SerializeField, Range(0f, 1f), Tooltip("Fracción de vida (CurrentHealth/MaxHealth) a la que se dispara la succión. Ocurre una única vez.")]
-    private float _suctionHealthThreshold = 0.25f;
+    [SerializeField, Tooltip("Umbrales de vida (CurrentHealth/MaxHealth) que disparan succión, en orden descendente. Cada uno se consume una sola vez.")]
+    private float[] _suctionHealthThresholds = { 0.75f, 0.50f, 0.25f };
 
     [Header("Hunt - Misiles")]
     [SerializeField] private Transform _missileMuzzle;
@@ -60,7 +60,7 @@ public class DestroyerBehavior : EnemyBehaviorBase
 
     private EnemyHealth _health;
     private State _state;
-    private bool _hasSuctioned;
+    private int _nextSuctionThresholdIndex;
     private float _missileTimer;
     private float _suctionTimer;
 
@@ -74,7 +74,7 @@ public class DestroyerBehavior : EnemyBehaviorBase
     {
         base.OnEnable();
         _state = State.Hunt;
-        _hasSuctioned = false;
+        _nextSuctionThresholdIndex = 0;
         _missileTimer = _missileInterval;
         _suctionTimer = 0f;
 
@@ -116,11 +116,8 @@ public class DestroyerBehavior : EnemyBehaviorBase
             _missileTimer = _missileInterval;
         }
 
-        if (!_hasSuctioned && _health.MaxHealth > 0
-            && (float)_health.CurrentHealth / _health.MaxHealth <= _suctionHealthThreshold)
-        {
+        if (ShouldBeginSuction())
             BeginSuction();
-        }
     }
 
     private void FireMissile()
@@ -137,9 +134,21 @@ public class DestroyerBehavior : EnemyBehaviorBase
         EnemySeekingMissile.Launch(_missilePrefab, _missileMuzzle.position, dir, Player, _missileDamage, _missileSpeed, _missileTurnRateDegPerSec);
     }
 
+    private bool ShouldBeginSuction()
+    {
+        if (_suctionHealthThresholds == null || _suctionHealthThresholds.Length == 0)
+            return false;
+
+        if (_nextSuctionThresholdIndex >= _suctionHealthThresholds.Length || _health.MaxHealth <= 0)
+            return false;
+
+        float ratio = (float)_health.CurrentHealth / _health.MaxHealth;
+        return ratio <= _suctionHealthThresholds[_nextSuctionThresholdIndex];
+    }
+
     private void BeginSuction()
     {
-        _hasSuctioned = true;
+        _nextSuctionThresholdIndex++;
         _state = State.Suction;
         _suctionTimer = 0f;
 

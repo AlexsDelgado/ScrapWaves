@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2, type: 3}
   m_Name: UnlockCatalog
   m_EditorClassIdentifier: Assembly-CSharp::UnlockCatalog
-  _weapons: []
+  _weapons:
+  - {fileID: 11400000, guid: 30186e45d9ec13647b223e81ca4a3112, type: 2}
   _passiveItems:
   - {fileID: 11400000, guid: aa11bb22cc33dd44ee55ff6600770001, type: 2}
   - {fileID: 11400000, guid: aa11bb22cc33dd44ee55ff6600770002, type: 2}

@@ -68,6 +68,8 @@ public class DestroyerMouthWeakPoint : MonoBehaviour, IAuthoritativeDamageable
     /// <summary>Activa el weak point con la vida al máximo (inicio de succión).</summary>
     public void Reactivate()
     {
+        _currentHealth = _maxHealth;
+        _initialized = true;
         gameObject.SetActive(true);
     }
 

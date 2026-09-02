@@ -21,6 +21,7 @@ GameObject:
   - component: {fileID: 6499382597375597335}
   - component: {fileID: 5615805805704435914}
   - component: {fileID: 2989630300823969776}
+  - component: {fileID: 114603746263934257}
   m_Layer: 3
   m_Name: Destroyer_Boss
   m_TagString: Untagged
@@ -166,7 +167,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 10
+  _maxHealth: 1000
 --- !u!114 &3620616495473873500
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -179,7 +180,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a77242de664775447a0327cab31aa0a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
-  _contactDamage: 5
+  _contactDamage: 10
   _logDebug: 0
 --- !u!114 &3761967184644541021
 MonoBehaviour:
@@ -239,14 +240,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d8476f98f77f7f4e992393cae3995d7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitFeedback
+  _profile: {fileID: 0}
   _visualRoot: {fileID: 0}
   _renderers: []
-  _regularHitColor: {r: 1, g: 0.48, b: 0.12, a: 1}
-  _criticalHitColor: {r: 1, g: 0.96, b: 0.55, a: 1}
-  _weakPointHitColor: {r: 1, g: 1, b: 1, a: 1}
-  _flashDuration: 0.09
-  _visualDisplacement: 0.08
-  _squashAmount: 0.08
   _responseCurve:
     serializedVersion: 2
     m_Curve:
@@ -271,8 +267,6 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _eliteResponseScale: 0.8
-  _bossResponseScale: 0.45
 --- !u!114 &5615805805704435914
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -285,6 +279,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 359fb3d484157514e879832e366cae99, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDeathFeedback
+  _profile: {fileID: 0}
   _effectIntensity: 1
 --- !u!114 &2989630300823969776
 MonoBehaviour:
@@ -298,7 +293,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7b2a0b65fa24adb47a85723a18263379, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DestroyerBehavior
-  _suctionHealthThreshold: 0.25
+  _suctionHealthThresholds:
+  - 0.75
+  - 0.5
+  - 0.25
   _missileMuzzle: {fileID: 2439352907852494344}
   _missilePrefab: {fileID: 9152356985729227640, guid: 362db469c291e0948bac100e7fa1a6f6, type: 3}
   _missileInterval: 1.2
@@ -307,16 +305,29 @@ MonoBehaviour:
   _missileTurnRateDegPerSec: 90
   _mouth: {fileID: 5929581824322485209}
   _weakPoint: {fileID: 7957812352955880524}
-  _playerPullAcceleration: 14
-  _swarmPullSpeed: 6
-  _eatRadius: 2.5
+  _playerPullAcceleration: 10
+  _swarmPullSpeed: 10
+  _eatRadius: 5
   _healPercentPerEnemyEaten: 0.02
-  _swallowRadius: 2.2
+  _swallowRadius: 2
   _swallowDamage: 40
-  _swallowKnockback: 35
+  _swallowKnockback: 50
   _healPercentOnSwallow: 0.15
   _weakPointDestroyedDamagePercent: 0.2
   _maxSuctionDuration: 15
+--- !u!114 &114603746263934257
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 17723983331897442}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 993fb02c672b03a4db4c428e8619cb18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyStatusFeedback
+  _profile: {fileID: 0}
 --- !u!1 &958742540738689705
 GameObject:
   m_ObjectHideFlags: 0
