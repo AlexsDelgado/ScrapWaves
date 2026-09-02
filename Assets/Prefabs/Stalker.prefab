@@ -9,8 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 200001}
-  - component: {fileID: 200002}
-  - component: {fileID: 200003}
   - component: {fileID: 200004}
   - component: {fileID: 200005}
   - component: {fileID: 200006}
@@ -38,69 +36,12 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.4, y: 2.8, z: 1.4}
+  m_LocalScale: {x: 4, y: 4, z: 4}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5374633351025675174}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &200002
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 200000}
-  m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
---- !u!23 &200003
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 200000}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 4e8202357b751ca46b1a6cce33f2e8b7, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!136 &200004
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -223,12 +164,12 @@ MonoBehaviour:
   _sameGroundRadius: 25
   _maxGroundHeightDelta: 2
   _telegraphDuration: 1.2
-  _attackRadius: 15
-  _jumpRiseSpeed: 14
+  _attackRadius: 10
+  _jumpRiseSpeed: 25
   _jumpArcHeight: 50
   _apexHorizontalLead: 0.65
-  _airTiltSpeed: 540
-  _fallSpeed: 20
+  _airTiltSpeed: 200
+  _fallSpeed: 25
   _landingSnapDistance: 0.15
   _minFallDistanceFromOrigin: 20
   _apexArrivalThreshold: 0.75
@@ -239,7 +180,7 @@ MonoBehaviour:
   _spitInterval: 0.5
   _spitProjectilesPerBurst: 2
   _spitSpreadDegrees: 45
-  _spitTravelTime: 0.75
+  _spitTravelTime: 2
   _spitArcHeight: 2.5
   _spitCollisionRadius: 0.25
   _spitLandingRadius: 3
