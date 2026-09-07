@@ -121,8 +121,18 @@ public class HeatManager : MonoBehaviour
             return;
         }
 
-        // unscaled: la pausa de spawn no debe colgarse si timeScale cambia
-        float next = _currentHeat - _activeDecayPerSecond * Time.unscaledDeltaTime;
+        TickPostOverheatDecay(Time.unscaledDeltaTime);
+    }
+
+    /// <summary>
+    /// Decay unscaled para no colgarse en hit-stop. Se detiene en pausa de UI.
+    /// </summary>
+    private void TickPostOverheatDecay(float unscaledDeltaTime)
+    {
+        if (GameplayPause.IsUiPaused)
+            return;
+
+        float next = _currentHeat - _activeDecayPerSecond * unscaledDeltaTime;
         if (next <= 0f)
         {
             _postOverheatDecayActive = false;

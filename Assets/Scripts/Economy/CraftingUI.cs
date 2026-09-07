@@ -22,8 +22,14 @@ public class CraftingUI : MonoBehaviour
     private Action _onClosed;
     private ThirdPersonCamera _resolvedCamera;
     private bool _isVisible;
+    private bool _holdsUiPause;
 
     public bool IsVisible => _isVisible;
+
+    private void OnDisable()
+    {
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
+    }
 
     public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
     {
@@ -49,6 +55,7 @@ public class CraftingUI : MonoBehaviour
         _isVisible = true;
         _previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
+        GameplayPause.SetHeld(ref _holdsUiPause, true);
         SetCameraBlocked(true);
         EnsureUi();
         _titleText.text = "Crafting Station";
@@ -64,6 +71,7 @@ public class CraftingUI : MonoBehaviour
         if (_canvas != null)
             _canvas.gameObject.SetActive(false);
         Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
         SetCameraBlocked(false);
         _onClosed?.Invoke();
         _onClosed = null;

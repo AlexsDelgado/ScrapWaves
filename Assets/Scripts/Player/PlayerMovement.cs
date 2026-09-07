@@ -286,6 +286,9 @@ public class PlayerMovement : MonoBehaviour
     // Read buffered player inputs and trigger stateful actions.
     private void Update()
     {
+        if (GameplayPause.IsUiPaused || Time.timeScale <= 0f)
+            return;
+
         if (_cameraTransform == null) return;
 
         ReadInput();

@@ -18,6 +18,7 @@ public class PauseMenuUITests
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         Time.timeScale = 1f;
+        GameplayPause.Reset();
         RunSessionStats.Reset();
         PlayerPrefs.DeleteKey(UserSettingsService.PlayerPrefsKey);
     }
@@ -26,6 +27,7 @@ public class PauseMenuUITests
     public void TearDown()
     {
         Time.timeScale = 1f;
+        GameplayPause.Reset();
         PlayerPrefs.DeleteKey(UserSettingsService.PlayerPrefsKey);
         PlayerPrefs.Save();
     }

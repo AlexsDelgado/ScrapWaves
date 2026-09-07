@@ -28,6 +28,7 @@ public class GameManager : MonoBehaviour
 
     private GameState _state = GameState.Playing;
     private int _bossKills;
+    private bool _holdsUiPause;
 
     public GameState State => _state;
     public bool IsPlaying => _state == GameState.Playing;
@@ -64,6 +65,8 @@ public class GameManager : MonoBehaviour
 
         if (Instance == this)
             Instance = null;
+
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
     }
 
     private void OnPlayerDied()
@@ -96,6 +99,7 @@ public class GameManager : MonoBehaviour
     {
         _state = endState;
         Time.timeScale = 0f;
+        GameplayPause.SetHeld(ref _holdsUiPause, true);
 
         ReportRunToSaveSystem(endState == GameState.Victory);
 
@@ -114,6 +118,7 @@ public class GameManager : MonoBehaviour
     public void ResetTimeScaleForReload()
     {
         Time.timeScale = 1f;
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
     }
 
     /// <summary>

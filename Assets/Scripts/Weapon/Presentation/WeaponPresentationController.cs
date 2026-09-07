@@ -436,6 +436,9 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void Update()
     {
+        if (GameplayPause.IsUiPaused)
+            return;
+
         bool hitStopWasActive = _hitStop.IsActive;
         bool tickSharedState = true;
         foreach (DirectorRuntime runtime in _directors.Values)
