@@ -8,9 +8,13 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     private int _currentHealth;
     private bool _isInvincible;
     private bool _blockDotWhileInvincible;
+    private string _lastDamagingWeaponId;
 
     public int CurrentHealth => _currentHealth;
     public int MaxHealth => _maxHealth;
+
+    /// <summary>WeaponId del último hit de arma del jugador (crédito de kill para challenges).</summary>
+    public string LastDamagingWeaponId => _lastDamagingWeaponId;
 
     /// <summary>Mientras sea true, <see cref="ApplyDamage"/> ignora el dano (p. ej. Hellfire al lanzarse).</summary>
     public bool IsInvincible => _isInvincible;
@@ -48,6 +52,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         _currentHealth = _maxHealth;
         _isInvincible = false;
         _blockDotWhileInvincible = false;
+        _lastDamagingWeaponId = null;
     }
 
     /// <summary>Tras salir del pool; <see cref="DifficultyManager"/> ajusta vida según la partida.</summary>
@@ -65,6 +70,13 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         _currentHealth = _maxHealth;
         _isInvincible = false;
         _blockDotWhileInvincible = false;
+        _lastDamagingWeaponId = null;
+    }
+
+    public void NotifyDamagedByWeapon(string weaponId)
+    {
+        if (!string.IsNullOrEmpty(weaponId))
+            _lastDamagingWeaponId = weaponId;
     }
 
     /// <summary>Cura al enemigo, clamp a la vida máxima actual (Destroyer: comer enemigos / tragar al jugador).</summary>
@@ -111,6 +123,9 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
         int healthAfter = Mathf.Max(0, healthBefore - request.ModifiedDamage);
         _currentHealth = healthAfter;
+        if (!string.IsNullOrEmpty(request.SourceWeaponId))
+            _lastDamagingWeaponId = request.SourceWeaponId;
+
         DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
             in request,
             healthBefore,
@@ -131,6 +146,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     private void CompleteDeath()
     {
         AudioManager.TryPlayEnemyDeath();
+        ChallengeProgressTracker.NotifyEnemyKilled(this);
         OnDied?.Invoke();
         RunCombatStats.RegisterEnemyEliminated();
         FinalizeDeath();

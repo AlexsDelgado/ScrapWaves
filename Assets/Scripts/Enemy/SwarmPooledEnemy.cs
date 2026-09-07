@@ -65,9 +65,19 @@ public class SwarmPooledEnemy : MonoBehaviour
         GetComponent<EnemyFollow>()?.PrepareForSpawn();
         GetComponent<SimpleFollow>()?.PrepareForSpawn();
 
+        EnsureMetaDropComponents();
+
         IEnemySpawnLifecycle[] lifecycles = GetComponents<IEnemySpawnLifecycle>();
         for (int i = 0; i < lifecycles.Length; i++)
             lifecycles[i].OnPoolSpawn();
+    }
+
+    private void EnsureMetaDropComponents()
+    {
+        if (GetComponent<EnemyTemporaryPowerupDrop>() == null)
+            gameObject.AddComponent<EnemyTemporaryPowerupDrop>();
+        if (GetComponent<EnemyScrapDrop>() == null)
+            gameObject.AddComponent<EnemyScrapDrop>();
     }
 
     private void ResetForPoolDespawn()

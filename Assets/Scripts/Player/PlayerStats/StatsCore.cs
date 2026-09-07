@@ -17,7 +17,7 @@ public enum StatType
 }
 
 public enum StatCategory { Mobility, Offensive, Defensive, Miscellaneous }
-public enum StatUpgradeSource { Base, LevelUp, PassiveItem, Weapon, TemporaryEffect }
+public enum StatUpgradeSource { Base, LevelUp, PassiveItem, Weapon, TemporaryEffect, TemporaryPowerup }
 
 /// <summary>
 /// Additive: se suma al valor base junto con el resto de modificadores aditivos.

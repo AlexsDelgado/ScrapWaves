@@ -81,6 +81,9 @@ public class PlayerStatsLevelUpHandler : MonoBehaviour
             return 0f;
 
         float amount = StatMath.CalculateStatUpgradeAmount(definition.LevelUpgradeBaseAmount, newLevel, _levelCap);
+        if (SaveManager.Instance != null)
+            amount *= SaveManager.Instance.GetMetaStatGrowthMultiplier(statType);
+
         _playerStats.AddModifier(new StatModifier(statType, amount, StatUpgradeSource.LevelUp));
 
         if (statType == StatType.MaxHealth && TryGetComponent(out PlayerHealth health))

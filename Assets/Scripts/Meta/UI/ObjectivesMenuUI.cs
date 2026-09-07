@@ -10,7 +10,8 @@ using UnityEngine.UI;
 public enum ObjectivesMenuTab
 {
     Objectives,
-    Unlocks
+    Unlocks,
+    Upgrades
 }
 
 /// <summary>
@@ -31,10 +32,13 @@ public class ObjectivesMenuUI : MonoBehaviour
     [Header("Authored tabs")]
     [SerializeField] private Button _objectivesTabButton;
     [SerializeField] private Button _unlocksTabButton;
+    [SerializeField] private Button _upgradesTabButton;
     [SerializeField] private GameObject _objectivesTabSelectedState;
     [SerializeField] private GameObject _unlocksTabSelectedState;
+    [SerializeField] private GameObject _upgradesTabSelectedState;
     [SerializeField] private GameObject _objectivesTabRoot;
     [SerializeField] private GameObject _unlocksTabRoot;
+    [SerializeField] private GameObject _upgradesTabRoot;
     [SerializeField] private bool _rememberLastTabForSession = true;
 
     [Header("Objectives tab")]
@@ -68,6 +72,10 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private Button _purchaseButton;
     [SerializeField] private TextMeshProUGUI _purchaseButtonLabel;
     [SerializeField] private TextMeshProUGUI _purchaseFeedbackText;
+
+    [Header("Upgrades tab")]
+    [SerializeField, Tooltip("Meta stats/items shop presenter (Unlocks-style cards).")]
+    private MetaUpgradeShopUI _metaUpgradeShop;
 
     private readonly List<ObjectiveRowView> _objectiveRows = new();
     private readonly List<UnlockCardView> _unlockCards = new();
@@ -167,10 +175,30 @@ public class ObjectivesMenuUI : MonoBehaviour
         bool nextTab = (Keyboard.current != null && Keyboard.current.dKey.wasPressedThisFrame) ||
                        (Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame);
 
-        if (previousTab && _activeTab != ObjectivesMenuTab.Objectives)
-            SetActiveTab(ObjectivesMenuTab.Objectives, true);
-        else if (nextTab && _activeTab != ObjectivesMenuTab.Unlocks)
-            SetActiveTab(ObjectivesMenuTab.Unlocks, true);
+        if (previousTab)
+            SetActiveTab(PreviousTab(_activeTab), true);
+        else if (nextTab)
+            SetActiveTab(NextTab(_activeTab), true);
+    }
+
+    private static ObjectivesMenuTab NextTab(ObjectivesMenuTab tab)
+    {
+        return tab switch
+        {
+            ObjectivesMenuTab.Objectives => ObjectivesMenuTab.Unlocks,
+            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Upgrades,
+            _ => ObjectivesMenuTab.Objectives
+        };
+    }
+
+    private static ObjectivesMenuTab PreviousTab(ObjectivesMenuTab tab)
+    {
+        return tab switch
+        {
+            ObjectivesMenuTab.Objectives => ObjectivesMenuTab.Upgrades,
+            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Objectives,
+            _ => ObjectivesMenuTab.Unlocks
+        };
     }
 
     public void Show()
@@ -221,6 +249,11 @@ public class ObjectivesMenuUI : MonoBehaviour
         SetActiveTab(ObjectivesMenuTab.Unlocks, true);
     }
 
+    public void ShowUpgradesTab()
+    {
+        SetActiveTab(ObjectivesMenuTab.Upgrades, true);
+    }
+
     /// <summary>Used by the visible Back control and by authored cancel handlers.</summary>
     public void HandleBackRequested()
     {
@@ -263,6 +296,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         WireButton(_backButton, HandleBackRequested);
         WireButton(_objectivesTabButton, ShowObjectivesTab);
         WireButton(_unlocksTabButton, ShowUnlocksTab);
+        WireButton(_upgradesTabButton, ShowUpgradesTab);
         WireButton(_purchaseButton, HandlePurchaseRequested);
     }
 
@@ -273,6 +307,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         UnwireButton(_backButton, HandleBackRequested);
         UnwireButton(_objectivesTabButton, ShowObjectivesTab);
         UnwireButton(_unlocksTabButton, ShowUnlocksTab);
+        UnwireButton(_upgradesTabButton, ShowUpgradesTab);
         UnwireButton(_purchaseButton, HandlePurchaseRequested);
     }
 
@@ -448,6 +483,13 @@ public class ObjectivesMenuUI : MonoBehaviour
                 CreateUnlockCard(passive, passive.DisplayName, "PASSIVE", saveManager);
         }
 
+        for (int i = 0; i < _catalog.WeaponPathUnlocks.Count; i++)
+        {
+            WeaponPathUnlockData pathUnlock = _catalog.WeaponPathUnlocks[i];
+            if (pathUnlock != null)
+                CreateUnlockCard(pathUnlock, pathUnlock.DisplayName, "PATH", saveManager);
+        }
+
         UnlockCardView selection = FindUnlockCard(selectionToRestore);
         SelectUnlock(selection != null ? selection : _unlockCards[0]);
 
@@ -528,9 +570,27 @@ public class ObjectivesMenuUI : MonoBehaviour
         {
             AppendAssociatedUnlocks(builder, achievement, _catalog.Weapons);
             AppendAssociatedUnlocks(builder, achievement, _catalog.PassiveItems);
+            AppendAssociatedUnlocks(builder, achievement, _catalog.WeaponPathUnlocks);
+            AppendRewardUnlockIds(builder, achievement);
         }
 
         return builder.Length > 0 ? builder.ToString() : "NO REWARD LISTED";
+    }
+
+    private static void AppendRewardUnlockIds(StringBuilder builder, AchievementDefinition achievement)
+    {
+        IReadOnlyList<string> rewards = achievement.RewardUnlockIds;
+        if (rewards == null)
+            return;
+
+        for (int i = 0; i < rewards.Count; i++)
+        {
+            if (string.IsNullOrEmpty(rewards[i]))
+                continue;
+            if (builder.Length > 0)
+                builder.Append("\n");
+            builder.Append("UNLOCKS: ").Append(rewards[i]);
+        }
     }
 
     private static void AppendAssociatedUnlocks<T>(StringBuilder builder, AchievementDefinition achievement, IReadOnlyList<T> items)
@@ -703,10 +763,18 @@ public class ObjectivesMenuUI : MonoBehaviour
     private void ApplyTabVisibility()
     {
         bool objectivesActive = _activeTab == ObjectivesMenuTab.Objectives;
+        bool unlocksActive = _activeTab == ObjectivesMenuTab.Unlocks;
+        bool upgradesActive = _activeTab == ObjectivesMenuTab.Upgrades;
+
         SetActive(_objectivesTabRoot, objectivesActive);
-        SetActive(_unlocksTabRoot, !objectivesActive);
+        SetActive(_unlocksTabRoot, unlocksActive);
+        SetActive(_upgradesTabRoot, upgradesActive);
         SetActive(_objectivesTabSelectedState, objectivesActive);
-        SetActive(_unlocksTabSelectedState, !objectivesActive);
+        SetActive(_unlocksTabSelectedState, unlocksActive);
+        SetActive(_upgradesTabSelectedState, upgradesActive);
+
+        if (upgradesActive)
+            _metaUpgradeShop?.Rebuild();
     }
 
     private void FocusActiveTab()
@@ -720,6 +788,15 @@ public class ObjectivesMenuUI : MonoBehaviour
             }
             else if (_objectivesTabButton != null)
                 Focus(_objectivesTabButton.gameObject);
+            return;
+        }
+
+        if (_activeTab == ObjectivesMenuTab.Upgrades)
+        {
+            if (_metaUpgradeShop != null)
+                _metaUpgradeShop.FocusFirst();
+            else if (_upgradesTabButton != null)
+                Focus(_upgradesTabButton.gameObject);
             return;
         }
 
@@ -872,6 +949,11 @@ public class ObjectivesMenuUI : MonoBehaviour
         for (int i = 0; i < catalog.PassiveItems.Count; i++)
         {
             if (catalog.PassiveItems[i] != null)
+                count++;
+        }
+        for (int i = 0; i < catalog.WeaponPathUnlocks.Count; i++)
+        {
+            if (catalog.WeaponPathUnlocks[i] != null)
                 count++;
         }
         return count;

@@ -1,22 +1,21 @@
 /// <summary>
-/// Catálogo estandarizado de condiciones de logro. La mayoría se evalúan contra contadores
-/// de vida acumulados en <see cref="SaveData"/> sin necesidad de código nuevo por logro;
-/// <see cref="Custom"/> es el escape hatch para condiciones que no entran en una fórmula genérica.
+/// Catálogo de condiciones de logro / challenge Spec.
 /// </summary>
 public enum AchievementConditionType
 {
-    /// <summary>Bosses derrotados acumulados entre todas las runs.</summary>
     BossKillsTotal,
-    /// <summary>Runs ganadas (llegar a la salida) acumuladas.</summary>
     RunsCompletedTotal,
-    /// <summary>Enemigos eliminados acumulados entre todas las runs.</summary>
     EnemiesKilledTotal,
-    /// <summary>Mejor tiempo de supervivencia en una sola run (segundos).</summary>
     SurviveTimeSingleRun,
-    /// <summary>Nivel de jugador más alto alcanzado en cualquier run.</summary>
     PlayerLevelReached,
-    /// <summary>Nivel más alto alcanzado por un arma específica (usa <see cref="AchievementDefinition.WeaponIdFilter"/>).</summary>
     WeaponLevelReached,
-    /// <summary>Condición a medida reportada por código vía <see cref="SaveManager.ReportCustomProgress"/> (usa <see cref="AchievementDefinition.CustomKey"/>).</summary>
-    Custom
+    Custom,
+    /// <summary>Kills con un arma específica (WeaponIdFilter), acumulativo cross-run.</summary>
+    WeaponKillsTotal,
+    /// <summary>Variants/elites/bosses acumulados.</summary>
+    EliteOrBossKillsTotal,
+    /// <summary>Drops de materiales looteados acumulados.</summary>
+    DropsLootedTotal,
+    /// <summary>Progreso scratch de run reportado vía ReportRunChallengeProgress (CustomKey).</summary>
+    RunChallenge
 }

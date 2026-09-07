@@ -41,5 +41,7 @@ public class MaterialPickupReceiver : MonoBehaviour
             : MaterialCatalog.GetPickupXpValue(type) * Mathf.Max(1, amount);
         if (xp > 0)
             _playerXp?.AddExperience(xp);
+
+        ChallengeProgressTracker.NotifyDropLooted(Mathf.Max(1, amount));
     }
 }

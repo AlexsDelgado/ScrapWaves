@@ -166,8 +166,14 @@ public class CraftingUI : MonoBehaviour
         _titleText.text = $"Advanced Tinkering — {weapon.DisplayName}";
         SetStatus("Elegí una ruta de mejora.");
 
+        bool pathBUnlocked = SaveManager.Instance == null
+            || SaveManager.Instance.IsPathUnlocked(weapon, WeaponUpgradePath.PathB);
+
         if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
         {
+            if (guaranteed == WeaponUpgradePath.PathB && !pathBUnlocked)
+                guaranteed = WeaponUpgradePath.PathA;
+
             string name = guaranteed == WeaponUpgradePath.PathA
                 ? (weapon.PathA?.PathName ?? "Path A")
                 : (weapon.PathB?.PathName ?? "Path B");
@@ -178,10 +184,19 @@ public class CraftingUI : MonoBehaviour
         {
             AddCard(weapon.PathA?.PathName ?? "Path A", "Aceptar path A", true,
                 () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true)));
-            AddCard(weapon.PathB?.PathName ?? "Path B", "Aceptar path B", true,
-                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true)));
-            AddCard("Rechazar", "+50% costo, garantiza path alternativo", true,
-                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false)));
+
+            if (pathBUnlocked)
+            {
+                AddCard(weapon.PathB?.PathName ?? "Path B", "Aceptar path B", true,
+                    () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true)));
+                AddCard("Rechazar", "+50% costo, garantiza path alternativo", true,
+                    () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false)));
+            }
+            else
+            {
+                AddCard(weapon.PathB?.PathName ?? "Path B", "Bloqueado — completá el challenge / tienda", false, null);
+                SetStatus("Path B bloqueado hasta desbloquearlo en Objetivos.");
+            }
         }
     }
 

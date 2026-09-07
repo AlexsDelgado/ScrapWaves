@@ -233,6 +233,9 @@ public class PassiveItemManager : MonoBehaviour
             if (Mathf.Approximately(value, 0f))
                 continue;
 
+            if (SaveManager.Instance != null && IsMetaUpgradeable(instance.Data))
+                value *= SaveManager.Instance.GetMetaItemPowerMultiplier(instance.Data.UnlockId);
+
             _playerStats.AddModifier(new StatModifier(
                 bonus.StatType,
                 value,
@@ -240,6 +243,23 @@ public class PassiveItemManager : MonoBehaviour
                 instance,
                 bonus.ModifierType));
         }
+    }
+
+    private static bool IsMetaUpgradeable(PassiveItemData data)
+    {
+        if (data == null)
+            return false;
+
+        // Spec: charge items (shields, air jumps, dashes) cannot be meta-upgraded.
+        IReadOnlyList<PassiveStatBonus> bonuses = data.BonusesPerLevel;
+        for (int i = 0; i < bonuses.Count; i++)
+        {
+            StatType t = bonuses[i].StatType;
+            if (t == StatType.ShieldCharges || t == StatType.AirJumps || t == StatType.DashCharges)
+                return false;
+        }
+
+        return true;
     }
 
     private int GetEffectiveMaxHealth()

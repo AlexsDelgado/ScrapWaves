@@ -1055,7 +1055,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
         }
 
-        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, impact.Damage);
+        string weaponId = Runtime?.Data != null ? Runtime.Data.WeaponId : null;
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+            damageable,
+            impact.Damage,
+            sourceWeaponId: weaponId);
         if (result.Applied)
         {
             ApplyKnockback(damageable, impact.ImpactOrigin, impact.Damage, 1f);
