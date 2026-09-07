@@ -5199,7 +5199,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 24d7f65b45c7461e98b8f2e401b2a972, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemTestingController
 --- !u!1 &806265997
 GameObject:
@@ -5822,7 +5822,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
   m_UsePipelineSettings: 1
   m_AdditionalLightsShadowResolutionTier: 2
@@ -7410,7 +7410,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8569424322080704852, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
       propertyPath: _exitObjective
-      value:
+      value: 
       objectReference: {fileID: 1727059525}
     - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
       propertyPath: m_LocalPosition.x
@@ -7474,7 +7474,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1c8e5f6081c293a4b5c6d7e8f9a0b1c2, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ExitDoor
 --- !u!114 &1094818378
 MonoBehaviour:
@@ -7486,7 +7486,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3e56d2a983694a78b8fd902b5a2fbc86, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CompactorEscapeTestController
   _exitDoor: {fileID: 1094818377}
   _objective: {fileID: 1727059525}
@@ -10636,7 +10636,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7e4a1b2c3d4e5f60818293a4b5c6d7e8, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelExitObjective
   _keysRequired: 2
 --- !u!4 &1727059526

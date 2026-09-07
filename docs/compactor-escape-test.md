@@ -13,6 +13,6 @@ The imported FBX has one non-looping Generic clip, **Open**. `CompactorDoorPrese
 Reusable prefab: `Assets/Prefabs/Level/Compactor/CompactorExitDoor.prefab`.
 Its local **+Z** points out of the doorway. Assign a scene `LevelExitObjective` to its `ExitDoor` when placing it in another level. This change places the new art in the two test arenas; existing production door placements are preserved.
 
-The model uses plain URP color materials. **Black Suction Opening** is a separate opaque, double-sided quad behind the door. Its procedural shader uses no textures; **Air Flow Color** and **Flow Speed** can be adjusted on `CompactorSuction.mat`. Runtime activity increases with escape progress and remains active while ready.
+The model uses plain URP color materials. **Black Suction Opening** is a separate opaque, double-sided quad behind the door. Sparse, soft wisps accelerate inward from the frame and disperse near the edges, keeping the interior black. Its procedural shader uses no textures; **Air Flow Color** and **Flow Speed** can be adjusted on `CompactorSuction.mat`. Runtime activity increases with escape progress and remains active while ready.
 
 **Tools > ScrapWaves > Setup Compactor Escape Test** regenerates the material mappings, prefab, and scene references. Unity Edit Mode tests filtered by `Compactor` validate the imported mechanical poses, end hold, reset, collision, key gating, and references in both arenas.

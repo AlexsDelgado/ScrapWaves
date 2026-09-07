@@ -3,7 +3,7 @@ Shader "ScrapWaves/Level/Compactor Suction"
     Properties
     {
         _Activity("Suction Activity", Range(0, 1)) = 0
-        _FlowColor("Air Flow Color", Color) = (0.22, 0.25, 0.27, 1)
+        _FlowColor("Air Flow Color", Color) = (0.23, 0.24, 0.23, 1)
         _Speed("Flow Speed", Range(0, 5)) = 1
     }
 
@@ -63,38 +63,52 @@ Shader "ScrapWaves/Level/Compactor Suction"
             return frac(sin(value * 127.1 + 311.7) * 43758.5453);
         }
 
-        float InwardStreaks(float angle, float radius, float time, float lanes, float seed)
+        // UV.x is distance from one jamb, UV.y runs along that jamb. Small
+        // independent wisps accelerate inward, then disperse near the edge.
+        float EdgeDraft(float2 uv, float time, float seed)
         {
-            float laneCoordinate = frac(angle) * lanes;
-            float lane = floor(laneCoordinate);
-            float random = Hash(lane + seed);
-            float center = lerp(0.23, 0.77, random);
-            float width = lerp(0.035, 0.12, Hash(lane + seed + 17.0));
-            float distanceFromLane = abs(frac(laneCoordinate) - center);
-            float antialias = max(fwidth(laneCoordinate), 0.005);
-            float strand = 1.0 - smoothstep(width, width + antialias, distanceFromLane);
+            float flow = 0.0;
+            [unroll]
+            for (int i = 0; i < 3; i++)
+            {
+                float strandSeed = seed + i * 19.31;
+                float clock = time * lerp(0.25, 0.43, Hash(strandSeed)) + Hash(strandSeed + 2.0) * 8.0;
+                float cycle = floor(clock);
+                float age = frac(clock);
+                float random = Hash(strandSeed + cycle * 7.13);
+                float along = (i + lerp(0.2, 0.8, random)) / 3.0;
+                float depth = lerp(0.012, 0.24, age * age);
+                float length = lerp(0.025, 0.065, Hash(strandSeed + cycle + 8.0)) * (0.7 + age);
+                float width = lerp(0.009, 0.022, random) * (1.0 - age * 0.45);
 
-            // Increasing time moves each pulse toward smaller radii: into the opening.
-            float phase = frac(radius * 1.9 + time * lerp(0.62, 1.08, random) + random);
-            float pulse = smoothstep(0.02, 0.10, phase) * (1.0 - smoothstep(0.13, 0.48, phase));
-            return strand * pulse * lerp(0.35, 1.0, random);
+                // Uneven curved filaments suggest a draft caught at the frame,
+                // with no radial spokes, rings, or common convergence point.
+                float bend = uv.x * lerp(-0.23, 0.23, Hash(strandSeed + 14.0));
+                bend += 0.012 * sin(uv.x * 35.0 + strandSeed + time * 0.65);
+                width *= 0.8 + 0.2 * sin(uv.x * 71.0 + strandSeed);
+                float alongDistance = (uv.y - along - bend) / max(width, fwidth(uv.y));
+                float depthDistance = (uv.x - depth) / length;
+                float filament = exp2(-3.0 * alongDistance * alongDistance - 2.0 * depthDistance * depthDistance);
+                float haze = exp2(-0.55 * alongDistance * alongDistance - 3.0 * depthDistance * depthDistance) * 0.18;
+                float lifetime = smoothstep(0.0, 0.15, age) * (1.0 - smoothstep(0.60, 1.0, age));
+                // Some lanes skip a cycle, avoiding a continuously lit border.
+                flow += (filament + haze) * lifetime * smoothstep(0.2, 0.5, random);
+            }
+            float edgeFade = smoothstep(0.0, 0.018, uv.x) * (1.0 - smoothstep(0.17, 0.30, uv.x));
+            float cornerFade = smoothstep(0.02, 0.10, uv.y) * (1.0 - smoothstep(0.90, 0.98, uv.y));
+            return flow * edgeFade * cornerFade;
         }
 
         half4 Frag(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            float2 position = input.uv * 2.0 - 1.0;
-            float radius = length(position);
-            float angle = atan2(position.y, position.x + 0.00001) * (1.0 / TWO_PI) + 0.5;
             float time = _Time.y * max(_Speed, 0.0);
-
-            float flow = InwardStreaks(angle, radius, time, 28.0, 4.0);
-            flow += InwardStreaks(angle + 0.137, radius, time * 0.73, 19.0, 71.0) * 0.32;
-
-            // Keep the center dark and fade at the rectangular aperture's edges.
-            float centerFade = smoothstep(0.10, 0.38, radius);
-            float edgeFade = 1.0 - smoothstep(0.78, 1.0, max(abs(position.x), abs(position.y)));
-            float intensity = saturate(_Activity) * centerFade * edgeFade * saturate(flow);
+            float2 uv = input.uv;
+            float flow = EdgeDraft(uv, time, 4.0);
+            flow += EdgeDraft(float2(1.0 - uv.x, 1.0 - uv.y), time, 53.0);
+            flow += EdgeDraft(float2(uv.y, 1.0 - uv.x), time, 97.0) * 0.65;
+            flow += EdgeDraft(float2(1.0 - uv.y, uv.x), time, 151.0) * 0.45;
+            float intensity = saturate(_Activity) * saturate(flow) * 0.9;
             return half4(saturate(_FlowColor.rgb) * intensity, 1.0);
         }
 
