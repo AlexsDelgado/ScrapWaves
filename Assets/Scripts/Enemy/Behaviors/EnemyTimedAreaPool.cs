@@ -39,22 +39,29 @@ public class EnemyTimedAreaPool : MonoBehaviour
 
     public static bool TrySpawn(GameObject prefab, Vector3 position, Quaternion rotation)
     {
+        return TrySpawn(prefab, position, rotation, out _);
+    }
+
+    public static bool TrySpawn(GameObject prefab, Vector3 position, Quaternion rotation, out GameObject instance)
+    {
+        instance = null;
         if (prefab == null)
             return false;
 
         if (s_Instance == null)
             s_Instance = FindAnyObjectByType<EnemyTimedAreaPool>();
 
-        if (s_Instance != null && s_Instance.TrySpawnInternal(prefab, position, rotation))
+        if (s_Instance != null && s_Instance.TrySpawnInternal(prefab, position, rotation, out instance))
             return true;
 
-        Object.Instantiate(prefab, position, rotation);
+        instance = Object.Instantiate(prefab, position, rotation);
         EnemyPoolProfiler.RegisterInstantiate();
         return true;
     }
 
-    private bool TrySpawnInternal(GameObject prefab, Vector3 position, Quaternion rotation)
+    private bool TrySpawnInternal(GameObject prefab, Vector3 position, Quaternion rotation, out GameObject instance)
     {
+        instance = null;
         int id = prefab.GetInstanceID();
         if (!_inactiveByPrefab.TryGetValue(id, out Queue<GameObject> queue))
         {
@@ -65,7 +72,6 @@ public class EnemyTimedAreaPool : MonoBehaviour
                 queue.Enqueue(CreateInstance(prefab));
         }
 
-        GameObject instance;
         if (queue.Count > 0)
             instance = queue.Dequeue();
         else if (CountForPrefab(id) < _maxPerPrefab)

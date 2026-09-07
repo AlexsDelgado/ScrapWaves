@@ -66,10 +66,8 @@ public class EnemyFollowBrain : MonoBehaviour
             return;
 
         float dt = Time.fixedDeltaTime;
+        EnemyMovementSteering.RefreshPositionCacheIfNeeded();
 
-        // Snapshot to avoid issues if followers enable/disable during iteration.
-        // This keeps logic deterministic at the cost of minor allocations if we used LINQ;
-        // we avoid LINQ and just iterate keys/values via foreach (safe for no modifications).
         foreach (var kv in _followers)
         {
             SimpleFollow follower = kv.Value;
@@ -80,4 +78,3 @@ public class EnemyFollowBrain : MonoBehaviour
         }
     }
 }
-

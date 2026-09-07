@@ -18,6 +18,9 @@ public class EnemyC4 : MonoBehaviour
 
     [SerializeField, Min(1)] private int _damage = 18;
 
+    [SerializeField, Min(0f), Tooltip("Knockback pequeño al detonar cerca del jugador.")]
+    private float _explosionPushForce = 3f;
+
     [SerializeField, Min(0.5f), Tooltip("Vida maxima; si nadie la pisa, se limpia.")]
     private float _maxLifetime = 12f;
 
@@ -25,6 +28,8 @@ public class EnemyC4 : MonoBehaviour
     private float _expiresAt;
     private bool _exploded;
     private Transform _player;
+    private int _runtimeDamage;
+    private bool _damageConfigured;
 
     private void OnEnable()
     {
@@ -32,6 +37,15 @@ public class EnemyC4 : MonoBehaviour
         _armedAt = Time.time + _armDelay;
         _expiresAt = Time.time + _maxLifetime;
         _player = PlayerMovement.PlayerTransform;
+        _damageConfigured = false;
+        _runtimeDamage = _damage;
+    }
+
+    /// <summary>Opcional: daño ya escalado por dificultad del enemigo que la soltó.</summary>
+    public void ConfigureDamage(int damage)
+    {
+        _runtimeDamage = Mathf.Max(1, damage);
+        _damageConfigured = true;
     }
 
     private void Update()
@@ -73,7 +87,17 @@ public class EnemyC4 : MonoBehaviour
             PlayerHealth player = hits[i].GetComponentInParent<PlayerHealth>();
             if (player != null)
             {
-                player.TakeDamage(_damage);
+                int damage = _runtimeDamage;
+                if (!_damageConfigured)
+                {
+                    DifficultyManager difficulty = DifficultyManager.Instance;
+                    if (difficulty != null)
+                        damage = Mathf.Max(1, Mathf.RoundToInt(_damage * difficulty.GetEnemyDamageMultiplier()));
+                }
+
+                player.TakeDamage(damage);
+                if (_explosionPushForce > 0f)
+                    PlayerCombatHooks.TryPush(transform.position, _explosionPushForce);
                 break;
             }
         }

@@ -14,6 +14,9 @@ public class EnemyProjectile : MonoBehaviour
 {
     [SerializeField, Min(1)] private int _damage = 8;
 
+    [SerializeField, Min(0f), Tooltip("Knockback pequeño al impactar al jugador.")]
+    private float _hitPushForce = 2.5f;
+
     [SerializeField, Min(0.1f), Tooltip("Unidades por segundo.")]
     private float _speed = 16f;
 
@@ -86,6 +89,8 @@ public class EnemyProjectile : MonoBehaviour
         if (player != null)
         {
             player.TakeDamage(_damage);
+            if (_hitPushForce > 0f)
+                PlayerCombatHooks.TryPush(transform.position, _hitPushForce);
             Consume();
             return;
         }

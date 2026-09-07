@@ -38,6 +38,9 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
     private Vector3 _launchDir;
     private EnemyHealth _health;
 
+    protected override bool HasApproachMovementProfile => true;
+    protected override EnemyMovementProfile ApproachMovementProfile => EnemyMovementProfile.HellfireApproach;
+
     protected override void Awake()
     {
         base.Awake();
@@ -122,7 +125,8 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
             PlayerHealth player = hits[i].GetComponentInParent<PlayerHealth>();
             if (player != null)
             {
-                player.TakeDamage(_explosionDamage);
+                player.TakeDamage(EnemyOutgoingDamageScale.ScaleFrom(this, _explosionDamage));
+                PlayerCombatHooks.TryPush(transform.position, 3f);
                 PlayerCombatHooks.TryBurn(_burnSeconds, _burnDps);
                 break;
             }

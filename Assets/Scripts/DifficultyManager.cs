@@ -37,6 +37,12 @@ public class DifficultyManager : MonoBehaviour
     [SerializeField, Min(1f), Tooltip("Multiplicador de velocidad cuando la intensidad es 1.")]
     private float _maxEnemySpeedMultiplier = 1.35f;
 
+    [SerializeField, Tooltip("Si está activo, escala el daño al jugador al spawnear.")]
+    private bool _scaleEnemyDamage = true;
+
+    [SerializeField, Min(1f), Tooltip("Multiplicador de daño enemigo cuando la intensidad es 1.")]
+    private float _maxEnemyDamageMultiplier = 1.35f;
+
     private float _runStartTime;
 
     private void Awake()
@@ -111,7 +117,14 @@ public class DifficultyManager : MonoBehaviour
         return Mathf.Lerp(1f, _maxEnemySpeedMultiplier, CurrentIntensity);
     }
 
-    /// <summary>Aplica vida y velocidad según dificultad (enemigos del pool tras <see cref="SwarmEnemyPool.TryGet"/>).</summary>
+    public float GetEnemyDamageMultiplier()
+    {
+        if (!_scaleEnemyDamage)
+            return 1f;
+        return Mathf.Lerp(1f, _maxEnemyDamageMultiplier, CurrentIntensity);
+    }
+
+    /// <summary>Aplica vida, velocidad y daño según dificultad (enemigos del pool tras <see cref="SwarmEnemyPool.TryGet"/>).</summary>
     public void ApplySpawnModifiers(GameObject enemy)
     {
         if (enemy == null)
@@ -119,6 +132,7 @@ public class DifficultyManager : MonoBehaviour
 
         float h = GetEnemyHealthMultiplier();
         float s = GetEnemyMoveSpeedMultiplier();
+        float d = GetEnemyDamageMultiplier();
 
         if (enemy.TryGetComponent(out EnemyHealth health))
             health.ConfigureDifficultyForSpawn(h);
@@ -128,6 +142,11 @@ public class DifficultyManager : MonoBehaviour
 
         if (enemy.TryGetComponent(out SimpleFollow simpleFollow))
             simpleFollow.ConfigureDifficultyForSpawn(s);
+
+        EnemyOutgoingDamageScale damageScale = enemy.GetComponent<EnemyOutgoingDamageScale>();
+        if (damageScale == null)
+            damageScale = enemy.AddComponent<EnemyOutgoingDamageScale>();
+        damageScale.ConfigureForSpawn(d);
     }
 
     private static AnimationCurve DefaultIntensityCurve()
@@ -152,6 +171,8 @@ public class DifficultyManager : MonoBehaviour
             _maxEnemyHealthMultiplier = 1f;
         if (_maxEnemySpeedMultiplier < 1f)
             _maxEnemySpeedMultiplier = 1f;
+        if (_maxEnemyDamageMultiplier < 1f)
+            _maxEnemyDamageMultiplier = 1f;
     }
 #endif
 }

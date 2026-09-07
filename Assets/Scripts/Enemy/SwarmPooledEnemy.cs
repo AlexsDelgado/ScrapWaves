@@ -61,6 +61,7 @@ public class SwarmPooledEnemy : MonoBehaviour
         if (TryGetComponent(out EnemyHealth health))
             health.PrepareForPoolSpawn();
 
+        // Followers primero (identity + MeleeSwarm), luego behaviors (perfiles Charger/Hellfire/etc.).
         GetComponent<EnemyFollow>()?.PrepareForSpawn();
         GetComponent<SimpleFollow>()?.PrepareForSpawn();
 

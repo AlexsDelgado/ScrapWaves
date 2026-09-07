@@ -57,7 +57,11 @@ public class CorrosiveSlimeArea : MonoBehaviour
             return;
 
         _tickTimer = _tickInterval;
-        _player.TakeDamage(_damagePerTick);
+        int damage = _damagePerTick;
+        DifficultyManager difficulty = DifficultyManager.Instance;
+        if (difficulty != null)
+            damage = Mathf.Max(1, Mathf.RoundToInt(_damagePerTick * difficulty.GetEnemyDamageMultiplier()));
+        _player.TakeDamage(damage);
     }
 
     private void OnTriggerEnter(Collider other)

@@ -2,11 +2,12 @@ using UnityEngine;
 
 /// <summary>
 /// Vigilance Drone. Unidad voladora que NO persigue para golpear: mantiene altura
-/// de vuelo, se acerca a distancia de tiro, se queda quieta "lockeando" al jugador
+/// de vuelo, se acerca a distancia de tiro, se queda "lockeando" al jugador
 /// un tiempo fijo (telegraph) y dispara un <see cref="EnemyProjectile"/> a la ultima
 /// posicion conocida del jugador. Luego entra en cooldown y repite.
 ///
 /// Toma control total del movimiento: desactiva los followers genericos.
+/// Approach/standoff usan slot orbital + strafe para no apilarse en el mismo punto.
 /// </summary>
 public class FlyingRangedBehavior : EnemyBehaviorBase
 {
@@ -36,10 +37,17 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     [SerializeField, Tooltip("Altura del cañon respecto al pivote del dron.")]
     private float _muzzleHeight = 0.2f;
 
+    [Header("Orbit / strafe")]
+    [SerializeField, Min(0f)] private float _approachOrbitWeight = 0.28f;
+    [SerializeField, Min(0f)] private float _standoffOrbitWeight = 0.65f;
+    [SerializeField, Min(0f)] private float _lockMoveSpeedScale = 0.35f;
+    [SerializeField, Min(0f)] private float _cooldownMoveSpeedScale = 0.5f;
+
     private State _state;
     private float _stateTimer;
     private Vector3 _lockedTargetPosition;
     private Rigidbody _rb;
+    private float _orbitSign = 1f;
 
     protected override void Awake()
     {
@@ -57,6 +65,13 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             _rb.isKinematic = true;
         _state = State.Approaching;
         _stateTimer = 0f;
+        _orbitSign = Random.value < 0.5f ? -1f : 1f;
+    }
+
+    public override void OnPoolSpawn()
+    {
+        base.OnPoolSpawn();
+        _orbitSign = Random.value < 0.5f ? -1f : 1f;
     }
 
     private void OnDisable()
@@ -102,24 +117,68 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     private void TickApproaching()
     {
         float dist = PlanarDistanceToPlayer();
-        Vector3 dir = PlanarDirectionToPlayer();
-        FacePlanar(dir, _rotationSpeed);
+        FacePlanar(PlanarDirectionToPlayer(), _rotationSpeed);
+
+        EnemyMovementProfile profile = EnemyMovementProfile.FlyingStandoff;
+        float standoff = _approachUntilDistance;
 
         if (dist > _approachUntilDistance)
-            MovePlanar(dir);
-        else if (dist < _retreatBelowDistance)
-            MovePlanar(-dir);
-        else
         {
-            _state = State.Locking;
-            _stateTimer = _lockSeconds;
+            Vector3 slotDir = PlanarDirectionToPoint(PlanarPointAroundPlayer(SteeringSlotAngle, standoff));
+            EnemyMovementSteering.RefreshPositionCacheIfNeeded();
+            Vector3 weave = EnemyMovementSteering.GetWeaveOffset(
+                slotDir,
+                Time.time,
+                SteeringWeavePhase,
+                profile.weaveAmplitude,
+                profile.weaveFrequency);
+            Vector3 sep = EnemyMovementSteering.SampleSeparation(
+                transform.position,
+                profile.separationRadius,
+                profile.maxSeparationSamples,
+                GetInstanceID());
+            Vector3 tangent = Vector3.Cross(Vector3.up, PlanarDirectionToPlayer());
+            if (tangent.sqrMagnitude > 0.0001f)
+                tangent.Normalize();
+            Vector3 move = slotDir + weave + sep * profile.separationWeight + tangent * (_orbitSign * _approachOrbitWeight);
+            MovePlanar(move);
+            return;
         }
+
+        if (dist < _retreatBelowDistance)
+        {
+            MovePlanar(ComposeOrbitStandoffDirection(
+                standoff,
+                _orbitSign,
+                _standoffOrbitWeight,
+                profile.weaveAmplitude,
+                profile.weaveFrequency,
+                profile.separationWeight,
+                profile.separationRadius,
+                profile.maxSeparationSamples));
+            return;
+        }
+
+        _state = State.Locking;
+        _stateTimer = _lockSeconds;
     }
 
     private void TickLocking()
     {
         Vector3 dir = PlanarDirectionToPlayer();
         FacePlanar(dir, _rotationSpeed * 1.5f);
+
+        EnemyMovementProfile profile = EnemyMovementProfile.FlyingStandoff;
+        Vector3 move = ComposeOrbitStandoffDirection(
+            _approachUntilDistance,
+            _orbitSign,
+            _standoffOrbitWeight,
+            profile.weaveAmplitude,
+            profile.weaveFrequency,
+            profile.separationWeight,
+            profile.separationRadius,
+            profile.maxSeparationSamples);
+        MovePlanar(move, _lockMoveSpeedScale);
 
         _stateTimer -= Time.deltaTime;
         if (_stateTimer > 0f)
@@ -135,20 +194,31 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
 
     private void TickCooldown()
     {
-        Vector3 dir = PlanarDirectionToPlayer();
-        FacePlanar(dir, _rotationSpeed);
+        FacePlanar(PlanarDirectionToPlayer(), _rotationSpeed);
+
+        EnemyMovementProfile profile = EnemyMovementProfile.FlyingStandoff;
+        Vector3 move = ComposeOrbitStandoffDirection(
+            _approachUntilDistance,
+            _orbitSign,
+            _standoffOrbitWeight * 0.85f,
+            profile.weaveAmplitude,
+            profile.weaveFrequency,
+            profile.separationWeight,
+            profile.separationRadius,
+            profile.maxSeparationSamples);
+        MovePlanar(move, _cooldownMoveSpeedScale);
 
         _stateTimer -= Time.deltaTime;
         if (_stateTimer <= 0f)
             _state = State.Approaching;
     }
 
-    private void MovePlanar(Vector3 planarDir)
+    private void MovePlanar(Vector3 planarDir, float speedScale = 1f)
     {
         planarDir.y = 0f;
-        if (planarDir.sqrMagnitude < 0.0001f)
+        if (planarDir.sqrMagnitude < 0.0001f || speedScale <= 0f)
             return;
-        transform.position += planarDir.normalized * (_moveSpeed * Time.deltaTime);
+        transform.position += planarDir.normalized * (_moveSpeed * speedScale * Time.deltaTime);
     }
 
     private void Fire()
@@ -164,6 +234,12 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         if (dir.sqrMagnitude < 0.0001f)
             dir = transform.forward;
 
-        EnemyProjectilePool.TryLaunch(_bulletPrefab, muzzle, Quaternion.LookRotation(dir.normalized), dir, _bulletDamage, _bulletSpeed);
+        EnemyProjectilePool.TryLaunch(
+            _bulletPrefab,
+            muzzle,
+            Quaternion.LookRotation(dir.normalized),
+            dir,
+            EnemyOutgoingDamageScale.ScaleFrom(this, _bulletDamage),
+            _bulletSpeed);
     }
 }

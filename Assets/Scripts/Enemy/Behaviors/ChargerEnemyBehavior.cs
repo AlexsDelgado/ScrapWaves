@@ -26,8 +26,8 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
     [SerializeField, Min(0.2f), Tooltip("Distancia al jugador que cuenta como impacto del dash.")]
     private float _contactRadius = 1.5f;
     [SerializeField, Min(1)] private int _hitDamage = 12;
-    [SerializeField, Min(0f), Tooltip("Fuerza de empuje al jugador (hook, ~10m).")]
-    private float _pushForce = 12f;
+    [SerializeField, Min(0f), Tooltip("Fuerza de empuje al jugador (hook). Chaser debe empujar mucho más que el contacto genérico.")]
+    private float _pushForce = 20f;
 
     [Header("Overheat (no alcanza al jugador)")]
     [SerializeField, Min(0.5f), Tooltip("Si no impacta en este tiempo desde que engancha, overheatea.")]
@@ -50,6 +50,9 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
     private bool _engaged;
     private float _engageStartTime;
     private PlayerHealth _playerHealth;
+
+    protected override bool HasApproachMovementProfile => true;
+    protected override EnemyMovementProfile ApproachMovementProfile => EnemyMovementProfile.ChargerApproach;
 
     protected override void OnEnable()
     {
@@ -167,7 +170,7 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
         if (_playerHealth == null)
             CachePlayerHealth();
 
-        int damage = _hitDamage + (_overcharged ? _dischargeDamage : 0);
+        int damage = EnemyOutgoingDamageScale.ScaleFrom(this, _hitDamage + (_overcharged ? _dischargeDamage : 0));
         if (_playerHealth != null)
             _playerHealth.TakeDamage(damage);
 
