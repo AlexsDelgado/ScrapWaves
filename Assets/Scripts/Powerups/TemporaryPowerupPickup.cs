@@ -1,6 +1,6 @@
 using UnityEngine;
 
-/// <summary>Pickup de power-up temporal (mismo comportamiento de magnet/pickup que materiales).</summary>
+/// <summary>Pickup de power-up temporal: se recoge caminando (sin imán ni PickupRange de stats).</summary>
 [RequireComponent(typeof(WorldPickup))]
 public class TemporaryPowerupPickup : MonoBehaviour, IPickable
 {
@@ -13,6 +13,8 @@ public class TemporaryPowerupPickup : MonoBehaviour, IPickable
         _pool = pool;
         _type = type;
         _consumed = false;
+        if (TryGetComponent(out WorldPickup worldPickup))
+            worldPickup.ConfigureForManualCollection(1f);
         ApplyColor(type);
     }
 

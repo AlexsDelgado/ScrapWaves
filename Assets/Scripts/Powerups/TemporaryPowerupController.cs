@@ -1,3 +1,5 @@
+using System;
+using System.Text;
 using UnityEngine;
 
 public enum TemporaryPowerupType
@@ -17,6 +19,33 @@ public enum TemporaryPowerupType
 public class TemporaryPowerupController : MonoBehaviour
 {
     public static TemporaryPowerupController Instance { get; private set; }
+
+    /// <summary>Activo en test_balance: loguea solo las stats que cambia cada power-up.</summary>
+    public bool LogStatDeltas { get; set; }
+
+    public event Action<string> OnPowerupLogged;
+
+    private static readonly StatType[] ExtraDamageStats =
+    {
+        StatType.DamageMultiplier,
+        StatType.AttackSpeedMultiplier,
+        StatType.CriticalChance
+    };
+
+    private static readonly StatType[] ExtraSpeedStats =
+    {
+        StatType.MovementSpeed,
+        StatType.JumpHeight,
+        StatType.DashCharges,
+        StatType.AirJumps
+    };
+
+    private static readonly StatType[] ExtraScavengingStats =
+    {
+        StatType.PickupRange,
+        StatType.Scavenging,
+        StatType.DoubleDrop
+    };
 
     private PlayerStats _stats;
     private PlayerHealth _health;
@@ -99,10 +128,14 @@ public class TemporaryPowerupController : MonoBehaviour
                 });
                 break;
             case TemporaryPowerupType.Invulnerability:
-                _invulnEndsAt = Time.time + 7.5f;
-                _health?.GrantInvulnerability(7.5f);
-                ShowRing(new Color(1f, 1f, 1f, 0.45f), 7.5f, TemporaryPowerupType.Invulnerability);
+            {
+                float duration = 7.5f;
+                _invulnEndsAt = Time.time + duration;
+                _health?.GrantInvulnerability(duration);
+                ShowRing(new Color(1f, 1f, 1f, 0.45f), duration, TemporaryPowerupType.Invulnerability);
+                EmitLog($"[Powerup Invulnerability] Duration  base: 0.00 || +buff: {duration:0.00}");
                 break;
+            }
             case TemporaryPowerupType.FullHeal:
                 ApplyFullHeal();
                 break;
@@ -114,14 +147,17 @@ public class TemporaryPowerupController : MonoBehaviour
 
     private void ApplyFullHeal()
     {
+        int hpBefore = _health != null ? _health.CurrentHealth : 0;
+        int hpMax = _health != null ? _health.MaxHealth : 0;
+        float ammoBefore = _weapons != null ? _weapons.GetCurrentManualWeapon()?.CurrentAmmo ?? 0f : 0f;
         _health?.HealToFull();
         _movement?.RefreshPassiveResources();
         _weapons?.RefillManualAmmoAndResetActiveCooldown();
-    }
-
-    private void HealPlayerFully()
-    {
-        ApplyFullHeal();
+        float ammoAfter = _weapons != null ? _weapons.GetCurrentManualWeapon()?.CurrentAmmo ?? 0f : 0f;
+        int hpAfter = _health != null ? _health.CurrentHealth : 0;
+        EmitLog(
+            $"[Powerup FullHeal] Health  base: {hpBefore} || +buff: {hpAfter}/{hpMax}\n" +
+            $"[Powerup FullHeal] Ammo  base: {ammoBefore:0.00} || +buff: {ammoAfter:0.00}");
     }
 
     private void ApplyNuke(float t)
@@ -145,16 +181,72 @@ public class TemporaryPowerupController : MonoBehaviour
         }
 
         ExplosionRadiusVfx.Spawn(origin, radius);
+        EmitLog($"[Powerup Nuke] Damage  base: 0.00 || +buff: {damage:0.00}\n[Powerup Nuke] Radius  base: 0.00 || +buff: {radius:0.00}");
     }
 
     private void ApplyTimedBuff(TemporaryPowerupType type, float duration, Color color, System.Action addModifiers)
     {
         ClearBuff();
+        StatType[] tracked = GetTrackedStats(type);
+        float[] before = Snapshot(tracked);
         _activeBuff = type;
         _hasActiveBuff = true;
         _buffEndsAt = Time.time + duration;
         addModifiers?.Invoke();
+        LogStatDeltasFor(type, tracked, before);
         ShowRing(color, duration, type);
+    }
+
+    private static StatType[] GetTrackedStats(TemporaryPowerupType type)
+    {
+        return type switch
+        {
+            TemporaryPowerupType.ExtraDamage => ExtraDamageStats,
+            TemporaryPowerupType.ExtraSpeed => ExtraSpeedStats,
+            TemporaryPowerupType.ExtraScavenging => ExtraScavengingStats,
+            _ => Array.Empty<StatType>()
+        };
+    }
+
+    private float[] Snapshot(StatType[] types)
+    {
+        var values = new float[types.Length];
+        for (int i = 0; i < types.Length; i++)
+            values[i] = _stats != null ? _stats.GetStat(types[i]) : 0f;
+        return values;
+    }
+
+    private void LogStatDeltasFor(TemporaryPowerupType type, StatType[] types, float[] before)
+    {
+        if (types == null || types.Length == 0)
+            return;
+
+        var builder = new StringBuilder();
+        for (int i = 0; i < types.Length; i++)
+        {
+            float after = _stats != null ? _stats.GetStat(types[i]) : 0f;
+            if (Mathf.Approximately(after, before[i]))
+                continue;
+
+            if (builder.Length > 0)
+                builder.Append('\n');
+            builder.Append("[Powerup ").Append(type).Append("] ")
+                .Append(types[i])
+                .Append("  base: ").Append(before[i].ToString("0.00"))
+                .Append(" || +buff: ").Append(after.ToString("0.00"));
+        }
+
+        if (builder.Length > 0)
+            EmitLog(builder.ToString());
+    }
+
+    private void EmitLog(string message)
+    {
+        if (!LogStatDeltas || string.IsNullOrEmpty(message))
+            return;
+
+        Debug.Log(message, this);
+        OnPowerupLogged?.Invoke(message);
     }
 
     private void ClearBuff()

@@ -72,7 +72,7 @@ public class ScrapPickupPool : MonoBehaviour
             Destroy(col);
         if (go.TryGetComponent(out Renderer r))
             r.material.color = new Color(0.95f, 0.75f, 0.2f);
-        go.AddComponent<WorldPickup>();
+        // ScrapPickup requires WorldPickup; Unity adds it first.
         go.AddComponent<ScrapPickup>();
         go.SetActive(false);
         return go;

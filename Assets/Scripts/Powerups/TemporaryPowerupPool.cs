@@ -82,15 +82,14 @@ public class TemporaryPowerupPool : MonoBehaviour
         var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         go.name = "TemporaryPowerup";
         go.transform.localScale = Vector3.one * 0.55f;
-        go.transform.SetParent(_parent, false);
         Collider col = go.GetComponent<Collider>();
         if (col != null)
             Destroy(col);
 
-        go.AddComponent<WorldPickup>();
+        // TemporaryPowerupPickup requires WorldPickup; Unity adds it first.
         go.AddComponent<TemporaryPowerupPickup>();
         go.SetActive(false);
-        SceneManager.MoveGameObjectToScene(go, gameObject.scene.IsValid() ? gameObject.scene : SceneManager.GetActiveScene());
+        go.transform.SetParent(_parent, false);
         return go;
     }
 
@@ -99,7 +98,10 @@ public class TemporaryPowerupPool : MonoBehaviour
         if (_parent != null)
             return;
         var holder = new GameObject("[PooledPowerups]");
+        if (gameObject.scene.IsValid())
+            SceneManager.MoveGameObjectToScene(holder, gameObject.scene);
+        else
+            SceneManager.MoveGameObjectToScene(holder, SceneManager.GetActiveScene());
         _parent = holder.transform;
-        SceneManager.MoveGameObjectToScene(holder, gameObject.scene.IsValid() ? gameObject.scene : SceneManager.GetActiveScene());
     }
 }
