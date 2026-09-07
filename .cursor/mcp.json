@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "unity": {
+      "command": "C:\\Users\\Alexs\\AppData\\Local\\Unity\\bin\\unity.exe",
+      "args": [
+        "mcp",
+        "--project-path",
+        "D:\\Projects\\ScrapWaves"
+      ]
+    }
+  }
+}
