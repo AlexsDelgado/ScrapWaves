@@ -11,9 +11,9 @@ using Object = UnityEngine.Object;
 /// <summary>Authors the imported escape prefab and adds it without rebuilding the arena.</summary>
 public static class CompactorEscapeSetupEditor
 {
-    public const string ModelPath = "Assets/Art/Level/Compactor/Compactor_Open.fbx";
+    public const string ModelPath = "Assets/Art/Level/CompactorDoor/Compactor_Open.fbx";
     public const string PrefabPath = "Assets/Prefabs/Level/Compactor/CompactorExitDoor.prefab";
-    private const string MaterialFolder = "Assets/Art/Level/Compactor/Materials";
+    private const string MaterialFolder = "Assets/Art/Level/CompactorDoor/Materials";
     private const string SuctionPath = MaterialFolder + "/CompactorSuction.mat";
     private const string SandboxPath = "Assets/Scenes/Testing/WeaponTestingSandbox.unity";
 

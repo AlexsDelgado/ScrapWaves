@@ -10,12 +10,46 @@ using Object = UnityEngine.Object;
 
 public sealed class CompactorEscapeIntegrationTests
 {
-    private const string ModelPath = "Assets/Art/Level/Compactor/Compactor_Open.fbx";
+    private const string ModelPath = CompactorEscapeSetupEditor.ModelPath;
     private const string PrefabPath = "Assets/Prefabs/Level/Compactor/CompactorExitDoor.prefab";
     private readonly List<GameObject> _objects = new();
     private GameManager _previousGameManager;
     private GameManager _gameManager;
     private float _previousTimeScale;
+
+    [Test]
+    public void GameplayScene_UsesNewModelsAndRetainsGameplayBindings()
+    {
+        var scene = EditorSceneManager.OpenPreviewScene(GameplayModelsSetupEditor.ScenePath);
+        try
+        {
+            var roots = scene.GetRootGameObjects();
+            var door = roots.SelectMany(r => r.GetComponentsInChildren<ExitDoor>(true)).Single();
+            var presentation = door.GetComponent<CompactorDoorPresentation>();
+            Assert.That(presentation, Is.Not.Null);
+            Assert.That(GetField<ExitDoor>(presentation, "_exitDoor"), Is.SameAs(door));
+            Assert.That(GetField<AnimationClip>(presentation, "_openingClip"), Is.SameAs(LoadClip()));
+            Assert.That(GetField<Animator>(presentation, "_animator"), Is.Not.Null);
+            Assert.That(GetField<Collider>(presentation, "_closedDoorCollider"), Is.Not.Null);
+            Assert.That(GetField<Renderer>(presentation, "_suctionRenderer").sharedMaterial.shader.name,
+                Is.EqualTo("ScrapWaves/Level/Compactor Suction"));
+            Assert.That(GetField<LevelExitObjective>(door, "_exitObjective"), Is.Not.Null);
+            Assert.That(GetField<float>(door, "_chargeDurationSeconds"), Is.EqualTo(20f));
+            Assert.That(GetField<float>(door, "_interactionRadius"), Is.EqualTo(20f));
+            Assert.That(GetField<Transform>(door, "_interactionPoint").IsChildOf(door.transform), Is.True);
+            Assert.That(roots.SelectMany(r => r.GetComponentsInChildren<CompactorEscapeTestController>(true)), Is.Empty);
+            var station = roots.SelectMany(r => r.GetComponentsInChildren<CraftingStation>(true)).Single();
+            Assert.That(GetField<float>(station, "_interactionRadius"), Is.EqualTo(10f));
+            Assert.That(GetField<Transform>(station, "_interactionPoint"), Is.SameAs(station.transform));
+            var model = station.transform.Find("Workbench");
+            Assert.That(model, Is.Not.Null);
+            Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(model.gameObject),
+                Is.EqualTo(GameplayModelsSetupEditor.WorkbenchPath));
+            Assert.That(station.GetComponentInChildren<Collider>(), Is.Not.Null);
+            Assert.That(station.transform.Find("Cube"), Is.Null);
+        }
+        finally { EditorSceneManager.ClosePreviewScene(scene); }
+    }
 
     [SetUp]
     public void SetUp()
