@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -44,9 +43,11 @@ public class ExitDoor : MonoBehaviour
     private float _chargeRemaining;
 
     public ExitDoorState State => _state;
-    public float ChargeNormalized => _chargeDurationSeconds > 0f
-        ? 1f - Mathf.Clamp01(_chargeRemaining / _chargeDurationSeconds)
-        : 1f;
+    public float ChargeNormalized => _state == ExitDoorState.Ready || _state == ExitDoorState.Used
+        ? 1f
+        : _state == ExitDoorState.Charging
+            ? 1f - Mathf.Clamp01(_chargeRemaining / Mathf.Max(0.1f, _chargeDurationSeconds))
+            : 0f;
 
     public event Action OnDoorUnlocked;
     public event Action OnChargeStarted;
@@ -66,7 +67,11 @@ public class ExitDoor : MonoBehaviour
     private void OnEnable()
     {
         if (_exitObjective != null)
+        {
             _exitObjective.OnAllKeysCollected += HandleAllKeysCollected;
+            if (_exitObjective.AllKeysCollected)
+                HandleAllKeysCollected();
+        }
     }
 
     private void OnDisable()
@@ -84,6 +89,8 @@ public class ExitDoor : MonoBehaviour
         // igual que hace PauseMenuUI.CanPause() con Escape.
         if ((_craftingUi != null && _craftingUi.IsVisible) || (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible))
             return;
+
+        TickCharge(Time.deltaTime);
 
         if (_state != ExitDoorState.AwaitingActivation && _state != ExitDoorState.Ready)
             return;
@@ -103,7 +110,7 @@ public class ExitDoor : MonoBehaviour
 
         if (_state == ExitDoorState.AwaitingActivation)
         {
-            StartCoroutine(ChargeRoutine());
+            TryStartCharging();
         }
         else if (_state == ExitDoorState.Ready)
         {
@@ -121,20 +128,44 @@ public class ExitDoor : MonoBehaviour
         OnDoorUnlocked?.Invoke();
     }
 
-    private IEnumerator ChargeRoutine()
+    /// <summary>Starts the normal escape sequence after its key objective is complete.</summary>
+    public bool TryStartCharging()
     {
+        if (!isActiveAndEnabled || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+            return false;
+        if (_state == ExitDoorState.Locked && _exitObjective != null && _exitObjective.AllKeysCollected)
+            HandleAllKeysCollected();
+        if (_state != ExitDoorState.AwaitingActivation)
+            return false;
+
         _state = ExitDoorState.Charging;
-        _chargeRemaining = _chargeDurationSeconds;
+        _chargeRemaining = Mathf.Max(0.1f, _chargeDurationSeconds);
         OnChargeStarted?.Invoke();
+        OnChargeProgress?.Invoke(0f);
+        return true;
+    }
 
-        while (_chargeRemaining > 0f)
-        {
-            _chargeRemaining -= Time.deltaTime;
-            OnChargeProgress?.Invoke(ChargeNormalized);
-            yield return null;
-        }
-
+    /// <summary>Returns the door to its closed pose, retaining collected keys.</summary>
+    public void ResetCharge()
+    {
         _chargeRemaining = 0f;
+        _state = _exitObjective != null && _exitObjective.AllKeysCollected
+            ? ExitDoorState.AwaitingActivation
+            : ExitDoorState.Locked;
+        OnChargeProgress?.Invoke(0f);
+    }
+
+    private void TickCharge(float deltaTime)
+    {
+        if (_state != ExitDoorState.Charging || deltaTime <= 0f)
+            return;
+
+        _chargeRemaining = Mathf.Max(0f, _chargeRemaining - deltaTime);
+        if (_chargeRemaining > 0f)
+        {
+            OnChargeProgress?.Invoke(ChargeNormalized);
+            return;
+        }
         _state = ExitDoorState.Ready;
         OnChargeProgress?.Invoke(1f);
         OnDoorReady?.Invoke();

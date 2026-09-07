@@ -36,6 +36,7 @@ public static class WeaponTestingSandboxSceneBuilder
         CreateEventSystem();
         CreateGameplayHud();
         CreateSandboxManager(weapons, dummyPrefab, player, projectilePool, heatManager, arenaRoot, spawnedDummiesRoot);
+        CompactorEscapeSetupEditor.AddToScene(scene);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         AssetDatabase.SaveAssets();

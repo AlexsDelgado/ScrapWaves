@@ -4226,9 +4226,14 @@ MonoBehaviour:
   _minimumDistanceFromLookPoint: 0.65
   _lockCursorOnPlay: 1
   _cameraFeedbackScale: 1
+  _screenShakeEnabled: 1
   _presentationImpulseDecay: 12
   _maximumPresentationPositionImpulse: 0.35
   _maximumPresentationRotationImpulse: 5
+  _maximumPresentationFovKick: 5
+  _reducedMotionPositionScale: 0.2
+  _reducedMotionRotationScale: 0.35
+  _reducedMotionFovScale: 0
 --- !u!81 &695983457
 AudioListener:
   m_ObjectHideFlags: 0
@@ -5047,6 +5052,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: adc27a488dd92d4438353c3c0b9fda2d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WeaponSandboxDebugUI
+  _escapeTest: {fileID: 1094818378}
 --- !u!114 &787552538
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7377,6 +7383,100 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCombatFeedback
   _playerHealth: {fileID: 0}
   _playerMovement: {fileID: 0}
+--- !u!1001 &1094818375
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2946304040480178871, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_Name
+      value: Compactor Escape Test
+      objectReference: {fileID: 0}
+    - target: {fileID: 8569424322080704852, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: _exitObjective
+      value:
+      objectReference: {fileID: 1727059525}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.06
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: -0.00000004371139
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9217570121307041145, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2946304040480178871, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1094818378}
+  m_SourcePrefab: {fileID: 100100000, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+--- !u!1 &1094818376 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2946304040480178871, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+  m_PrefabInstance: {fileID: 1094818375}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1094818377 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8569424322080704852, guid: f017f8930eb602748a5a62ccf13def76, type: 3}
+  m_PrefabInstance: {fileID: 1094818375}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094818376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c8e5f6081c293a4b5c6d7e8f9a0b1c2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ExitDoor
+--- !u!114 &1094818378
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094818376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e56d2a983694a78b8fd902b5a2fbc86, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::CompactorEscapeTestController
+  _exitDoor: {fileID: 1094818377}
+  _objective: {fileID: 1727059525}
 --- !u!1 &1113376556
 GameObject:
   m_ObjectHideFlags: 0
@@ -8480,10 +8580,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PauseMenuUI
   _playerStats: {fileID: 0}
+  _playerHealth: {fileID: 0}
   _levelUpChoiceUi: {fileID: 0}
   _craftingUi: {fileID: 0}
   _camera: {fileID: 0}
-  _audioManager: {fileID: 0}
+  _settingsService: {fileID: 0}
   _sandboxDebugUi: {fileID: 0}
 --- !u!1 &1404739614
 GameObject:
@@ -10495,6 +10596,51 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 52, y: 52}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1727059524
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1727059526}
+  - component: {fileID: 1727059525}
+  m_Layer: 0
+  m_Name: Sandbox Exit Objective
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1727059525
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1727059524}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e4a1b2c3d4e5f60818293a4b5c6d7e8, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::LevelExitObjective
+  _keysRequired: 2
+--- !u!4 &1727059526
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1727059524}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1732879041
 GameObject:
   m_ObjectHideFlags: 0
@@ -13045,3 +13191,5 @@ SceneRoots:
   - {fileID: 916953232}
   - {fileID: 1010177638}
   - {fileID: 787552544}
+  - {fileID: 1094818375}
+  - {fileID: 1727059526}

@@ -19,6 +19,8 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private TextMeshProUGUI _passiveSummaryText;
     private TextMeshProUGUI _passiveWarningText;
     private TextMeshProUGUI _presentationAccessibilityText;
+    private TextMeshProUGUI _escapeStatusText;
+    private Button _startEscapeButton;
     private TMP_Dropdown[] _slotDropdowns;
     private TMP_Dropdown[] _passiveItemDropdowns;
     private TMP_Dropdown[] _passiveLevelDropdowns;
@@ -44,6 +46,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     private bool _autoCursorMode = true;
     private bool _temporaryCameraAim;
     private bool _pauseMenuOpen;
+    [SerializeField] private CompactorEscapeTestController _escapeTest;
 
     private static readonly PassiveUiSlot[] PassiveSlots =
     {
@@ -64,6 +67,8 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
     {
         if (_sandbox == null)
             _sandbox = GetComponent<WeaponTestingSandboxManager>();
+        if (_escapeTest == null)
+            _escapeTest = FindAnyObjectByType<CompactorEscapeTestController>();
 
         // Validation uses exact totals by default without mutating the authored
         // production profile, which may still opt into compact large numbers.
@@ -115,6 +120,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
         GUILayout.Label("Weapon Testing Sandbox");
         DrawImmediateCursorMode();
+        DrawImmediateEscapeControls();
         DrawImmediateLoadout();
         DrawImmediatePassiveItems();
         DrawImmediateStats();
@@ -495,6 +501,22 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
             _sandbox.HeatOverride.SetHeatPercent(heat);
     }
 
+    private void DrawImmediateEscapeControls()
+    {
+        if (_escapeTest == null)
+            return;
+        GUILayout.Space(6f);
+        GUILayout.Label("Compactor Escape Test");
+        GUILayout.Label(_escapeTest.Status);
+        GUILayout.BeginHorizontal();
+        bool wasEnabled = GUI.enabled;
+        GUI.enabled = wasEnabled && !_escapeTest.IsCharging && Time.timeScale > 0f;
+        if (GUILayout.Button("Start Escape Test")) _escapeTest.StartSequence();
+        GUI.enabled = wasEnabled;
+        if (GUILayout.Button("Reset Door")) _escapeTest.ResetSequence();
+        GUILayout.EndHorizontal();
+    }
+
     private void DrawImmediateRuntimeControls()
     {
         GUILayout.Space(6f);
@@ -837,6 +859,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         scroll.content = contentRt;
 
+        BuildEscapeTestSection(content.transform);
         BuildLoadoutSection(content.transform);
         BuildPassiveItemSection(content.transform);
         BuildStatOverrideSection(content.transform);
@@ -846,6 +869,17 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         BuildEnemySpawnSection(content.transform);
         BuildMetricsSection(content.transform);
         BuildDebugTogglesSection(content.transform);
+    }
+
+    private void BuildEscapeTestSection(Transform parent)
+    {
+        if (_escapeTest == null)
+            return;
+        Transform section = CreateSection(parent, "Compactor Escape Test");
+        _escapeStatusText = CreateText(section, "EscapeStatus", _escapeTest.Status, 16, TextAlignmentOptions.TopLeft);
+        Transform row = CreateRow(section, "EscapeControls");
+        _startEscapeButton = CreateButton(row, "Start Escape Test", _escapeTest.StartSequence);
+        CreateButton(row, "Reset Door", _escapeTest.ResetSequence);
     }
 
     private void BuildLoadoutSection(Transform parent)
@@ -1164,6 +1198,13 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
 
     private void RefreshDynamicText()
     {
+        if (_escapeTest != null)
+        {
+            if (_escapeStatusText != null)
+                _escapeStatusText.text = _escapeTest.Status;
+            if (_startEscapeButton != null)
+                _startEscapeButton.interactable = !_escapeTest.IsCharging && Time.timeScale > 0f;
+        }
         _isRefreshing = true;
         WeaponInstance current = _sandbox.CurrentManualWeapon;
         _sb.Clear();
