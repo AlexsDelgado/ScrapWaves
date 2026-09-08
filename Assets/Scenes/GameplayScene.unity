@@ -4946,13 +4946,13 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _difficultyRampSpeedMultiplier: 1.5
+  _difficultyRampSpeedMultiplier: 1
   _maxSpawnCountMultiplier: 4
   _spawnIntervalScaleAtMaxIntensity: 0.45
   _scaleEnemyHealth: 1
-  _maxEnemyHealthMultiplier: 200
+  _maxEnemyHealthMultiplier: 10
   _scaleEnemyMoveSpeed: 1
-  _maxEnemySpeedMultiplier: 10
+  _maxEnemySpeedMultiplier: 4
   _scaleEnemyDamage: 1
   _maxEnemyDamageMultiplier: 1.35
 --- !u!4 &1443009584
