@@ -13,6 +13,9 @@ public class EnemyC4 : MonoBehaviour
     [SerializeField, Min(0.1f), Tooltip("Distancia al jugador que dispara la detonacion.")]
     private float _triggerRadius = 1.6f;
 
+    [SerializeField, Min(0f), Tooltip("Si |ΔY| con el jugador supera esto, no arma por proximidad planar.")]
+    private float _maxTriggerVerticalDelta = 40f;
+
     [SerializeField, Min(0.1f), Tooltip("Radio del dano de area al explotar.")]
     private float _explosionRadius = 3f;
 
@@ -68,6 +71,9 @@ public class EnemyC4 : MonoBehaviour
             return;
 
         Vector3 toPlayer = _player.position - transform.position;
+        if (Mathf.Abs(toPlayer.y) > _maxTriggerVerticalDelta)
+            return;
+
         toPlayer.y = 0f;
         if (toPlayer.sqrMagnitude <= _triggerRadius * _triggerRadius)
             Explode();

@@ -93,6 +93,14 @@ public class SimpleFollow : MonoBehaviour
         if (_rb == null)
             return;
 
+        if (EnemyVerticalEngagement.IsDisengaged(this))
+        {
+            Vector3 kbOnly = ConsumeKnockback(fixedDeltaTime);
+            if (kbOnly.sqrMagnitude > 0.0001f)
+                _rb.MovePosition(transform.position + kbOnly);
+            return;
+        }
+
         Vector3 knockbackDisplacement = ConsumeKnockback(fixedDeltaTime);
         if (_target == null)
         {

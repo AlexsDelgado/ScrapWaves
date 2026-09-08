@@ -66,6 +66,8 @@ public class SwarmPooledEnemy : MonoBehaviour
         GetComponent<SimpleFollow>()?.PrepareForSpawn();
 
         EnsureMetaDropComponents();
+        EnemyVerticalEngagement engagement = EnemyVerticalEngagement.EnsureOn(gameObject);
+        engagement?.ResetEngagement();
 
         IEnemySpawnLifecycle[] lifecycles = GetComponents<IEnemySpawnLifecycle>();
         for (int i = 0; i < lifecycles.Length; i++)

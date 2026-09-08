@@ -70,6 +70,15 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
         if (Player == null)
             return;
 
+        if (EnemyVerticalEngagement.IsDisengaged(this))
+        {
+            if (_state == State.Seek)
+                SetGenericMovement(false);
+            else if (_state == State.Launching && _health != null)
+                _health.SetInvincible(false);
+            return;
+        }
+
         switch (_state)
         {
             case State.Seek:

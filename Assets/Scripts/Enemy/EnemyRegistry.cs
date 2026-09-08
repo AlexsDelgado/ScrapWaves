@@ -103,11 +103,8 @@ public static class EnemyRegistry
         for (int i = _activeEnemies.Count - 1; i >= 0; i--)
         {
             Transform t = _activeEnemies[i];
-            if (t == null)
-            {
-                _activeEnemies.RemoveAt(i);
+            if (!IsValidTargetable(t, i))
                 continue;
-            }
 
             Vector3 delta = t.position - from;
             delta.y = 0f;
@@ -135,11 +132,8 @@ public static class EnemyRegistry
         for (int i = _activeEnemies.Count - 1; i >= 0; i--)
         {
             Transform t = _activeEnemies[i];
-            if (t == null)
-            {
-                _activeEnemies.RemoveAt(i);
+            if (!IsValidTargetable(t, i))
                 continue;
-            }
 
             Vector3 delta = t.position - from;
             delta.y = 0f;
@@ -205,7 +199,12 @@ public static class EnemyRegistry
         if (hasFallbackBounds)
             return fallbackBounds.center;
 
-        return target.position;
+        // Prefabs con solo CharacterController no exponen Collider: apuntar al torso, no a los pies.
+        CharacterController cc = target.GetComponent<CharacterController>();
+        if (cc != null)
+            return target.TransformPoint(cc.center);
+
+        return target.position + Vector3.up * 0.9f;
     }
 
     // Finds the closest active enemy inside a horizontal cone.
@@ -221,11 +220,8 @@ public static class EnemyRegistry
         for (int i = _activeEnemies.Count - 1; i >= 0; i--)
         {
             Transform t = _activeEnemies[i];
-            if (t == null)
-            {
-                _activeEnemies.RemoveAt(i);
+            if (!IsValidTargetable(t, i))
                 continue;
-            }
 
             Vector3 delta = t.position - from;
             delta.y = 0f;
@@ -256,11 +252,8 @@ public static class EnemyRegistry
         for (int i = _activeEnemies.Count - 1; i >= 0; i--)
         {
             Transform t = _activeEnemies[i];
-            if (t == null)
-            {
-                _activeEnemies.RemoveAt(i);
+            if (!IsValidTargetable(t, i))
                 continue;
-            }
 
             Vector3 delta = t.position - from;
             delta.y = 0f;
@@ -294,11 +287,8 @@ public static class EnemyRegistry
         for (int i = _activeEnemies.Count - 1; i >= 0; i--)
         {
             Transform t = _activeEnemies[i];
-            if (t == null)
-            {
-                _activeEnemies.RemoveAt(i);
+            if (!IsValidTargetable(t, i))
                 continue;
-            }
 
             float dy = Mathf.Abs(t.position.y - from.y);
             if (dy > maxAbsDeltaY)
@@ -315,6 +305,129 @@ public static class EnemyRegistry
         }
 
         return closest != null;
+    }
+
+    public static bool TryGetRandomOnPlaneWithinVerticalDelta(Vector3 from, float range, float maxAbsDeltaY, out Transform random)
+    {
+        random = null;
+        if (range <= 0f || maxAbsDeltaY < 0f)
+            return false;
+
+        float rangeSqr = range * range;
+        int candidatesSeen = 0;
+
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Transform t = _activeEnemies[i];
+            if (!IsValidTargetable(t, i))
+                continue;
+
+            if (Mathf.Abs(t.position.y - from.y) > maxAbsDeltaY)
+                continue;
+
+            Vector3 delta = t.position - from;
+            delta.y = 0f;
+            if (delta.sqrMagnitude > rangeSqr)
+                continue;
+
+            candidatesSeen++;
+            if (Random.Range(0, candidatesSeen) == 0)
+                random = t;
+        }
+
+        return random != null;
+    }
+
+    public static bool TryGetClosestOnPlaneInConeWithinVerticalDelta(
+        Vector3 from,
+        Vector3 forward,
+        float range,
+        float coneAngle,
+        float maxAbsDeltaY,
+        out Transform closest)
+    {
+        closest = null;
+        if (range <= 0f || maxAbsDeltaY < 0f)
+            return false;
+
+        float rangeSqr = range * range;
+        float bestSqr = float.MaxValue;
+
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Transform t = _activeEnemies[i];
+            if (!IsValidTargetable(t, i))
+                continue;
+
+            if (Mathf.Abs(t.position.y - from.y) > maxAbsDeltaY)
+                continue;
+
+            Vector3 delta = t.position - from;
+            delta.y = 0f;
+            float sqr = delta.sqrMagnitude;
+            if (sqr > rangeSqr || sqr >= bestSqr)
+                continue;
+
+            if (!IsInsideHorizontalCone(delta, forward, coneAngle))
+                continue;
+
+            bestSqr = sqr;
+            closest = t;
+        }
+
+        return closest != null;
+    }
+
+    public static bool TryGetRandomOnPlaneInConeWithinVerticalDelta(
+        Vector3 from,
+        Vector3 forward,
+        float range,
+        float coneAngle,
+        float maxAbsDeltaY,
+        out Transform random)
+    {
+        random = null;
+        if (range <= 0f || maxAbsDeltaY < 0f)
+            return false;
+
+        float rangeSqr = range * range;
+        int candidatesSeen = 0;
+
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Transform t = _activeEnemies[i];
+            if (!IsValidTargetable(t, i))
+                continue;
+
+            if (Mathf.Abs(t.position.y - from.y) > maxAbsDeltaY)
+                continue;
+
+            Vector3 delta = t.position - from;
+            delta.y = 0f;
+            if (delta.sqrMagnitude > rangeSqr)
+                continue;
+
+            if (!IsInsideHorizontalCone(delta, forward, coneAngle))
+                continue;
+
+            candidatesSeen++;
+            if (Random.Range(0, candidatesSeen) == 0)
+                random = t;
+        }
+
+        return random != null;
+    }
+
+    private static bool IsValidTargetable(Transform t, int listIndex)
+    {
+        if (t == null)
+        {
+            if (listIndex >= 0 && listIndex < _activeEnemies.Count)
+                _activeEnemies.RemoveAt(listIndex);
+            return false;
+        }
+
+        return !EnemyVerticalEngagement.IsDisengaged(t);
     }
 
     // Fills results with the closest active enemies inside a horizontal aim cone.
@@ -350,6 +463,9 @@ public static class EnemyRegistry
                     _activeEnemies.RemoveAt(i);
                     continue;
                 }
+
+                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                    continue;
 
                 if (_excludeScratch.Contains(candidate))
                     continue;
@@ -402,6 +518,9 @@ public static class EnemyRegistry
                     _activeEnemies.RemoveAt(i);
                     continue;
                 }
+
+                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                    continue;
 
                 if (_excludeScratch.Contains(candidate))
                     continue;

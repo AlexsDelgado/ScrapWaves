@@ -125,6 +125,14 @@ public class EnemyFollow : MonoBehaviour
         if (_characterController == null)
             return;
 
+        if (EnemyVerticalEngagement.IsDisengaged(this))
+        {
+            Vector3 kbOnly = ConsumeKnockback(Time.deltaTime);
+            if (kbOnly.sqrMagnitude > 0.0001f)
+                _characterController.Move(kbOnly);
+            return;
+        }
+
         Vector3 knockbackDisplacement = ConsumeKnockback(Time.deltaTime);
         if (_target == null)
         {

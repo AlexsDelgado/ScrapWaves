@@ -81,6 +81,12 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
         if (Player == null)
             return;
 
+        if (EnemyVerticalEngagement.IsDisengaged(this))
+        {
+            SetGenericMovement(false);
+            return;
+        }
+
         switch (_state)
         {
             case State.Chase:

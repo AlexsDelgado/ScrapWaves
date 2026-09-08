@@ -14,6 +14,8 @@ public class BomberDroneBehavior : EnemyBehaviorBase
 
     [Header("Vuelo")]
     [SerializeField, Min(0f)] private float _hoverHeight = 3.5f;
+    [SerializeField, Min(0f), Tooltip("Offset sobre la Y del jugador al perseguir en pisos altos.")]
+    private float _playerHoverOffset = 1.25f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5.5f;
     [SerializeField, Min(60f)] private float _rotationSpeed = 360f;
     [SerializeField] private LayerMask _groundMask;
@@ -85,6 +87,9 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         if (Player == null)
             return;
 
+        if (EnemyVerticalEngagement.IsDisengaged(this))
+            return;
+
         MaintainHover();
 
         switch (_state)
@@ -111,8 +116,14 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, _hoverRaycastUp * 2f, _groundMask, QueryTriggerInteraction.Ignore))
             groundY = hit.point.y;
 
+        float minClearanceY = groundY + 1f;
+        float targetY = groundY + _hoverHeight;
+        Transform player = Player;
+        if (player != null)
+            targetY = Mathf.Max(minClearanceY, player.position.y + _playerHoverOffset);
+
         Vector3 pos = transform.position;
-        pos.y = Mathf.Lerp(pos.y, groundY + _hoverHeight, 1f - Mathf.Exp(-6f * Time.deltaTime));
+        pos.y = Mathf.Lerp(pos.y, targetY, 1f - Mathf.Exp(-6f * Time.deltaTime));
         transform.position = pos;
     }
 

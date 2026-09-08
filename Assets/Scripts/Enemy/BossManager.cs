@@ -240,6 +240,7 @@ public class BossManager : MonoBehaviour
                 go.AddComponent<EnemyScrapDrop>();
             if (go.GetComponent<EnemyTemporaryPowerupDrop>() == null)
                 go.AddComponent<EnemyTemporaryPowerupDrop>();
+            EnemyVerticalEngagement.EnsureOn(go)?.ResetEngagement();
 
             EnemyHealth captured = health;
             Action handler = () => OnBossInstanceDied(captured);
