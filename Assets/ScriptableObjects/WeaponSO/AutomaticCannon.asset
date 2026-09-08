@@ -18,9 +18,9 @@ MonoBehaviour:
   AutoTargetingMode: 0
   AutomaticAimConstraint: 1
   ManualMode: 0
-  BaseDamage: 20
+  BaseDamage: 8
   BaseAttackRate: 5
-  BaseRange: 12
+  BaseRange: 25
   BaseKnockback: 0.2
   BaseManualAmmo: 200
   ActiveAbilityAmmoCost: 20
@@ -29,6 +29,10 @@ MonoBehaviour:
   PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
   _specificTuning:
     rid: 5516199871946686465
+  <UnlockedFromStart>k__BackingField: 1
+  <Requirement>k__BackingField:
+    RequiredAchievement: {fileID: 0}
+    ScrapPrice: 0
   LevelData:
   - Level: 1
     DamageMultiplier: 1
@@ -139,8 +143,8 @@ MonoBehaviour:
         CannonAutoAccuracySpreadDegrees: 0
         CannonBurstProjectileScatterDegrees: 0
         CannonBurstShotInterval: 0.08
-        CannonAutoBurstsPerSecond: 5
-        CannonManualBurstsPerSecond: 3
+        CannonAutoBurstsPerSecond: 1
+        CannonManualBurstsPerSecond: 1.5
         ContinuousFireAutoAttackSpeedMultiplier: 1.25
         HeadHunterAutoAttackSpeedMultiplier: 0.2
         CannonActiveHeatBulletStepPercent: 5

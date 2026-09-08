@@ -10,25 +10,25 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8d3345717866f074fb25344c4b15f13a, type: 3}
-  m_Name: Sandbox_AutomaticCannon
+  m_Name: Sandbox_RocketLauncher
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
-  WeaponId: Sandbox_AutomaticCannon
-  DisplayName: Automatic Cannon
-  WeaponType: 0
+  WeaponId: Sandbox_RocketLauncher
+  DisplayName: Rocket Launcher
+  WeaponType: 2
   AutoTargetingMode: 0
   AutomaticAimConstraint: 1
   ManualMode: 0
-  BaseDamage: 10
-  BaseAttackRate: 5
-  BaseRange: 25
-  BaseKnockback: 1
-  BaseManualAmmo: 200
-  ActiveAbilityAmmoCost: 20
+  BaseDamage: 35
+  BaseAttackRate: 1
+  BaseRange: 20
+  BaseKnockback: 5
+  BaseManualAmmo: 40
+  ActiveAbilityAmmoCost: 10
   SkillCooldown: 1
   Icon: {fileID: 0}
-  PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
+  PresentationProfile: {fileID: 11400000, guid: c04fe21bee051a94ca486c2982ffab06, type: 2}
   _specificTuning:
-    rid: 5516199936037486594
+    rid: 5516199936037486592
   <UnlockedFromStart>k__BackingField: 1
   <Requirement>k__BackingField:
     RequiredAchievement: {fileID: 0}
@@ -77,38 +77,36 @@ MonoBehaviour:
   BalanceStats: []
   UpgradeSpecificStats: []
   PathA:
-    PathName: Continuous Fire
+    PathName: Kinetic Explosion
     DamageMultiplier: 1.22
     AttackRateMultiplier: 1.12
-    ManualAmmoOverride: 400
+    ManualAmmoOverride: -1
     LevelData: []
   PathB:
-    PathName: Head Hunter
+    PathName: Fragmentation Cap
     DamageMultiplier: 1.36
     AttackRateMultiplier: 0.92
-    ManualAmmoOverride: 40
+    ManualAmmoOverride: -1
     LevelData: []
   references:
     version: 2
     RefIds:
-    - rid: 5516199936037486594
-      type: {class: AutomaticCannonTuning, ns: , asm: Assembly-CSharp}
+    - rid: 5516199936037486592
+      type: {class: RocketLauncherTuning, ns: , asm: Assembly-CSharp}
       data:
-        CannonAutoBurstCount: 3
-        CannonManualBurstCount: 5
-        CannonActiveBaseBulletCount: 20
-        CannonAbilityScatterRadius: 11
-        CannonManualLineSpacing: 1
-        CannonAutoLineSpacing: 1
-        CannonAutoAccuracySpreadDegrees: 0
-        CannonBurstProjectileScatterDegrees: 0
-        CannonBurstShotInterval: 0.08
-        CannonAutoBurstsPerSecond: 5
-        CannonManualBurstsPerSecond: 3
-        ContinuousFireAutoAttackSpeedMultiplier: 1.25
-        HeadHunterAutoAttackSpeedMultiplier: 0.2
-        CannonActiveHeatBulletStepPercent: 5
-        CannonHeatDamageThresholdStepPercent: 25
-        CannonHeatDamageThresholdCount: 3
-        CannonHeatDamageBonusPerThreshold: 0.15
-        CannonCriticalDamageMultiplierOverride: 2
+        RocketAutoBaseRocketCount: 2
+        RocketActiveBaseRocketCount: 10
+        RocketActiveInitialTargetCount: 5
+        RocketActiveTargetLockInterval: 0.15
+        RocketActiveConeAngle: 90
+        RocketActiveTargetMarkerRadius: 0.7
+        RocketAutoExplosionRadius: 1.8
+        RocketManualExplosionRadius: 2.4
+        RocketActiveExplosionRadius: 2.9
+        RocketAutoExplosionFalloff: 0.85
+        RocketManualExplosionFalloff: 0.85
+        RocketActiveExplosionFalloff: 0.85
+        RocketAutoSpeedMultiplier: 1
+        RocketManualSpeedMultiplier: 1.35
+        RocketActiveSpeedMultiplier: 1.15
+        RocketActiveDamageScale: 2

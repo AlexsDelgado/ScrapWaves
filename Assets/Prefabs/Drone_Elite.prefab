@@ -249,13 +249,13 @@ MonoBehaviour:
   _dashCount: 2
   _dashSpeed: 14
   _dashDistance: 8
-  _bombsPerDash: 2
+  _bombsPerDash: 4
   _c4Prefab: {fileID: 7200000000000000000, guid: a1b2c3d4e5f6071829aabbccddeeff03, type: 3}
   _betweenDashSeconds: 0.35
   _rechargeSeconds: 5
   _bulletPrefab: {fileID: 7000000000000000000, guid: a1b2c3d4e5f6071829aabbccddeeff01, type: 3}
-  _bulletDamage: 10
-  _bulletSpeed: 12
+  _bulletDamage: 35
+  _bulletSpeed: 8
   _shootInterval: 1.5
   _droneStandoffDistance: 8
 --- !u!114 &8800000000000000102

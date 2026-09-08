@@ -16,8 +16,9 @@ MonoBehaviour:
   DisplayName: Mortar
   WeaponType: 3
   AutoTargetingMode: 1
+  AutomaticAimConstraint: 0
   ManualMode: 0
-  BaseDamage: 100
+  BaseDamage: 50
   BaseAttackRate: 0.75
   BaseRange: 22
   BaseKnockback: 1
@@ -28,6 +29,10 @@ MonoBehaviour:
   PresentationProfile: {fileID: 11400000, guid: 45f71e8e653db4f48bb8046b50279932, type: 2}
   _specificTuning:
     rid: 6797599696172314625
+  <UnlockedFromStart>k__BackingField: 1
+  <Requirement>k__BackingField:
+    RequiredAchievement: {fileID: 0}
+    ScrapPrice: 0
   LevelData:
   - Level: 1
     DamageMultiplier: 1

@@ -102,7 +102,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 500
+  _maxHealth: 2000
 --- !u!114 &200007
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -115,7 +115,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a77242de664775447a0327cab31aa0a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
-  _contactDamage: 8
+  _contactDamage: 50
   _logDebug: 0
 --- !u!114 &200008
 MonoBehaviour:
@@ -173,7 +173,7 @@ MonoBehaviour:
   _landingSnapDistance: 0.15
   _minFallDistanceFromOrigin: 20
   _apexArrivalThreshold: 0.75
-  _emergeDamage: 20
+  _emergeDamage: 80
   _emergePushForce: 14
   _airborneHitRadius: 1.8
   _airborneHitCooldown: 0.35

@@ -18,7 +18,7 @@ MonoBehaviour:
   AutoTargetingMode: 0
   AutomaticAimConstraint: 1
   ManualMode: 0
-  BaseDamage: 70
+  BaseDamage: 35
   BaseAttackRate: 1
   BaseRange: 20
   BaseKnockback: 1.5
@@ -29,6 +29,10 @@ MonoBehaviour:
   PresentationProfile: {fileID: 11400000, guid: c04fe21bee051a94ca486c2982ffab06, type: 2}
   _specificTuning:
     rid: 7782109439718619137
+  <UnlockedFromStart>k__BackingField: 1
+  <Requirement>k__BackingField:
+    RequiredAchievement: {fileID: 0}
+    ScrapPrice: 0
   LevelData:
   - Level: 1
     DamageMultiplier: 1

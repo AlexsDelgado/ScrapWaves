@@ -16,8 +16,9 @@ MonoBehaviour:
   DisplayName: Rotating Blade
   WeaponType: 4
   AutoTargetingMode: 2
+  AutomaticAimConstraint: 0
   ManualMode: 2
-  BaseDamage: 60
+  BaseDamage: 25
   BaseAttackRate: 1
   BaseRange: 2.4
   BaseKnockback: 0.3
@@ -28,6 +29,10 @@ MonoBehaviour:
   PresentationProfile: {fileID: 11400000, guid: e83696b42bd757e4f897d3ce46d41d61, type: 2}
   _specificTuning:
     rid: 7343729927190366209
+  <UnlockedFromStart>k__BackingField: 1
+  <Requirement>k__BackingField:
+    RequiredAchievement: {fileID: 0}
+    ScrapPrice: 0
   LevelData:
   - Level: 1
     DamageMultiplier: 1

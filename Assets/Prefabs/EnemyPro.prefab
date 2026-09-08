@@ -108,7 +108,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 10
+  _maxHealth: 30
 --- !u!114 &7140168115193157315
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -121,7 +121,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a77242de664775447a0327cab31aa0a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
-  _contactDamage: 5
+  _contactDamage: 12
   _logDebug: 0
 --- !u!114 &8019343433352162818
 MonoBehaviour:

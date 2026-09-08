@@ -21,7 +21,7 @@ MonoBehaviour:
   BaseDamage: 10
   BaseAttackRate: 5
   BaseRange: 25
-  BaseKnockback: 1
+  BaseKnockback: 0.2
   BaseManualAmmo: 200
   ActiveAbilityAmmoCost: 20
   SkillCooldown: 1
@@ -99,7 +99,7 @@ MonoBehaviour:
         CannonActiveBaseBulletCount: 20
         CannonAbilityScatterRadius: 11
         CannonManualLineSpacing: 1
-        CannonAutoLineSpacing: 1
+        CannonAutoLineSpacing: 1.4
         CannonAutoAccuracySpreadDegrees: 0
         CannonBurstProjectileScatterDegrees: 0
         CannonBurstShotInterval: 0.08

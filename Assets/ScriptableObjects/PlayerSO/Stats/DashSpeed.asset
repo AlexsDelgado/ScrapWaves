@@ -17,6 +17,6 @@ MonoBehaviour:
   <BaseValue>k__BackingField: 10
   <UpgradeableByLevel>k__BackingField: 1
   <UpgradeableByItems>k__BackingField: 1
-  <LevelUpgradeBaseAmount>k__BackingField: 0.35
+  <LevelUpgradeBaseAmount>k__BackingField: 0.025
   <IsPercentage>k__BackingField: 0
   <IsInteger>k__BackingField: 0

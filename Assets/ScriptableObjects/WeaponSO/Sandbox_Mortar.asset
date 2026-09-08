@@ -10,25 +10,25 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8d3345717866f074fb25344c4b15f13a, type: 3}
-  m_Name: Sandbox_AutomaticCannon
+  m_Name: Sandbox_Mortar
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
-  WeaponId: Sandbox_AutomaticCannon
-  DisplayName: Automatic Cannon
-  WeaponType: 0
-  AutoTargetingMode: 0
-  AutomaticAimConstraint: 1
+  WeaponId: Sandbox_Mortar
+  DisplayName: Mortar
+  WeaponType: 3
+  AutoTargetingMode: 1
+  AutomaticAimConstraint: 0
   ManualMode: 0
-  BaseDamage: 10
-  BaseAttackRate: 5
-  BaseRange: 25
-  BaseKnockback: 1
-  BaseManualAmmo: 200
-  ActiveAbilityAmmoCost: 20
+  BaseDamage: 50
+  BaseAttackRate: 0.75
+  BaseRange: 22
+  BaseKnockback: 4
+  BaseManualAmmo: 36
+  ActiveAbilityAmmoCost: 5
   SkillCooldown: 1
   Icon: {fileID: 0}
-  PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
+  PresentationProfile: {fileID: 11400000, guid: 45f71e8e653db4f48bb8046b50279932, type: 2}
   _specificTuning:
-    rid: 5516199936037486594
+    rid: 5516199936037486596
   <UnlockedFromStart>k__BackingField: 1
   <Requirement>k__BackingField:
     RequiredAchievement: {fileID: 0}
@@ -77,38 +77,37 @@ MonoBehaviour:
   BalanceStats: []
   UpgradeSpecificStats: []
   PathA:
-    PathName: Continuous Fire
+    PathName: Grapeshot
     DamageMultiplier: 1.22
     AttackRateMultiplier: 1.12
-    ManualAmmoOverride: 400
+    ManualAmmoOverride: -1
     LevelData: []
   PathB:
-    PathName: Head Hunter
+    PathName: Multi-Charged Shells
     DamageMultiplier: 1.36
     AttackRateMultiplier: 0.92
-    ManualAmmoOverride: 40
+    ManualAmmoOverride: -1
     LevelData: []
   references:
     version: 2
     RefIds:
-    - rid: 5516199936037486594
-      type: {class: AutomaticCannonTuning, ns: , asm: Assembly-CSharp}
+    - rid: 5516199936037486596
+      type: {class: MortarTuning, ns: , asm: Assembly-CSharp}
       data:
-        CannonAutoBurstCount: 3
-        CannonManualBurstCount: 5
-        CannonActiveBaseBulletCount: 20
-        CannonAbilityScatterRadius: 11
-        CannonManualLineSpacing: 1
-        CannonAutoLineSpacing: 1
-        CannonAutoAccuracySpreadDegrees: 0
-        CannonBurstProjectileScatterDegrees: 0
-        CannonBurstShotInterval: 0.08
-        CannonAutoBurstsPerSecond: 5
-        CannonManualBurstsPerSecond: 3
-        ContinuousFireAutoAttackSpeedMultiplier: 1.25
-        HeadHunterAutoAttackSpeedMultiplier: 0.2
-        CannonActiveHeatBulletStepPercent: 5
-        CannonHeatDamageThresholdStepPercent: 25
-        CannonHeatDamageThresholdCount: 3
-        CannonHeatDamageBonusPerThreshold: 0.15
-        CannonCriticalDamageMultiplierOverride: 2
+        MortarAutoExplosionRadius: 2.6
+        MortarManualExplosionRadius: 2.9
+        MortarActiveExplosionRadius: 3.2
+        MortarAutoAccuracyRadius: 3.8
+        MortarManualAccuracyRadius: 0.75
+        MortarBarrageRadius: 6
+        MortarShellTravelTime: 0.9
+        MortarManualTravelTime: 0.55
+        MortarActiveTravelTime: 0.7
+        MortarShellCollisionRadius: 0.18
+        MortarActiveDropHeight: 14
+        MortarExplosionFalloff: 0.75
+        MortarArcHeight: 7
+        MortarActiveShellCount: 5
+        MortarActiveDamageScale: 1.4
+        MortarHeatFireRateBonusAbove50: 0.75
+        MortarHeatManualSpeedBonus: 0.5

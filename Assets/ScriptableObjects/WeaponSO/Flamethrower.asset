@@ -16,8 +16,9 @@ MonoBehaviour:
   DisplayName: Flamethrower
   WeaponType: 1
   AutoTargetingMode: 2
+  AutomaticAimConstraint: 0
   ManualMode: 2
-  BaseDamage: 25
+  BaseDamage: 10
   BaseAttackRate: 1
   BaseRange: 7
   BaseKnockback: 0
@@ -28,6 +29,10 @@ MonoBehaviour:
   PresentationProfile: {fileID: 11400000, guid: 61907abd96477234988db620c95824a6, type: 2}
   _specificTuning:
     rid: 6175396285239142401
+  <UnlockedFromStart>k__BackingField: 1
+  <Requirement>k__BackingField:
+    RequiredAchievement: {fileID: 0}
+    ScrapPrice: 0
   LevelData:
   - Level: 1
     DamageMultiplier: 1

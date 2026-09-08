@@ -10,25 +10,25 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8d3345717866f074fb25344c4b15f13a, type: 3}
-  m_Name: Sandbox_AutomaticCannon
+  m_Name: Sandbox_RotatingBlade
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
-  WeaponId: Sandbox_AutomaticCannon
-  DisplayName: Automatic Cannon
-  WeaponType: 0
-  AutoTargetingMode: 0
-  AutomaticAimConstraint: 1
-  ManualMode: 0
-  BaseDamage: 10
-  BaseAttackRate: 5
-  BaseRange: 25
-  BaseKnockback: 1
-  BaseManualAmmo: 200
-  ActiveAbilityAmmoCost: 20
+  WeaponId: Sandbox_RotatingBlade
+  DisplayName: Rotating Blade
+  WeaponType: 4
+  AutoTargetingMode: 2
+  AutomaticAimConstraint: 0
+  ManualMode: 2
+  BaseDamage: 25
+  BaseAttackRate: 1
+  BaseRange: 2.4
+  BaseKnockback: 0.3
+  BaseManualAmmo: 50
+  ActiveAbilityAmmoCost: 8
   SkillCooldown: 1
   Icon: {fileID: 0}
-  PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
+  PresentationProfile: {fileID: 11400000, guid: e83696b42bd757e4f897d3ce46d41d61, type: 2}
   _specificTuning:
-    rid: 5516199936037486594
+    rid: 5516199936037486593
   <UnlockedFromStart>k__BackingField: 1
   <Requirement>k__BackingField:
     RequiredAchievement: {fileID: 0}
@@ -77,38 +77,40 @@ MonoBehaviour:
   BalanceStats: []
   UpgradeSpecificStats: []
   PathA:
-    PathName: Continuous Fire
-    DamageMultiplier: 1.22
-    AttackRateMultiplier: 1.12
-    ManualAmmoOverride: 400
+    PathName: Multi-Blade
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoOverride: -1
     LevelData: []
   PathB:
-    PathName: Head Hunter
-    DamageMultiplier: 1.36
-    AttackRateMultiplier: 0.92
-    ManualAmmoOverride: 40
+    PathName: Atomic Sharpness
+    DamageMultiplier: 1
+    AttackRateMultiplier: 1
+    ManualAmmoOverride: -1
     LevelData: []
   references:
     version: 2
     RefIds:
-    - rid: 5516199936037486594
-      type: {class: AutomaticCannonTuning, ns: , asm: Assembly-CSharp}
+    - rid: 5516199936037486593
+      type: {class: RotatingBladeTuning, ns: , asm: Assembly-CSharp}
       data:
-        CannonAutoBurstCount: 3
-        CannonManualBurstCount: 5
-        CannonActiveBaseBulletCount: 20
-        CannonAbilityScatterRadius: 11
-        CannonManualLineSpacing: 1
-        CannonAutoLineSpacing: 1
-        CannonAutoAccuracySpreadDegrees: 0
-        CannonBurstProjectileScatterDegrees: 0
-        CannonBurstShotInterval: 0.08
-        CannonAutoBurstsPerSecond: 5
-        CannonManualBurstsPerSecond: 3
-        ContinuousFireAutoAttackSpeedMultiplier: 1.25
-        HeadHunterAutoAttackSpeedMultiplier: 0.2
-        CannonActiveHeatBulletStepPercent: 5
-        CannonHeatDamageThresholdStepPercent: 25
-        CannonHeatDamageThresholdCount: 3
-        CannonHeatDamageBonusPerThreshold: 0.15
-        CannonCriticalDamageMultiplierOverride: 2
+        BladeOrbitRadius: 2.2
+        BladeHitRadius: 0.6
+        BladeAutoDamageInterval: 0.25
+        BladeBaseSpinDegreesPerSecond: 240
+        BladeManualConeAngle: 85
+        BladeManualRange: 2.4
+        BladeManualCooldown: 0.18
+        BladeManualMaxHeatDamageBonus: 1
+        BladeAutoKnockbackScale: 1.5
+        BladeAutoMaxHeatKnockbackBonus: 0.5
+        BladeManualKnockbackScale: 1
+        BladeActiveKnockbackScale: 1.25
+        BladeActiveBaseRangeMultiplier: 5
+        BladeActiveMaxRangeMultiplier: 10
+        BladeActiveHeatStepPercent: 20
+        BladeActiveLineWidth: 0.8
+        BladeActiveDamageScale: 1.5
+        AtomicDashBaseRangeMultiplier: 3
+        AtomicDashRangePerHitMultiplier: 1
+        BladeVisualDuration: 0.16
