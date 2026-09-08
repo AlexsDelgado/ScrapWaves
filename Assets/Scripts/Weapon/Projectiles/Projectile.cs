@@ -29,6 +29,10 @@ public class Projectile : MonoBehaviour
     private Vector3 _launchPosition;
     private float _maxTravelDistance;
     private bool _explodeOnMaxTravel;
+    private AutomaticRocketTrajectory _automaticRocketTrajectory;
+    private bool _usesAutomaticRocketTrajectory;
+    private float _automaticRocketDistance;
+    private Transform _launchOwner;
     private bool _applyDamageAmplifierOnExplosion;
     private float _damageAmplifierMultiplier = 1f;
     private float _damageAmplifierDuration;
@@ -81,10 +85,16 @@ public class Projectile : MonoBehaviour
 
     public float ActiveSpeed => _activeSpeed;
     public bool HasPresentationContext => _presentationSink != null;
+    public bool UsesAutomaticRocketTrajectory => _usesAutomaticRocketTrajectory;
 
     private void Awake()
     {
         EnsureInitialized();
+    }
+
+    private void OnDisable()
+    {
+        ClearAutomaticRocketTrajectory();
     }
 
     private void EnsureInitialized()
@@ -113,6 +123,7 @@ public class Projectile : MonoBehaviour
     public void ConfigurePooled(float maxLifetimeSeconds)
     {
         ClearPresentation();
+        ClearAutomaticRocketTrajectory();
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = false;
@@ -140,6 +151,7 @@ public class Projectile : MonoBehaviour
     public void ConfigureVisualOnly(float maxLifetimeSeconds, bool ignoreCollisions)
     {
         ClearPresentation();
+        ClearAutomaticRocketTrajectory();
         _activeMaxLifetime = Mathf.Max(0.05f, maxLifetimeSeconds);
         _knockback = 0f;
         _visualOnly = true;
@@ -233,10 +245,17 @@ public class Projectile : MonoBehaviour
         _visualController?.ResetVisual();
     }
 
+    public void ResetForPool()
+    {
+        ClearPresentation();
+        ClearAutomaticRocketTrajectory();
+    }
+
     // Launches projectile and resets runtime damage mode state.
     public void Launch(Vector3 worldDirection)
     {
         EnsureInitialized();
+        ClearAutomaticRocketTrajectory();
 
         if (worldDirection.sqrMagnitude > 0.0001f)
             _direction = worldDirection.normalized;
@@ -304,6 +323,32 @@ public class Projectile : MonoBehaviour
         _explodeOnMaxTravel = explodeOnMaxTravel;
     }
 
+    // Called only for automatic back-pipe rockets after the normal pooled launch setup.
+    public void ConfigureAutomaticRocketLaunch(Vector3 target, float clearanceHeight, Transform owner)
+    {
+        _automaticRocketTrajectory ??= new AutomaticRocketTrajectory();
+        _automaticRocketTrajectory.Configure(_launchPosition, target, clearanceHeight);
+        _usesAutomaticRocketTrajectory = true;
+        _automaticRocketDistance = 0f;
+        _launchOwner = owner;
+        _direction = Vector3.up;
+        Quaternion upward = Quaternion.LookRotation(Vector3.up, Vector3.forward);
+        transform.rotation = upward;
+        _rigidbody.rotation = upward;
+
+        // Account for the ascent and bend so a target at weapon range remains reachable.
+        float unusedStraightRange = Mathf.Max(0f, _maxTravelDistance - Vector3.Distance(_launchPosition, target));
+        _maxTravelDistance = _automaticRocketTrajectory.TotalLength + unusedStraightRange;
+        _activeMaxLifetime = Mathf.Max(_activeMaxLifetime, _maxTravelDistance / Mathf.Max(0.01f, _activeSpeed) + 0.5f);
+    }
+
+    private void ClearAutomaticRocketTrajectory()
+    {
+        _usesAutomaticRocketTrajectory = false;
+        _automaticRocketDistance = 0f;
+        _launchOwner = null;
+    }
+
     // Applies a temporary damage vulnerability to targets caught in the explosion.
     public void ConfigureDamageAmplifierOnExplosion(float multiplier, float duration)
     {
@@ -355,14 +400,41 @@ public class Projectile : MonoBehaviour
         if (_consumed)
             return;
 
-        Vector3 delta = _direction * (_activeSpeed * Time.fixedDeltaTime);
         Vector3 currentPosition = _rigidbody.position;
+        Vector3 delta;
+        if (_usesAutomaticRocketTrajectory)
+        {
+            _automaticRocketDistance += _activeSpeed * Time.fixedDeltaTime;
+            if (_maxTravelDistance > 0f)
+                _automaticRocketDistance = Mathf.Min(_automaticRocketDistance, _maxTravelDistance);
+            Vector3 nextPosition = _automaticRocketTrajectory.EvaluatePosition(_automaticRocketDistance);
+            delta = nextPosition - currentPosition;
+            _direction = _automaticRocketTrajectory.EvaluateDirection(_automaticRocketDistance);
+            Vector3 up = Mathf.Abs(Vector3.Dot(_direction, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
+            _rigidbody.MoveRotation(Quaternion.LookRotation(_direction, up));
+        }
+        else
+        {
+            delta = _direction * (_activeSpeed * Time.fixedDeltaTime);
+        }
         if (TryConsumeSweptWorldCollision(currentPosition, delta))
             return;
 
+        if (_usesAutomaticRocketTrajectory && _maxTravelDistance > 0f && _automaticRocketDistance >= _maxTravelDistance)
+        {
+            // MovePosition is deferred until physics simulation. Detonation must use
+            // the actual endpoint now, rather than the previous fixed-step position.
+            MoveToImpactPoint(currentPosition + delta);
+            ConsumeAtCurrentPosition(_explodeOnMaxTravel);
+            return;
+        }
+
         _rigidbody.MovePosition(currentPosition + delta);
 
-        if (_maxTravelDistance > 0f && Vector3.Distance(_launchPosition, _rigidbody.position) >= _maxTravelDistance)
+        float traveled = _usesAutomaticRocketTrajectory
+            ? _automaticRocketDistance
+            : Vector3.Distance(_launchPosition, _rigidbody.position);
+        if (_maxTravelDistance > 0f && traveled >= _maxTravelDistance)
             ConsumeAtCurrentPosition(_explodeOnMaxTravel);
     }
 
@@ -468,6 +540,8 @@ public class Projectile : MonoBehaviour
     // Keeps projectiles from detonating on the player or non-target trigger volumes.
     private bool IsIgnoredCollision(Collider other)
     {
+        if (_launchOwner != null && (other.transform == _launchOwner || other.transform.IsChildOf(_launchOwner)))
+            return true;
         int playerLayer = LayerMask.NameToLayer("Player");
         if (playerLayer >= 0 && other.gameObject.layer == playerLayer)
             return true;

@@ -111,6 +111,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         }
 
         Vector3 targetPoint = EnemyRegistry.GetAimPoint(target);
+        if (!IsAutomaticDirectionAllowed(targetPoint - Spawn.position))
+        {
+            ClearFireOriginAim();
+            return;
+        }
         AimFireOriginAt(target, targetPoint);
         AutomaticCannonTuning tuning = Runtime.Data.AutomaticCannon;
         FireTimer = GetAutomaticFireInterval(tuning);
@@ -1315,6 +1320,14 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             _lineBurstDirection,
             _lineBurstScatterDegrees,
             UnityEngine.Random.insideUnitCircle);
+        // Recheck each delayed round: the player or tracked target may have turned
+        // across the shoulder cannon's forward limit since this burst began.
+        if (!IsAutomaticDirectionAllowed(shotDirection))
+        {
+            CompleteLineBurst();
+            ClearFireOriginAim();
+            return;
+        }
         ProjectilePresentationArchetypeId projectileArchetype = GetLineBurstProjectileArchetype();
         bool spawned = TryFireCannonProjectile(
             position,
@@ -1340,6 +1353,19 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstRemaining--;
         if (_lineBurstRemaining <= 0)
             CompleteLineBurst();
+    }
+
+    private bool IsAutomaticDirectionAllowed(Vector3 direction)
+    {
+        if (Runtime?.State != WeaponState.Automatic
+            || Runtime.Data.AutomaticAimConstraint != WeaponAutomaticAimConstraint.BodyForward180
+            || Owner == null)
+            return true;
+
+        Vector3 forward = Owner.forward;
+        forward.y = 0f;
+        direction.y = 0f;
+        return Vector3.Dot(forward.normalized, direction.normalized) >= -0.00001f;
     }
 
     private void RefreshPendingLineBurstDirection()

@@ -12,6 +12,23 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     private int _requestedActiveTargetCount;
     private float _activeTargetLockTimer;
     private int _lastPresentedLockCount;
+    private readonly List<Collider> _launchOwnerColliders = new();
+    private readonly List<Renderer> _launchOwnerRenderers = new();
+    private AutomaticVolley _automaticVolley;
+
+    private struct AutomaticVolley
+    {
+        public int Remaining;
+        public float Timer;
+        public float ShotInterval;
+        public Vector3 TargetPosition;
+        public float DamageScale;
+        public float ExplosionRadius;
+        public float Falloff;
+        public float SpeedMultiplier;
+        public bool EliteOrBoss;
+        public bool EmittedLaunchFeedback;
+    }
 
     public bool IsActiveAbilityCharging => _isActiveAbilityCharging;
     public bool IsTargetingActive => _isActiveAbilityCharging;
@@ -38,13 +55,25 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     {
     }
 
+    public override void SetFireOrigin(WeaponFireOriginBinding fireOrigin)
+    {
+        if (fireOrigin.IsValid && fireOrigin.Muzzle != Spawn)
+            CancelAutomaticVolley();
+        base.SetFireOrigin(fireOrigin);
+    }
+
     // Fires automatic rocket bursts with heat-scaled extra rockets.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)
+        {
+            CancelAutomaticVolley();
             return;
+        }
 
         FireTimer -= deltaTime;
+        if (TickAutomaticVolley(deltaTime))
+            return;
         if (FireTimer > 0f)
             return;
 
@@ -60,7 +89,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         FireTimer = GetFireInterval();
         int extra = GetThresholdRocketBonus() + GetFragmentationRocketBonus();
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
-        AimFireOriginAt(target, EnemyRegistry.GetAimPoint(target));
+        AimFireOriginAlong(Vector3.up);
         FireBurstAt(
             EnemyRegistry.GetAimPoint(target),
             tuning.RocketAutoBaseRocketCount + extra,
@@ -74,6 +103,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     // Fires one fast manual rocket and consumes one ammo unit.
     public override void TickManual(float deltaTime, Vector3 aimDirection, bool isFiring)
     {
+        CancelAutomaticVolley();
         if (Runtime.State != WeaponState.Manual)
             return;
 
@@ -350,42 +380,86 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     private bool IsFragmentationCapPath() =>
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
 
-    // Spawns explosive rocket volley at the same target point.
+    // The first rocket leaves immediately; subsequent rounds use the current pipe position.
     private void FireBurstAt(Vector3 targetPosition, int count, float damageScale, float explosionRadius, float falloff, float speedMultiplier, bool eliteOrBoss)
     {
-        bool emittedLaunchFeedback = false;
-        for (int i = 0; i < count; i++)
+        _automaticVolley = new AutomaticVolley
         {
-            Vector3 launchOffset = GetVolleyLaunchOffset(i, count, targetPosition - Spawn.position);
-            bool fired = FireRocketAt(
-                targetPosition,
-                damageScale,
-                explosionRadius,
-                falloff,
-                speedMultiplier,
-                eliteOrBoss,
-                isAbilityDamage: false,
-                emitShotFeedback: !emittedLaunchFeedback,
-                launchOffset: launchOffset);
-            emittedLaunchFeedback |= fired;
-        }
+            Remaining = Mathf.Max(0, count),
+            ShotInterval = Mathf.Max(0.01f, Runtime.Data.RocketLauncher.RocketAutoVolleyShotInterval),
+            TargetPosition = targetPosition,
+            DamageScale = damageScale,
+            ExplosionRadius = explosionRadius,
+            Falloff = falloff,
+            SpeedMultiplier = speedMultiplier,
+            EliteOrBoss = eliteOrBoss
+        };
+        FireNextAutomaticRocket();
+        _automaticVolley.Timer = _automaticVolley.ShotInterval;
     }
 
-    private static Vector3 GetVolleyLaunchOffset(int index, int count, Vector3 direction)
+    private bool TickAutomaticVolley(float deltaTime)
     {
-        if (count <= 1)
-            return Vector3.zero;
+        if (_automaticVolley.Remaining <= 0)
+            return false;
+        if (Spawn == null)
+        {
+            CancelAutomaticVolley();
+            return true;
+        }
+        _automaticVolley.Timer -= Mathf.Max(0f, deltaTime);
+        while (_automaticVolley.Remaining > 0 && _automaticVolley.Timer <= 0f)
+        {
+            FireNextAutomaticRocket();
+            _automaticVolley.Timer += _automaticVolley.ShotInterval;
+        }
+        return true;
+    }
 
-        Vector3 forward = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
-        Vector3 right = Vector3.Cross(Vector3.up, forward);
-        if (right.sqrMagnitude <= 0.0001f)
-            right = Vector3.right;
-        else
-            right.Normalize();
-        Vector3 up = Vector3.Cross(forward, right).normalized;
-        float angle = index / (float)count * Mathf.PI * 2f;
-        float radius = count <= 3 ? 0.13f : 0.2f;
-        return right * (Mathf.Cos(angle) * radius) + up * (Mathf.Sin(angle) * radius);
+    private void FireNextAutomaticRocket()
+    {
+        if (_automaticVolley.Remaining <= 0)
+            return;
+        bool fired = FireRocketAt(
+            _automaticVolley.TargetPosition,
+            _automaticVolley.DamageScale,
+            _automaticVolley.ExplosionRadius,
+            _automaticVolley.Falloff,
+            _automaticVolley.SpeedMultiplier,
+            _automaticVolley.EliteOrBoss,
+            isAbilityDamage: false,
+            emitShotFeedback: !_automaticVolley.EmittedLaunchFeedback,
+            automaticPipeLaunch: true);
+        _automaticVolley.EmittedLaunchFeedback |= fired;
+        _automaticVolley.Remaining--;
+    }
+
+    private void CancelAutomaticVolley()
+    {
+        _automaticVolley = default;
+    }
+
+    private float GetAutomaticLaunchClearanceHeight()
+    {
+        float top = Spawn.position.y;
+        if (Owner != null)
+        {
+            Owner.GetComponentsInChildren(false, _launchOwnerColliders);
+            for (int i = 0; i < _launchOwnerColliders.Count; i++)
+            {
+                Collider collider = _launchOwnerColliders[i];
+                if (collider.enabled && !collider.isTrigger)
+                    top = Mathf.Max(top, collider.bounds.max.y);
+            }
+            Owner.GetComponentsInChildren(false, _launchOwnerRenderers);
+            for (int i = 0; i < _launchOwnerRenderers.Count; i++)
+            {
+                Renderer renderer = _launchOwnerRenderers[i];
+                if (renderer.enabled && (renderer is MeshRenderer || renderer is SkinnedMeshRenderer))
+                    top = Mathf.Max(top, renderer.bounds.max.y);
+            }
+        }
+        return top + 0.6f;
     }
 
     private int GetMaximumActiveRocketCount(RocketLauncherTuning tuning)
@@ -569,17 +643,19 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         bool eliteOrBoss,
         bool isAbilityDamage = false,
         bool emitShotFeedback = true,
-        Vector3 launchOffset = default)
+        bool automaticPipeLaunch = false)
     {
         if (Pool == null || Spawn == null)
             return false;
 
-        Vector3 launchPosition = Spawn.position + launchOffset;
+        Vector3 launchPosition = Spawn.position;
         Vector3 direction = targetPosition - launchPosition;
         if (direction.sqrMagnitude <= 0.0001f)
             return false;
 
         direction.Normalize();
+        if (automaticPipeLaunch)
+            direction = Vector3.up;
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
         float travelRange = Mathf.Max(0f, Runtime.Data.BaseRange);
@@ -680,6 +756,8 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             out Projectile rocket);
         if (rocketSpawned)
         {
+            if (automaticPipeLaunch)
+                rocket.ConfigureAutomaticRocketLaunch(targetPosition, GetAutomaticLaunchClearanceHeight(), Owner);
             rocket.ConfigureDamageFeedback(
                 actionSequenceId,
                 DamageFeedbackKind.Explosion,

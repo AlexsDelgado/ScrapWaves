@@ -204,6 +204,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         WeaponInstance weapon = CurrentManualWeapon;
         if (weapon != null)
             weapon.State = WeaponState.Automatic;
+        _mountController?.RefreshWeaponModes();
     }
 
     public void ForceManualMode()

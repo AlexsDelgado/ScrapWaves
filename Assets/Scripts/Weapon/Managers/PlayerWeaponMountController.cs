@@ -5,181 +5,178 @@ using UnityEngine;
 public sealed class PlayerWeaponMountController : MonoBehaviour
 {
     [SerializeField] private Transform _mainFirePoint;
-    [SerializeField] private AutomaticWeaponMount _rightMount;
-    [SerializeField] private AutomaticWeaponMount _leftMount;
-    [SerializeField] private Vector3 _rightMountOffset = new(0.58f, 1.05f, 0.05f);
-    [SerializeField] private Vector3 _leftMountOffset = new(-0.58f, 1.05f, 0.05f);
-
-    private readonly Dictionary<IWeaponBehaviour, AutomaticWeaponMount> _automaticAssignments = new();
-    private IWeaponBehaviour _manualWeapon;
-
-    public AutomaticWeaponMount RightMount => _rightMount;
-    public AutomaticWeaponMount LeftMount => _leftMount;
+    [SerializeField] private WearableWeaponMountCatalog _catalog;
+    private readonly Dictionary<WeaponType, AutomaticWeaponMount> _mounts = new();
+    private readonly Dictionary<IWeaponBehaviour, AutomaticWeaponMount> _equipped = new();
+    private readonly HashSet<IWeaponBehaviour> _automatic = new();
 
     public void Initialize(Transform mainFirePoint)
     {
         if (mainFirePoint != null)
             _mainFirePoint = mainFirePoint;
-        EnsureMounts();
+        if (_catalog == null)
+            _catalog = Resources.Load<WearableWeaponMountCatalog>("WearableWeaponMounts");
     }
 
     public void AddWeapon(IWeaponBehaviour weapon, bool manual)
     {
-        if (weapon == null)
+        if (weapon?.Runtime?.Data == null || _equipped.ContainsKey(weapon))
             return;
-        EnsureMounts();
-
-        if (manual || _manualWeapon == null)
+        Initialize(_mainFirePoint);
+        WeaponType type = weapon.Runtime.Data.WeaponType;
+        if (!_mounts.TryGetValue(type, out AutomaticWeaponMount mount))
         {
-            _manualWeapon = weapon;
-            BindToMain(weapon);
-            return;
+            mount = CreateMount(type);
+            if (mount == null)
+                return;
+            _mounts.Add(type, mount);
         }
-
-        AutomaticWeaponMount mount = GetFirstFreeMount();
-        if (mount != null)
-            BindToMount(weapon, mount);
+        _equipped.Add(weapon, mount);
+        if (manual)
+            SetManualWeapon(weapon);
+        else
+        {
+            ApplyMode(weapon, mount, true);
+            RefreshMount(mount);
+        }
     }
 
     public void SetManualWeapon(IWeaponBehaviour weapon)
     {
-        if (weapon == null || weapon == _manualWeapon)
+        if (weapon == null || !_equipped.ContainsKey(weapon))
             return;
-        EnsureMounts();
+        foreach (KeyValuePair<IWeaponBehaviour, AutomaticWeaponMount> pair in _equipped)
+            ApplyMode(pair.Key, pair.Value, pair.Key != weapon);
+        RefreshMounts();
+    }
 
-        _automaticAssignments.TryGetValue(weapon, out AutomaticWeaponMount vacatedMount);
-        IWeaponBehaviour outgoingManual = _manualWeapon;
-
-        if (vacatedMount != null)
-            _automaticAssignments.Remove(weapon);
-
-        _manualWeapon = weapon;
-        BindToMain(weapon);
-
-        if (outgoingManual != null)
-        {
-            AutomaticWeaponMount destination = vacatedMount != null ? vacatedMount : GetFirstFreeMount();
-            if (destination != null)
-                BindToMount(outgoingManual, destination);
-        }
+    // Sandbox controls may change a runtime mode directly, outside the normal cycle.
+    public void RefreshWeaponModes()
+    {
+        foreach (KeyValuePair<IWeaponBehaviour, AutomaticWeaponMount> pair in _equipped)
+            ApplyMode(pair.Key, pair.Value, pair.Key.Runtime.State == WeaponState.Automatic);
+        RefreshMounts();
     }
 
     public void RemoveWeapon(IWeaponBehaviour weapon)
     {
-        if (weapon == null)
+        if (weapon == null || !_equipped.TryGetValue(weapon, out AutomaticWeaponMount mount))
             return;
-
-        if (_manualWeapon == weapon)
+        BindOrigin(weapon, _mainFirePoint != null ? _mainFirePoint : transform, null);
+        _equipped.Remove(weapon);
+        _automatic.Remove(weapon);
+        if (_equipped.ContainsValue(mount))
         {
-            _manualWeapon = null;
+            RefreshMount(mount);
             return;
         }
-
-        if (_automaticAssignments.TryGetValue(weapon, out AutomaticWeaponMount mount))
-        {
-            _automaticAssignments.Remove(weapon);
-            mount?.Bind(null);
-        }
+        _mounts.Remove(weapon.Runtime.Data.WeaponType);
+        DestroyMount(mount);
     }
 
     public void ClearWeapons()
     {
-        foreach (KeyValuePair<IWeaponBehaviour, AutomaticWeaponMount> pair in _automaticAssignments)
-            pair.Value?.Bind(null);
-        _automaticAssignments.Clear();
-        _manualWeapon = null;
-        _rightMount?.Bind(null);
-        _leftMount?.Bind(null);
+        foreach (IWeaponBehaviour weapon in _equipped.Keys)
+            BindOrigin(weapon, _mainFirePoint != null ? _mainFirePoint : transform, null);
+        _equipped.Clear();
+        _automatic.Clear();
+        foreach (AutomaticWeaponMount mount in _mounts.Values)
+            DestroyMount(mount);
+        _mounts.Clear();
     }
 
-    public AutomaticWeaponMount GetAssignedMount(IWeaponBehaviour weapon)
+    public AutomaticWeaponMount GetAssignedMount(IWeaponBehaviour weapon) =>
+        weapon != null && _automatic.Contains(weapon) ? GetEquippedMount(weapon) : null;
+
+    public AutomaticWeaponMount GetEquippedMount(IWeaponBehaviour weapon) =>
+        weapon != null && _equipped.TryGetValue(weapon, out AutomaticWeaponMount mount) ? mount : null;
+
+    private void LateUpdate() => RefreshWeaponModes();
+
+    private void ApplyMode(IWeaponBehaviour weapon, AutomaticWeaponMount mount, bool automatic)
     {
-        return weapon != null && _automaticAssignments.TryGetValue(weapon, out AutomaticWeaponMount mount)
-            ? mount
-            : null;
+        if (automatic)
+            _automatic.Add(weapon);
+        else
+            _automatic.Remove(weapon);
+        BindOrigin(weapon, automatic ? mount.Muzzle : (_mainFirePoint != null ? _mainFirePoint : transform),
+            automatic ? mount : null);
     }
 
-    private void BindToMain(IWeaponBehaviour weapon)
+    private static void BindOrigin(IWeaponBehaviour weapon, Transform muzzle, IWeaponAimSink aimSink)
     {
-        if (weapon is IWeaponFireOriginReceiver receiver)
-            receiver.SetFireOrigin(new WeaponFireOriginBinding(_mainFirePoint != null ? _mainFirePoint : transform));
+        if (weapon is IWeaponFireOriginReceiver receiver &&
+            (receiver.FireOrigin.Muzzle != muzzle || receiver.FireOrigin.AimSink != aimSink))
+            receiver.SetFireOrigin(new WeaponFireOriginBinding(muzzle, aimSink));
     }
 
-    private void BindToMount(IWeaponBehaviour weapon, AutomaticWeaponMount mount)
+    private void RefreshMounts()
     {
+        foreach (AutomaticWeaponMount mount in _mounts.Values)
+            RefreshMount(mount);
+    }
+
+    private void RefreshMount(AutomaticWeaponMount mount)
+    {
+        WeaponInstance representative = null;
+        bool automatic = false;
+        // Duplicate sandbox slots share one physical attachment. Its light is on
+        // while any copy is automatic, without intersecting duplicate models.
+        foreach (KeyValuePair<IWeaponBehaviour, AutomaticWeaponMount> pair in _equipped)
+        {
+            if (pair.Value != mount)
+                continue;
+            representative ??= pair.Key.Runtime;
+            if (_automatic.Contains(pair.Key))
+            {
+                representative = pair.Key.Runtime;
+                automatic = true;
+                break;
+            }
+        }
+        if (mount.Weapon != representative)
+            mount.Bind(representative);
+        mount.SetAutomatic(automatic);
+    }
+
+    private AutomaticWeaponMount CreateMount(WeaponType type)
+    {
+        if (_catalog == null || !_catalog.TryGet(type, out WearableWeaponMountDefinition definition)
+            || definition.Prefab == null)
+        {
+            Debug.LogError($"No wearable fire point configured for {type}.", this);
+            return null;
+        }
+        Transform anchor = string.IsNullOrEmpty(definition.AttachmentPath)
+            ? transform : transform.Find(definition.AttachmentPath);
+        if (anchor == null)
+        {
+            Debug.LogError($"Wearable attachment '{definition.AttachmentPath}' was not found for {type}.", this);
+            return null;
+        }
+        GameObject instance = Instantiate(definition.Prefab, anchor, false);
+        instance.name = $"{type} Wearable Fire Point";
+        instance.transform.localPosition = definition.LocalPosition;
+        instance.transform.localRotation = Quaternion.Euler(definition.LocalEulerAngles);
+        instance.transform.localScale = definition.LocalScale;
+        AutomaticWeaponMount mount = instance.GetComponent<AutomaticWeaponMount>();
         if (mount == null)
-            return;
-        _automaticAssignments[weapon] = mount;
-        mount.Bind(weapon.Runtime);
-        if (weapon is IWeaponFireOriginReceiver receiver)
-            receiver.SetFireOrigin(new WeaponFireOriginBinding(mount.Muzzle, mount));
-    }
-
-    private AutomaticWeaponMount GetFirstFreeMount()
-    {
-        bool rightUsed = _automaticAssignments.ContainsValue(_rightMount);
-        if (!rightUsed)
-            return _rightMount;
-        bool leftUsed = _automaticAssignments.ContainsValue(_leftMount);
-        return leftUsed ? null : _leftMount;
-    }
-
-    private void EnsureMounts()
-    {
-        if (_rightMount == null)
-            _rightMount = CreatePlaceholderMount("Automatic Mount Right", _rightMountOffset);
-        if (_leftMount == null)
-            _leftMount = CreatePlaceholderMount("Automatic Mount Left", _leftMountOffset);
-    }
-
-    private AutomaticWeaponMount CreatePlaceholderMount(string mountName, Vector3 localOffset)
-    {
-        GameObject root = new(mountName);
-        root.transform.SetParent(transform, false);
-        root.transform.localPosition = localOffset;
-
-        GameObject pivotObject = new("Aim Pivot");
-        pivotObject.transform.SetParent(root.transform, false);
-
-        GameObject visualRoot = new("Placeholder Visual");
-        visualRoot.transform.SetParent(pivotObject.transform, false);
-
-        GameObject baseMesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        baseMesh.name = "Mount Body";
-        baseMesh.transform.SetParent(visualRoot.transform, false);
-        baseMesh.transform.localScale = new Vector3(0.34f, 0.24f, 0.42f);
-        RemoveCollider(baseMesh);
-
-        GameObject recoilRoot = new("Recoil Root");
-        recoilRoot.transform.SetParent(pivotObject.transform, false);
-
-        GameObject barrel = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        barrel.name = "Barrel";
-        barrel.transform.SetParent(recoilRoot.transform, false);
-        barrel.transform.localPosition = new Vector3(0f, 0f, 0.38f);
-        barrel.transform.localScale = new Vector3(0.12f, 0.12f, 0.62f);
-        RemoveCollider(barrel);
-
-        GameObject muzzleObject = new("Muzzle");
-        muzzleObject.transform.SetParent(recoilRoot.transform, false);
-        muzzleObject.transform.localPosition = new Vector3(0f, 0f, 0.72f);
-
-        AutomaticWeaponMount mount = root.AddComponent<AutomaticWeaponMount>();
-        mount.Configure(transform, pivotObject.transform, recoilRoot.transform, muzzleObject.transform, visualRoot);
-        mount.Bind(null);
+        {
+            Debug.LogError($"Wearable prefab for {type} is missing AutomaticWeaponMount.", this);
+            instance.SetActive(false);
+            if (Application.isPlaying) Destroy(instance); else DestroyImmediate(instance);
+            return null;
+        }
+        mount.SetOwner(transform);
         return mount;
     }
 
-    private static void RemoveCollider(GameObject gameObject)
+    private static void DestroyMount(AutomaticWeaponMount mount)
     {
-        Collider collider = gameObject.GetComponent<Collider>();
-        if (collider != null)
-        {
-            collider.enabled = false;
-            if (Application.isPlaying)
-                Destroy(collider);
-            else
-                DestroyImmediate(collider);
-        }
+        if (mount == null)
+            return;
+        mount.Bind(null);
+        mount.gameObject.SetActive(false);
+        if (Application.isPlaying) Destroy(mount.gameObject); else DestroyImmediate(mount.gameObject);
     }
 }
