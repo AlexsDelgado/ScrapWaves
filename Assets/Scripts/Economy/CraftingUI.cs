@@ -22,8 +22,14 @@ public class CraftingUI : MonoBehaviour
     private Action _onClosed;
     private ThirdPersonCamera _resolvedCamera;
     private bool _isVisible;
+    private bool _holdsUiPause;
 
     public bool IsVisible => _isVisible;
+
+    private void OnDisable()
+    {
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
+    }
 
     public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
     {
@@ -49,6 +55,7 @@ public class CraftingUI : MonoBehaviour
         _isVisible = true;
         _previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
+        GameplayPause.SetHeld(ref _holdsUiPause, true);
         SetCameraBlocked(true);
         EnsureUi();
         _titleText.text = "Crafting Station";
@@ -64,6 +71,7 @@ public class CraftingUI : MonoBehaviour
         if (_canvas != null)
             _canvas.gameObject.SetActive(false);
         Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
         SetCameraBlocked(false);
         _onClosed?.Invoke();
         _onClosed = null;
@@ -166,8 +174,14 @@ public class CraftingUI : MonoBehaviour
         _titleText.text = $"Advanced Tinkering — {weapon.DisplayName}";
         SetStatus("Elegí una ruta de mejora.");
 
+        bool pathBUnlocked = SaveManager.Instance == null
+            || SaveManager.Instance.IsPathUnlocked(weapon, WeaponUpgradePath.PathB);
+
         if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
         {
+            if (guaranteed == WeaponUpgradePath.PathB && !pathBUnlocked)
+                guaranteed = WeaponUpgradePath.PathA;
+
             string name = guaranteed == WeaponUpgradePath.PathA
                 ? (weapon.PathA?.PathName ?? "Path A")
                 : (weapon.PathB?.PathName ?? "Path B");
@@ -178,10 +192,19 @@ public class CraftingUI : MonoBehaviour
         {
             AddCard(weapon.PathA?.PathName ?? "Path A", "Aceptar path A", true,
                 () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true)));
-            AddCard(weapon.PathB?.PathName ?? "Path B", "Aceptar path B", true,
-                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true)));
-            AddCard("Rechazar", "+50% costo, garantiza path alternativo", true,
-                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false)));
+
+            if (pathBUnlocked)
+            {
+                AddCard(weapon.PathB?.PathName ?? "Path B", "Aceptar path B", true,
+                    () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true)));
+                AddCard("Rechazar", "+50% costo, garantiza path alternativo", true,
+                    () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false)));
+            }
+            else
+            {
+                AddCard(weapon.PathB?.PathName ?? "Path B", "Bloqueado — completá el challenge / tienda", false, null);
+                SetStatus("Path B bloqueado hasta desbloquearlo en Objetivos.");
+            }
         }
     }
 

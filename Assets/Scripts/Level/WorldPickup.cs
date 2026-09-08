@@ -24,6 +24,9 @@ public class WorldPickup : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Velocidad del bobbing.")]
     public float BobSpeed = 3f;
 
+    [SerializeField, Tooltip("Si false, ignora PickupRange del jugador y usa solo PickupRadius.")]
+    private bool _usePlayerPickupRange = true;
+
     private IPickable _pickable;
     private Vector3 _basePosition;
     private float _bobPhase;
@@ -31,21 +34,38 @@ public class WorldPickup : MonoBehaviour
 
     private void Awake()
     {
-        _pickable = GetComponent<IPickable>();
-        if (_pickable == null)
-            Debug.LogWarning($"[WorldPickup] {name}: no hay componente IPickable en el GameObject.", this);
+        TryResolvePickable();
     }
 
     private void OnEnable()
     {
+        TryResolvePickable();
         _basePosition = transform.position;
         _bobPhase = Random.Range(0f, Mathf.PI * 2f);
         _pickedUp = false;
     }
 
+    /// <summary>Recogida al acercarse, sin imán ni PickupRange de stats (escenas de prueba).</summary>
+    public void ConfigureForManualCollection(float pickupRadius = 1f)
+    {
+        PickupRadius = Mathf.Max(0.01f, pickupRadius);
+        MagnetRadius = 0f;
+        MagnetSpeed = 0f;
+        _usePlayerPickupRange = false;
+    }
+
+    /// <summary>Recogida de gameplay: radio base + imán + PickupRange del jugador.</summary>
+    public void ConfigureForGameplayCollection(float pickupRadius = 1.5f, float magnetRadius = 6f, float magnetSpeed = 12f)
+    {
+        PickupRadius = Mathf.Max(0.01f, pickupRadius);
+        MagnetRadius = Mathf.Max(0f, magnetRadius);
+        MagnetSpeed = Mathf.Max(0f, magnetSpeed);
+        _usePlayerPickupRange = true;
+    }
+
     private void OnValidate()
     {
-        if (MagnetRadius > 0f && MagnetRadius < PickupRadius)
+        if (_usePlayerPickupRange && MagnetRadius > 0f && MagnetRadius < PickupRadius)
             MagnetRadius = PickupRadius;
     }
 
@@ -58,6 +78,9 @@ public class WorldPickup : MonoBehaviour
         if (player == null)
             return;
 
+        if (!TryResolvePickable())
+            return;
+
         Vector3 playerPos = player.position;
         float dist = Vector3.Distance(_basePosition, playerPos);
         float pickupRadius = GetEffectivePickupRadius(player);
@@ -65,7 +88,7 @@ public class WorldPickup : MonoBehaviour
         if (dist <= pickupRadius)
         {
             _pickedUp = true;
-            _pickable?.OnPickedUp();
+            _pickable.OnPickedUp();
             return;
         }
 
@@ -77,8 +100,20 @@ public class WorldPickup : MonoBehaviour
         transform.position = _basePosition + Vector3.up * (Mathf.Sin(_bobPhase) * BobAmplitude);
     }
 
+    private bool TryResolvePickable()
+    {
+        if (_pickable != null)
+            return true;
+
+        _pickable = GetComponent<IPickable>();
+        return _pickable != null;
+    }
+
     private float GetEffectivePickupRadius(Transform player)
     {
+        if (!_usePlayerPickupRange)
+            return PickupRadius;
+
         PlayerStats stats = player != null ? player.GetComponentInParent<PlayerStats>() : null;
         return PlayerStatMath.GetPickupRange(stats, PickupRadius);
     }

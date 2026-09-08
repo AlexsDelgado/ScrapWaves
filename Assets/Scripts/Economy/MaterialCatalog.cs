@@ -52,7 +52,7 @@ public static class MaterialCatalog
     }
 
     public static int GetPickupXpValue(MaterialType type) =>
-        GetCategory(type) == MaterialCategory.Rare ? 12 : 4;
+        GetCategory(type) == MaterialCategory.Rare ? 5 : 1;
 
     public static string GetDisplayName(MaterialType type) => type switch
     {

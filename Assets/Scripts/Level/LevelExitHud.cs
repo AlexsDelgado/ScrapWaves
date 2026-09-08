@@ -165,7 +165,7 @@ public class LevelExitHud : MonoBehaviour
         if (!_exitObjective.AllKeysCollected)
         {
             _root.SetActive(true);
-            _statusText.text = $"Llaves: {_exitObjective.KeysCollected}/{_exitObjective.KeysRequired}";
+            _statusText.text = $"Batteries: {_exitObjective.KeysCollected}/{_exitObjective.KeysRequired}";
             _statusText.color = new Color(0.95f, 0.85f, 0.35f, 1f);
             return;
         }

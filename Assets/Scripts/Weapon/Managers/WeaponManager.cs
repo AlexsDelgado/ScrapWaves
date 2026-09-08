@@ -257,6 +257,22 @@ public class WeaponManager : MonoBehaviour
         _mountController?.ClearWeapons();
     }
 
+    /// <summary>Full Heal power-up: refill manual ammo and clear active ability cooldown.</summary>
+    public void RefillManualAmmoAndResetActiveCooldown()
+    {
+        for (int i = 0; i < _equipped.Count; i++)
+        {
+            WeaponInstance runtime = _equipped[i]?.Runtime;
+            if (runtime == null)
+                continue;
+
+            runtime.CurrentAmmo = WeaponMath.GetMaxManualAmmo(runtime, _stats);
+            runtime.AbilityCooldownTimer = 0f;
+        }
+
+        _manualCooldownTimer = 0f;
+    }
+
     // Creates concrete behavior for each weapon type.
     private IWeaponBehaviour CreateBehaviour(WeaponData data)
     {

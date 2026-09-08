@@ -135,6 +135,18 @@ public class PlayerHealth : MonoBehaviour
         OnShieldChanged?.Invoke();
     }
 
+    /// <summary>Rellena vida al máximo (power-up Full Heal).</summary>
+    public void HealToFull()
+    {
+        if (_isDead)
+            return;
+
+        _currentHealth = _maxHealth;
+        ClearBurn();
+        RefillShields();
+        OnHealthChanged?.Invoke();
+    }
+
     private void OnEnable()
     {
         _isDead = false;
@@ -233,6 +245,7 @@ public class PlayerHealth : MonoBehaviour
         {
             _isDead = true;
             ClearBurn();
+            ChallengeProgressTracker.NotifyPlayerDied();
             OnPlayerDied?.Invoke();
         }
     }
@@ -271,6 +284,9 @@ public class PlayerHealth : MonoBehaviour
         if (amount <= 0 || _currentHealth <= 0 || _isDead)
             return;
 
+        if (TemporaryPowerupController.Instance != null && TemporaryPowerupController.Instance.IsPowerupInvulnerable)
+            return;
+
         if (Time.time < _invulnerableUntil)
             return;
 
@@ -280,10 +296,12 @@ public class PlayerHealth : MonoBehaviour
             _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
             SyncEnemyCollisionIgnores();
             RegisterDamageTaken(Time.time);
+            ChallengeProgressTracker.NotifyPlayerDamaged(this, _currentHealth, _currentHealth);
             OnShieldChanged?.Invoke();
             return;
         }
 
+        int healthBefore = _currentHealth;
         int finalAmount = PlayerStatMath.ApplyDamageResistance(Stats, amount);
         _currentHealth -= finalAmount;
         if (_currentHealth < 0)
@@ -292,6 +310,7 @@ public class PlayerHealth : MonoBehaviour
         _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
         SyncEnemyCollisionIgnores();
         RegisterDamageTaken(Time.time);
+        ChallengeProgressTracker.NotifyPlayerDamaged(this, healthBefore, _currentHealth);
 
         AudioManager.TryPlayPlayerHurt();
         OnHitDamageTaken?.Invoke();
@@ -300,6 +319,7 @@ public class PlayerHealth : MonoBehaviour
         if (_currentHealth <= 0 && !_isDead)
         {
             _isDead = true;
+            ChallengeProgressTracker.NotifyPlayerDied();
             OnPlayerDied?.Invoke();
         }
     }

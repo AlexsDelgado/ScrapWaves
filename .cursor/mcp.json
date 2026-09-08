@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "unity": {
+      "command": "C:\\Users\\alexs.delgado\\AppData\\Local\\Unity\\bin\\unity.exe",
+      "args": [
+        "mcp",
+        "--project-path",
+        "C:\\Alexs\\Github\\ScrapWaves2"
+      ]
+    },
+    "blender": {
+      "command": "C:\\Users\\Alexs\\.local\\bin\\uvx.exe",
+      "args": [
+        "blender-mcp"
+      ]
+    }
+  }
+}

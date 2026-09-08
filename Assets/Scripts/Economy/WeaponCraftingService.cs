@@ -127,6 +127,11 @@ public class WeaponCraftingService : MonoBehaviour
 
         if (accept)
         {
+            if (path == WeaponUpgradePath.PathB
+                && SaveManager.Instance != null
+                && !SaveManager.Instance.IsPathUnlocked(weapon, WeaponUpgradePath.PathB))
+                return new CraftingActionResult(false, "Path B bloqueado. Desbloquealo en Objetivos.");
+
             _weaponManager.UpgradeWeapon(instance);
             _weaponManager.ApplyUpgradePath(instance, path);
             _advancedRejected.Remove(weapon.WeaponId);
@@ -134,8 +139,14 @@ public class WeaponCraftingService : MonoBehaviour
             return new CraftingActionResult(true, $"Path {path} aplicado. Nivel {instance.Level}.");
         }
 
+        WeaponUpgradePath alternate = GetGuaranteedAlternatePath(weapon, path);
+        if (alternate == WeaponUpgradePath.PathB
+            && SaveManager.Instance != null
+            && !SaveManager.Instance.IsPathUnlocked(weapon, WeaponUpgradePath.PathB))
+            alternate = WeaponUpgradePath.PathA;
+
         _advancedRejected[weapon.WeaponId] = true;
-        _guaranteedPath[weapon.WeaponId] = GetGuaranteedAlternatePath(weapon, path);
+        _guaranteedPath[weapon.WeaponId] = alternate;
         return new CraftingActionResult(true, "Oferta rechazada. Costo de re-tinkering +50%.");
     }
 

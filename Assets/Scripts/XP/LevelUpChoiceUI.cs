@@ -41,6 +41,7 @@ public class LevelUpChoiceUI : MonoBehaviour
     private Action<int> _onSelected;
     private IReadOnlyList<LevelUpChoiceOption> _currentOptions;
     private bool _isVisible;
+    private bool _holdsUiPause;
 
     public bool IsVisible => _isVisible;
 
@@ -93,6 +94,7 @@ public class LevelUpChoiceUI : MonoBehaviour
         {
             _previousTimeScale = Time.timeScale;
             Time.timeScale = 0f;
+            GameplayPause.SetHeld(ref _holdsUiPause, true);
         }
 
         EnsureUiExists();
@@ -126,7 +128,15 @@ public class LevelUpChoiceUI : MonoBehaviour
         SetCameraBlocked(false);
 
         if (_pauseWhileChoosing)
+        {
             Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
+            GameplayPause.SetHeld(ref _holdsUiPause, false);
+        }
+    }
+
+    private void OnDisable()
+    {
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
     }
 
     private void EnsureUiExists()

@@ -61,12 +61,25 @@ public class SwarmPooledEnemy : MonoBehaviour
         if (TryGetComponent(out EnemyHealth health))
             health.PrepareForPoolSpawn();
 
+        // Followers primero (identity + MeleeSwarm), luego behaviors (perfiles Charger/Hellfire/etc.).
         GetComponent<EnemyFollow>()?.PrepareForSpawn();
         GetComponent<SimpleFollow>()?.PrepareForSpawn();
+
+        EnsureMetaDropComponents();
+        EnemyVerticalEngagement engagement = EnemyVerticalEngagement.EnsureOn(gameObject);
+        engagement?.ResetEngagement();
 
         IEnemySpawnLifecycle[] lifecycles = GetComponents<IEnemySpawnLifecycle>();
         for (int i = 0; i < lifecycles.Length; i++)
             lifecycles[i].OnPoolSpawn();
+    }
+
+    private void EnsureMetaDropComponents()
+    {
+        if (GetComponent<EnemyTemporaryPowerupDrop>() == null)
+            gameObject.AddComponent<EnemyTemporaryPowerupDrop>();
+        if (GetComponent<EnemyScrapDrop>() == null)
+            gameObject.AddComponent<EnemyScrapDrop>();
     }
 
     private void ResetForPoolDespawn()

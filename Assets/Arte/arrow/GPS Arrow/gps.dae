@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 4.5.7 LTS commit date:2026-02-16, commit time:13:34, hash:a9874eeece8d</authoring_tool>
+    </contributor>
+    <created>2026-02-26T19:53:28</created>
+    <modified>2026-02-26T19:53:28</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="gpsarrow-effect">
+      <profile_COMMON>
+        <newparam sid="gpsarrow_png-surface">
+          <surface type="2D">
+            <init_from>gpsarrow_png</init_from>
+          </surface>
+        </newparam>
+        <newparam sid="gpsarrow_png-sampler">
+          <sampler2D>
+            <source>gpsarrow_png-surface</source>
+          </sampler2D>
+        </newparam>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <diffuse>
+              <texture texture="gpsarrow_png-sampler" texcoord="texcoords"/>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="ior">1.5</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_images>
+    <image id="gpsarrow_png" name="gpsarrow_png">
+      <init_from>gpsarrow.png</init_from>
+    </image>
+  </library_images>
+  <library_materials>
+    <material id="gpsarrow-material" name="gpsarrow">
+      <instance_effect url="#gpsarrow-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="gps-mesh" name="gps">
+      <mesh>
+        <source id="gps-mesh-positions">
+          <float_array id="gps-mesh-positions-array" count="138">-0.03735351 9.76562e-4 0.09448242 -0.05932617 9.76562e-4 -0.378418 -0.0246582 -0.02490234 0.09448242 -0.03930664 -0.03662109 -0.378418 0 -0.03295898 0.09448242 0 -0.05688476 -0.378418 0.0246582 -0.02490234 0.09448242 0.03930664 -0.03662109 -0.378418 0.03735351 9.76562e-4 0.09448242 0.05932617 9.76562e-4 -0.378418 0.0246582 0.02685546 0.09448242 0.03930664 0.03857421 -0.378418 0 0.0349121 0.09448242 0 0.05883789 -0.378418 -0.0246582 0.02685546 0.09448242 -0.03930664 0.03857421 -0.378418 -0.03735351 9.76562e-4 0.09448242 -0.05932617 9.76562e-4 -0.378418 0.03930664 -0.03662109 -0.378418 -0.03930664 -0.03662109 -0.378418 0.05932617 9.76562e-4 -0.378418 -0.05932617 9.76562e-4 -0.378418 0.03930664 0.03857421 -0.378418 -0.03930664 0.03857421 -0.378418 0 -0.07421875 0.09448242 -0.1523437 9.76562e-4 0.09448242 0.1523437 9.76562e-4 0.09448242 0 0.07617187 0.09448242 -0.03930664 -0.03662109 -0.378418 0.03930664 -0.03662109 -0.378418 0 -0.05688476 -0.378418 0 9.76562e-4 0.378418 -0.1523437 9.76562e-4 0.09448242 0 -0.07421875 0.09448242 0 9.76562e-4 0.378418 0 -0.07421875 0.09448242 0.1523437 9.76562e-4 0.09448242 -0.03930664 0.03857421 -0.378418 0 0.05883789 -0.378418 0.03930664 0.03857421 -0.378418 0 9.76562e-4 0.378418 0 0.07617187 0.09448242 -0.1523437 9.76562e-4 0.09448242 0 9.76562e-4 0.378418 0.1523437 9.76562e-4 0.09448242 0 0.07617187 0.09448242</float_array>
+          <technique_common>
+            <accessor source="#gps-mesh-positions-array" count="46" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="gps-mesh-normals">
+          <float_array id="gps-mesh-normals-array" count="90">-0.99884 0.0206117 0.043518 -0.7014253 -0.7113282 0.04488509 -0.6565017 -0.7533113 0.03908401 0 -0.999361 0.03574347 0.7014253 -0.7113282 0.04488509 0.6565018 -0.7533113 0.03908401 0.9990631 0 0.04327678 0.7014253 0.7113282 0.04488509 0.6565018 0.7533113 0.03908401 0 0.999361 0.03574347 -0.7014253 0.7113282 0.04488509 -0.6565018 0.7533113 0.03908401 -0.9988405 -0.02061164 0.04350775 0 0 -1 -0.4297074 -0.8730582 0.2304803 -0.4297074 -0.8730581 0.2304802 0.4297074 -0.8730582 0.2304803 0.4297072 -0.8730581 0.2304803 0.4297074 -0.8730582 0.2304803 -0.4296717 0.8730815 0.2304582 -0.4296717 0.8730816 0.2304583 -0.4296717 0.8730816 0.2304583 0.4296717 0.8730815 0.2304582 0.4296717 0.8730815 0.2304582 0.4296718 0.8730816 0.2304582 -0.9988196 -0.01558774 0.04600614 0 -0.9987227 0.05052906 0.9989224 0 0.04641348 0 0.9987227 0.05052906 -0.9988191 0.01558774 0.04601687</float_array>
+          <technique_common>
+            <accessor source="#gps-mesh-normals-array" count="30" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="gps-mesh-map-0">
+          <float_array id="gps-mesh-map-0-array" count="168">0.296875 0.5 0.3515625 0.46875 0.296875 0.484375 0.3515625 0.46875 0.296875 0.4765625 0.296875 0.484375 0.296875 0.4765625 0.3515625 0.46875 0.296875 0.484375 0.3515625 0.46875 0.296875 0.5 0.296875 0.484375 0.296875 0.5 0.3515625 0.53125 0.296875 0.515625 0.3515625 0.53125 0.296875 0.5234375 0.296875 0.515625 0.296875 0.5234375 0.3515625 0.53125 0.296875 0.515625 0.3515625 0.53125 0.296875 0.5 0.296875 0.515625 0.3515625 0.46875 0.3515625 0.5 0.3515625 0.46875 0.3515625 0.5 0.3515625 0.53125 0.3515625 0.5 0.7421875 0.3984375 0.796875 0.5390625 0.7421875 0.5390625 0.796875 0.5390625 0.7421875 0.6875 0.7421875 0.5390625 0.3515625 0.46875 0.3515625 0.46875 0.3515625 0.4453125 0.265625 0.5 0.296875 0.5 0.296875 0.4375 0.265625 0.5 0.296875 0.4375 0.296875 0.5 0.3515625 0.53125 0.3515625 0.5546875 0.3515625 0.53125 0.265625 0.5 0.296875 0.5625 0.296875 0.5 0.265625 0.5 0.296875 0.5 0.296875 0.5625 0.296875 0.5 0.3515625 0.5 0.3515625 0.46875 0.3515625 0.46875 0.3515625 0.4453125 0.296875 0.4765625 0.296875 0.4765625 0.3515625 0.4453125 0.3515625 0.46875 0.3515625 0.46875 0.3515625 0.5 0.296875 0.5 0.296875 0.5 0.3515625 0.5 0.3515625 0.53125 0.3515625 0.53125 0.3515625 0.5546875 0.296875 0.5234375 0.296875 0.5234375 0.3515625 0.5546875 0.3515625 0.53125 0.3515625 0.53125 0.3515625 0.5 0.296875 0.5 0.3515625 0.46875 0.3515625 0.5 0.3515625 0.5 0.3515625 0.5 0.3515625 0.53125 0.3515625 0.53125</float_array>
+          <technique_common>
+            <accessor source="#gps-mesh-map-0-array" count="84" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="gps-mesh-vertices">
+          <input semantic="POSITION" source="#gps-mesh-positions"/>
+        </vertices>
+        <triangles material="gpsarrow-material" count="28">
+          <input semantic="VERTEX" source="#gps-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#gps-mesh-normals" offset="1"/>
+          <input semantic="TEXCOORD" source="#gps-mesh-map-0" offset="2" set="0"/>
+          <p>0 0 0 3 1 1 2 2 2 3 1 3 4 3 4 2 2 5 4 3 6 7 4 7 6 5 8 7 4 9 8 6 10 6 5 11 8 6 12 11 7 13 10 8 14 11 7 15 12 9 16 10 8 17 12 9 18 15 10 19 14 11 20 15 10 21 16 12 22 14 11 23 19 13 24 20 13 25 18 13 26 21 13 27 22 13 28 20 13 29 24 13 30 25 13 31 26 13 32 25 13 33 27 13 34 26 13 35 28 13 36 29 13 37 30 13 38 31 14 39 32 14 40 33 15 41 34 16 42 35 17 43 36 18 44 37 13 45 38 13 46 39 13 47 40 19 48 41 20 49 42 21 50 43 22 51 44 23 52 45 24 53 0 0 54 1 25 55 3 1 56 3 1 57 5 26 58 4 3 59 4 3 60 5 26 61 7 4 62 7 4 63 9 27 64 8 6 65 8 6 66 9 27 67 11 7 68 11 7 69 13 28 70 12 9 71 12 9 72 13 28 73 15 10 74 15 10 75 17 29 76 16 12 77 19 13 78 21 13 79 20 13 80 21 13 81 23 13 82 22 13 83</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_controllers>
+    <controller id="Armature_gps-skin" name="Armature">
+      <skin source="#gps-mesh">
+        <bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</bind_shape_matrix>
+        <source id="Armature_gps-skin-joints">
+          <Name_array id="Armature_gps-skin-joints-array" count="1">world_root</Name_array>
+          <technique_common>
+            <accessor source="#Armature_gps-skin-joints-array" count="1" stride="1">
+              <param name="JOINT" type="name"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Armature_gps-skin-bind_poses">
+          <float_array id="Armature_gps-skin-bind_poses-array" count="16">1 0 0 0 0 0 1 0 0 -1 0 0 0 0 0 1</float_array>
+          <technique_common>
+            <accessor source="#Armature_gps-skin-bind_poses-array" count="1" stride="16">
+              <param name="TRANSFORM" type="float4x4"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Armature_gps-skin-weights">
+          <float_array id="Armature_gps-skin-weights-array" count="46">1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1</float_array>
+          <technique_common>
+            <accessor source="#Armature_gps-skin-weights-array" count="46" stride="1">
+              <param name="WEIGHT" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <joints>
+          <input semantic="JOINT" source="#Armature_gps-skin-joints"/>
+          <input semantic="INV_BIND_MATRIX" source="#Armature_gps-skin-bind_poses"/>
+        </joints>
+        <vertex_weights count="46">
+          <input semantic="JOINT" source="#Armature_gps-skin-joints" offset="0"/>
+          <input semantic="WEIGHT" source="#Armature_gps-skin-weights" offset="1"/>
+          <vcount>1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 </vcount>
+          <v>0 0 0 1 0 2 0 3 0 4 0 5 0 6 0 7 0 8 0 9 0 10 0 11 0 12 0 13 0 14 0 15 0 16 0 17 0 18 0 19 0 20 0 21 0 22 0 23 0 24 0 25 0 26 0 27 0 28 0 29 0 30 0 31 0 32 0 33 0 34 0 35 0 36 0 37 0 38 0 39 0 40 0 41 0 42 0 43 0 44 0 45</v>
+        </vertex_weights>
+      </skin>
+    </controller>
+  </library_controllers>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Armature" name="Armature" type="NODE">
+        <matrix sid="transform">1 0 0 0 0 -4.37114e-8 -1 0 0 1 -4.37114e-8 0 0 0 0 1</matrix>
+        <node id="Armature_world_root" name="world_root" sid="world_root" type="JOINT">
+          <matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+          <extra>
+            <technique profile="blender">
+              <tip_x sid="tip_x" type="float">0</tip_x>
+              <tip_y sid="tip_y" type="float">1</tip_y>
+              <tip_z sid="tip_z" type="float">0</tip_z>
+            </technique>
+          </extra>
+        </node>
+        <node id="gps" name="gps" type="NODE">
+          <matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+          <instance_controller url="#Armature_gps-skin">
+            <skeleton>#Armature_world_root</skeleton>
+            <bind_material>
+              <technique_common>
+                <instance_material symbol="gpsarrow-material" target="#gpsarrow-material">
+                  <bind_vertex_input semantic="texcoords" input_semantic="TEXCOORD" input_set="0"/>
+                </instance_material>
+              </technique_common>
+            </bind_material>
+          </instance_controller>
+        </node>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

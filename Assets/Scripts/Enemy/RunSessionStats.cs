@@ -10,11 +10,11 @@ public static class RunSessionStats
 
     public static int BossKills => _bossKills;
 
-    public static float ElapsedSeconds => UnityEngine.Time.unscaledTime - _runStartTime;
+    public static float ElapsedSeconds => UnityEngine.Time.time - _runStartTime;
 
     public static void Reset()
     {
-        _runStartTime = UnityEngine.Time.unscaledTime;
+        _runStartTime = UnityEngine.Time.time;
         _bossKills = 0;
         RunCombatStats.Reset();
     }

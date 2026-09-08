@@ -640,7 +640,13 @@ public sealed class MortarShellImpact : MonoBehaviour
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
-            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+            string weaponId = _hasFeedbackTemplate && _feedbackTemplate.Weapon?.Data != null
+                ? _feedbackTemplate.Weapon.Data.WeaponId
+                : null;
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+                damageable,
+                finalDamage,
+                sourceWeaponId: weaponId);
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, explosionCenter, ResolveKnockback(finalDamage, falloffScale));

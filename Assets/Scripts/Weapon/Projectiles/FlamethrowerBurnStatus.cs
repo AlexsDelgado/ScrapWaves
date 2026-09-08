@@ -141,11 +141,13 @@ public sealed class FlamethrowerBurnStatus : MonoBehaviour
         while (_tickTimer <= 0f && _remainingDuration > 0f)
         {
             Vector3 impactPosition = transform.position;
+            string weaponId = _source.Weapon?.Data != null ? _source.Weapon.Data.WeaponId : null;
             DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
                 _target,
                 _damagePerTick,
                 DamageChannel.Status,
-                _statusKind);
+                _statusKind,
+                sourceWeaponId: weaponId);
             if (result.AppliedDamage > 0)
             {
                 EnemyStatusFeedback.Pulse(transform, _statusKind, 0.75f);

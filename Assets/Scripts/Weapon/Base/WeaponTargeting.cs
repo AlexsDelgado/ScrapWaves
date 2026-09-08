@@ -7,6 +7,9 @@ public interface IWeaponTargeting
 
 public sealed class ConfiguredEnemyTargeting : IWeaponTargeting
 {
+    /// <summary>ΔY máximo para auto-aim offhand (alineado con PlayerAutoAttack).</summary>
+    public const float DefaultMaxAimVerticalDelta = 2.5f;
+
     // Resolves off-hand automatic targets from the weapon asset's targeting mode.
     public bool TryGetTarget(WeaponInstance weapon, Transform owner, float range, Vector3 aimDirection, out Transform target)
     {
@@ -20,16 +23,17 @@ public sealed class ConfiguredEnemyTargeting : IWeaponTargeting
         bool fullCircle = weapon.Data.AutomaticAimConstraint == WeaponAutomaticAimConstraint.Full360
             || weapon.Data.AutoTargetingMode == WeaponTargetingMode.IgnoreCameraClosest;
         bool random = weapon.Data.AutoTargetingMode == WeaponTargetingMode.RandomInRange;
+        float maxDy = DefaultMaxAimVerticalDelta;
 
         if (fullCircle)
         {
             return random
-                ? EnemyRegistry.TryGetRandomOnPlane(owner.position, range, out target)
-                : EnemyRegistry.TryGetClosestOnPlane(owner.position, range, out target);
+                ? EnemyRegistry.TryGetRandomOnPlaneWithinVerticalDelta(owner.position, range, maxDy, out target)
+                : EnemyRegistry.TryGetClosestOnPlaneWithinVerticalDelta(owner.position, range, maxDy, out target);
         }
 
         return random
-            ? EnemyRegistry.TryGetRandomOnPlaneInCone(owner.position, aimDirection, range, 90f, out target)
-            : EnemyRegistry.TryGetClosestOnPlaneInCone(owner.position, aimDirection, range, 90f, out target);
+            ? EnemyRegistry.TryGetRandomOnPlaneInConeWithinVerticalDelta(owner.position, aimDirection, range, 90f, maxDy, out target)
+            : EnemyRegistry.TryGetClosestOnPlaneInConeWithinVerticalDelta(owner.position, aimDirection, range, 90f, maxDy, out target);
     }
 }

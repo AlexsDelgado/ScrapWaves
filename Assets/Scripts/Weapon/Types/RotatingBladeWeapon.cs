@@ -422,7 +422,11 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         // Preserve the legacy one-damage fallback used by lightweight sandbox/test
         // targets when no PlayerStats dependency is available.
         int finalDamage = damageContext.IsValid ? damageContext.CalculateDamage(target) : 1;
-        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+        string weaponId = Runtime?.Data != null ? Runtime.Data.WeaponId : null;
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+            damageable,
+            finalDamage,
+            sourceWeaponId: weaponId);
         if (result.Applied)
         {
             ApplyKnockback(damageable, impactOrigin, finalDamage, knockbackScale);

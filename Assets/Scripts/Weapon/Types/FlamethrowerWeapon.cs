@@ -373,7 +373,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return false;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
-        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, damage);
+        string weaponId = Runtime?.Data != null ? Runtime.Data.WeaponId : null;
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+            damageable,
+            damage,
+            sourceWeaponId: weaponId);
         if (damageable != null && result.Applied)
         {
             ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);

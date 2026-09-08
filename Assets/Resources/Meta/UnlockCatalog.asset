@@ -13,7 +13,11 @@ MonoBehaviour:
   m_Name: UnlockCatalog
   m_EditorClassIdentifier: Assembly-CSharp::UnlockCatalog
   _weapons:
-  - {fileID: 11400000, guid: 30186e45d9ec13647b223e81ca4a3112, type: 2}
+  - {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
+  - {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
+  - {fileID: 11400000, guid: 95e4ff2de6a64faba44ee0ca803ef37b, type: 2}
+  - {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
+  - {fileID: 11400000, guid: 125e543fc3a34c17bca6d9436a372ad3, type: 2}
   _passiveItems:
   - {fileID: 11400000, guid: aa11bb22cc33dd44ee55ff6600770001, type: 2}
   - {fileID: 11400000, guid: aa11bb22cc33dd44ee55ff6600770002, type: 2}

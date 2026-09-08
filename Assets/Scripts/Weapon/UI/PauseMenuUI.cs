@@ -51,6 +51,7 @@ public class PauseMenuUI : MonoBehaviour
     private TextMeshProUGUI _combatTextScaleLabel;
     private float _savedTimeScale = 1f;
     private bool _isPaused;
+    private bool _holdsUiPause;
     private bool _missingSettingsServiceReported;
 
     private void Awake()
@@ -77,6 +78,7 @@ public class PauseMenuUI : MonoBehaviour
         PresentationAccessibilityRuntime.Changed -= HandleAccessibilityChanged;
         if (_settingsService != null)
             _settingsService.Changed -= HandleSettingsChanged;
+        GameplayPause.SetHeld(ref _holdsUiPause, false);
     }
 
     private void Update()
@@ -221,6 +223,7 @@ public class PauseMenuUI : MonoBehaviour
 
         _camera?.SetLookBlockedByUi(paused);
         _sandboxDebugUi?.SetPauseMenuOpen(paused);
+        GameplayPause.SetHeld(ref _holdsUiPause, paused);
     }
 
     private void SyncSettingsFromSources()

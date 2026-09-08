@@ -55,6 +55,7 @@ public class SaveManager : MonoBehaviour
         _path = Path.Combine(Application.persistentDataPath, SaveFileName);
         EnsureAchievementCatalog();
         Load();
+        SpecMetaBootstrap.EnsureRegistered();
     }
 
     private void EnsureAchievementCatalog()
@@ -157,6 +158,13 @@ public class SaveManager : MonoBehaviour
         Save();
     }
 
+    public bool IsUnlocked(string unlockId)
+    {
+        if (string.IsNullOrEmpty(unlockId))
+            return false;
+        return _data.UnlockedIds.Contains(unlockId);
+    }
+
     public bool IsUnlocked(IUnlockable item)
     {
         if (item == null)
@@ -255,6 +263,174 @@ public class SaveManager : MonoBehaviour
         OnScrapChanged?.Invoke();
     }
 
+    public void SaveNow() => Save();
+
+    public void RegisterRuntimeAchievements(IEnumerable<AchievementDefinition> achievements)
+    {
+        if (achievements == null)
+            return;
+
+        foreach (AchievementDefinition achievement in achievements)
+        {
+            if (achievement == null)
+                continue;
+            bool exists = false;
+            for (int i = 0; i < _achievementCatalog.Count; i++)
+            {
+                if (_achievementCatalog[i] != null
+                    && _achievementCatalog[i].AchievementId == achievement.AchievementId)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists)
+                _achievementCatalog.Add(achievement);
+        }
+
+        EvaluateAchievements();
+    }
+
+    public void ReportWeaponKill(string weaponId)
+    {
+        if (string.IsNullOrEmpty(weaponId))
+            return;
+
+        WeaponKillRecord record = _data.WeaponKills.Find(r => r.WeaponId == weaponId);
+        if (record == null)
+            _data.WeaponKills.Add(new WeaponKillRecord { WeaponId = weaponId, Kills = 1 });
+        else
+            record.Kills++;
+
+        EvaluateAchievements();
+        Save();
+    }
+
+    public void ReportEliteOrBossKill()
+    {
+        _data.TotalEliteOrBossKills++;
+        EvaluateAchievements();
+        Save();
+    }
+
+    public void ReportDropsLooted(int amount)
+    {
+        if (amount <= 0)
+            return;
+        _data.TotalDropsLooted += amount;
+        EvaluateAchievements();
+        Save();
+    }
+
+    /// <summary>
+    /// Challenges no acumulativos (scratch de run) o custom keys.
+    /// Si cumulative=false, solo guarda si supera el valor previo de esa run-key en CustomProgress.
+    /// </summary>
+    public void ReportRunChallengeProgress(string key, float value, bool cumulative)
+    {
+        if (string.IsNullOrEmpty(key))
+            return;
+
+        if (cumulative)
+        {
+            ReportCustomProgress(key, value);
+            return;
+        }
+
+        // Non-cumulative: treat as max-in-run stored under key; EvaluateAchievements reads it.
+        CustomProgressRecord record = _data.CustomProgress.Find(r => r.Key == key);
+        if (record == null)
+            _data.CustomProgress.Add(new CustomProgressRecord { Key = key, Value = value });
+        else if (value > record.Value)
+            record.Value = value;
+        else
+            return;
+
+        EvaluateAchievements();
+        Save();
+    }
+
+    public int GetMetaStatLevel(StatType statType) => _data.GetMetaStatLevel(statType);
+
+    public int GetMetaItemUpgradeLevel(string unlockId) => _data.GetMetaItemUpgradeLevel(unlockId);
+
+    public float GetMetaStatBaseMultiplier(StatType statType)
+    {
+        int level = GetMetaStatLevel(statType);
+        return 1f + 0.05f * level;
+    }
+
+    public float GetMetaStatGrowthMultiplier(StatType statType)
+    {
+        int level = GetMetaStatLevel(statType);
+        float growth = 1f;
+        if (level >= 5)
+            growth *= 1.15f;
+        if (level >= 10)
+            growth *= 1.15f;
+        return growth;
+    }
+
+    public float GetMetaItemPowerMultiplier(string unlockId)
+    {
+        int level = GetMetaItemUpgradeLevel(unlockId);
+        return Mathf.Pow(1.1f, level);
+    }
+
+    public bool TryPurchaseMetaStatUpgrade(StatType statType, MetaStatUpgradeCosts costs)
+    {
+        int current = GetMetaStatLevel(statType);
+        if (current >= 10 || costs == null)
+            return false;
+
+        int price = costs.GetStatUpgradeCost(current + 1);
+        if (_data.Scrap < price)
+            return false;
+
+        _data.Scrap -= price;
+        _data.SetMetaStatLevel(statType, current + 1);
+        OnScrapChanged?.Invoke();
+        OnUnlocksChanged?.Invoke();
+        Save();
+        return true;
+    }
+
+    public bool TryPurchaseMetaItemUpgrade(string unlockId, MetaStatUpgradeCosts costs)
+    {
+        if (string.IsNullOrEmpty(unlockId) || costs == null)
+            return false;
+
+        int current = GetMetaItemUpgradeLevel(unlockId);
+        if (current >= 3)
+            return false;
+
+        int price = costs.GetItemUpgradeCost(current + 1);
+        if (_data.Scrap < price)
+            return false;
+
+        _data.Scrap -= price;
+        _data.SetMetaItemUpgradeLevel(unlockId, current + 1);
+        OnScrapChanged?.Invoke();
+        OnUnlocksChanged?.Invoke();
+        Save();
+        return true;
+    }
+
+    public bool IsPathUnlocked(WeaponData weapon, WeaponUpgradePath path)
+    {
+        if (weapon == null || path == WeaponUpgradePath.None || path == WeaponUpgradePath.PathA)
+            return true;
+
+        string id = WeaponPathUnlockData.BuildUnlockId(weapon, path);
+        return _data.UnlockedIds.Contains(id);
+    }
+
+    public void UnlockIdDirect(string unlockId)
+    {
+        Unlock(unlockId);
+    }
+
     public float GetProgress(AchievementDefinition achievement)
     {
         if (achievement == null)
@@ -270,7 +446,15 @@ public class SaveManager : MonoBehaviour
             case AchievementConditionType.WeaponLevelReached:
                 WeaponLevelRecord record = _data.WeaponLevels.Find(r => r.WeaponId == achievement.WeaponIdFilter);
                 return record?.HighestLevel ?? 0;
+            case AchievementConditionType.WeaponKillsTotal:
+                WeaponKillRecord kills = _data.WeaponKills.Find(r => r.WeaponId == achievement.WeaponIdFilter);
+                return kills?.Kills ?? 0;
+            case AchievementConditionType.EliteOrBossKillsTotal:
+                return _data.TotalEliteOrBossKills;
+            case AchievementConditionType.DropsLootedTotal:
+                return _data.TotalDropsLooted;
             case AchievementConditionType.Custom:
+            case AchievementConditionType.RunChallenge:
                 CustomProgressRecord custom = _data.CustomProgress.Find(r => r.Key == achievement.CustomKey);
                 return custom?.Value ?? 0f;
             default:
@@ -302,6 +486,14 @@ public class SaveManager : MonoBehaviour
             _data.UnlockedAchievementIds.Add(achievement.AchievementId);
             if (achievement.ScrapReward > 0)
                 AddScrap(achievement.ScrapReward);
+
+            IReadOnlyList<string> rewards = achievement.RewardUnlockIds;
+            if (rewards != null)
+            {
+                for (int r = 0; r < rewards.Count; r++)
+                    Unlock(rewards[r]);
+            }
+
             OnAchievementUnlocked?.Invoke(achievement);
         }
     }

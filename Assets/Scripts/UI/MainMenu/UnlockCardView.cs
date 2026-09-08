@@ -15,7 +15,7 @@ public enum UnlockCardState
 
 /// <summary>Presentation and focus behavior for one authored unlock-card prefab.</summary>
 [DisallowMultipleComponent]
-public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnterHandler
+public sealed class UnlockCardView : MonoBehaviour
 {
     [SerializeField] private Button _button;
     [SerializeField] private TextMeshProUGUI _nameText;
@@ -31,6 +31,7 @@ public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnte
     private Action<UnlockCardView> _selected;
 
     public IUnlockable Item { get; private set; }
+    public object CustomPayload { get; private set; }
     public string DisplayName { get; private set; }
     public string ItemType { get; private set; }
     public UnlockCardState State { get; private set; }
@@ -43,8 +44,57 @@ public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnte
         UnlockCardState state,
         Action<UnlockCardView> selected)
     {
+        UnlockRequirement requirement = item?.Requirement;
+        BindInternal(
+            item,
+            payload: null,
+            displayName,
+            itemType,
+            state,
+            requirement != null && requirement.ScrapPrice > 0 ? $"{requirement.ScrapPrice} SCRAP" : "NO SCRAP COST",
+            requirement?.RequiredAchievement != null
+                ? $"REQUIRES: {requirement.RequiredAchievement.DisplayName}"
+                : string.Empty,
+            GetStateLabel(state),
+            selected);
+    }
+
+    public void BindCustom(
+        object payload,
+        string displayName,
+        string itemType,
+        string priceText,
+        string requirementText,
+        string statusText,
+        UnlockCardState state,
+        Action<UnlockCardView> selected)
+    {
+        BindInternal(
+            item: null,
+            payload,
+            displayName,
+            itemType,
+            state,
+            priceText,
+            requirementText,
+            statusText,
+            selected);
+    }
+
+    private void BindInternal(
+        IUnlockable item,
+        object payload,
+        string displayName,
+        string itemType,
+        UnlockCardState state,
+        string priceText,
+        string requirementText,
+        string statusText,
+        Action<UnlockCardView> selected)
+    {
         Unbind();
         Item = item;
+        CustomPayload = payload;
         DisplayName = string.IsNullOrEmpty(displayName) ? item?.UnlockId ?? string.Empty : displayName;
         ItemType = itemType ?? string.Empty;
         State = state;
@@ -52,21 +102,15 @@ public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnte
 
         if (_button != null)
         {
-            // Locked cards remain selectable so their requirements stay inspectable.
-            _button.interactable = item != null;
+            _button.interactable = item != null || payload != null;
             _button.onClick.AddListener(HandleActivated);
         }
 
-        UnlockRequirement requirement = item?.Requirement;
         SetText(_nameText, DisplayName);
         SetText(_typeText, ItemType);
-        SetText(_priceText, requirement != null && requirement.ScrapPrice > 0 ? $"{requirement.ScrapPrice} SCRAP" : "NO SCRAP COST");
-        SetText(
-            _requirementText,
-            requirement?.RequiredAchievement != null
-                ? $"REQUIRES: {requirement.RequiredAchievement.DisplayName}"
-                : string.Empty);
-        SetText(_statusText, GetStateLabel(state));
+        SetText(_priceText, priceText);
+        SetText(_requirementText, requirementText);
+        SetText(_statusText, statusText);
 
         SetActive(_ownedState, state == UnlockCardState.Owned);
         SetActive(_lockedState, state is UnlockCardState.AchievementLocked or UnlockCardState.InsufficientScrap or UnlockCardState.Unavailable);
@@ -79,6 +123,7 @@ public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnte
         if (_button != null)
             _button.onClick.RemoveListener(HandleActivated);
         _selected = null;
+        CustomPayload = null;
     }
 
     public void SetSelected(bool selected)
@@ -92,30 +137,9 @@ public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnte
             EventSystem.current.SetSelectedGameObject(_button.gameObject);
     }
 
-    public void OnSelect(BaseEventData eventData)
-    {
-        NotifySelected();
-    }
-
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        if (_button == null || !_button.IsInteractable())
-            return;
-
-        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != _button.gameObject)
-            EventSystem.current.SetSelectedGameObject(_button.gameObject);
-        else
-            NotifySelected();
-    }
-
     private void HandleActivated()
     {
-        NotifySelected();
-    }
-
-    private void NotifySelected()
-    {
-        if (Item != null)
+        if (Item != null || CustomPayload != null)
             _selected?.Invoke(this);
     }
 

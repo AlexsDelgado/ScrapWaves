@@ -27,7 +27,7 @@ MonoBehaviour:
     - 0.3
     - 0.4
   _unlockId: Shop_Head_BountyHunterModule
-  _unlockedFromStart: 1
+  _unlockedFromStart: 0
   _requirement:
     RequiredAchievement: {fileID: 0}
     ScrapPrice: 0

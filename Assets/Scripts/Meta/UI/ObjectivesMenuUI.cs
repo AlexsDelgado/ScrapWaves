@@ -10,7 +10,8 @@ using UnityEngine.UI;
 public enum ObjectivesMenuTab
 {
     Objectives,
-    Unlocks
+    Unlocks,
+    Upgrades
 }
 
 /// <summary>
@@ -27,14 +28,21 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _scrapText;
     [SerializeField, Tooltip("Optional title-screen stack. When assigned, Back requests its authored close transition after purchase cancellation.")]
     private TitleScreenScreenStack _screenStack;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [SerializeField, Tooltip("DEV: optional authored reset button. If empty, one is created at runtime.")]
+    private Button _devResetProgressButton;
+#endif
 
     [Header("Authored tabs")]
     [SerializeField] private Button _objectivesTabButton;
     [SerializeField] private Button _unlocksTabButton;
+    [SerializeField] private Button _upgradesTabButton;
     [SerializeField] private GameObject _objectivesTabSelectedState;
     [SerializeField] private GameObject _unlocksTabSelectedState;
+    [SerializeField] private GameObject _upgradesTabSelectedState;
     [SerializeField] private GameObject _objectivesTabRoot;
     [SerializeField] private GameObject _unlocksTabRoot;
+    [SerializeField] private GameObject _upgradesTabRoot;
     [SerializeField] private bool _rememberLastTabForSession = true;
 
     [Header("Objectives tab")]
@@ -69,6 +77,10 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _purchaseButtonLabel;
     [SerializeField] private TextMeshProUGUI _purchaseFeedbackText;
 
+    [Header("Upgrades tab")]
+    [SerializeField, Tooltip("Meta stats/items shop presenter (Unlocks-style cards).")]
+    private MetaUpgradeShopUI _metaUpgradeShop;
+
     private readonly List<ObjectiveRowView> _objectiveRows = new();
     private readonly List<UnlockCardView> _unlockCards = new();
 
@@ -86,6 +98,11 @@ public class ObjectivesMenuUI : MonoBehaviour
     private bool _refreshing;
     private bool _refreshPending;
     private bool _handlingPurchase;
+
+    private bool _hideObtainedObjectives;
+    private bool _hideUnlockOwned;
+    private bool _hideUnlockAvailable;
+    private bool _hideUnlockInsufficientScrap;
 
     public bool IsVisible => _isVisible;
     public bool IsPurchaseArmed => _armedPurchase != null;
@@ -167,15 +184,36 @@ public class ObjectivesMenuUI : MonoBehaviour
         bool nextTab = (Keyboard.current != null && Keyboard.current.dKey.wasPressedThisFrame) ||
                        (Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame);
 
-        if (previousTab && _activeTab != ObjectivesMenuTab.Objectives)
-            SetActiveTab(ObjectivesMenuTab.Objectives, true);
-        else if (nextTab && _activeTab != ObjectivesMenuTab.Unlocks)
-            SetActiveTab(ObjectivesMenuTab.Unlocks, true);
+        if (previousTab)
+            SetActiveTab(PreviousTab(_activeTab), true);
+        else if (nextTab)
+            SetActiveTab(NextTab(_activeTab), true);
+    }
+
+    private static ObjectivesMenuTab NextTab(ObjectivesMenuTab tab)
+    {
+        return tab switch
+        {
+            ObjectivesMenuTab.Objectives => ObjectivesMenuTab.Unlocks,
+            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Upgrades,
+            _ => ObjectivesMenuTab.Objectives
+        };
+    }
+
+    private static ObjectivesMenuTab PreviousTab(ObjectivesMenuTab tab)
+    {
+        return tab switch
+        {
+            ObjectivesMenuTab.Objectives => ObjectivesMenuTab.Upgrades,
+            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Objectives,
+            _ => ObjectivesMenuTab.Unlocks
+        };
     }
 
     public void Show()
     {
         EnsureInitialized();
+        EnsureFilterBars();
         ReportMissingAuthoredReferences();
 
         if (_screenRoot == null)
@@ -221,6 +259,11 @@ public class ObjectivesMenuUI : MonoBehaviour
         SetActiveTab(ObjectivesMenuTab.Unlocks, true);
     }
 
+    public void ShowUpgradesTab()
+    {
+        SetActiveTab(ObjectivesMenuTab.Upgrades, true);
+    }
+
     /// <summary>Used by the visible Back control and by authored cancel handlers.</summary>
     public void HandleBackRequested()
     {
@@ -258,12 +301,124 @@ public class ObjectivesMenuUI : MonoBehaviour
         }
     }
 
+    private void EnsureFilterBars()
+    {
+        Transform objectivesParent = ResolveFilterBarParent(_objectivesScrollRect, _objectivesTabRoot);
+        DestroyFilterBarIfMisparented(_objectivesTabRoot, objectivesParent, "ObjectivesFilterBar");
+        if (objectivesParent != null)
+        {
+            ObjectivesFilterChipBar objectivesBar = ObjectivesFilterChipBar.Ensure(
+                objectivesParent,
+                "ObjectivesFilterBar");
+            objectivesBar.AddOrBindChip(
+                "HideObtained",
+                "Hide obtained",
+                () => _hideObtainedObjectives,
+                value =>
+                {
+                    _hideObtainedObjectives = value;
+                    RequestRefresh();
+                });
+            if (_objectivesScrollRect != null)
+                ObjectivesFilterChipBar.SetTopInset(
+                    _objectivesScrollRect.transform as RectTransform,
+                    ObjectivesFilterChipBar.Height);
+        }
+
+        Transform unlocksParent = ResolveFilterBarParent(_unlocksScrollRect, _unlocksTabRoot);
+        DestroyFilterBarIfMisparented(_unlocksTabRoot, unlocksParent, "UnlocksFilterBar");
+        if (unlocksParent != null)
+        {
+            ObjectivesFilterChipBar unlocksBar = ObjectivesFilterChipBar.Ensure(
+                unlocksParent,
+                "UnlocksFilterBar");
+            unlocksBar.AddOrBindChip(
+                "HideOwned",
+                "Hide owned",
+                () => _hideUnlockOwned,
+                value =>
+                {
+                    _hideUnlockOwned = value;
+                    RequestRefresh();
+                });
+            unlocksBar.AddOrBindChip(
+                "HideAvailable",
+                "Hide available",
+                () => _hideUnlockAvailable,
+                value =>
+                {
+                    _hideUnlockAvailable = value;
+                    RequestRefresh();
+                });
+            unlocksBar.AddOrBindChip(
+                "HideInsufficientScrap",
+                "Hide no scrap",
+                () => _hideUnlockInsufficientScrap,
+                value =>
+                {
+                    _hideUnlockInsufficientScrap = value;
+                    RequestRefresh();
+                });
+            if (_unlocksScrollRect != null)
+                ObjectivesFilterChipBar.SetTopInset(
+                    _unlocksScrollRect.transform as RectTransform,
+                    ObjectivesFilterChipBar.Height);
+        }
+    }
+
+    /// <summary>
+    /// Igual que Upgrades: la barra vive en el panel del grid/lista,
+    /// no en el tab completo, para no tapar el panel de detalle.
+    /// </summary>
+    private static Transform ResolveFilterBarParent(ScrollRect scrollRect, GameObject tabRoot)
+    {
+        if (scrollRect == null)
+            return tabRoot != null ? tabRoot.transform : null;
+
+        Transform parent = scrollRect.transform.parent;
+        // Authored layout: Scroll → Viewport → List/Grid panel. Prefer the panel.
+        if (parent != null &&
+            parent.name.IndexOf("Viewport", System.StringComparison.OrdinalIgnoreCase) >= 0 &&
+            parent.parent != null)
+        {
+            parent = parent.parent;
+        }
+
+        return parent != null ? parent : tabRoot != null ? tabRoot.transform : null;
+    }
+
+    private static void DestroyFilterBarIfMisparented(GameObject tabRoot, Transform correctParent, string barName)
+    {
+        if (tabRoot == null || string.IsNullOrEmpty(barName))
+            return;
+
+        Transform[] transforms = tabRoot.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            Transform candidate = transforms[i];
+            if (candidate == null || candidate.name != barName)
+                continue;
+            if (correctParent != null && candidate.parent == correctParent)
+                continue;
+
+            if (Application.isPlaying)
+                UnityEngine.Object.Destroy(candidate.gameObject);
+            else
+                UnityEngine.Object.DestroyImmediate(candidate.gameObject);
+        }
+    }
+
     private void WireAuthoredControls()
     {
         WireButton(_backButton, HandleBackRequested);
         WireButton(_objectivesTabButton, ShowObjectivesTab);
         WireButton(_unlocksTabButton, ShowUnlocksTab);
+        WireButton(_upgradesTabButton, ShowUpgradesTab);
         WireButton(_purchaseButton, HandlePurchaseRequested);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        EnsureDevResetProgressButton();
+        WireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+#endif
     }
 
     private void UnwireAuthoredControls()
@@ -273,8 +428,48 @@ public class ObjectivesMenuUI : MonoBehaviour
         UnwireButton(_backButton, HandleBackRequested);
         UnwireButton(_objectivesTabButton, ShowObjectivesTab);
         UnwireButton(_unlocksTabButton, ShowUnlocksTab);
+        UnwireButton(_upgradesTabButton, ShowUpgradesTab);
         UnwireButton(_purchaseButton, HandlePurchaseRequested);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        UnwireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+#endif
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void EnsureDevResetProgressButton()
+    {
+        if (_devResetProgressButton != null || _screenRoot == null)
+            return;
+
+        _devResetProgressButton = HudUiFactory.CreateButton(
+            _screenRoot.transform,
+            "DEV: Reset progress",
+            new Vector2(220f, 40f));
+        _devResetProgressButton.name = "DevResetProgressButton";
+
+        RectTransform rt = _devResetProgressButton.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 0f);
+        rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(1f, 0f);
+        rt.anchoredPosition = new Vector2(-24f, 24f);
+    }
+
+    private void HandleDevResetProgressRequested()
+    {
+        SaveManager save = SaveManager.Instance;
+        if (save == null)
+            return;
+
+        save.ResetProgress();
+        _selectedAchievementId = null;
+        _selectedUnlockId = null;
+        _armedPurchase = null;
+        _selectedObjectiveRow = null;
+        _selectedUnlockCard = null;
+        RequestRefresh();
+        Debug.Log("ObjectivesMenuUI: DEV reset — scrap, unlocks y challenges borrados.");
+    }
+#endif
 
     private void HandleScreenOpened(TitleScreenLocalState state)
     {
@@ -383,10 +578,10 @@ public class ObjectivesMenuUI : MonoBehaviour
         bool templateAvailable = _objectiveRowPrefab != null && _objectivesContent != null;
 
         SetActive(_objectivesDataUnavailableState, !dataAvailable || (validCount > 0 && !templateAvailable));
-        SetActive(_objectivesEmptyState, dataAvailable && validCount == 0);
 
         if (!dataAvailable || validCount == 0 || !templateAvailable)
         {
+            SetActive(_objectivesEmptyState, dataAvailable && validCount == 0);
             ClearObjectiveDetails();
             return;
         }
@@ -397,8 +592,11 @@ public class ObjectivesMenuUI : MonoBehaviour
             if (achievement == null)
                 continue;
 
-            float current = Mathf.Min(saveManager.GetProgress(achievement), achievement.TargetValue);
             bool completed = saveManager.IsAchievementUnlocked(achievement);
+            if (_hideObtainedObjectives && completed)
+                continue;
+
+            float current = Mathf.Min(saveManager.GetProgress(achievement), achievement.TargetValue);
             ObjectiveRowView row = Instantiate(_objectiveRowPrefab, _objectivesContent, false);
             row.gameObject.SetActive(true);
             row.Bind(
@@ -408,6 +606,13 @@ public class ObjectivesMenuUI : MonoBehaviour
                 completed,
                 HandleObjectiveFocused);
             _objectiveRows.Add(row);
+        }
+
+        SetActive(_objectivesEmptyState, _objectiveRows.Count == 0);
+        if (_objectiveRows.Count == 0)
+        {
+            ClearObjectiveDetails();
+            return;
         }
 
         ObjectiveRowView selection = FindObjectiveRow(selectionToRestore);
@@ -425,10 +630,10 @@ public class ObjectivesMenuUI : MonoBehaviour
         bool templateAvailable = _unlockCardPrefab != null && _unlocksContent != null;
 
         SetActive(_unlocksDataUnavailableState, !dataAvailable || (validCount > 0 && !templateAvailable));
-        SetActive(_unlocksEmptyState, dataAvailable && validCount == 0);
 
         if (!dataAvailable || validCount == 0 || !templateAvailable)
         {
+            SetActive(_unlocksEmptyState, dataAvailable && validCount == 0);
             _armedPurchase = null;
             ClearUnlockDetails();
             return;
@@ -446,6 +651,21 @@ public class ObjectivesMenuUI : MonoBehaviour
             PassiveItemData passive = _catalog.PassiveItems[i];
             if (passive != null)
                 CreateUnlockCard(passive, passive.DisplayName, "PASSIVE", saveManager);
+        }
+
+        for (int i = 0; i < _catalog.WeaponPathUnlocks.Count; i++)
+        {
+            WeaponPathUnlockData pathUnlock = _catalog.WeaponPathUnlocks[i];
+            if (pathUnlock != null)
+                CreateUnlockCard(pathUnlock, pathUnlock.DisplayName, "PATH", saveManager);
+        }
+
+        SetActive(_unlocksEmptyState, _unlockCards.Count == 0);
+        if (_unlockCards.Count == 0)
+        {
+            _armedPurchase = null;
+            ClearUnlockDetails();
+            return;
         }
 
         UnlockCardView selection = FindUnlockCard(selectionToRestore);
@@ -466,10 +686,24 @@ public class ObjectivesMenuUI : MonoBehaviour
     private void CreateUnlockCard(IUnlockable item, string displayName, string itemType, SaveManager saveManager)
     {
         UnlockCardState state = ResolveUnlockState(item, saveManager);
+        if (ShouldHideUnlock(state))
+            return;
+
         UnlockCardView card = Instantiate(_unlockCardPrefab, _unlocksContent, false);
         card.gameObject.SetActive(true);
         card.Bind(item, displayName, itemType, state, HandleUnlockFocused);
         _unlockCards.Add(card);
+    }
+
+    private bool ShouldHideUnlock(UnlockCardState state)
+    {
+        if (_hideUnlockOwned && state == UnlockCardState.Owned)
+            return true;
+        if (_hideUnlockAvailable && state == UnlockCardState.Purchasable)
+            return true;
+        if (_hideUnlockInsufficientScrap && state == UnlockCardState.InsufficientScrap)
+            return true;
+        return false;
     }
 
     private void HandleObjectiveFocused(ObjectiveRowView row)
@@ -528,9 +762,27 @@ public class ObjectivesMenuUI : MonoBehaviour
         {
             AppendAssociatedUnlocks(builder, achievement, _catalog.Weapons);
             AppendAssociatedUnlocks(builder, achievement, _catalog.PassiveItems);
+            AppendAssociatedUnlocks(builder, achievement, _catalog.WeaponPathUnlocks);
+            AppendRewardUnlockIds(builder, achievement);
         }
 
         return builder.Length > 0 ? builder.ToString() : "NO REWARD LISTED";
+    }
+
+    private static void AppendRewardUnlockIds(StringBuilder builder, AchievementDefinition achievement)
+    {
+        IReadOnlyList<string> rewards = achievement.RewardUnlockIds;
+        if (rewards == null)
+            return;
+
+        for (int i = 0; i < rewards.Count; i++)
+        {
+            if (string.IsNullOrEmpty(rewards[i]))
+                continue;
+            if (builder.Length > 0)
+                builder.Append("\n");
+            builder.Append("UNLOCKS: ").Append(rewards[i]);
+        }
     }
 
     private static void AppendAssociatedUnlocks<T>(StringBuilder builder, AchievementDefinition achievement, IReadOnlyList<T> items)
@@ -703,10 +955,18 @@ public class ObjectivesMenuUI : MonoBehaviour
     private void ApplyTabVisibility()
     {
         bool objectivesActive = _activeTab == ObjectivesMenuTab.Objectives;
+        bool unlocksActive = _activeTab == ObjectivesMenuTab.Unlocks;
+        bool upgradesActive = _activeTab == ObjectivesMenuTab.Upgrades;
+
         SetActive(_objectivesTabRoot, objectivesActive);
-        SetActive(_unlocksTabRoot, !objectivesActive);
+        SetActive(_unlocksTabRoot, unlocksActive);
+        SetActive(_upgradesTabRoot, upgradesActive);
         SetActive(_objectivesTabSelectedState, objectivesActive);
-        SetActive(_unlocksTabSelectedState, !objectivesActive);
+        SetActive(_unlocksTabSelectedState, unlocksActive);
+        SetActive(_upgradesTabSelectedState, upgradesActive);
+
+        if (upgradesActive)
+            _metaUpgradeShop?.Rebuild();
     }
 
     private void FocusActiveTab()
@@ -720,6 +980,15 @@ public class ObjectivesMenuUI : MonoBehaviour
             }
             else if (_objectivesTabButton != null)
                 Focus(_objectivesTabButton.gameObject);
+            return;
+        }
+
+        if (_activeTab == ObjectivesMenuTab.Upgrades)
+        {
+            if (_metaUpgradeShop != null)
+                _metaUpgradeShop.FocusFirst();
+            else if (_upgradesTabButton != null)
+                Focus(_upgradesTabButton.gameObject);
             return;
         }
 
@@ -872,6 +1141,11 @@ public class ObjectivesMenuUI : MonoBehaviour
         for (int i = 0; i < catalog.PassiveItems.Count; i++)
         {
             if (catalog.PassiveItems[i] != null)
+                count++;
+        }
+        for (int i = 0; i < catalog.WeaponPathUnlocks.Count; i++)
+        {
+            if (catalog.WeaponPathUnlocks[i] != null)
                 count++;
         }
         return count;

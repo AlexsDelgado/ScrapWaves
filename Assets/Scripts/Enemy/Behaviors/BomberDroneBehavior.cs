@@ -6,7 +6,7 @@ using UnityEngine;
 /// como dron normal (acercarse y disparar) hasta recargar las bombas, y repite.
 ///
 /// Toma control total del movimiento: desactiva los followers genericos y mantiene
-/// altura de vuelo.
+/// altura de vuelo. Engage/DronePhase usan strafe orbital; el bomb-run dash sigue recto.
 /// </summary>
 public class BomberDroneBehavior : EnemyBehaviorBase
 {
@@ -14,6 +14,8 @@ public class BomberDroneBehavior : EnemyBehaviorBase
 
     [Header("Vuelo")]
     [SerializeField, Min(0f)] private float _hoverHeight = 3.5f;
+    [SerializeField, Min(0f), Tooltip("Offset sobre la Y del jugador al perseguir en pisos altos.")]
+    private float _playerHoverOffset = 1.25f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5.5f;
     [SerializeField, Min(60f)] private float _rotationSpeed = 360f;
     [SerializeField] private LayerMask _groundMask;
@@ -37,6 +39,10 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     [SerializeField, Min(0.1f)] private float _shootInterval = 1.5f;
     [SerializeField, Min(0.5f)] private float _droneStandoffDistance = 8f;
 
+    [Header("Orbit / strafe")]
+    [SerializeField, Min(0f)] private float _engageOrbitWeight = 0.32f;
+    [SerializeField, Min(0f)] private float _droneOrbitWeight = 0.6f;
+
     private State _state;
     private float _stateTimer;
     private int _dashesDone;
@@ -45,6 +51,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     private float _dashTravelled;
     private int _bombsDropped;
     private float _shootTimer;
+    private float _orbitSign = 1f;
 
     protected override void Awake()
     {
@@ -61,6 +68,13 @@ public class BomberDroneBehavior : EnemyBehaviorBase
             rb.isKinematic = true;
         _state = State.Engage;
         _dashesDone = 0;
+        _orbitSign = Random.value < 0.5f ? -1f : 1f;
+    }
+
+    public override void OnPoolSpawn()
+    {
+        base.OnPoolSpawn();
+        _orbitSign = Random.value < 0.5f ? -1f : 1f;
     }
 
     private void OnDisable()
@@ -71,6 +85,9 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     private void Update()
     {
         if (Player == null)
+            return;
+
+        if (EnemyVerticalEngagement.IsDisengaged(this))
             return;
 
         MaintainHover();
@@ -99,19 +116,47 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, _hoverRaycastUp * 2f, _groundMask, QueryTriggerInteraction.Ignore))
             groundY = hit.point.y;
 
+        float minClearanceY = groundY + 1f;
+        float targetY = groundY + _hoverHeight;
+        Transform player = Player;
+        if (player != null)
+            targetY = Mathf.Max(minClearanceY, player.position.y + _playerHoverOffset);
+
         Vector3 pos = transform.position;
-        pos.y = Mathf.Lerp(pos.y, groundY + _hoverHeight, 1f - Mathf.Exp(-6f * Time.deltaTime));
+        pos.y = Mathf.Lerp(pos.y, targetY, 1f - Mathf.Exp(-6f * Time.deltaTime));
         transform.position = pos;
     }
 
     private void TickEngage()
     {
-        Vector3 dir = PlanarDirectionToPlayer();
-        FacePlanar(dir, _rotationSpeed);
+        FacePlanar(PlanarDirectionToPlayer(), _rotationSpeed);
 
         if (PlanarDistanceToPlayer() > _bombRunStartDistance)
         {
-            transform.position += dir * (_moveSpeed * Time.deltaTime);
+            EnemyMovementProfile profile = EnemyMovementProfile.BomberEngage;
+            Vector3 slotDir = PlanarDirectionToPoint(
+                PlanarPointAroundPlayer(SteeringSlotAngle, Mathf.Max(0.5f, _bombRunStartDistance * 0.35f)));
+            EnemyMovementSteering.RefreshPositionCacheIfNeeded();
+            Vector3 weave = EnemyMovementSteering.GetWeaveOffset(
+                slotDir,
+                Time.time,
+                SteeringWeavePhase,
+                profile.weaveAmplitude,
+                profile.weaveFrequency);
+            Vector3 sep = EnemyMovementSteering.SampleSeparation(
+                transform.position,
+                profile.separationRadius,
+                profile.maxSeparationSamples,
+                GetInstanceID());
+            Vector3 toPlayer = PlanarDirectionToPlayer();
+            Vector3 tangent = Vector3.Cross(Vector3.up, toPlayer);
+            if (tangent.sqrMagnitude > 0.0001f)
+                tangent.Normalize();
+
+            // Prioriza acercarse, con strafe lateral para no ir en línea perfecta.
+            Vector3 move = toPlayer + slotDir * 0.35f + weave + sep * profile.separationWeight
+                + tangent * (_orbitSign * _engageOrbitWeight);
+            MovePlanar(move);
             return;
         }
 
@@ -177,12 +222,19 @@ public class BomberDroneBehavior : EnemyBehaviorBase
 
     private void TickDronePhase()
     {
-        float dist = PlanarDistanceToPlayer();
-        Vector3 dir = PlanarDirectionToPlayer();
-        FacePlanar(dir, _rotationSpeed);
+        FacePlanar(PlanarDirectionToPlayer(), _rotationSpeed);
 
-        if (dist > _droneStandoffDistance)
-            transform.position += dir * (_moveSpeed * Time.deltaTime);
+        EnemyMovementProfile profile = EnemyMovementProfile.FlyingStandoff;
+        Vector3 move = ComposeOrbitStandoffDirection(
+            _droneStandoffDistance,
+            _orbitSign,
+            _droneOrbitWeight,
+            profile.weaveAmplitude,
+            profile.weaveFrequency,
+            profile.separationWeight,
+            profile.separationRadius,
+            profile.maxSeparationSamples);
+        MovePlanar(move);
 
         _shootTimer -= Time.deltaTime;
         if (_shootTimer <= 0f)
@@ -197,6 +249,14 @@ public class BomberDroneBehavior : EnemyBehaviorBase
             _dashesDone = 0;
             _state = State.Engage;
         }
+    }
+
+    private void MovePlanar(Vector3 planarDir)
+    {
+        planarDir.y = 0f;
+        if (planarDir.sqrMagnitude < 0.0001f)
+            return;
+        transform.position += planarDir.normalized * (_moveSpeed * Time.deltaTime);
     }
 
     private void DropBomb()
@@ -223,6 +283,12 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         if (dir.sqrMagnitude < 0.0001f)
             dir = transform.forward;
 
-        EnemyProjectilePool.TryLaunch(_bulletPrefab, muzzle, Quaternion.LookRotation(dir.normalized), dir, _bulletDamage, _bulletSpeed);
+        EnemyProjectilePool.TryLaunch(
+            _bulletPrefab,
+            muzzle,
+            Quaternion.LookRotation(dir.normalized),
+            dir,
+            EnemyOutgoingDamageScale.ScaleFrom(this, _bulletDamage),
+            _bulletSpeed);
     }
 }

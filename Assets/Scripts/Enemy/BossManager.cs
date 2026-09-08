@@ -236,6 +236,12 @@ public class BossManager : MonoBehaviour
 
             health.ApplyConfiguredMaxHealth(_bossMaxHealth);
 
+            if (go.GetComponent<EnemyScrapDrop>() == null)
+                go.AddComponent<EnemyScrapDrop>();
+            if (go.GetComponent<EnemyTemporaryPowerupDrop>() == null)
+                go.AddComponent<EnemyTemporaryPowerupDrop>();
+            EnemyVerticalEngagement.EnsureOn(go)?.ResetEngagement();
+
             EnemyHealth captured = health;
             Action handler = () => OnBossInstanceDied(captured);
             _onBossDiedHandlers[health] = handler;

@@ -439,7 +439,10 @@ public class Projectile : MonoBehaviour
         if (damageable != null)
         {
             int finalDamage = ResolveDamage(damageable, other);
-            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+                damageable,
+                finalDamage,
+                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
@@ -552,7 +555,10 @@ public class Projectile : MonoBehaviour
             else
             {
                 int finalDamage = ResolveDamage(damageable, closestCollider);
-                DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+                DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+                damageable,
+                finalDamage,
+                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
                 if (result.Applied)
                 {
                     EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
@@ -660,7 +666,10 @@ public class Projectile : MonoBehaviour
                     WeaponUpgradeVfx.SpawnTargetPulse(targetTransform, AmplifierVfxColor, 0.45f, "VULN");
             }
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
-            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, finalDamage);
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+                damageable,
+                finalDamage,
+                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage, falloffScale));
@@ -771,7 +780,10 @@ public class Projectile : MonoBehaviour
             int damage = ResolveDamage(damageable, hits[i], _fragmentDamageScale);
             Transform targetTransform = GetDamageableTransform(damageable, hits[i]);
             Vector3 targetPosition = targetTransform != null ? targetTransform.position : hits[i].bounds.center;
-            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(damageable, damage);
+            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+                damageable,
+                damage,
+                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
             if (result.Applied)
             {
                 EmitAreaDamageConfirmed(

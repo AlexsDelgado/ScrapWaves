@@ -36,7 +36,7 @@ MonoBehaviour:
     - 6
     - 6
   _unlockId: Shop_Core_ElectromagneticShield
-  _unlockedFromStart: 1
+  _unlockedFromStart: 0
   _requirement:
     RequiredAchievement: {fileID: 0}
     ScrapPrice: 0
