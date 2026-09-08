@@ -20,12 +20,12 @@ MonoBehaviour:
   - StatType: 16
     ModifierType: 0
     ValuesPerLevel:
-    - 0.1
-    - 0.15
-    - 0.2
-    - 0.25
-    - 0.3
-    - 0.4
+    - 0.01
+    - 0.015
+    - 0.02
+    - 0.025
+    - 0.03
+    - 0.04
   _unlockId: Shop_Core_ScrapReassembly
   _unlockedFromStart: 0
   _requirement:
