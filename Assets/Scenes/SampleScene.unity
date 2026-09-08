@@ -1134,6 +1134,15 @@ MonoBehaviour:
   _cameraCollisionPadding: 0.12
   _minimumDistanceFromLookPoint: 0.65
   _lockCursorOnPlay: 1
+  _cameraFeedbackScale: 1
+  _screenShakeEnabled: 1
+  _presentationImpulseDecay: 12
+  _maximumPresentationPositionImpulse: 0.35
+  _maximumPresentationRotationImpulse: 5
+  _maximumPresentationFovKick: 5
+  _reducedMotionPositionScale: 0.2
+  _reducedMotionRotationScale: 0.35
+  _reducedMotionFovScale: 0
 --- !u!1 &400431837
 GameObject:
   m_ObjectHideFlags: 0
@@ -2241,6 +2250,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
   _speed: 3.5
+  _orbitRadius: 1.8
+  _weaveAmplitude: 0.35
+  _weaveFrequency: 1.6
+  _separationWeight: 0.7
+  _separationRadius: 1.25
+  _maxSeparationSamples: 8
 --- !u!1 &662818106
 GameObject:
   m_ObjectHideFlags: 0
@@ -3861,9 +3876,6 @@ MonoBehaviour:
   _playerHealth: {fileID: 8930610363562363116}
   _bossManager: {fileID: 2026883594}
   _bossKillsRequiredForVictory: 2
-  _overlayColor: {r: 0, g: 0, b: 0, a: 0.72}
-  _victoryTextColor: {r: 0.4, g: 1, b: 0.5, a: 1}
-  _defeatTextColor: {r: 1, g: 0.35, b: 0.3, a: 1}
 --- !u!4 &1130156087
 Transform:
   m_ObjectHideFlags: 0
@@ -4683,13 +4695,15 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _difficultyRampSpeedMultiplier: 3.5
+  _difficultyRampSpeedMultiplier: 1
   _maxSpawnCountMultiplier: 3
   _spawnIntervalScaleAtMaxIntensity: 0.45
   _scaleEnemyHealth: 1
   _maxEnemyHealthMultiplier: 10
   _scaleEnemyMoveSpeed: 1
   _maxEnemySpeedMultiplier: 4
+  _scaleEnemyDamage: 1
+  _maxEnemyDamageMultiplier: 1.35
 --- !u!4 &1443009584
 Transform:
   m_ObjectHideFlags: 0
@@ -5487,11 +5501,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OrbitalSpawner
   _config: {fileID: 11400000, guid: f8a2b3c4d5e6478990abcdef12345678, type: 2}
   _player: {fileID: 0}
+  _playerStats: {fileID: 0}
   _difficultyManager: {fileID: 1443009583}
   _overheatManager: {fileID: 0}
+  _heatManager: {fileID: 0}
   _spawnInterval: 1.5
   _spawnOnStart: 1
   _maxActiveEnemies: 300
+  _pauseSpawnWhileHeatElevated: 1
   _minSpawnRadius: 25
   _maxSpawnRadius: 35
   _spawnHeightOffset: 0
@@ -6648,6 +6665,7 @@ MonoBehaviour:
   _logOverheat: 0
   _heatRequirementEscalation: 1
   _currentHeat: 0
+  _postOverheatDecayPerSecond: 12
 --- !u!4 &2026883593
 Transform:
   m_ObjectHideFlags: 0
