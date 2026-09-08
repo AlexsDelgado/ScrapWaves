@@ -78,6 +78,16 @@ public class ChallengeProgressTracker : MonoBehaviour
         }
     }
 
+    public static void NotifyPlayerDied()
+    {
+        if (SaveManager.Instance == null)
+            return;
+        if (Instance == null)
+            EnsureExists();
+
+        SaveManager.Instance.ReportCustomProgress("first_death", 1f);
+    }
+
     public static void NotifyDamageInstance(int appliedDamage)
     {
         if (appliedDamage <= 0)
@@ -106,6 +116,8 @@ public class ChallengeProgressTracker : MonoBehaviour
 
         if (WeaponEnemyClassifier.CountsAsEliteOrBoss(enemy.transform))
             SaveManager.Instance.ReportEliteOrBossKill();
+
+        SaveManager.Instance.ReportCustomProgress("first_kill", 1f);
     }
 
     public static void NotifyDropLooted(int amount = 1)

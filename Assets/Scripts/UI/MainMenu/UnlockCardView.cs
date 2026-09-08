@@ -15,7 +15,7 @@ public enum UnlockCardState
 
 /// <summary>Presentation and focus behavior for one authored unlock-card prefab.</summary>
 [DisallowMultipleComponent]
-public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnterHandler
+public sealed class UnlockCardView : MonoBehaviour
 {
     [SerializeField] private Button _button;
     [SerializeField] private TextMeshProUGUI _nameText;
@@ -137,28 +137,7 @@ public sealed class UnlockCardView : MonoBehaviour, ISelectHandler, IPointerEnte
             EventSystem.current.SetSelectedGameObject(_button.gameObject);
     }
 
-    public void OnSelect(BaseEventData eventData)
-    {
-        NotifySelected();
-    }
-
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        if (_button == null || !_button.IsInteractable())
-            return;
-
-        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != _button.gameObject)
-            EventSystem.current.SetSelectedGameObject(_button.gameObject);
-        else
-            NotifySelected();
-    }
-
     private void HandleActivated()
-    {
-        NotifySelected();
-    }
-
-    private void NotifySelected()
     {
         if (Item != null || CustomPayload != null)
             _selected?.Invoke(this);

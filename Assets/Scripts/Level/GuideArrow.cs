@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Flecha guía en el mundo usando el mesh del prefab <c>Arrow_Guide</c>.
-/// Se ancla sobre la cabeza del player y rota en yaw hacia el objetivo en el plano XZ,
+/// Se ancla sobre la cabeza del player y apunta en 3D hacia el objetivo (incluye diferencia de altura),
 /// con un pulse simple de escala mientras está visible.
 /// No desactiva el GameObject raíz (el <see cref="GuideArrowController"/> vive en el mismo GO).
 /// </summary>
@@ -72,13 +72,16 @@ public class GuideArrow : MonoBehaviour
 
         transform.position = player.position + Vector3.up * _heightAbovePlayer;
 
-        Vector3 flat = _target.position - transform.position;
-        flat.y = 0f;
-        Quaternion yaw = flat.sqrMagnitude > 0.0001f
-            ? Quaternion.LookRotation(flat.normalized, Vector3.up)
-            : Quaternion.identity;
-
-        transform.rotation = yaw * Quaternion.Euler(_meshRestEuler);
+        Vector3 toTarget = _target.position - transform.position;
+        if (toTarget.sqrMagnitude > 0.0001f)
+        {
+            Vector3 dir = toTarget.normalized;
+            // LookRotation es inestable si dir ≈ up/down; elegir un up auxiliar.
+            Vector3 up = Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.99f
+                ? Vector3.forward
+                : Vector3.up;
+            transform.rotation = Quaternion.LookRotation(dir, up) * Quaternion.Euler(_meshRestEuler);
+        }
 
         float pulse = 1f + Mathf.Sin(Time.unscaledTime * _pulseSpeed) * _pulseScaleAmount;
         _visual.localScale = _visualBaseLocalScale * pulse;

@@ -28,6 +28,10 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _scrapText;
     [SerializeField, Tooltip("Optional title-screen stack. When assigned, Back requests its authored close transition after purchase cancellation.")]
     private TitleScreenScreenStack _screenStack;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [SerializeField, Tooltip("DEV: optional authored reset button. If empty, one is created at runtime.")]
+    private Button _devResetProgressButton;
+#endif
 
     [Header("Authored tabs")]
     [SerializeField] private Button _objectivesTabButton;
@@ -94,6 +98,11 @@ public class ObjectivesMenuUI : MonoBehaviour
     private bool _refreshing;
     private bool _refreshPending;
     private bool _handlingPurchase;
+
+    private bool _hideObtainedObjectives;
+    private bool _hideUnlockOwned;
+    private bool _hideUnlockAvailable;
+    private bool _hideUnlockInsufficientScrap;
 
     public bool IsVisible => _isVisible;
     public bool IsPurchaseArmed => _armedPurchase != null;
@@ -204,6 +213,7 @@ public class ObjectivesMenuUI : MonoBehaviour
     public void Show()
     {
         EnsureInitialized();
+        EnsureFilterBars();
         ReportMissingAuthoredReferences();
 
         if (_screenRoot == null)
@@ -291,6 +301,113 @@ public class ObjectivesMenuUI : MonoBehaviour
         }
     }
 
+    private void EnsureFilterBars()
+    {
+        Transform objectivesParent = ResolveFilterBarParent(_objectivesScrollRect, _objectivesTabRoot);
+        DestroyFilterBarIfMisparented(_objectivesTabRoot, objectivesParent, "ObjectivesFilterBar");
+        if (objectivesParent != null)
+        {
+            ObjectivesFilterChipBar objectivesBar = ObjectivesFilterChipBar.Ensure(
+                objectivesParent,
+                "ObjectivesFilterBar");
+            objectivesBar.AddOrBindChip(
+                "HideObtained",
+                "Hide obtained",
+                () => _hideObtainedObjectives,
+                value =>
+                {
+                    _hideObtainedObjectives = value;
+                    RequestRefresh();
+                });
+            if (_objectivesScrollRect != null)
+                ObjectivesFilterChipBar.SetTopInset(
+                    _objectivesScrollRect.transform as RectTransform,
+                    ObjectivesFilterChipBar.Height);
+        }
+
+        Transform unlocksParent = ResolveFilterBarParent(_unlocksScrollRect, _unlocksTabRoot);
+        DestroyFilterBarIfMisparented(_unlocksTabRoot, unlocksParent, "UnlocksFilterBar");
+        if (unlocksParent != null)
+        {
+            ObjectivesFilterChipBar unlocksBar = ObjectivesFilterChipBar.Ensure(
+                unlocksParent,
+                "UnlocksFilterBar");
+            unlocksBar.AddOrBindChip(
+                "HideOwned",
+                "Hide owned",
+                () => _hideUnlockOwned,
+                value =>
+                {
+                    _hideUnlockOwned = value;
+                    RequestRefresh();
+                });
+            unlocksBar.AddOrBindChip(
+                "HideAvailable",
+                "Hide available",
+                () => _hideUnlockAvailable,
+                value =>
+                {
+                    _hideUnlockAvailable = value;
+                    RequestRefresh();
+                });
+            unlocksBar.AddOrBindChip(
+                "HideInsufficientScrap",
+                "Hide no scrap",
+                () => _hideUnlockInsufficientScrap,
+                value =>
+                {
+                    _hideUnlockInsufficientScrap = value;
+                    RequestRefresh();
+                });
+            if (_unlocksScrollRect != null)
+                ObjectivesFilterChipBar.SetTopInset(
+                    _unlocksScrollRect.transform as RectTransform,
+                    ObjectivesFilterChipBar.Height);
+        }
+    }
+
+    /// <summary>
+    /// Igual que Upgrades: la barra vive en el panel del grid/lista,
+    /// no en el tab completo, para no tapar el panel de detalle.
+    /// </summary>
+    private static Transform ResolveFilterBarParent(ScrollRect scrollRect, GameObject tabRoot)
+    {
+        if (scrollRect == null)
+            return tabRoot != null ? tabRoot.transform : null;
+
+        Transform parent = scrollRect.transform.parent;
+        // Authored layout: Scroll → Viewport → List/Grid panel. Prefer the panel.
+        if (parent != null &&
+            parent.name.IndexOf("Viewport", System.StringComparison.OrdinalIgnoreCase) >= 0 &&
+            parent.parent != null)
+        {
+            parent = parent.parent;
+        }
+
+        return parent != null ? parent : tabRoot != null ? tabRoot.transform : null;
+    }
+
+    private static void DestroyFilterBarIfMisparented(GameObject tabRoot, Transform correctParent, string barName)
+    {
+        if (tabRoot == null || string.IsNullOrEmpty(barName))
+            return;
+
+        Transform[] transforms = tabRoot.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            Transform candidate = transforms[i];
+            if (candidate == null || candidate.name != barName)
+                continue;
+            if (correctParent != null && candidate.parent == correctParent)
+                continue;
+
+            if (Application.isPlaying)
+                UnityEngine.Object.Destroy(candidate.gameObject);
+            else
+                UnityEngine.Object.DestroyImmediate(candidate.gameObject);
+        }
+    }
+
     private void WireAuthoredControls()
     {
         WireButton(_backButton, HandleBackRequested);
@@ -298,6 +415,10 @@ public class ObjectivesMenuUI : MonoBehaviour
         WireButton(_unlocksTabButton, ShowUnlocksTab);
         WireButton(_upgradesTabButton, ShowUpgradesTab);
         WireButton(_purchaseButton, HandlePurchaseRequested);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        EnsureDevResetProgressButton();
+        WireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+#endif
     }
 
     private void UnwireAuthoredControls()
@@ -309,7 +430,46 @@ public class ObjectivesMenuUI : MonoBehaviour
         UnwireButton(_unlocksTabButton, ShowUnlocksTab);
         UnwireButton(_upgradesTabButton, ShowUpgradesTab);
         UnwireButton(_purchaseButton, HandlePurchaseRequested);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        UnwireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+#endif
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void EnsureDevResetProgressButton()
+    {
+        if (_devResetProgressButton != null || _screenRoot == null)
+            return;
+
+        _devResetProgressButton = HudUiFactory.CreateButton(
+            _screenRoot.transform,
+            "DEV: Reset progress",
+            new Vector2(220f, 40f));
+        _devResetProgressButton.name = "DevResetProgressButton";
+
+        RectTransform rt = _devResetProgressButton.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 0f);
+        rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(1f, 0f);
+        rt.anchoredPosition = new Vector2(-24f, 24f);
+    }
+
+    private void HandleDevResetProgressRequested()
+    {
+        SaveManager save = SaveManager.Instance;
+        if (save == null)
+            return;
+
+        save.ResetProgress();
+        _selectedAchievementId = null;
+        _selectedUnlockId = null;
+        _armedPurchase = null;
+        _selectedObjectiveRow = null;
+        _selectedUnlockCard = null;
+        RequestRefresh();
+        Debug.Log("ObjectivesMenuUI: DEV reset — scrap, unlocks y challenges borrados.");
+    }
+#endif
 
     private void HandleScreenOpened(TitleScreenLocalState state)
     {
@@ -418,10 +578,10 @@ public class ObjectivesMenuUI : MonoBehaviour
         bool templateAvailable = _objectiveRowPrefab != null && _objectivesContent != null;
 
         SetActive(_objectivesDataUnavailableState, !dataAvailable || (validCount > 0 && !templateAvailable));
-        SetActive(_objectivesEmptyState, dataAvailable && validCount == 0);
 
         if (!dataAvailable || validCount == 0 || !templateAvailable)
         {
+            SetActive(_objectivesEmptyState, dataAvailable && validCount == 0);
             ClearObjectiveDetails();
             return;
         }
@@ -432,8 +592,11 @@ public class ObjectivesMenuUI : MonoBehaviour
             if (achievement == null)
                 continue;
 
-            float current = Mathf.Min(saveManager.GetProgress(achievement), achievement.TargetValue);
             bool completed = saveManager.IsAchievementUnlocked(achievement);
+            if (_hideObtainedObjectives && completed)
+                continue;
+
+            float current = Mathf.Min(saveManager.GetProgress(achievement), achievement.TargetValue);
             ObjectiveRowView row = Instantiate(_objectiveRowPrefab, _objectivesContent, false);
             row.gameObject.SetActive(true);
             row.Bind(
@@ -443,6 +606,13 @@ public class ObjectivesMenuUI : MonoBehaviour
                 completed,
                 HandleObjectiveFocused);
             _objectiveRows.Add(row);
+        }
+
+        SetActive(_objectivesEmptyState, _objectiveRows.Count == 0);
+        if (_objectiveRows.Count == 0)
+        {
+            ClearObjectiveDetails();
+            return;
         }
 
         ObjectiveRowView selection = FindObjectiveRow(selectionToRestore);
@@ -460,10 +630,10 @@ public class ObjectivesMenuUI : MonoBehaviour
         bool templateAvailable = _unlockCardPrefab != null && _unlocksContent != null;
 
         SetActive(_unlocksDataUnavailableState, !dataAvailable || (validCount > 0 && !templateAvailable));
-        SetActive(_unlocksEmptyState, dataAvailable && validCount == 0);
 
         if (!dataAvailable || validCount == 0 || !templateAvailable)
         {
+            SetActive(_unlocksEmptyState, dataAvailable && validCount == 0);
             _armedPurchase = null;
             ClearUnlockDetails();
             return;
@@ -490,6 +660,14 @@ public class ObjectivesMenuUI : MonoBehaviour
                 CreateUnlockCard(pathUnlock, pathUnlock.DisplayName, "PATH", saveManager);
         }
 
+        SetActive(_unlocksEmptyState, _unlockCards.Count == 0);
+        if (_unlockCards.Count == 0)
+        {
+            _armedPurchase = null;
+            ClearUnlockDetails();
+            return;
+        }
+
         UnlockCardView selection = FindUnlockCard(selectionToRestore);
         SelectUnlock(selection != null ? selection : _unlockCards[0]);
 
@@ -508,10 +686,24 @@ public class ObjectivesMenuUI : MonoBehaviour
     private void CreateUnlockCard(IUnlockable item, string displayName, string itemType, SaveManager saveManager)
     {
         UnlockCardState state = ResolveUnlockState(item, saveManager);
+        if (ShouldHideUnlock(state))
+            return;
+
         UnlockCardView card = Instantiate(_unlockCardPrefab, _unlocksContent, false);
         card.gameObject.SetActive(true);
         card.Bind(item, displayName, itemType, state, HandleUnlockFocused);
         _unlockCards.Add(card);
+    }
+
+    private bool ShouldHideUnlock(UnlockCardState state)
+    {
+        if (_hideUnlockOwned && state == UnlockCardState.Owned)
+            return true;
+        if (_hideUnlockAvailable && state == UnlockCardState.Purchasable)
+            return true;
+        if (_hideUnlockInsufficientScrap && state == UnlockCardState.InsufficientScrap)
+            return true;
+        return false;
     }
 
     private void HandleObjectiveFocused(ObjectiveRowView row)

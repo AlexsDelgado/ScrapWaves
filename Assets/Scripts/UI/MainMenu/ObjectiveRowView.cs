@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 /// <summary>Presentation and focus behavior for one authored objective-row prefab.</summary>
 [DisallowMultipleComponent]
-public sealed class ObjectiveRowView : MonoBehaviour, ISelectHandler, IPointerEnterHandler
+public sealed class ObjectiveRowView : MonoBehaviour
 {
     [SerializeField] private Button _button;
     [SerializeField] private TextMeshProUGUI _nameText;
@@ -77,33 +77,12 @@ public sealed class ObjectiveRowView : MonoBehaviour, ISelectHandler, IPointerEn
             EventSystem.current.SetSelectedGameObject(_button.gameObject);
     }
 
-    public void OnSelect(BaseEventData eventData)
-    {
-        NotifySelected();
-    }
-
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        if (_button == null || !_button.IsInteractable())
-            return;
-
-        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != _button.gameObject)
-            EventSystem.current.SetSelectedGameObject(_button.gameObject);
-        else
-            NotifySelected();
-    }
-
     public static string FormatValue(float value)
     {
         return value.ToString("0.#", CultureInfo.InvariantCulture);
     }
 
     private void HandleActivated()
-    {
-        NotifySelected();
-    }
-
-    private void NotifySelected()
     {
         if (Achievement != null)
             _selected?.Invoke(this);

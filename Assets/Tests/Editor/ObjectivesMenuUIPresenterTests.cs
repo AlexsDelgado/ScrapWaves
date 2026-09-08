@@ -148,7 +148,7 @@ public class ObjectivesMenuUIPresenterTests
         Assert.That(fixture.Presenter.SelectedUnlockId, Is.EqualTo("first"));
 
         UnlockCardView secondCard = fixture.UnlocksContent.GetChild(1).GetComponent<UnlockCardView>();
-        secondCard.OnSelect(null);
+        secondCard.Button.onClick.Invoke();
 
         Assert.That(fixture.Presenter.IsPurchaseArmed, Is.False);
         Assert.That(fixture.Presenter.SelectedUnlockId, Is.EqualTo("second"));
@@ -187,7 +187,7 @@ public class ObjectivesMenuUIPresenterTests
         ObjectiveRowView lastRow = fixture.ObjectivesContent
             .GetChild(fixture.ObjectivesContent.childCount - 1)
             .GetComponent<ObjectiveRowView>();
-        lastRow.OnSelect(null);
+        lastRow.Button.onClick.Invoke();
 
         AssertFullyVisible(fixture.ObjectivesScrollRect, lastRow.transform as RectTransform);
     }
@@ -206,7 +206,7 @@ public class ObjectivesMenuUIPresenterTests
         UnlockCardView lastCard = fixture.UnlocksContent
             .GetChild(fixture.UnlocksContent.childCount - 1)
             .GetComponent<UnlockCardView>();
-        lastCard.OnSelect(null);
+        lastCard.Button.onClick.Invoke();
 
         Assert.That(fixture.UnlocksContent.childCount, Is.EqualTo(17));
         AssertFullyVisible(fixture.UnlocksScrollRect, lastCard.transform as RectTransform);

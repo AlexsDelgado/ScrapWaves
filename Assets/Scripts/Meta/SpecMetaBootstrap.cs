@@ -23,6 +23,18 @@ public static class SpecMetaBootstrap
         var list = new List<AchievementDefinition>
         {
             AchievementDefinition.CreateRuntime(
+                "first_kill", "First kill", "Defeat your first enemy.",
+                AchievementConditionType.Custom, 1f, true, null, "first_kill",
+                null, 10),
+            AchievementDefinition.CreateRuntime(
+                "first_death", "First death", "Die for the first time.",
+                AchievementConditionType.Custom, 1f, true, null, "first_death",
+                null, 10),
+            AchievementDefinition.CreateRuntime(
+                "first_extraction", "First extraction", "Escape through the exit door once.",
+                AchievementConditionType.RunsCompletedTotal, 1f, true, null, null,
+                null, 10),
+            AchievementDefinition.CreateRuntime(
                 "thaw_them_out", "Thaw them out", "Melt 2500 enemies with your flamethrower.",
                 AchievementConditionType.WeaponKillsTotal, 2500f, true, "Flamethrower", null,
                 "WeaponPath_Flamethrower_PathB", 50),

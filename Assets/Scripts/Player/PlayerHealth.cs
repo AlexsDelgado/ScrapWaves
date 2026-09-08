@@ -245,6 +245,7 @@ public class PlayerHealth : MonoBehaviour
         {
             _isDead = true;
             ClearBurn();
+            ChallengeProgressTracker.NotifyPlayerDied();
             OnPlayerDied?.Invoke();
         }
     }
@@ -318,6 +319,7 @@ public class PlayerHealth : MonoBehaviour
         if (_currentHealth <= 0 && !_isDead)
         {
             _isDead = true;
+            ChallengeProgressTracker.NotifyPlayerDied();
             OnPlayerDied?.Invoke();
         }
     }

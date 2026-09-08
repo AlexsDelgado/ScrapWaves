@@ -74,6 +74,9 @@ public class MetaUpgradeShopUI : MonoBehaviour
     private bool _layoutBuilt;
     private bool _armed;
     private bool _handlingPurchase;
+    private bool _hideInsufficientScrap;
+    private bool _hideStat;
+    private bool _hideItem;
 
     public void FocusFirst()
     {
@@ -96,6 +99,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
     {
         EnsureCosts();
         EnsureLayout();
+        EnsureFilterBar();
         WirePurchase();
         Subscribe();
         Rebuild();
@@ -146,6 +150,47 @@ public class MetaUpgradeShopUI : MonoBehaviour
             BuildDefaultShell(root);
 
         _layoutBuilt = _content != null && _cardPrefab != null;
+    }
+
+    private void EnsureFilterBar()
+    {
+        Transform filterParent = _scrollRect != null && _scrollRect.transform.parent != null
+            ? _scrollRect.transform.parent
+            : transform;
+
+        ObjectivesFilterChipBar bar = ObjectivesFilterChipBar.Ensure(filterParent, "UpgradesFilterBar");
+        bar.AddOrBindChip(
+            "HideInsufficientScrap",
+            "Hide no scrap",
+            () => _hideInsufficientScrap,
+            value =>
+            {
+                _hideInsufficientScrap = value;
+                Rebuild();
+            });
+        bar.AddOrBindChip(
+            "HideStat",
+            "Hide stat",
+            () => _hideStat,
+            value =>
+            {
+                _hideStat = value;
+                Rebuild();
+            });
+        bar.AddOrBindChip(
+            "HideItem",
+            "Hide item",
+            () => _hideItem,
+            value =>
+            {
+                _hideItem = value;
+                Rebuild();
+            });
+
+        if (_scrollRect != null)
+            ObjectivesFilterChipBar.SetTopInset(
+                _scrollRect.transform as RectTransform,
+                ObjectivesFilterChipBar.Height);
     }
 
     private void BuildDefaultShell(RectTransform root)
@@ -394,29 +439,35 @@ public class MetaUpgradeShopUI : MonoBehaviour
 
     private void BuildOffers()
     {
-        for (int i = 0; i < StatRows.Length; i++)
+        if (!_hideStat)
         {
-            StatType type = StatRows[i];
-            int level = SaveManager.Instance.GetMetaStatLevel(type);
-            int max = 10;
-            int nextCost = level >= max ? 0 : _costs.GetStatUpgradeCost(level + 1);
-            UnlockCardState state = ResolveState(level, max, nextCost);
-            _offers.Add(new UpgradeOffer
+            for (int i = 0; i < StatRows.Length; i++)
             {
-                Id = $"stat:{type}",
-                Kind = OfferKind.Stat,
-                StatType = type,
-                DisplayName = Pretty(type),
-                Category = "STAT",
-                Description = $"Permanent base multiplier for {Pretty(type)}. +5% per level.",
-                Level = level,
-                MaxLevel = max,
-                NextCost = nextCost,
-                State = state
-            });
+                StatType type = StatRows[i];
+                int level = SaveManager.Instance.GetMetaStatLevel(type);
+                int max = 10;
+                int nextCost = level >= max ? 0 : _costs.GetStatUpgradeCost(level + 1);
+                UnlockCardState state = ResolveState(level, max, nextCost);
+                if (_hideInsufficientScrap && state == UnlockCardState.InsufficientScrap)
+                    continue;
+
+                _offers.Add(new UpgradeOffer
+                {
+                    Id = $"stat:{type}",
+                    Kind = OfferKind.Stat,
+                    StatType = type,
+                    DisplayName = Pretty(type),
+                    Category = "STAT",
+                    Description = $"Permanent base multiplier for {Pretty(type)}. +5% per level.",
+                    Level = level,
+                    MaxLevel = max,
+                    NextCost = nextCost,
+                    State = state
+                });
+            }
         }
 
-        if (_catalog == null)
+        if (_catalog == null || _hideItem)
             return;
 
         for (int i = 0; i < _catalog.PassiveItems.Count; i++)
@@ -431,6 +482,9 @@ public class MetaUpgradeShopUI : MonoBehaviour
             int max = 3;
             int nextCost = level >= max ? 0 : _costs.GetItemUpgradeCost(level + 1);
             UnlockCardState state = ResolveState(level, max, nextCost);
+            if (_hideInsufficientScrap && state == UnlockCardState.InsufficientScrap)
+                continue;
+
             _offers.Add(new UpgradeOffer
             {
                 Id = $"item:{item.UnlockId}",
