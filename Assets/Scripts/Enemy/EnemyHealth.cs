@@ -3,6 +3,7 @@ using UnityEngine;
 public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 {
     [SerializeField, Min(1)] private int _maxHealth = 12;
+    [SerializeField, Min(0f)] private float _damageTakenMultiplier = 1f;
 
     private int _prefabMaxHealth;
     private int _currentHealth;
@@ -111,6 +112,20 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     public DamageApplicationResult ApplyDamage(in DamageRequest request)
     {
+        return ApplyDamageInternal(in request, _damageTakenMultiplier);
+    }
+
+    /// <summary>
+    /// Daño desde una zona de hit (p. ej. cabeza). Usa <paramref name="zoneMultiplier"/>
+    /// en lugar de <see cref="_damageTakenMultiplier"/>.
+    /// </summary>
+    public DamageApplicationResult ApplyHitZoneDamage(in DamageRequest request, float zoneMultiplier)
+    {
+        return ApplyDamageInternal(in request, zoneMultiplier);
+    }
+
+    private DamageApplicationResult ApplyDamageInternal(in DamageRequest request, float damageMultiplier)
+    {
         int healthBefore = Mathf.Max(0, _currentHealth);
         if (request.ModifiedDamage <= 0 || healthBefore <= 0)
             return DamageApplicationResult.Rejected(in request, healthBefore);
@@ -121,7 +136,11 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         if (blocked)
             return DamageApplicationResult.BlockedResult(in request, healthBefore);
 
-        int healthAfter = Mathf.Max(0, healthBefore - request.ModifiedDamage);
+        int scaledDamage = Mathf.RoundToInt(request.ModifiedDamage * Mathf.Max(0f, damageMultiplier));
+        if (scaledDamage <= 0)
+            return DamageApplicationResult.Rejected(in request, healthBefore);
+
+        int healthAfter = Mathf.Max(0, healthBefore - scaledDamage);
         _currentHealth = healthAfter;
         if (!string.IsNullOrEmpty(request.SourceWeaponId))
             _lastDamagingWeaponId = request.SourceWeaponId;
