@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5b8cc1ebaa997845825c02c96994893, type: 3}
+  m_Name: TemporaryPowerupVisualCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::TemporaryPowerupVisualCatalog
+  _entries:
+  - Type: 0
+    Mesh: {fileID: -8952230087696168178, guid: 4a7ad3a62edf74641bad04745c4a91b0, type: 3}
+  - Type: 1
+    Mesh: {fileID: -232585253301867032, guid: 5bfb0156294f9e147a05bfd2cc37c03e, type: 3}
+  - Type: 2
+    Mesh: {fileID: 8499265878005595333, guid: 4700130ea5ba5424e865db4269383730, type: 3}
+  - Type: 3
+    Mesh: {fileID: -4146796388820126356, guid: 13a1407e6aec12f4091a91b6a9934e0c, type: 3}
+  - Type: 4
+    Mesh: {fileID: 3545437547119129913, guid: 56d9a2051e5a4e14eb447185398f0bf6, type: 3}
+  - Type: 5
+    Mesh: {fileID: 3915383460158315772, guid: 8b163159951894840834f2d9a72f85e1, type: 3}

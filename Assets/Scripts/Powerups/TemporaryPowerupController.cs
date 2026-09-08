@@ -56,11 +56,15 @@ public class TemporaryPowerupController : MonoBehaviour
     private readonly object _buffSource = new();
     private float _buffEndsAt = -1f;
     private float _invulnEndsAt = -1f;
+    private float _fxEndsAt = -1f;
     private TemporaryPowerupType _activeBuff;
     private bool _hasActiveBuff;
-    private GameObject _ringVisual;
-    private Renderer _ringRenderer;
-    private Color _ringColor = Color.white;
+    private ParticleSystem _buffParticles;
+    private ParticleSystem.EmissionModule _buffEmission;
+    private const float BuffEmissionRate = 15f;
+    private const float BuffEmissionWindDownRate = 4f;
+    private const float BuffBurstCount = 10f;
+    private static readonly Vector3 BuffParticleLocalPos = new(0f, 0.9f, -0.35f);
 
     private void Awake()
     {
@@ -87,7 +91,7 @@ public class TemporaryPowerupController : MonoBehaviour
         if (_invulnEndsAt > 0f && now >= _invulnEndsAt)
             _invulnEndsAt = -1f;
 
-        UpdateRingVisual(now);
+        UpdateBuffFx(now);
     }
 
     public bool IsPowerupInvulnerable => _invulnEndsAt > 0f && Time.time < _invulnEndsAt;
@@ -132,15 +136,17 @@ public class TemporaryPowerupController : MonoBehaviour
                 float duration = 7.5f;
                 _invulnEndsAt = Time.time + duration;
                 _health?.GrantInvulnerability(duration);
-                ShowRing(new Color(1f, 1f, 1f, 0.45f), duration, TemporaryPowerupType.Invulnerability);
+                ShowBuffFx(new Color(1f, 1f, 1f, 0.7f), duration);
                 EmitLog($"[Powerup Invulnerability] Duration  base: 0.00 || +buff: {duration:0.00}");
                 break;
             }
             case TemporaryPowerupType.FullHeal:
                 ApplyFullHeal();
+                ShowBuffFx(new Color(1f, 0.3f, 0.55f, 0.85f), 1.75f);
                 break;
             case TemporaryPowerupType.Nuke:
                 ApplyNuke(t);
+                ShowBuffFx(new Color(1f, 0.85f, 0.15f, 0.9f), 1.75f);
                 break;
         }
     }
@@ -194,7 +200,7 @@ public class TemporaryPowerupController : MonoBehaviour
         _buffEndsAt = Time.time + duration;
         addModifiers?.Invoke();
         LogStatDeltasFor(type, tracked, before);
-        ShowRing(color, duration, type);
+        ShowBuffFx(color, duration);
     }
 
     private static StatType[] GetTrackedStats(TemporaryPowerupType type)
@@ -256,7 +262,10 @@ public class TemporaryPowerupController : MonoBehaviour
         _hasActiveBuff = false;
         _buffEndsAt = -1f;
         _movement?.RefreshPassiveResources();
-        HideRing();
+        // Keep FX if invulnerability (or a short FX timer) is still running.
+        float now = Time.time;
+        if ((_invulnEndsAt <= 0f || now >= _invulnEndsAt) && (_fxEndsAt <= 0f || now >= _fxEndsAt))
+            HideBuffFx();
     }
 
     private void AddMul(StatType type, float multiplier)
@@ -280,67 +289,137 @@ public class TemporaryPowerupController : MonoBehaviour
         return Mathf.Clamp01(level / (float)cap);
     }
 
-    private void ShowRing(Color color, float duration, TemporaryPowerupType type)
+    private void ShowBuffFx(Color color, float duration)
     {
-        EnsureRing();
-        _ringColor = color;
-        _ringVisual.SetActive(true);
-        if (_ringRenderer != null)
-            _ringRenderer.material.color = color;
-        // duration tracked via buff/invuln end times
-        _ = duration;
-        _ = type;
+        EnsureBuffParticles();
+        color.a = Mathf.Clamp01(Mathf.Max(color.a, 0.55f));
+        _fxEndsAt = Time.time + Mathf.Max(0.1f, duration);
+
+        ApplyParticleColor(color);
+        _buffEmission.rateOverTime = BuffEmissionRate;
+        if (!_buffParticles.gameObject.activeSelf)
+            _buffParticles.gameObject.SetActive(true);
+        _buffParticles.Clear(true);
+        _buffParticles.Play(true);
+        _buffParticles.Emit(Mathf.RoundToInt(BuffBurstCount));
     }
 
-    private void HideRing()
+    private void HideBuffFx()
     {
-        if (_ringVisual != null)
-            _ringVisual.SetActive(false);
-    }
-
-    private void UpdateRingVisual(float now)
-    {
-        if (_ringVisual == null || !_ringVisual.activeSelf || _ringRenderer == null)
+        _fxEndsAt = -1f;
+        if (_buffParticles == null)
             return;
 
-        float ends = Mathf.Max(_buffEndsAt, _invulnEndsAt);
+        _buffEmission.rateOverTime = 0f;
+        _buffParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        _buffParticles.gameObject.SetActive(false);
+    }
+
+    private void UpdateBuffFx(float now)
+    {
+        if (_buffParticles == null || !_buffParticles.gameObject.activeSelf)
+            return;
+
+        float ends = Mathf.Max(_buffEndsAt, _invulnEndsAt, _fxEndsAt);
+        if (ends <= 0f || now >= ends)
+        {
+            if (_buffParticles.particleCount <= 0)
+                HideBuffFx();
+            else
+            {
+                _buffEmission.rateOverTime = 0f;
+                _buffParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                if (!_buffParticles.IsAlive(true))
+                    HideBuffFx();
+            }
+            return;
+        }
+
         float remaining = ends - now;
-        Color c = _ringColor;
-        if (remaining > 0f && remaining <= 2.5f)
-        {
-            float blink = (Mathf.Sin(now * 12f) + 1f) * 0.5f;
-            c.a = Mathf.Lerp(0.15f, _ringColor.a, blink);
-        }
-
-        _ringRenderer.material.color = c;
-        _ringVisual.transform.position = transform.position + Vector3.up * 0.05f;
+        _buffEmission.rateOverTime = remaining <= 2.5f ? BuffEmissionWindDownRate : BuffEmissionRate;
     }
 
-    private void EnsureRing()
+    private void ApplyParticleColor(Color color)
     {
-        if (_ringVisual != null)
+        if (_buffParticles == null)
             return;
 
-        _ringVisual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        _ringVisual.name = "[PowerupRing]";
-        _ringVisual.transform.SetParent(transform, false);
-        _ringVisual.transform.localScale = new Vector3(2.2f, 0.03f, 2.2f);
-        Collider col = _ringVisual.GetComponent<Collider>();
-        if (col != null)
-            Destroy(col);
-        _ringRenderer = _ringVisual.GetComponent<Renderer>();
-        if (_ringRenderer != null)
-        {
-            Shader shader = Shader.Find("Sprites/Default")
-                ?? Shader.Find("Universal Render Pipeline/Unlit")
-                ?? Shader.Find("Unlit/Color");
-            if (shader != null)
-                _ringRenderer.material = new Material(shader);
-            else if (_ringRenderer.sharedMaterial != null)
-                _ringRenderer.material = new Material(_ringRenderer.sharedMaterial);
-            _ringRenderer.material.color = Color.white;
-        }
+        var main = _buffParticles.main;
+        main.startColor = color;
 
-        _ringVisual.SetActive(false);
+        var colorOverLifetime = _buffParticles.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+        Gradient gradient = new();
+        gradient.SetKeys(
+            new[]
+            {
+                new GradientColorKey(color, 0f),
+                new GradientColorKey(color, 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(color.a, 0f),
+                new GradientAlphaKey(0f, 1f)
+            });
+        colorOverLifetime.color = gradient;
+    }
+
+    private void EnsureBuffParticles()
+    {
+        if (_buffParticles != null)
+            return;
+
+        GameObject go = new("[PowerupBuffParticles]");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = BuffParticleLocalPos;
+        go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
+        _buffParticles = go.AddComponent<ParticleSystem>();
+        _buffEmission = _buffParticles.emission;
+
+        var main = _buffParticles.main;
+        main.loop = true;
+        main.playOnAwake = false;
+        main.duration = 1f;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.55f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.35f, 0.85f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.16f);
+        main.startRotation = 0f;
+        main.gravityModifier = 0f;
+        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.maxParticles = 64;
+        main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+
+        _buffEmission.enabled = true;
+        _buffEmission.rateOverTime = 0f;
+
+        var shape = _buffParticles.shape;
+        shape.enabled = true;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = 18f;
+        shape.radius = 0.08f;
+        shape.length = 0.2f;
+
+        var colorOverLifetime = _buffParticles.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+
+        var sizeOverLifetime = _buffParticles.sizeOverLifetime;
+        sizeOverLifetime.enabled = true;
+        AnimationCurve sizeCurve = new();
+        sizeCurve.AddKey(0f, 1f);
+        sizeCurve.AddKey(1f, 0.15f);
+        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+
+        var renderer = go.GetComponent<ParticleSystemRenderer>();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+            ?? Shader.Find("Particles/Standard Unlit")
+            ?? Shader.Find("Sprites/Default");
+        if (shader != null)
+            renderer.material = new Material(shader);
+
+        go.SetActive(false);
     }
 }

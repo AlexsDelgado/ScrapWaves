@@ -1,54 +1,52 @@
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
 public static class DropAssetsUpdateMenu
 {
-    private const string KeyPickupPath = "Assets/Prefabs/Pickups/KeyPickup.prefab";
+    private const string CellBatteryPath = "Assets/Prefabs/Pickups/CellBattery.prefab";
     private const string PlasticPath = "Assets/Prefabs/Pickups/PlasticExplosive.prefab";
-    private const string CellBatteryFbx = "Assets/Art/Drops/CellBattery.fbx";
     private const string PlasticV2Fbx = "Assets/Art/Drops/PlasticExplosiveV2.fbx";
 
     [MenuItem("ScrapWaves/Economy/Apply Drop Art Updates (CellBattery + PlasticV2)")]
     public static void Apply()
     {
-        UpdateKeyPickup();
+        EnsureCellBatteryPickup();
         UpdatePlasticExplosive();
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("Drop art updates applied: KeyPickup=CellBattery, PlasticExplosive=PlasticExplosiveV2");
+        Debug.Log("Drop art updates applied: CellBattery pickup scripts, PlasticExplosive=PlasticExplosiveV2");
     }
 
-    private static void UpdateKeyPickup()
+    private static void EnsureCellBatteryPickup()
     {
-        MeshFilter sourceFilter = FindFirstMeshFilter(CellBatteryFbx);
-        if (sourceFilter == null)
+        GameObject root = AssetDatabase.LoadAssetAtPath<GameObject>(CellBatteryPath);
+        if (root == null)
         {
-            Debug.LogError($"No MeshFilter found in {CellBatteryFbx}");
+            Debug.LogError($"Missing {CellBatteryPath}");
             return;
         }
 
-        GameObject contents = PrefabUtility.LoadPrefabContents(KeyPickupPath);
+        GameObject contents = PrefabUtility.LoadPrefabContents(CellBatteryPath);
         try
         {
-            MeshFilter filter = contents.GetComponent<MeshFilter>();
-            MeshRenderer renderer = contents.GetComponent<MeshRenderer>();
-            if (filter == null)
-                filter = contents.AddComponent<MeshFilter>();
-            if (renderer == null)
-                renderer = contents.AddComponent<MeshRenderer>();
+            WorldPickup world = contents.GetComponent<WorldPickup>();
+            if (world == null)
+                world = contents.AddComponent<WorldPickup>();
 
-            filter.sharedMesh = sourceFilter.sharedMesh;
-            MeshRenderer sourceRenderer = sourceFilter.GetComponent<MeshRenderer>();
-            renderer.sharedMaterials = sourceRenderer != null
-                ? sourceRenderer.sharedMaterials
-                : renderer.sharedMaterials;
+            world.PickupRadius = 1.5f;
+            world.MagnetRadius = 6f;
+            world.MagnetSpeed = 12f;
 
-            // CellBattery FBX already imports at globalScale 0.5; keep pickup readable.
-            contents.transform.localScale = Vector3.one;
-            contents.transform.localRotation = Quaternion.identity;
+            SerializedObject soWorld = new SerializedObject(world);
+            SerializedProperty useRange = soWorld.FindProperty("_usePlayerPickupRange");
+            if (useRange != null)
+                useRange.boolValue = true;
+            soWorld.ApplyModifiedPropertiesWithoutUndo();
 
-            PrefabUtility.SaveAsPrefabAsset(contents, KeyPickupPath);
+            if (contents.GetComponent<KeyPickup>() == null)
+                contents.AddComponent<KeyPickup>();
+
+            PrefabUtility.SaveAsPrefabAsset(contents, CellBatteryPath);
         }
         finally
         {

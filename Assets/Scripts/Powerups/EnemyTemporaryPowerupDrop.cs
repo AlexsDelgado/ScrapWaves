@@ -1,13 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// Al morir el enemigo, roll Spec de Temporary Power-up (0.1% normal / 1% elite, escala con Scavenging).
+/// Al morir el enemigo, roll Spec de Temporary Power-up (1% normal / 5% elite-boss, escala con Scavenging).
 /// </summary>
 [RequireComponent(typeof(EnemyHealth))]
 public class EnemyTemporaryPowerupDrop : MonoBehaviour
 {
-    private const float BaseNormalChance = 0.001f;
-    private const float BaseEliteChance = 0.01f;
+    private const float BaseNormalChance = 0.01f;
+    private const float BaseEliteChance = 0.05f;
     private const float BaseScavenging = 50f;
 
     private EnemyHealth _health;

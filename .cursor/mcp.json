@@ -7,6 +7,12 @@
         "--project-path",
         "D:\\Projects\\ScrapWaves"
       ]
+    },
+    "blender": {
+      "command": "C:\\Users\\Alexs\\.local\\bin\\uvx.exe",
+      "args": [
+        "blender-mcp"
+      ]
     }
   }
 }

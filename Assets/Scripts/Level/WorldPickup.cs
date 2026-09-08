@@ -54,6 +54,15 @@ public class WorldPickup : MonoBehaviour
         _usePlayerPickupRange = false;
     }
 
+    /// <summary>Recogida de gameplay: radio base + imán + PickupRange del jugador.</summary>
+    public void ConfigureForGameplayCollection(float pickupRadius = 1.5f, float magnetRadius = 6f, float magnetSpeed = 12f)
+    {
+        PickupRadius = Mathf.Max(0.01f, pickupRadius);
+        MagnetRadius = Mathf.Max(0f, magnetRadius);
+        MagnetSpeed = Mathf.Max(0f, magnetSpeed);
+        _usePlayerPickupRange = true;
+    }
+
     private void OnValidate()
     {
         if (_usePlayerPickupRange && MagnetRadius > 0f && MagnetRadius < PickupRadius)

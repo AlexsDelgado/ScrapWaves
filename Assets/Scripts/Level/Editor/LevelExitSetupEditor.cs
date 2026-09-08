@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 public static class LevelExitSetupEditor
 {
-    const string KeyPickupPrefabPath = "Assets/Prefabs/Pickups/KeyPickup.prefab";
+    const string KeyPickupPrefabPath = "Assets/Prefabs/Pickups/CellBattery.prefab";
     const string ExitDoorPrefabPath = "Assets/Prefabs/Level/ExitDoor.prefab";
     const string BossPrefabPath = "Assets/Prefabs/Boss.prefab";
     const string Boss2PrefabPath = "Assets/Prefabs/Boss_2.prefab";
@@ -43,27 +43,44 @@ public static class LevelExitSetupEditor
     private static GameObject CreateOrLoadKeyPickupPrefab()
     {
         GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(KeyPickupPrefabPath);
-        if (existing != null)
-            return existing;
-
-        var root = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        root.name = "KeyPickup";
-        root.transform.localScale = Vector3.one * 0.65f;
-        Object.DestroyImmediate(root.GetComponent<Collider>());
-        root.AddComponent<KeyPickup>();
-
-        var renderer = root.GetComponent<Renderer>();
-        if (renderer != null)
+        if (existing == null)
         {
-            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"));
-            mat.color = new Color(0.95f, 0.82f, 0.15f, 1f);
-            renderer.sharedMaterial = mat;
-            AssetDatabase.CreateAsset(mat, "Assets/Prefabs/Pickups/KeyPickup_Mat.mat");
+            Debug.LogError($"LevelExitSetup: falta {KeyPickupPrefabPath}");
+            return null;
         }
 
-        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, KeyPickupPrefabPath);
-        Object.DestroyImmediate(root);
-        return prefab;
+        GameObject contents = PrefabUtility.LoadPrefabContents(KeyPickupPrefabPath);
+        try
+        {
+            EnsureKeyPickupComponents(contents);
+            PrefabUtility.SaveAsPrefabAsset(contents, KeyPickupPrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+
+        return AssetDatabase.LoadAssetAtPath<GameObject>(KeyPickupPrefabPath);
+    }
+
+    private static void EnsureKeyPickupComponents(GameObject root)
+    {
+        WorldPickup world = root.GetComponent<WorldPickup>();
+        if (world == null)
+            world = root.AddComponent<WorldPickup>();
+
+        world.PickupRadius = 1.5f;
+        world.MagnetRadius = 6f;
+        world.MagnetSpeed = 12f;
+
+        SerializedObject soWorld = new SerializedObject(world);
+        SerializedProperty useRange = soWorld.FindProperty("_usePlayerPickupRange");
+        if (useRange != null)
+            useRange.boolValue = true;
+        soWorld.ApplyModifiedPropertiesWithoutUndo();
+
+        if (root.GetComponent<KeyPickup>() == null)
+            root.AddComponent<KeyPickup>();
     }
 
     private static GameObject CreateOrLoadExitDoorPrefab()
@@ -102,8 +119,13 @@ public static class LevelExitSetupEditor
 
     private static void WireBossPrefabs(GameObject keyPrefab)
     {
+        if (keyPrefab == null)
+            return;
+
         WireBossPrefab(BossPrefabPath, keyPrefab);
         WireBossPrefab(Boss2PrefabPath, keyPrefab);
+        WireBossPrefab("Assets/Prefabs/Stalker.prefab", keyPrefab);
+        WireBossPrefab("Assets/Prefabs/Destroyer_Boss.prefab", keyPrefab);
     }
 
     private static void WireBossPrefab(string path, GameObject keyPrefab)
