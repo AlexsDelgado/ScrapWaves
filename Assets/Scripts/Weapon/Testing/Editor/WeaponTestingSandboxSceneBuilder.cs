@@ -460,7 +460,7 @@ public static class WeaponTestingSandboxSceneBuilder
         if (overheatManager != null)
             overheatManager.enabled = false;
 
-        WeaponDebugMonitor monitor = player.GetComponent<WeaponDebugMonitor>();
+        DebugMonitor monitor = player.GetComponent<DebugMonitor>();
         if (monitor != null)
             monitor.enabled = false;
     }

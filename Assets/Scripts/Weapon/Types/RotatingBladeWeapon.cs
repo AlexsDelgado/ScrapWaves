@@ -3,6 +3,33 @@ using UnityEngine;
 
 public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 {
+    protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
+    {
+        RotatingBladeTuning t = Runtime.Data.RotatingBlade;
+        var automatic = DiagnosticMode("Automatic", GetAtomicSharpnessDamageScale(), GetAutoDamageInterval(t),
+            GetScaledOrbitRadius(t), GetBladeCount(), 0f, knockbackScale: GetAtomicSharpnessKnockbackScale(GetAutomaticKnockbackScale(t)));
+        var manual = DiagnosticMode("Manual", GetManualDamageScale(t) * GetAtomicSharpnessDamageScale(),
+            GetManualSwingInterval(t), GetScaledManualRange(t), GetBladeCount(), 1f,
+            knockbackScale: GetAtomicSharpnessKnockbackScale(t.BladeManualKnockbackScale));
+        var active = DiagnosticMode("Active Ability", IsAtomicSharpnessPath() ? GetAtomicActiveDamageScale() : t.BladeActiveDamageScale,
+            0f, IsAtomicSharpnessPath() ? GetAtomicDashBaseRange(t) : GetScaledActiveRange(t), GetBladeCount(),
+            Runtime.Data.ActiveAbilityAmmoCost, true, IsAtomicSharpnessPath() ? 0f : t.BladeActiveKnockbackScale);
+        automatic.Add("Hit radius", GetScaledHitRadius(t), " m");
+        manual.Add("Cone angle", t.BladeManualConeAngle, " degrees");
+        active.Add("Line width", GetScaledActiveLineWidth(t), " m");
+        if (IsMultiBladePath())
+        {
+            manual.Add("Spacing between swings", GetMultiBladeActionInterval(), " s");
+            active.Add("Spacing between thrusts", GetMultiBladeActionInterval(), " s");
+        }
+        if (IsAtomicSharpnessPath())
+            active.Add("Dash range with one target", GetAtomicDashRangeForHitCount(GetAtomicDashBaseRange(t), 1, t), " m")
+                .Add("Dash duration without targets", GetAtomicDashDurationForHitCount(0), " s")
+                .Add("Post-dash invulnerability", GetAtomicActivePostDashInvulnerabilitySeconds(), " s")
+                .Add("Range assumption", "Base range; each hit extends dash range and duration");
+        sections.Add(automatic); sections.Add(manual); sections.Add(active);
+    }
+
     private const int MaxContactTargets = 64;
     private const int MaxManualTargets = 64;
     private const int MaxActiveTargets = 128;
@@ -288,11 +315,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
     private static bool TryGetCameraHorizontalAimDirection(out Vector3 direction)
     {
         direction = Vector3.zero;
-        Camera camera = Camera.main;
-        if (camera == null)
+        if (!ReticleAimProvider.TryGetGameplayRay(Camera.main, out Ray ray))
             return false;
 
-        direction = camera.transform.forward;
+        direction = ray.direction;
         direction.y = 0f;
         if (direction.sqrMagnitude <= 0.0001f)
             return false;

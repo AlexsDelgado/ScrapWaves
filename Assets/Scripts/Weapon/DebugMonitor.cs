@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [DisallowMultipleComponent]
-public class WeaponDebugMonitor : MonoBehaviour
+public class DebugMonitor : MonoBehaviour
 {
     [SerializeField] private WeaponManager _weaponManager;
     [SerializeField] private bool _showOverlay;
@@ -12,6 +12,9 @@ public class WeaponDebugMonitor : MonoBehaviour
     private int _lastIndex = -1;
     private WeaponState _lastState = WeaponState.Automatic;
     private float _lastAmmo = -999f;
+
+    public WeaponManager MonitoredWeapons => _weaponManager != null ? _weaponManager : GetComponent<WeaponManager>();
+    public PlayerStats MonitoredStats => GetComponent<PlayerStats>();
 
     // Caches weapon manager reference if missing in inspector.
     private void Awake()

@@ -3,6 +3,45 @@ using UnityEngine;
 
 public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 {
+    protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
+    {
+        AutomaticCannonTuning t = Runtime.Data.AutomaticCannon;
+        bool headHunter = IsHeadHunterPath();
+        float eliteScale = headHunter ? GetHeadHunterEnemyTypeScale(WeaponEnemyKind.Elite) : 1f;
+        float bossScale = headHunter ? GetHeadHunterEnemyTypeScale(WeaponEnemyKind.Boss) : 1f;
+        var automatic = DiagnosticMode("Automatic", headHunter ? 1f : GetHeatDamageMultiplier(),
+            GetAutomaticFireInterval(t), Runtime.Data.BaseRange, GetAutomaticShotCount(t), 0f,
+            eliteDamageScale: eliteScale, bossDamageScale: bossScale);
+        var manual = DiagnosticMode("Manual", 1f,
+            GetManualFireInterval(t),
+            headHunter ? GetHeadHunterProjectileRange() : Runtime.Data.BaseRange,
+            GetManualShotCount(t), GetManualShotCount(t), eliteDamageScale: eliteScale, bossDamageScale: bossScale);
+        int activeCount = headHunter ? 1 : IsContinuousFirePath() ? GetContinuousFireActiveBulletCount()
+            : Mathf.Max(1, t.CannonActiveBaseBulletCount) + GetActiveHeatBonusBulletCount(t);
+        var active = DiagnosticMode("Active Ability", headHunter ? GetHeadHunterWeakPointScale() : 1f, 0f,
+            headHunter ? GetHeadHunterActivePierceRange() : Runtime.Data.BaseRange,
+            activeCount, GetActiveAbilityAmmoCost(), true, headHunter ? 1f : -1f, eliteScale, bossScale);
+        automatic.Add("Burst shot spacing", GetLineBurstShotInterval(t.CannonAutoLineSpacing), " s");
+        manual.Add("Burst shot spacing", GetLineBurstShotInterval(t.CannonManualLineSpacing), " s")
+            .Add("Ammo constraint", "Volley is limited by remaining ammo");
+        if (headHunter)
+        {
+            automatic.Add("Pierce limit", GetHeadHunterPierceLimit());
+            manual.Add("Pierce limit", GetHeadHunterPierceLimit()).Add("Weak-point multiplier", GetHeadHunterWeakPointScale(), "x")
+                .Add("Trigger", "One shot per click");
+            foreach (var section in new[] { automatic, manual, active })
+                section.Add("Enemy-type multipliers", "Elite 2x / Boss 3x, in addition to player elite multiplier");
+            automatic.Add("Pierce damage", "First target 100%; each subsequent target loses 10 percentage points");
+            manual.Add("Pierce damage", "First target 100%; each subsequent target loses 10 percentage points");
+            active.Add("Charge time", GetHeadHunterActiveChargeSeconds(), " s").Add("Pierce limit", "Unlimited");
+        }
+        else if (IsContinuousFirePath())
+            active.Add("Duration", GetContinuousFireActiveDuration(), " s")
+                .Add("Bullets / second", GetContinuousFireActiveBulletsPerSecond());
+        else active.Add("Scatter radius", t.CannonAbilityScatterRadius, " m");
+        sections.Add(automatic); sections.Add(manual); sections.Add(active);
+    }
+
     private static readonly float[] PresentationHeatThresholds = { 0.25f, 0.5f, 0.75f, 0.8f, 1f };
     private const float ContinuousFireActiveBulletsPerSecond = 40f;
     private const float HeadHunterPierceRadius = 0.45f;
@@ -199,10 +238,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return;
         }
 
-        FireTimer = AutomaticCannonFireLogic.GetManualBurstInterval(
-            tuning.CannonManualBurstsPerSecond,
-            WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier),
-            WeaponMath.GetAttackRateMultiplier(Runtime) * GetManualAttackSpeedPathMultiplier());
+        FireTimer = GetManualFireInterval(tuning);
 
         if (isHeadHunter)
         {
@@ -372,6 +408,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return 1.75f;
         return 1f;
     }
+
+    private float GetManualFireInterval(AutomaticCannonTuning tuning) =>
+        AutomaticCannonFireLogic.GetManualBurstInterval(tuning.CannonManualBurstsPerSecond,
+            WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier),
+            WeaponMath.GetAttackRateMultiplier(Runtime) * GetManualAttackSpeedPathMultiplier());
 
     private float GetAutomaticFireInterval(AutomaticCannonTuning tuning)
     {

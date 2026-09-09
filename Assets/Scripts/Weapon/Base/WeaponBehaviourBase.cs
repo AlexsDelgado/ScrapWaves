@@ -41,7 +41,7 @@ public interface IMortarReticleStatus
     float ArcHeight { get; }
 }
 
-public class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiver, IWeaponFireOriginReceiver
+public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentationReceiver, IWeaponFireOriginReceiver, IWeaponDiagnostics
 {
     protected readonly IWeaponTargeting Targeting;
     protected readonly ProjectilePool Pool;

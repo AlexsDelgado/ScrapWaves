@@ -3,6 +3,38 @@ using UnityEngine;
 
 public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbilityBehaviour, IRocketReticleStatus
 {
+    protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
+    {
+        RocketLauncherTuning t = Runtime.Data.RocketLauncher;
+        var automatic = DiagnosticMode("Automatic", 1f, GetFireInterval(), Runtime.Data.BaseRange,
+            Mathf.Max(1, t.RocketAutoBaseRocketCount + GetThresholdRocketBonus() + GetFragmentationRocketBonus()), 0f,
+            knockbackScale: GetPathAdjustedKnockbackScale(false));
+        var manual = DiagnosticMode("Manual", 1f, GetManualFireInterval(), Runtime.Data.BaseRange, 1, 1f,
+            knockbackScale: GetPathAdjustedKnockbackScale(false));
+        var active = DiagnosticMode("Active Ability", t.RocketActiveDamageScale, 0f, Runtime.Data.BaseRange,
+            IsFragmentationCapPath() ? 1 : GetMaximumActiveRocketCount(t), Runtime.Data.ActiveAbilityAmmoCost, true,
+            t.RocketActiveDamageScale * GetPathAdjustedKnockbackScale(true));
+        automatic.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketAutoExplosionRadius) * GetAreaSizeMultiplier(), " m")
+            .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketAutoExplosionFalloff));
+        manual.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketManualExplosionRadius) * GetAreaSizeMultiplier(), " m")
+            .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketManualExplosionFalloff));
+        active.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketActiveExplosionRadius, true) * GetAreaSizeMultiplier(), " m")
+            .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketActiveExplosionFalloff))
+            .Add("Maximum locked targets", GetActiveTargetLimit(t))
+            .Add("Lock interval", t.RocketActiveTargetLockInterval, " s")
+            .Add("Count assumption", "Maximum volley; actual count depends on acquired targets");
+        if (IsFragmentationCapPath())
+        {
+            automatic.Add("Fragment damage scale", GetFragmentDamageScale(false), "x");
+            manual.Add("Fragment damage scale", GetFragmentDamageScale(false), "x");
+            active.Add("Cluster rockets", GetFragmentClusterRocketCount()).Add("Cluster damage scale", GetFragmentClusterDamageScale(), "x");
+        }
+        if (IsKineticExplosionPath())
+            foreach (var section in new[] { automatic, manual, active })
+                section.Add("Vulnerability applied", "1.2x damage taken for 5 s; excluded from damage preview");
+        sections.Add(automatic); sections.Add(manual); sections.Add(active);
+    }
+
     private readonly List<Transform> _abilityTargets = new();
     private readonly List<Transform> _abilityCandidates = new();
     private readonly List<Transform> _markedTargets = new();

@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[DefaultExecutionOrder(-100)]
 public class ThirdPersonCamera : MonoBehaviour
 {
     public static event Action<ThirdPersonCamera> BecameAvailable;
@@ -70,6 +71,11 @@ public class ThirdPersonCamera : MonoBehaviour
     private float _presentationFovKick;
     private Camera _camera;
     private float _baseFieldOfView;
+    private Vector3 _gameplayPosition;
+    private Quaternion _gameplayRotation = Quaternion.identity;
+
+    public Vector3 GameplayForward => _gameplayRotation * Vector3.forward;
+    public Ray GameplayCenterRay => new(_gameplayPosition + GameplayForward * (_camera != null ? _camera.nearClipPlane : 0f), GameplayForward);
 
     /// <summary>When true, look input is blocked and the cursor is released for UI.</summary>
     private bool _lookBlockedByUi;
@@ -77,6 +83,11 @@ public class ThirdPersonCamera : MonoBehaviour
     private void OnEnable()
     {
         CacheCamera();
+        _gameplayPosition = transform.position;
+        _gameplayRotation = transform.rotation;
+        Vector3 euler = transform.eulerAngles;
+        _pitch = NormalizeEulerPitch(euler.x);
+        _yaw = euler.y;
         BecameAvailable?.Invoke(this);
     }
 
@@ -241,7 +252,7 @@ public class ThirdPersonCamera : MonoBehaviour
         _reducedMotionFovScale = 0f;
     }
 
-    private void LateUpdate()
+    private void Update()
     {
         if (_followTarget == null)
             return;
@@ -271,14 +282,19 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 back = orbit * Vector3.back;
         Vector3 desiredPosition = anchor + back * _cameraDistance;
 
-        Vector3 resolvedPosition = ResolveCameraPosition(anchor, desiredPosition);
-        Quaternion resolvedRotation = Quaternion.LookRotation(orbit * Vector3.forward, Vector3.up);
+        _gameplayPosition = ResolveCameraPosition(anchor, desiredPosition);
+        _gameplayRotation = Quaternion.LookRotation(orbit * Vector3.forward, Vector3.up);
+    }
 
+    private void LateUpdate()
+    {
+        if (_followTarget == null)
+            return;
         // Presentation feedback is added after gameplay orbit and collision are resolved.
         // It never feeds back into yaw, pitch, follow placement, or gameplay aim.
-        transform.position = resolvedPosition +
-            orbit * (_presentationPositionImpulse * _cameraFeedbackScale);
-        transform.rotation = resolvedRotation *
+        transform.position = _gameplayPosition +
+            _gameplayRotation * (_presentationPositionImpulse * _cameraFeedbackScale);
+        transform.rotation = _gameplayRotation *
             Quaternion.Euler(_presentationRotationImpulse * _cameraFeedbackScale);
         if (_camera != null)
             _camera.fieldOfView = _baseFieldOfView + _presentationFovKick * _cameraFeedbackScale;
@@ -289,6 +305,7 @@ public class ThirdPersonCamera : MonoBehaviour
     private void OnDisable()
     {
         ClearPresentationImpulses();
+        transform.SetPositionAndRotation(_gameplayPosition, _gameplayRotation);
     }
 
     private Vector3 ResolveCameraPosition(Vector3 anchor, Vector3 desiredPosition)

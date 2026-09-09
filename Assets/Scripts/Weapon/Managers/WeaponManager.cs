@@ -29,6 +29,7 @@ public class WeaponManager : MonoBehaviour
     private PlayerMovement _movement;
     private HeatManager _heat;
     private IWeaponTargeting _targeting;
+    public AimSolution CurrentAimSolution { get; private set; }
 
     // Initializes dependencies and equips configured starter weapons.
     private void Awake()
@@ -53,13 +54,13 @@ public class WeaponManager : MonoBehaviour
     // Updates automatic fire, manual input, and cycle cooldown.
     private void Update()
     {
+        Vector3 aimDirection = GetAimDirection();
         if (Time.timeScale <= 0f)
             return;
 
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 
-        Vector3 aimDirection = GetAimDirection();
         UpdateAutomaticWeapons(Time.deltaTime, aimDirection);
         UpdateManualWeapon(Time.deltaTime, aimDirection);
         UpdateManualCycle(Time.deltaTime);
@@ -343,24 +344,10 @@ public class WeaponManager : MonoBehaviour
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
         WeaponInstance manualWeapon = GetCurrentManualWeapon();
         float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
-        bool preferDamageableAimPoint = ShouldPreferDamageableAimPoint(manualWeapon);
-        if (_reticleAimProvider != null && _reticleAimProvider.TryGetAimDirection(spawn.position, fallbackDistance, preferDamageableAimPoint, out Vector3 aimDirection))
-            return aimDirection.normalized;
-
-        Camera mainCamera = Camera.main;
-        if (mainCamera != null)
-            return mainCamera.transform.forward;
-
-        return transform.forward;
-    }
-
-    private static bool ShouldPreferDamageableAimPoint(WeaponInstance weapon)
-    {
-        if (weapon?.Data == null)
-            return false;
-
-        return weapon.Data.WeaponType == WeaponType.AutomaticCannon
-            || weapon.Data.WeaponType == WeaponType.RocketLauncher;
+        CurrentAimSolution = _reticleAimProvider != null
+            ? _reticleAimProvider.ResolveWeaponAim(spawn.position, manualWeapon)
+            : ReticleAimProvider.CreateFallback(spawn.position, fallbackDistance, Camera.main, transform.forward);
+        return CurrentAimSolution.Direction;
     }
 
 
@@ -447,6 +434,7 @@ public class WeaponManager : MonoBehaviour
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
         if (runtime != null)
             runtime.CurrentAmmo = WeaponMath.GetMaxManualAmmo(runtime, _stats);
+        GetAimDirection();
     }
 
     // Returns current manual weapon to automatic and immediately selects the next slot.

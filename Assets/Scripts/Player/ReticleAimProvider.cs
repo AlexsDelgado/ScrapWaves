@@ -36,16 +36,45 @@ public class ReticleAimProvider : MonoBehaviour
 
     public bool TryGetAimDirection(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, out Vector3 direction)
     {
-        direction = Vector3.zero;
+        bool valid = TryGetAimSolution(origin, fallbackDistance, preferDamageableAimPoint, out AimSolution solution);
+        // Preserve the original overload's unnormalized return value.
+        direction = valid ? solution.TargetPoint - solution.Origin : Vector3.zero;
+        return valid;
+    }
 
-        Camera camera = ResolveCamera();
-        if (camera == null)
-            return false;
+    public Camera AimCamera => ResolveCamera();
 
-        Ray ray = camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-        Vector3 targetPoint = GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint);
-        direction = targetPoint - origin;
-        return direction.sqrMagnitude > 0.0001f;
+    public bool TryGetAimSolution(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, out AimSolution solution)
+    {
+        solution = default;
+        if (!TryGetGameplayRay(ResolveCamera(), out Ray ray)) return false;
+        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint), Time.frameCount);
+        return solution.IsValid;
+    }
+
+    public AimSolution ResolveWeaponAim(Vector3 origin, WeaponInstance weapon)
+    {
+        float distance = weapon?.Data != null ? weapon.Data.BaseRange : _maxAimDistance;
+        return TryGetAimSolution(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), out AimSolution solution)
+            ? solution : CreateFallback(origin, distance, ResolveCamera(), transform.forward);
+    }
+
+    public static bool TryGetGameplayRay(Camera camera, out Ray ray)
+    {
+        ray = default;
+        if (camera == null) return false;
+        ThirdPersonCamera controller = camera.GetComponent<ThirdPersonCamera>();
+        ray = controller != null && controller.isActiveAndEnabled
+            ? controller.GameplayCenterRay
+            : camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        return true;
+    }
+
+    public static AimSolution CreateFallback(Vector3 origin, float distance, Camera camera, Vector3 forward)
+    {
+        if (TryGetGameplayRay(camera, out Ray ray)) forward = ray.direction;
+        if (forward.sqrMagnitude <= 0.0001f) forward = Vector3.forward;
+        return new AimSolution(origin, origin + forward.normalized * Mathf.Max(1f, distance), Time.frameCount);
     }
 
     public bool TryGetMortarTerrainImpact(
@@ -169,15 +198,12 @@ public class ReticleAimProvider : MonoBehaviour
         if (discriminant >= 0f)
         {
             float root = Mathf.Sqrt(discriminant);
-            float near = -projection - root;
             float far = -projection + root;
-            float rayDistance = near >= 0f ? near : far;
-            if (rayDistance >= 0f)
-                return ray.GetPoint(rayDistance);
+            if (far >= 0f)
+                return ray.GetPoint(far);
         }
 
-        float closestRayDistance = Mathf.Max(0f, -projection);
-        return ray.GetPoint(closestRayDistance);
+        return origin + ray.direction * distance;
     }
 
     private bool TryGetMortarSegmentHit(

@@ -59,6 +59,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     public WeaponDummySpawner Spawner { get; private set; }
     public WeaponDebugGizmos DebugGizmos { get; private set; }
     public Vector3 CurrentAimDirection => _currentAimDirection;
+    public AimSolution CurrentAimSolution { get; private set; }
     public int CurrentManualSlot => _manualSlot;
     public WeaponInstance CurrentManualWeapon => IsValidSlot(_manualSlot) ? _instances[_manualSlot] : null;
     public IWeaponBehaviour CurrentManualBehaviour => IsValidSlot(_manualSlot) ? _behaviours[_manualSlot] : null;
@@ -383,6 +384,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
 
         _manualSlot = slot;
         _mountController?.SetManualWeapon(_behaviours[slot]);
+        _currentAimDirection = ResolveAimDirection();
         if (refillAmmo)
             RefillAmmo(slot);
     }
@@ -418,23 +420,13 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     {
         WeaponInstance manualWeapon = CurrentManualWeapon;
         float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
-        bool preferDamageableAimPoint = ShouldPreferDamageableAimPoint(manualWeapon);
-        if (_aimProvider != null && ProjectileSpawn != null && _aimProvider.TryGetAimDirection(ProjectileSpawn.position, fallbackDistance, preferDamageableAimPoint, out Vector3 aim))
-            return aim.normalized;
-
-        if (Camera.main != null)
-            return Camera.main.transform.forward;
-
-        return PlayerTransform != null ? PlayerTransform.forward : Vector3.forward;
-    }
-
-    private static bool ShouldPreferDamageableAimPoint(WeaponInstance weapon)
-    {
-        if (weapon?.Data == null)
-            return false;
-
-        return weapon.Data.WeaponType == WeaponType.AutomaticCannon
-            || weapon.Data.WeaponType == WeaponType.RocketLauncher;
+        Transform spawn = ProjectileSpawn != null ? ProjectileSpawn : PlayerTransform;
+        Vector3 origin = spawn != null ? spawn.position : transform.position;
+        CurrentAimSolution = _aimProvider != null
+            ? _aimProvider.ResolveWeaponAim(origin, manualWeapon)
+            : ReticleAimProvider.CreateFallback(origin, fallbackDistance, Camera.main,
+                PlayerTransform != null ? PlayerTransform.forward : Vector3.forward);
+        return CurrentAimSolution.Direction;
     }
 
     private void EnsureHeatManager()
@@ -710,7 +702,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         if (overheatManager != null)
             overheatManager.enabled = false;
 
-        WeaponDebugMonitor monitor = playerGo.GetComponent<WeaponDebugMonitor>();
+        DebugMonitor monitor = playerGo.GetComponent<DebugMonitor>();
         if (monitor != null)
             monitor.enabled = false;
     }

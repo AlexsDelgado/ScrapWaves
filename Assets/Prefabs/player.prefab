@@ -671,7 +671,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6e1ce3c3f94871e4192dd6d04fe78fba, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::WeaponDebugMonitor
+  m_EditorClassIdentifier: Assembly-CSharp::DebugMonitor
   _weaponManager: {fileID: 8802695284123346318}
   _showOverlay: 0
   _logStateChanges: 1

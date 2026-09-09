@@ -3,6 +3,42 @@ using UnityEngine;
 
 public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 {
+    protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
+    {
+        FlamethrowerTuning t = Runtime.Data.Flamethrower;
+        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticTickInterval(t), GetScaledRange(Runtime.Data.BaseRange), 1, 0f, knockbackScale: 0f);
+        var manual = DiagnosticMode("Manual", 1f, Mathf.Max(0.01f, t.FlameManualTickInterval), GetManualRange(t), 1,
+            t.FlameManualAmmoPerSecond * Mathf.Max(0.01f, t.FlameManualTickInterval), knockbackScale: t.FlameManualKnockbackScale);
+        float radius = GetScaledRange(GetPathAdjustedActiveRadius(t));
+        var active = DiagnosticMode("Active Ability", t.FlameActiveDamageScale, 0f, radius, 1,
+            Runtime.Data.ActiveAbilityAmmoCost, true, t.FlameActiveKnockbackScale);
+        automatic.Add("Cone angle", t.FlameAutoConeAngle, " degrees");
+        manual.Add("Hose radius", GetScaledHoseRadius(t), " m").Add("Ammo / second", t.FlameManualAmmoPerSecond)
+            .Add("Ammo timing", "Continuous drain while held; ammo/action is per tick duration");
+        active.Add("Explosion radius", radius, " m");
+        foreach (var section in new[] { automatic, manual, active })
+        {
+            section.Add("Maximum targets / tick", Mathf.Max(1, t.FlameMaxTargetsPerTick));
+            if (section == automatic && !ShouldApplyAutomaticStatus()) section.Add("Status", "No burn in base automatic mode");
+            else if (IsLiquidNitrogenPath()) section.Add("Status", section == active
+                ? "Freeze 2 s, then slowed movement (0.1x for 4 s total); replaces burn"
+                : "Movement ramps from 0.5x to 0.1x over 6 hits, lasts 3 s; replaces burn");
+            else
+            {
+                if (Stats != null && Stats.GetDefinition(StatType.DamageMultiplier) != null
+                    && Stats.GetDefinition(StatType.EliteDamageMultiplier) != null)
+                    section.Add("Burn damage / tick (non-critical)", CreateBurnDamageContext(t, section == active).EstimateDamage(false));
+                section.Add("Burn duration", GetPathAdjustedBurnDuration(t), " s").Add("Burn interval", t.FlameBurnTickInterval, " s");
+            }
+        }
+        if (IsJellifiedFuelPath())
+        {
+            Vector2 puddle = GetJellifiedActivePuddleSettings(t, radius);
+            active.Add("Fuel puddle radius", puddle.x, " m").Add("Fuel puddle duration", puddle.y, " s");
+        }
+        sections.Add(automatic); sections.Add(manual); sections.Add(active);
+    }
+
     private static readonly Color BaseFlameCoreColor = new(1f, 0.75f, 0.15f, 0.95f);
     private static readonly Color BaseFlameEdgeColor = new(1f, 0.18f, 0.02f, 0.75f);
     private static readonly Color JellifiedFuelCoreColor = new(0.08f, 0.32f, 0.09f, 0.92f);
@@ -249,7 +285,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             int damage = CalculateDirectDamage(1f, _targets[i], false, out WeaponDamageContext directContext);
             if (ApplyDamageToTarget(_targets[i], damage, origin, 0f, false, in directContext)
-                && (IsJellifiedFuelPath() || IsLiquidNitrogenPath()))
+                && ShouldApplyAutomaticStatus())
             {
                 int burnDamage = CalculateBurnDamage(tuning, _targets[i], false, out WeaponDamageContext burnContext);
                 ApplyBurnToTargetWithContext(_targets[i], burnDamage, tuning, false, in burnContext);
@@ -353,6 +389,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             isAbilityDamage: isAbilityDamage,
             knockbackScale: 0f).WithFeedbackMetadata(0, damageKind, statusKind: statusKind);
     }
+
+    private bool ShouldApplyAutomaticStatus() => IsJellifiedFuelPath() || IsLiquidNitrogenPath();
 
     private bool IsJellifiedFuelPath() =>
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;

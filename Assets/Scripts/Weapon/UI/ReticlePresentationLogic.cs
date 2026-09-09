@@ -11,6 +11,17 @@ public enum ReticleMode
 
 public static class ReticlePresentationLogic
 {
+    public static bool TryProjectAimPoint(Camera camera, RectTransform canvas, Vector3 target, out Vector2 localPoint)
+    {
+        localPoint = Vector2.zero;
+        if (camera == null || canvas == null) return false;
+        Vector3 viewport = camera.WorldToViewportPoint(target);
+        if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f)
+            return false;
+        Vector3 screen = camera.WorldToScreenPoint(target);
+        return RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out localPoint);
+    }
+
     public static ReticleMode ResolveMode(WeaponType weaponType, bool rocketCharging)
     {
         return weaponType switch

@@ -2,6 +2,35 @@ using UnityEngine;
 
 public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 {
+    protected override void CollectDiagnostics(System.Collections.Generic.List<WeaponDiagnosticSection> sections)
+    {
+        MortarTuning t = Runtime.Data.Mortar;
+        var automatic = DiagnosticMode("Automatic", 1f, GetFireInterval(), Runtime.Data.BaseRange, 1, 0f);
+        var manual = DiagnosticMode("Manual", 1f, GetManualFireInterval(), Runtime.Data.BaseRange, 1, 1f);
+        int count = IsGrapeshotPath() ? GetGrapeshotRainShellCount(t) : GetActiveShellCount(t);
+        var active = DiagnosticMode("Active Ability", t.MortarActiveDamageScale, 0f, Runtime.Data.BaseRange,
+            count, Runtime.Data.ActiveAbilityAmmoCost, true);
+        automatic.Add("Explosion radius", t.MortarAutoExplosionRadius * GetAreaSizeMultiplier(), " m")
+            .Add("Travel time", t.MortarShellTravelTime, " s").Add("Accuracy radius", t.MortarAutoAccuracyRadius, " m");
+        manual.Add("Explosion radius", ManualExplosionRadius, " m").Add("Travel time", GetManualTravelTime(t), " s")
+            .Add("Accuracy radius", t.MortarManualAccuracyRadius, " m");
+        active.Add("Explosion radius", t.MortarActiveExplosionRadius * GetAreaSizeMultiplier(), " m")
+            .Add("Barrage radius", t.MortarBarrageRadius * GetAreaSizeMultiplier(), " m")
+            .Add("First shell travel time", GetActiveShellTravelTime(t, 0), " s")
+            .Add("Last shell travel time", GetActiveShellTravelTime(t, count - 1), " s");
+        foreach (var section in new[] { automatic, manual, active })
+        {
+            section.Add("Explosion falloff", t.MortarExplosionFalloff);
+            MortarUpgradePayload payload = GetUpgradePayload(section == active);
+            section.Add("Explosion repetitions", payload.RepeatExplosionCount)
+                .Add("Repeat delay", payload.RepeatExplosionDelay, " s");
+            if (payload.UseGrapeshot)
+                section.Add("Grapeshot count", payload.GrapeshotCount).Add("Grapeshot cone", payload.GrapeshotConeAngle, " degrees")
+                    .Add("Grapeshot damage scale", payload.GrapeshotDamageScale, "x");
+        }
+        sections.Add(automatic); sections.Add(manual); sections.Add(active);
+    }
+
     private const int ActiveShellPlacementAttempts = 4;
     private bool _presentationPoolPrepared;
     private readonly RaycastHit[] _barragePredictionHits = new RaycastHit[32];
