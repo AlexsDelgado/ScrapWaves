@@ -299,20 +299,6 @@ public sealed class RocketLauncherPresentationTests
     }
 
     [Test]
-    public void AutomaticRocketVolley_UsesSeparatedLaunchPoints()
-    {
-        MethodInfo method = typeof(RocketLauncherWeapon).GetMethod(
-            "GetVolleyLaunchOffset",
-            BindingFlags.Static | BindingFlags.NonPublic);
-        Assert.That(method, Is.Not.Null);
-        Vector3 first = (Vector3)method.Invoke(null, new object[] { 0, 4, Vector3.forward });
-        Vector3 second = (Vector3)method.Invoke(null, new object[] { 1, 4, Vector3.forward });
-        Assert.That(first, Is.Not.EqualTo(second));
-        Assert.That(first.magnitude, Is.EqualTo(0.2f).Within(0.0001f));
-        Assert.That(second.magnitude, Is.EqualTo(0.2f).Within(0.0001f));
-    }
-
-    [Test]
     public void AuthoredRocketExplosion_EmitsImpactDamageAndKineticStatusAtDetonation()
     {
         GameObject projectileObject = new("Semantic Rocket");

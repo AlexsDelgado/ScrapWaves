@@ -42,7 +42,8 @@ public sealed class RocketLauncherTuning : WeaponSpecificTuning
 {
     public static readonly RocketLauncherTuning Defaults = new();
 
-    [Min(1)] public int RocketAutoBaseRocketCount = 2;
+    [Min(1)] public int RocketAutoBaseRocketCount = 1;
+    [Min(0.01f)] public float RocketAutoVolleyShotInterval = 0.11f;
     [Min(1)] public int RocketActiveBaseRocketCount = 10;
     [Min(1)] public int RocketActiveInitialTargetCount = 5;
     [Min(0.01f)] public float RocketActiveTargetLockInterval = 0.15f;

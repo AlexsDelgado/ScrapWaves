@@ -656,10 +656,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerWeaponMountController
   _mainFirePoint: {fileID: 123637993059655878}
-  _rightMount: {fileID: 0}
-  _leftMount: {fileID: 0}
-  _rightMountOffset: {x: 0.58, y: 1.05, z: 0.05}
-  _leftMountOffset: {x: -0.58, y: 1.05, z: 0.05}
+  _catalog: {fileID: 11400000, guid: 5f4b5f979aba0b645827822ba8882d86, type: 2}
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0

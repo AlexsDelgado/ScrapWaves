@@ -134,7 +134,8 @@ MonoBehaviour:
     - rid: 7782109439718619137
       type: {class: RocketLauncherTuning, ns: , asm: Assembly-CSharp}
       data:
-        RocketAutoBaseRocketCount: 2
+        RocketAutoBaseRocketCount: 1
+        RocketAutoVolleyShotInterval: 0.11
         RocketActiveBaseRocketCount: 10
         RocketActiveInitialTargetCount: 5
         RocketActiveTargetLockInterval: 0.15

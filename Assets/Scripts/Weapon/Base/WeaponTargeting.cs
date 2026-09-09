@@ -25,6 +25,13 @@ public sealed class ConfiguredEnemyTargeting : IWeaponTargeting
         bool random = weapon.Data.AutoTargetingMode == WeaponTargetingMode.RandomInRange;
         float maxDy = DefaultMaxAimVerticalDelta;
 
+        if (weapon.Data.AutomaticAimConstraint == WeaponAutomaticAimConstraint.BodyForward180)
+        {
+            return random
+                ? EnemyRegistry.TryGetRandomOnPlaneInCone(owner.position, owner.forward, range, 180f, out target)
+                : EnemyRegistry.TryGetClosestOnPlaneInCone(owner.position, owner.forward, range, 180f, out target);
+        }
+
         if (fullCircle)
         {
             return random

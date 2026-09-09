@@ -133,7 +133,7 @@ public class ProjectilePool : MonoBehaviour
             return;
 
         if (instance.TryGetComponent(out Projectile projectile))
-            projectile.ClearPresentation();
+            projectile.ResetForPool();
 
         instance.SetActive(false);
         instance.transform.SetParent(GetPoolParent(), false);

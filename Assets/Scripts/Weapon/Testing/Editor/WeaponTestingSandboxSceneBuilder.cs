@@ -100,9 +100,12 @@ public static class WeaponTestingSandboxSceneBuilder
         data.DisplayName = displayName;
         data.WeaponType = weaponType;
         data.AutoTargetingMode = targetingMode;
-        data.AutomaticAimConstraint = weaponType == WeaponType.AutomaticCannon || weaponType == WeaponType.RocketLauncher
-            ? WeaponAutomaticAimConstraint.Full360
-            : WeaponAutomaticAimConstraint.CameraCone;
+        data.AutomaticAimConstraint = weaponType switch
+        {
+            WeaponType.AutomaticCannon => WeaponAutomaticAimConstraint.BodyForward180,
+            WeaponType.RocketLauncher => WeaponAutomaticAimConstraint.Full360,
+            _ => WeaponAutomaticAimConstraint.CameraCone
+        };
         data.ManualMode = manualMode;
         data.BaseDamage = baseDamage;
         data.BaseAttackRate = baseAttackRate;

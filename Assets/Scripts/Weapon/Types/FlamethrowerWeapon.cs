@@ -74,7 +74,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
     }
 
-    // Emits an automatic cone from its assigned shoulder nozzle in player-body forward.
+    // Emits an automatic cone from its assigned arm nozzle in player-body forward.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
         if (Runtime.State != WeaponState.Automatic)

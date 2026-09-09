@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b4fcde9990671445afc49b54e450b15, type: 3}
+  m_Name: WearableWeaponMounts
+  m_EditorClassIdentifier: Assembly-CSharp::WearableWeaponMountCatalog
+  _definitions:
+  - Type: 4
+    Prefab: {fileID: 6099998055628494278, guid: 294964acb89e19c4897c90df7096b2c4, type: 3}
+    AttachmentPath: 
+    LocalPosition: {x: -0.12, y: 0.12, z: -0.126}
+    LocalEulerAngles: {x: 14, y: 11, z: 0}
+    LocalScale: {x: 1, y: 1, z: 1}
+  - Type: 0
+    Prefab: {fileID: 2435818511521798166, guid: 2a8165a86ed968247bc9272728084752, type: 3}
+    AttachmentPath: 
+    LocalPosition: {x: 0.32, y: 0.835, z: 0.025}
+    LocalEulerAngles: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 1, y: 1, z: 1}
+  - Type: 1
+    Prefab: {fileID: 2574199832557896948, guid: fcbe23f8b17dba74c99ec3627c842697, type: 3}
+    AttachmentPath: 
+    LocalPosition: {x: -0.515, y: 0.418, z: 0}
+    LocalEulerAngles: {x: 0, y: 0, z: 53}
+    LocalScale: {x: 1, y: 1, z: 1}
+  - Type: 2
+    Prefab: {fileID: 3462672423354997292, guid: 252027c1a1426054686e23372755e73b, type: 3}
+    AttachmentPath: 
+    LocalPosition: {x: 0.12, y: 0.57, z: -0.15}
+    LocalEulerAngles: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 1, y: 1, z: 1}
+  - Type: 3
+    Prefab: {fileID: 5847686419345371205, guid: 5d9d5bf078237aa4c8fbcda809baf2f1, type: 3}
+    AttachmentPath: 
+    LocalPosition: {x: -0.14, y: 0.505, z: -0.16}
+    LocalEulerAngles: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 1, y: 1, z: 1}
