@@ -1,400 +1,304 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
-using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
-using UnityEngine.UI;
+using UnityEngine.Events;
 
+/// <summary>Presentation controller for the authored crafting menu on the player prefab.</summary>
 [DisallowMultipleComponent]
 public class CraftingUI : MonoBehaviour
 {
-    [SerializeField, Min(180)] private float _cardWidth = 280f;
-    [SerializeField, Min(120)] private float _cardHeight = 190f;
-
-    private Canvas _canvas;
-    private TextMeshProUGUI _titleText;
-    private TextMeshProUGUI _statusText;
-    private RectTransform _cardsContent;
-    private float _previousTimeScale = 1f;
-    private Action _onClosed;
+    [SerializeField] private CraftingMenuView _view;
+    [SerializeField] private RunMenuContent _content;
+    private WeaponCraftingService _crafting;
+    private MaterialInventory _inventory;
+    private WeaponManager _weaponManager;
     private ThirdPersonCamera _resolvedCamera;
+    private Action _onClosed;
+    private UnityAction[] _slotActions;
+    private float _previousTimeScale = 1f;
+    private int _selectedSlot;
+    private WeaponUpgradePath _offeredPath;
     private bool _isVisible;
     private bool _holdsUiPause;
-
+    private bool _buttonsBound;
+    private bool _applyingAction;
     public bool IsVisible => _isVisible;
+
+    private void Awake()
+    {
+        BindButtons();
+        if (_view != null) _view.gameObject.SetActive(false);
+    }
+
+    private bool BindButtons()
+    {
+        if (_buttonsBound) return true;
+        if (_view == null || !_view.IsConfigured) return false;
+        _view.CloseButton.onClick.AddListener(Hide);
+        _view.UpgradeButton.onClick.AddListener(UpgradeSelected);
+        _view.TinkerButton.onClick.AddListener(Tinker);
+        _view.AcceptButton.onClick.AddListener(AcceptAdvanced);
+        _view.DeclineButton.onClick.AddListener(DeclineAdvanced);
+        _slotActions = new UnityAction[_view.Slots.Length];
+        for (int i = 0; i < _view.Slots.Length; i++)
+        {
+            int slot = i;
+            _slotActions[i] = () => SelectSlot(slot);
+            _view.Slots[i].Button.onClick.AddListener(_slotActions[i]);
+        }
+        _buttonsBound = true;
+        return true;
+    }
 
     private void OnDisable()
     {
+        if (_isVisible) Hide();
         GameplayPause.SetHeld(ref _holdsUiPause, false);
+    }
+    private void OnDestroy()
+    {
+        if (_inventory != null) _inventory.OnInventoryChanged -= OnInventoryChanged;
+        if (!_buttonsBound || _view == null) return;
+        if (_view.CloseButton != null) _view.CloseButton.onClick.RemoveListener(Hide);
+        if (_view.UpgradeButton != null) _view.UpgradeButton.onClick.RemoveListener(UpgradeSelected);
+        if (_view.TinkerButton != null) _view.TinkerButton.onClick.RemoveListener(Tinker);
+        if (_view.AcceptButton != null) _view.AcceptButton.onClick.RemoveListener(AcceptAdvanced);
+        if (_view.DeclineButton != null) _view.DeclineButton.onClick.RemoveListener(DeclineAdvanced);
+        for (int i = 0; i < _view.Slots.Length; i++)
+            if (_view.Slots[i] != null && _view.Slots[i].Button != null) _view.Slots[i].Button.onClick.RemoveListener(_slotActions[i]);
     }
 
     public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
     {
-        if (_isVisible)
+        if (_isVisible) { onClosed?.Invoke(); yield break; }
+        bool done = false;
+        _onClosed = () => done = true;
+        if (!Show(crafting, inventory))
         {
-            // Ya hay una sesión de crafting abierta (p. ej. otra estación disparó esto
-            // antes de que el caller pudiera chequear IsVisible): no pisar _onClosed
-            // de la sesión en curso, que quedaría esperando para siempre.
+            _onClosed = null;
             onClosed?.Invoke();
             yield break;
         }
-
-        bool done = false;
-        _onClosed = () => done = true;
-        Show(crafting, inventory);
-        while (!done)
-            yield return null;
+        while (!done) yield return null;
         onClosed?.Invoke();
     }
 
-    private void Show(WeaponCraftingService crafting, MaterialInventory inventory)
+    private bool Show(WeaponCraftingService crafting, MaterialInventory inventory)
     {
+        if (!BindButtons() || crafting == null || inventory == null)
+        {
+            Debug.LogError("CraftingUI requires its authored CraftingMenu view, crafting service, and inventory.", this);
+            return false;
+        }
+        _crafting = crafting;
+        _inventory = inventory;
+        _weaponManager = crafting.GetComponent<WeaponManager>();
+        if (_weaponManager == null)
+        {
+            Debug.LogError("CraftingUI requires a WeaponManager on the crafting service owner.", this);
+            return false;
+        }
+        _inventory.OnInventoryChanged -= OnInventoryChanged;
+        _inventory.OnInventoryChanged += OnInventoryChanged;
         _isVisible = true;
         _previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
         GameplayPause.SetHeld(ref _holdsUiPause, true);
         SetCameraBlocked(true);
-        EnsureUi();
-        _titleText.text = "Crafting Station";
+        _selectedSlot = Mathf.Clamp(_selectedSlot, 0, Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count));
         SetStatus(string.Empty);
-        BuildCards(crafting, inventory);
-        _canvas.gameObject.SetActive(true);
+        _view.gameObject.SetActive(true);
+        Refresh();
+        return true;
     }
 
     private void Hide()
     {
+        if (!_isVisible) return;
         _isVisible = false;
-
-        if (_canvas != null)
-            _canvas.gameObject.SetActive(false);
+        if (_inventory != null) _inventory.OnInventoryChanged -= OnInventoryChanged;
+        if (_view != null) _view.gameObject.SetActive(false);
         Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
         GameplayPause.SetHeld(ref _holdsUiPause, false);
         SetCameraBlocked(false);
-        _onClosed?.Invoke();
+        Action closed = _onClosed;
         _onClosed = null;
+        closed?.Invoke();
     }
-
     private void SetCameraBlocked(bool blocked)
     {
-        if (_resolvedCamera == null)
-            _resolvedCamera = FindFirstObjectByType<ThirdPersonCamera>();
+        if (_resolvedCamera == null) _resolvedCamera = FindFirstObjectByType<ThirdPersonCamera>();
         _resolvedCamera?.SetLookBlockedByUi(blocked);
     }
-
-    // ---------------------------------------------------------------- Cards
-
-    private void BuildCards(WeaponCraftingService crafting, MaterialInventory inventory)
+    private void OnInventoryChanged()
     {
-        ClearCards();
-        WeaponManager weaponManager = crafting.GetComponent<WeaponManager>();
-        if (weaponManager == null)
-            weaponManager = FindAnyObjectByType<WeaponManager>();
-
-        IReadOnlyList<IWeaponBehaviour> equipped = weaponManager != null
-            ? weaponManager.GetEquippedWeapons()
-            : Array.Empty<IWeaponBehaviour>();
-
-        for (int i = 0; i < equipped.Count; i++)
+        if (_isVisible && !_applyingAction) Refresh();
+    }
+    private void SelectSlot(int slot)
+    {
+        if (!_isVisible) return;
+        // Crafting fills the next free equipment slot; later empty slots are not actionable yet.
+        _selectedSlot = Mathf.Clamp(slot, 0, Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count));
+        SetStatus(string.Empty);
+        Refresh();
+    }
+    private WeaponInstance SelectedWeapon()
+    {
+        if (_weaponManager == null) return null;
+        IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
+        return _selectedSlot < equipped.Count ? equipped[_selectedSlot]?.Runtime : null;
+    }
+    private void Refresh()
+    {
+        IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
+        foreach (CraftingMaterialField field in _view.Materials)
+            field.AmountText.text = _inventory.GetAmount(field.Type).ToString(CultureInfo.InvariantCulture);
+        for (int i = 0; i < _view.Slots.Length; i++)
+            _view.Slots[i].Bind(i < equipped.Count ? equipped[i]?.Runtime : null, i == _selectedSlot, i <= equipped.Count);
+        WeaponInstance weapon = SelectedWeapon();
+        _offeredPath = WeaponUpgradePath.None;
+        if (weapon?.Data == null) ShowTinker(equipped.Count + 1);
+        else if (weapon.Level == 5 && weapon.SelectedPath == WeaponUpgradePath.None) ShowAdvanced(weapon);
+        else ShowUpgrade(weapon);
+    }
+    private void ShowUpgrade(WeaponInstance weapon)
+    {
+        _view.ShowPanel(_view.UpgradePanel);
+        bool maximum = weapon.Level >= 10;
+        int next = Mathf.Min(10, weapon.Level + 1);
+        _view.UpgradeNameText.text = weapon.Data.DisplayName;
+        _view.UpgradeLevelText.text = maximum ? $"LV {weapon.Level} · Maximum level" : $"LV {weapon.Level} → {next}";
+        string[] ids = { "Damage", weapon.Data.WeaponType == WeaponType.RotatingBlade ? "Auto blade length (m)" : "Auto mode range (m)", "Manual ammo" };
+        string[] labels = { "Damage", weapon.Data.WeaponType == WeaponType.RotatingBlade ? "Auto blade length" : "Auto range", "Manual ammo" };
+        if (weapon.Data.WeaponType == WeaponType.RotatingBlade
+            && float.IsNaN(weapon.Data.TryGetBalanceStat(ids[1], weapon.Level, weapon.SelectedPath, float.NaN)))
         {
-            WeaponInstance runtime = equipped[i]?.Runtime;
-            if (runtime?.Data == null)
-                continue;
-
-            WeaponData data = runtime.Data;
-            if (runtime.Level < 10)
+            ids[1] = "Configured orbit radius";
+            labels[1] = "Auto orbit radius";
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            _view.UpgradeStatLabels[i].text = labels[i];
+            string current = FormatTuning(weapon.Data, ids[i], weapon.Level, weapon.SelectedPath);
+            string future = FormatTuning(weapon.Data, ids[i], next, weapon.SelectedPath);
+            _view.UpgradeStatValues[i].text = (maximum ? current : $"{current} → {future}") + (i == 1 ? " m" : string.Empty);
+        }
+        IReadOnlyList<MaterialCost> cost = _crafting.GetUpgradeCost(weapon.Data, weapon.SelectedPath, next);
+        _view.UpgradeCostText.text = maximum ? "No further upgrades" : BuildCostText(cost);
+        _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost);
+        _view.UpgradeButtonText.text = maximum ? "MAX LEVEL" : "UPGRADE";
+    }
+    // Configured weapon tuning only: no player modifiers, heat or combat rolls.
+    public static string FormatTuning(WeaponData data, string statId, int level, WeaponUpgradePath path)
+    {
+        float value = data.TryGetBalanceStat(statId, level, path, float.NaN);
+        if (float.IsNaN(value))
+        {
+            // Legacy assets can have level/path tuning without imported balance rows.
+            var preview = new WeaponInstance { Data = data, Level = level, SelectedPath = path };
+            if (statId == "Damage")
+                value = Mathf.Max(0f, data.BaseDamage) * WeaponDamageResolver.GetLevelDamageMultiplier(preview)
+                    * WeaponDamageResolver.GetPathDamageMultiplier(preview);
+            else if (statId == "Auto mode range (m)") value = data.BaseRange;
+            else if (statId == "Configured orbit radius") value = data.RotatingBlade.BladeOrbitRadius;
+            else if (statId == "Manual ammo")
             {
-                int next = runtime.Level + 1;
-                if (runtime.Level == 5 && runtime.SelectedPath == WeaponUpgradePath.None)
-                {
-                    IReadOnlyList<MaterialCost> advCost = crafting.GetAdvancedTinkeringCost(data);
-                    bool canAffordAdv = inventory != null && inventory.CanAfford(advCost);
-                    AddCard(
-                        $"Advanced: {data.DisplayName}",
-                        BuildCostText(advCost),
-                        canAffordAdv,
-                        () =>
-                        {
-                            if (!canAffordAdv)
-                            {
-                                SetStatus("Materiales insuficientes para Advanced Tinkering.");
-                                return;
-                            }
-
-                            PresentAdvancedChoice(crafting, data);
-                        });
-                }
-                else
-                {
-                    IReadOnlyList<MaterialCost> upgradeCost = crafting.GetUpgradeCost(data, runtime.SelectedPath, next);
-                    bool canAffordUpgrade = inventory != null && inventory.CanAfford(upgradeCost);
-                    AddCard(
-                        $"Upgrade {data.DisplayName} → {next}",
-                        BuildCostText(upgradeCost),
-                        canAffordUpgrade,
-                        () =>
-                        {
-                            CraftingActionResult result = crafting.TryUpgradeWeapon(data, next);
-                            SetStatus(result.Message);
-                            Refresh(crafting, inventory);
-                        });
-                }
+                WeaponLevelData tuning = WeaponMath.GetLevelData(preview);
+                WeaponUpgradePathData pathTuning = WeaponMath.GetPathData(preview);
+                value = Mathf.Max(0f, data.BaseManualAmmo) * (tuning != null ? Mathf.Max(0.01f, tuning.ManualAmmoMultiplier) : 1f);
+                if (pathTuning != null && pathTuning.ManualAmmoOverride >= 0f) value = pathTuning.ManualAmmoOverride;
             }
         }
-
-        if (weaponManager != null && weaponManager.CanAddWeapon())
-        {
-            int slot = equipped.Count + 1;
-            IReadOnlyList<MaterialCost> tinkerCost = crafting.GetTinkeringCost(slot);
-            bool canAffordTinker = inventory != null && inventory.CanAfford(tinkerCost);
-            AddCard(
-                $"Tinker arma slot {slot}",
-                BuildCostText(tinkerCost),
-                canAffordTinker,
-                () =>
-                {
-                    CraftingActionResult result = crafting.TryTinkerRandomWeapon();
-                    SetStatus(result.Message);
-                    Refresh(crafting, inventory);
-                });
-        }
+        return float.IsNaN(value) ? "—" : value.ToString("0.##", CultureInfo.InvariantCulture);
     }
-
-    /// <summary>
-    /// Submenú de Advanced Tinkering: vive en la misma ventana/canvas que el resto del
-    /// crafting (mismo título, mismo grid de cards), solo cambia qué cards se muestran.
-    /// No hay handoff a otra UI ni otro estilo — al elegir una ruta, vuelve directo a las
-    /// cards normales de crafting.
-    /// </summary>
-    private void PresentAdvancedChoice(WeaponCraftingService crafting, WeaponData weapon)
+    private void ShowTinker(int slot)
     {
-        ClearCards();
-        _titleText.text = $"Advanced Tinkering — {weapon.DisplayName}";
-        SetStatus("Elegí una ruta de mejora.");
-
-        bool pathBUnlocked = SaveManager.Instance == null
-            || SaveManager.Instance.IsPathUnlocked(weapon, WeaponUpgradePath.PathB);
-
-        if (crafting.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed))
+        _view.ShowPanel(_view.TinkerPanel);
+        List<WeaponData> candidates = _crafting.BuildUnequippedWeapons();
+        for (int i = 0; i < _view.Candidates.Length; i++)
         {
-            if (guaranteed == WeaponUpgradePath.PathB && !pathBUnlocked)
-                guaranteed = WeaponUpgradePath.PathA;
-
-            string name = guaranteed == WeaponUpgradePath.PathA
-                ? (weapon.PathA?.PathName ?? "Path A")
-                : (weapon.PathB?.PathName ?? "Path B");
-            AddCard(name, "Path garantizado tras rechazo", true,
-                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, guaranteed, true)));
+            CraftingCandidateField field = _view.Candidates[i];
+            bool visible = i < candidates.Count;
+            field.Root.SetActive(visible);
+            if (!visible) continue;
+            field.NameText.text = candidates[i].DisplayName;
+            field.Icon.sprite = candidates[i].Icon;
+            field.Icon.gameObject.SetActive(field.Icon.sprite != null);
         }
-        else
+        IReadOnlyList<MaterialCost> cost = _crafting.GetTinkeringCost(slot);
+        _view.TinkerCostLabel.text = $"COST · SLOT {slot}";
+        _view.TinkerCostText.text = candidates.Count == 0 ? "No new weapons available" : BuildCostText(cost);
+        _view.TinkerButton.interactable = candidates.Count > 0 && _weaponManager.CanAddWeapon() && _inventory.CanAfford(cost);
+    }
+    private void ShowAdvanced(WeaponInstance weapon)
+    {
+        _view.ShowPanel(_view.AdvancedPanel);
+        _view.AdvancedNameText.text = weapon.Data.DisplayName;
+        _view.AdvancedLevelText.text = "LV 5 → 6";
+        bool available = _crafting.TryGetAdvancedOffer(weapon.Data, out _offeredPath);
+        bool guaranteed = _crafting.TryGetGuaranteedPath(weapon.Data, out _);
+        bool canDecline = available && _crafting.CanRejectAdvancedOffer(weapon.Data);
+        WeaponMenuCopy copy = _content != null ? _content.Find(weapon.Data) : null;
+        _view.AdvancedPathText.text = !available ? "No upgrade available"
+            : _offeredPath == WeaponUpgradePath.PathA ? weapon.Data.PathA?.PathName : weapon.Data.PathB?.PathName;
+        _view.AdvancedDescriptionText.text = copy == null ? string.Empty
+            : _offeredPath == WeaponUpgradePath.PathA ? copy.PathADescription : copy.PathBDescription;
+        _view.AdvancedNoticeText.text = guaranteed ? "Other path guaranteed after your previous decline."
+            : canDecline ? "Decline: pay this attempt's cost. Next try costs +50% with the other path guaranteed."
+            : "Only one path is unlocked.";
+        IReadOnlyList<MaterialCost> cost = _crafting.GetAdvancedTinkeringCost(weapon.Data);
+        _view.AdvancedCostText.text = "Tinker cost: " + BuildCostText(cost);
+        _view.AcceptButton.interactable = available && _inventory.CanAfford(cost);
+        _view.DeclineButton.interactable = canDecline && _inventory.CanAfford(cost);
+    }
+    private void UpgradeSelected()
+    {
+        WeaponInstance weapon = SelectedWeapon();
+        if (!_isVisible || weapon?.Data == null || weapon.Level >= 10) return;
+        ApplyAction(() => _crafting.TryUpgradeWeapon(weapon.Data, weapon.Level + 1), "Weapon upgraded.");
+    }
+    private void Tinker()
+    {
+        if (!_isVisible) return;
+        ApplyAction(_crafting.TryTinkerRandomWeapon, "New weapon crafted.");
+    }
+    private void AcceptAdvanced() => ResolveAdvanced(true);
+    private void DeclineAdvanced() => ResolveAdvanced(false);
+    private void ResolveAdvanced(bool accept)
+    {
+        WeaponInstance weapon = SelectedWeapon();
+        if (!_isVisible || weapon?.Data == null || _offeredPath == WeaponUpgradePath.None) return;
+        ApplyAction(() => _crafting.TryAdvancedTinkering(weapon.Data, _offeredPath, accept),
+            accept ? "Advanced path applied." : "Offer declined. The other path is guaranteed next time.");
+    }
+    private void ApplyAction(Func<CraftingActionResult> action, string successMessage)
+    {
+        if (_applyingAction) return;
+        _applyingAction = true;
+        try
         {
-            AddCard(weapon.PathA?.PathName ?? "Path A", "Aceptar path A", true,
-                () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true)));
-
-            if (pathBUnlocked)
-            {
-                AddCard(weapon.PathB?.PathName ?? "Path B", "Aceptar path B", true,
-                    () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true)));
-                AddCard("Rechazar", "+50% costo, garantiza path alternativo", true,
-                    () => ResolveAdvancedChoice(crafting, () => crafting.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, false)));
-            }
-            else
-            {
-                AddCard(weapon.PathB?.PathName ?? "Path B", "Bloqueado — completá el challenge / tienda", false, null);
-                SetStatus("Path B bloqueado hasta desbloquearlo en Objetivos.");
-            }
+            CraftingActionResult result = action();
+            SetStatus(result.Success ? successMessage : "Crafting unavailable. Check your materials and the selected offer.");
         }
+        finally { _applyingAction = false; }
+        Refresh();
     }
-
-    private void ResolveAdvancedChoice(WeaponCraftingService crafting, Func<CraftingActionResult> applyChoice)
-    {
-        CraftingActionResult result = applyChoice();
-        SetStatus(result.Message);
-        _titleText.text = "Crafting Station";
-        Refresh(crafting, FindAnyObjectByType<MaterialInventory>());
-    }
-
-    private void Refresh(WeaponCraftingService crafting, MaterialInventory inventory)
-    {
-        BuildCards(crafting, inventory);
-    }
-
     private void SetStatus(string message)
     {
-        if (_statusText != null)
-            _statusText.text = message ?? string.Empty;
+        if (_view != null && _view.StatusText != null) _view.StatusText.text = message;
     }
-
     private static string BuildCostText(IReadOnlyList<MaterialCost> costs)
     {
-        if (costs == null || costs.Count == 0)
-            return "Gratis";
-        var sb = new StringBuilder();
+        if (costs == null || costs.Count == 0) return "Free";
+        var text = new StringBuilder();
         for (int i = 0; i < costs.Count; i++)
         {
-            if (i > 0) sb.Append(", ");
-            sb.Append(MaterialCatalog.GetDisplayName(costs[i].Material)).Append(' ').Append(costs[i].Amount);
+            if (i > 0) text.Append(" + ");
+            text.Append(costs[i].Amount).Append(' ').Append(MaterialCatalog.GetDisplayName(costs[i].Material));
         }
-        return sb.ToString();
-    }
-
-    private readonly List<GameObject> _cardObjects = new();
-
-    private void AddCard(string title, string description, bool interactable, Action onClick)
-    {
-        var card = new GameObject("CraftCard", typeof(RectTransform));
-        card.transform.SetParent(_cardsContent, false);
-
-        var bg = card.AddComponent<Image>();
-        bg.sprite = HudUiFactory.WhiteSprite;
-        bg.color = interactable ? HudUiFactory.BorderColor : new Color(0.22f, 0.22f, 0.24f, 1f);
-
-        var cardLayout = card.AddComponent<VerticalLayoutGroup>();
-        cardLayout.padding = new RectOffset(12, 12, 12, 12);
-        cardLayout.spacing = 8f;
-        cardLayout.childControlWidth = true;
-        cardLayout.childControlHeight = true;
-        cardLayout.childForceExpandWidth = true;
-        cardLayout.childForceExpandHeight = false;
-
-        CreateCardLabel(card.transform, title, 18f, FontStyles.Bold, Color.white, 44f);
-
-        string desc = interactable ? description : description + "\n(Sin materiales)";
-        var descGo = new GameObject("Description", typeof(RectTransform));
-        descGo.transform.SetParent(card.transform, false);
-        var descLabel = descGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(descLabel);
-        descLabel.fontSize = 14f;
-        descLabel.color = HudUiFactory.MutedTextColor;
-        descLabel.alignment = TextAlignmentOptions.Top;
-        descLabel.enableWordWrapping = true;
-        descLabel.text = desc;
-        descGo.AddComponent<LayoutElement>().flexibleHeight = 1f;
-
-        Button btn = card.AddComponent<Button>();
-        btn.interactable = interactable;
-        btn.targetGraphic = bg;
-        var colors = btn.colors;
-        colors.disabledColor = new Color(0.35f, 0.35f, 0.35f, 0.9f);
-        btn.colors = colors;
-        btn.onClick.AddListener(() => onClick?.Invoke());
-
-        _cardObjects.Add(card);
-    }
-
-    private void ClearCards()
-    {
-        for (int i = 0; i < _cardObjects.Count; i++)
-        {
-            if (_cardObjects[i] != null)
-                Destroy(_cardObjects[i]);
-        }
-        _cardObjects.Clear();
-    }
-
-    private static TextMeshProUGUI CreateCardLabel(Transform parent, string text, float fontSize, FontStyles style, Color color, float preferredHeight)
-    {
-        var go = new GameObject("Title", typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        var label = go.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(label);
-        label.fontSize = fontSize;
-        label.fontStyle = style;
-        label.color = color;
-        label.alignment = TextAlignmentOptions.Top;
-        label.enableWordWrapping = true;
-        label.text = text;
-        go.AddComponent<LayoutElement>().preferredHeight = preferredHeight;
-        return label;
-    }
-
-    // ---------------------------------------------------------------- Construcción de la UI
-
-    private void EnsureUi()
-    {
-        if (_canvas != null)
-            return;
-
-        if (FindFirstObjectByType<EventSystem>() == null)
-        {
-            var es = new GameObject("EventSystem");
-            es.AddComponent<EventSystem>();
-            es.AddComponent<InputSystemUIInputModule>();
-        }
-
-        var canvasGo = new GameObject("CraftingCanvas", typeof(RectTransform));
-        _canvas = canvasGo.AddComponent<Canvas>();
-        _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _canvas.sortingOrder = 5100;
-        var scaler = canvasGo.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-        canvasGo.AddComponent<GraphicRaycaster>();
-
-        // Backdrop: opaco, cubre toda la pantalla (no debe verse el fondo del juego).
-        var backdrop = new GameObject("Backdrop", typeof(RectTransform));
-        backdrop.transform.SetParent(canvasGo.transform, false);
-        Stretch(backdrop.GetComponent<RectTransform>());
-        var backdropImg = backdrop.AddComponent<Image>();
-        backdropImg.sprite = HudUiFactory.WhiteSprite;
-        backdropImg.color = new Color(0.02f, 0.02f, 0.025f, 1f);
-
-        // Window: panel centrado de tamaño fijo, todo el contenido vive adentro.
-        var window = new GameObject("Window", typeof(RectTransform));
-        window.transform.SetParent(canvasGo.transform, false);
-        var windowRt = window.GetComponent<RectTransform>();
-        windowRt.anchorMin = new Vector2(0.5f, 0.5f);
-        windowRt.anchorMax = new Vector2(0.5f, 0.5f);
-        windowRt.pivot = new Vector2(0.5f, 0.5f);
-        windowRt.sizeDelta = new Vector2(1500f, 820f);
-        var windowImg = window.AddComponent<Image>();
-        windowImg.sprite = HudUiFactory.WhiteSprite;
-        windowImg.color = new Color(0.08f, 0.085f, 0.095f, 1f);
-
-        var windowLayout = window.AddComponent<VerticalLayoutGroup>();
-        windowLayout.padding = new RectOffset(32, 32, 24, 24);
-        windowLayout.spacing = 10f;
-        windowLayout.childControlWidth = true;
-        windowLayout.childControlHeight = true;
-        windowLayout.childForceExpandWidth = true;
-        windowLayout.childForceExpandHeight = false;
-
-        _titleText = HudUiFactory.CreateLabel(window.transform, "Title", "Crafting Station", 30f, TextAlignmentOptions.Center);
-        _titleText.fontStyle = FontStyles.Bold;
-        _titleText.gameObject.AddComponent<LayoutElement>().preferredHeight = 44f;
-
-        _statusText = HudUiFactory.CreateLabel(window.transform, "Status", string.Empty, 16f, TextAlignmentOptions.Center);
-        _statusText.fontStyle = FontStyles.Italic;
-        _statusText.color = new Color(1f, 0.85f, 0.4f);
-        _statusText.gameObject.AddComponent<LayoutElement>().preferredHeight = 28f;
-
-        (RectTransform cardsSection, RectTransform cardsContent) = HudUiFactory.CreateScrollSection(
-            window.transform, "CardsScroll", grid: true, cellSize: new Vector2(_cardWidth, _cardHeight));
-        cardsSection.GetComponent<LayoutElement>().flexibleHeight = 1f;
-        _cardsContent = cardsContent;
-
-        var bottomBar = new GameObject("BottomBar", typeof(RectTransform));
-        bottomBar.transform.SetParent(window.transform, false);
-        bottomBar.AddComponent<LayoutElement>().preferredHeight = 56f;
-        var bottomLayout = bottomBar.AddComponent<HorizontalLayoutGroup>();
-        bottomLayout.childAlignment = TextAnchor.MiddleCenter;
-        bottomLayout.childControlWidth = false;
-        bottomLayout.childControlHeight = false;
-
-        Button closeBtn = HudUiFactory.CreateButton(bottomBar.transform, "Cerrar", new Vector2(220f, 48f));
-        closeBtn.onClick.AddListener(Hide);
-
-        _canvas.gameObject.SetActive(false);
-    }
-
-    private static void Stretch(RectTransform rt)
-    {
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
+        return text.ToString();
     }
 }

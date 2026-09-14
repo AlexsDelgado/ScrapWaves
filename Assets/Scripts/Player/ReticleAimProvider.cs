@@ -14,8 +14,11 @@ public class ReticleAimProvider : MonoBehaviour
 
     [SerializeField, Min(1f)] private float _maxAimDistance = 150f;
     [SerializeField] private LayerMask _aimMask = ~0;
+    [SerializeField, Min(0f), Tooltip("Maximum distance from the gameplay aim ray to a nearby enemy surface, in metres. Zero disables assistance.")]
+    private float _aimAssistRadius = 0.35f;
 
     private readonly RaycastHit[] _hitBuffer = new RaycastHit[16];
+    private readonly RaycastHit[] _assistHitBuffer = new RaycastHit[32];
     private readonly RaycastHit[] _mortarHitBuffer = new RaycastHit[MortarHitBufferSize];
 
     private void Awake()
@@ -140,6 +143,7 @@ public class ReticleAimProvider : MonoBehaviour
         int hitCount = Physics.RaycastNonAlloc(ray, _hitBuffer, _maxAimDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
         float closestDistance = float.PositiveInfinity;
         Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance);
+        bool directlyHitsEnemy = false;
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -151,16 +155,70 @@ public class ReticleAimProvider : MonoBehaviour
                 continue;
 
             closestDistance = hit.distance;
-            closestPoint = preferDamageableAimPoint ? GetReticleHitTargetPoint(hit) : hit.point;
+            closestPoint = hit.point;
+            directlyHitsEnemy = ResolveDamageableTargetRoot(hit) != null;
         }
 
+        // Direct hits always retain the exact aimed-at surface. Assistance has no persistent target.
+        if (preferDamageableAimPoint && !directlyHitsEnemy && _aimAssistRadius > 0f)
+            closestPoint = GetNearbyEnemyPoint(ray, Mathf.Min(closestDistance, _maxAimDistance), closestPoint);
         return closestPoint;
     }
 
-    private static Vector3 GetReticleHitTargetPoint(RaycastHit hit)
+    private Vector3 GetNearbyEnemyPoint(Ray ray, float maximumDistance, Vector3 fallback)
     {
-        Transform targetRoot = ResolveDamageableTargetRoot(hit);
-        return targetRoot != null ? EnemyRegistry.GetAimPoint(targetRoot) : hit.point;
+        int count = Physics.SphereCastNonAlloc(ray, _aimAssistRadius, _assistHitBuffer,
+            maximumDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
+        float bestGap = _aimAssistRadius * _aimAssistRadius;
+        float bestDepth = float.PositiveInfinity;
+        Vector3 result = fallback;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = _assistHitBuffer[i];
+            if (IsIgnoredHit(hit)) continue;
+            Transform root = ResolveDamageableTargetRoot(hit);
+            if (root == null) continue;
+
+            // Minimize distance to the actual collider, rather than its center or bounding box.
+            Bounds bounds = hit.collider.bounds;
+            float centerDepth = Vector3.Dot(bounds.center - ray.origin, ray.direction);
+            float extent = bounds.extents.magnitude;
+            float low = Mathf.Max(0f, centerDepth - extent);
+            float high = Mathf.Min(maximumDistance, centerDepth + extent);
+            if (high <= low) continue;
+            for (int step = 0; step < 24; step++)
+            {
+                float a = Mathf.Lerp(low, high, 1f / 3f);
+                float b = Mathf.Lerp(low, high, 2f / 3f);
+                Vector3 pa = ray.GetPoint(a);
+                Vector3 pb = ray.GetPoint(b);
+                if ((hit.collider.ClosestPoint(pa) - pa).sqrMagnitude <= (hit.collider.ClosestPoint(pb) - pb).sqrMagnitude)
+                    high = b;
+                else low = a;
+            }
+            float depth = (low + high) * 0.5f;
+            Vector3 onRay = ray.GetPoint(depth);
+            Vector3 point = hit.collider.ClosestPoint(onRay);
+            float gap = (point - onRay).sqrMagnitude;
+            if (gap > bestGap || (Mathf.Approximately(gap, bestGap) && depth >= bestDepth)) continue;
+            Vector3 delta = point - ray.origin;
+            int blockers = Physics.RaycastNonAlloc(ray.origin, delta.normalized, _hitBuffer,
+                delta.magnitude, _aimMask.value, QueryTriggerInteraction.Ignore);
+            bool blocked = false;
+            for (int j = 0; j < blockers; j++)
+            {
+                if (!IsIgnoredHit(_hitBuffer[j]) && ResolveDamageableTargetRoot(_hitBuffer[j]) != root)
+                {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) continue;
+            bestGap = gap;
+            bestDepth = depth;
+            result = point;
+        }
+        return result;
     }
 
     private static Transform ResolveDamageableTargetRoot(RaycastHit hit)

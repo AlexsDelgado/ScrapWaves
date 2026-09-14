@@ -119,7 +119,8 @@ public class ReticleHud : MonoBehaviour
             rocketCharging);
 
         ApplyMode(mode);
-        UpdateAimMarkerPosition();
+        // Reticle roots stay at their centered canvas anchors. Assisted shot targets
+        // affect combat and mortar prediction, never the screen-space crosshair.
         if (mode == ReticleMode.RocketLock && behaviour is IRocketReticleStatus rocket)
             UpdateRocketFrame(rocket);
         else
@@ -204,25 +205,6 @@ public class ReticleHud : MonoBehaviour
     private AimSolution ResolveAimSolution() => UsesSandbox()
         ? _sandbox.CurrentAimSolution
         : _weaponManager != null ? _weaponManager.CurrentAimSolution : default;
-
-    private void UpdateAimMarkerPosition()
-    {
-        AimSolution aim = ResolveAimSolution();
-        Camera camera = _aimProvider != null ? _aimProvider.AimCamera : Camera.main;
-        bool visible = aim.IsValid && aim.FrameNumber == Time.frameCount;
-        Vector2 localPoint = Vector2.zero;
-        visible = visible && ReticlePresentationLogic.TryProjectAimPoint(camera,
-            _canvasRoot != null ? _canvasRoot.GetComponent<RectTransform>() : null, aim.TargetPoint, out localPoint);
-        if (!visible)
-        {
-            ApplyMode(ReticleMode.Hidden);
-            return;
-        }
-        if (_wideBracketRoot != null) _wideBracketRoot.anchoredPosition = localPoint;
-        if (_circleDotRoot != null) _circleDotRoot.anchoredPosition = localPoint;
-        if (_mortarVRoot != null) _mortarVRoot.anchoredPosition = localPoint;
-        if (_rocketFrame != null) _rocketFrame.anchoredPosition = localPoint;
-    }
 
     private void BuildUi()
     {

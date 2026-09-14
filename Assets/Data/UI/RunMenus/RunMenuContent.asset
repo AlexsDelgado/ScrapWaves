@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e6016940cf8948099c1572c6e80fcd3b, type: 3}
+  m_Name: RunMenuContent
+  m_EditorClassIdentifier: Assembly-CSharp::RunMenuContent
+  Weapons:
+  - Weapon: {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
+  - Weapon: {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
+  - Weapon: {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
+  - Weapon: {fileID: 11400000, guid: 95e4ff2de6a64faba44ee0ca803ef37b, type: 2}
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
+  - Weapon: {fileID: 11400000, guid: 125e543fc3a34c17bca6d9436a372ad3, type: 2}
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:

@@ -50,10 +50,44 @@ public sealed class GameplayAimTests
         weapon.Level = 6;
         weapon.SelectedPath = WeaponUpgradePath.PathB;
         AimSolution precision = provider.ResolveWeaponAim(muzzle, weapon);
-        Assert.That(assisted.TargetPoint.y, Is.EqualTo(1f).Within(0.001f));
+        Assert.That(assisted.TargetPoint.y, Is.EqualTo(1.8f).Within(0.001f));
         Assert.That(precision.TargetPoint.y, Is.EqualTo(1.8f).Within(0.001f));
         Assert.That(precision.TargetPoint.z, Is.EqualTo(9f).Within(0.001f));
         Assert.That(precision.FrameNumber, Is.EqualTo(Time.frameCount));
+    }
+
+    [TestCase(1.2f, true, false, true)]
+    [TestCase(1.5f, true, false, false)]
+    [TestCase(1.2f, false, false, false)]
+    [TestCase(1.2f, true, true, false)]
+    public void NearbyAssistanceUsesSurfaceAndRespectsRadiusPrecisionAndWalls(float offset, bool assisted, bool wall, bool expectAssist)
+    {
+        Camera camera = CameraAt(Vector3.zero);
+        var provider = Provider(camera);
+        var enemy = Go("Nearby enemy");
+        enemy.transform.position = new Vector3(offset, 0f, 10f);
+        var collider = enemy.AddComponent<BoxCollider>();
+        collider.size = Vector3.one * 2f;
+        enemy.AddComponent<AimTestDamageable>();
+        if (wall)
+        {
+            var obstacle = Go("Wall");
+            obstacle.transform.position = new Vector3(0f, 0f, 5f);
+            obstacle.AddComponent<BoxCollider>().size = new Vector3(5f, 5f, 1f);
+        }
+        Physics.SyncTransforms();
+        provider.TryGetAimSolution(Vector3.zero, 25f, assisted, out var aim);
+        if (expectAssist)
+        {
+            Assert.That(aim.TargetPoint.x, Is.EqualTo(offset - 1f).Within(0.001f));
+            Assert.That(aim.TargetPoint.z, Is.InRange(8.99f, 11.01f));
+            Assert.That(Vector3.Distance(collider.ClosestPoint(aim.TargetPoint), aim.TargetPoint), Is.LessThan(0.001f));
+            // Moving away immediately releases assistance; there is no remembered lock.
+            camera.transform.position = new Vector3(-2f, 0f, 0f);
+            provider.TryGetAimSolution(Vector3.zero, 25f, assisted, out var released);
+            Assert.That(released.TargetPoint.x, Is.EqualTo(-2f).Within(0.001f));
+        }
+        else Assert.That(aim.TargetPoint.x, Is.EqualTo(0f).Within(0.001f));
     }
 
     [TestCase(0f, 2.4f)]

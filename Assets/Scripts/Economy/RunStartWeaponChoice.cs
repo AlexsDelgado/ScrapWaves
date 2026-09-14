@@ -46,11 +46,11 @@ public class RunStartWeaponChoice : MonoBehaviour
         for (int i = 0; i < offer.Count; i++)
         {
             WeaponData data = offer[i];
-            options.Add(new LevelUpChoiceOption(data.DisplayName, "Primera arma gratis", data.Icon, HudPlaceholderKind.Weapon));
+            options.Add(new LevelUpChoiceOption(data.DisplayName, null, data.Icon, HudPlaceholderKind.Weapon, data));
         }
 
         int selected = -1;
-        yield return _choiceUi.PresentCoroutine("Elige tu primera arma", options, index => selected = index);
+        yield return _choiceUi.PresentWeaponSelectionCoroutine("CHOOSE YOUR FIRST WEAPON", options, index => selected = index);
         if (selected < 0 || selected >= offer.Count)
             selected = 0;
 

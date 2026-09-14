@@ -1,41 +1,37 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
-using UnityEngine.UI;
 
 public readonly struct LevelUpChoiceOption
 {
-    public LevelUpChoiceOption(string displayName, string description = null, Sprite icon = null, HudPlaceholderKind placeholder = HudPlaceholderKind.None)
+    public LevelUpChoiceOption(string displayName, string description = null, Sprite icon = null,
+        HudPlaceholderKind placeholder = HudPlaceholderKind.None, WeaponData weapon = null)
     {
         DisplayName = displayName;
         Description = description;
         Icon = icon;
         Placeholder = placeholder;
+        Weapon = weapon;
     }
 
     public string DisplayName { get; }
     public string Description { get; }
     public Sprite Icon { get; }
     public HudPlaceholderKind Placeholder { get; }
+    public WeaponData Weapon { get; }
 }
 
 [DisallowMultipleComponent]
 public class LevelUpChoiceUI : MonoBehaviour
 {
     [SerializeField] private bool _pauseWhileChoosing = true;
-    [SerializeField, Min(180)] private float _cardWidth = 240f;
-    [SerializeField, Min(120)] private float _cardHeight = 160f;
-    [SerializeField] private Canvas _canvasOverride;
     [SerializeField] private ThirdPersonCamera _thirdPersonCamera;
+    [SerializeField] private ChoiceMenuView _levelUpView;
+    [SerializeField] private ChoiceMenuView _weaponSelectionView;
+    [SerializeField] private RunMenuContent _content;
 
-    private Canvas _canvas;
-    private RectTransform _cardsRow;
-    private TextMeshProUGUI _titleText;
-    private readonly List<Button> _spawnedButtons = new();
+    private ChoiceMenuView _activeView;
     private ThirdPersonCamera _resolvedCamera;
     private float _previousTimeScale = 1f;
     private Action<int> _onSelected;
@@ -45,26 +41,33 @@ public class LevelUpChoiceUI : MonoBehaviour
 
     public bool IsVisible => _isVisible;
 
-    public IEnumerator PresentCoroutine(string title, IReadOnlyList<LevelUpChoiceOption> options, Action<int> onComplete)
+    private void Awake()
     {
-        if (options == null || options.Count == 0)
-        {
-            onComplete?.Invoke(-1);
-            yield break;
-        }
+        _levelUpView?.Hide();
+        if (_weaponSelectionView != _levelUpView)
+            _weaponSelectionView?.Hide();
+    }
 
-        if (_isVisible)
-        {
-            // Ya hay una elección en curso: no pisar _onSelected/_currentOptions,
-            // que dejaría a la anterior sin resolver para siempre.
-            onComplete?.Invoke(-1);
-            yield break;
-        }
+    public IEnumerator PresentCoroutine(string title, IReadOnlyList<LevelUpChoiceOption> options,
+        Action<int> onComplete)
+    {
+        // The level-up heading and instructions are authored on this menu prefab.
+        return PresentChoiceCoroutine(_levelUpView, null, null, null, options, onComplete);
+    }
 
+    public IEnumerator PresentWeaponSelectionCoroutine(string title, IReadOnlyList<LevelUpChoiceOption> options,
+        Action<int> onComplete)
+    {
+        string subtitle = options != null ? $"Choose 1 of {options.Count} weapons" : string.Empty;
+        return PresentChoiceCoroutine(_weaponSelectionView, null, subtitle, null, options, onComplete);
+    }
+
+    private IEnumerator PresentChoiceCoroutine(ChoiceMenuView view, string title, string subtitle, string footer,
+        IReadOnlyList<LevelUpChoiceOption> options, Action<int> onComplete)
+    {
         bool done = false;
         int selectedIndex = -1;
-
-        Show(title, options, index =>
+        ShowChoice(view, title, subtitle, footer, options, index =>
         {
             selectedIndex = index;
             done = true;
@@ -78,16 +81,30 @@ public class LevelUpChoiceUI : MonoBehaviour
 
     public void Show(string title, IReadOnlyList<LevelUpChoiceOption> options, Action<int> onSelected)
     {
-        if (options == null || options.Count == 0)
+        ShowChoice(_levelUpView, title, "Choose one upgrade", "Select an upgrade to continue", options, onSelected);
+    }
+
+    private void ShowChoice(ChoiceMenuView view, string title, string subtitle, string footer,
+        IReadOnlyList<LevelUpChoiceOption> options, Action<int> onSelected)
+    {
+        if (_isVisible || options == null || options.Count == 0)
         {
             onSelected?.Invoke(-1);
             return;
         }
 
+        if (view == null || !view.CanPresent(options.Count))
+        {
+            Debug.LogWarning("LevelUpChoiceUI: assign an authored choice view with enough configured cards.", this);
+            onSelected?.Invoke(-1);
+            return;
+        }
+
+        _activeView = view;
         _currentOptions = options;
         _onSelected = onSelected;
         _isVisible = true;
-
+        view.Show(title, subtitle, footer, options, _content, OnOptionClicked);
         SetCameraBlocked(true);
 
         if (_pauseWhileChoosing)
@@ -96,13 +113,6 @@ public class LevelUpChoiceUI : MonoBehaviour
             Time.timeScale = 0f;
             GameplayPause.SetHeld(ref _holdsUiPause, true);
         }
-
-        EnsureUiExists();
-        if (_titleText != null)
-            _titleText.text = title;
-
-        RefreshCards();
-        _canvas.gameObject.SetActive(true);
     }
 
     private void OnOptionClicked(int index)
@@ -110,24 +120,25 @@ public class LevelUpChoiceUI : MonoBehaviour
         if (!_isVisible || _currentOptions == null || index < 0 || index >= _currentOptions.Count)
             return;
 
-        Hide();
-        _onSelected?.Invoke(index);
+        CompleteChoice(index);
+    }
+
+    private void CompleteChoice(int index)
+    {
+        Action<int> onSelected = _onSelected;
         _onSelected = null;
         _currentOptions = null;
+        Hide();
+        onSelected?.Invoke(index);
     }
 
     private void Hide()
     {
         _isVisible = false;
-
-        if (_canvas != null && _canvasOverride == null)
-            _canvas.gameObject.SetActive(false);
-        else if (_canvasOverride != null)
-            _canvasOverride.gameObject.SetActive(false);
-
+        _activeView?.Hide();
+        _activeView = null;
         SetCameraBlocked(false);
-
-        if (_pauseWhileChoosing)
+        if (_holdsUiPause)
         {
             Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
             GameplayPause.SetHeld(ref _holdsUiPause, false);
@@ -136,201 +147,10 @@ public class LevelUpChoiceUI : MonoBehaviour
 
     private void OnDisable()
     {
-        GameplayPause.SetHeld(ref _holdsUiPause, false);
-    }
-
-    private void EnsureUiExists()
-    {
-        if (_canvasOverride != null)
-        {
-            _canvas = _canvasOverride;
-            CacheRowIfNeeded();
-            return;
-        }
-
-        if (_canvas != null)
-            return;
-
-        EnsureEventSystemWithInputSystemUi();
-
-        var canvasGo = new GameObject("LevelUpChoiceCanvas", typeof(RectTransform));
-        _canvas = canvasGo.AddComponent<Canvas>();
-        _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _canvas.sortingOrder = 5000;
-
-        var scaler = canvasGo.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-
-        canvasGo.AddComponent<GraphicRaycaster>();
-
-        var panel = new GameObject("Panel", typeof(RectTransform));
-        panel.transform.SetParent(canvasGo.transform, false);
-        var panelRt = panel.GetComponent<RectTransform>();
-        panelRt.anchorMin = Vector2.zero;
-        panelRt.anchorMax = Vector2.one;
-        panelRt.offsetMin = Vector2.zero;
-        panelRt.offsetMax = Vector2.zero;
-        var panelImg = panel.AddComponent<Image>();
-        panelImg.sprite = HudUiFactory.WhiteSprite;
-        panelImg.color = new Color(0f, 0f, 0f, 0.55f);
-
-        var titleGo = new GameObject("Title", typeof(RectTransform));
-        titleGo.transform.SetParent(panel.transform, false);
-        var titleRt = titleGo.GetComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0.5f, 0.65f);
-        titleRt.anchorMax = new Vector2(0.5f, 0.65f);
-        titleRt.pivot = new Vector2(0.5f, 0.5f);
-        titleRt.sizeDelta = new Vector2(800f, 56f);
-        titleRt.anchoredPosition = Vector2.zero;
-        _titleText = titleGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(_titleText);
-        _titleText.fontSize = 28f;
-        _titleText.alignment = TextAlignmentOptions.Center;
-        _titleText.color = Color.white;
-
-        var rowGo = new GameObject("CardsRow", typeof(RectTransform));
-        rowGo.transform.SetParent(panel.transform, false);
-        _cardsRow = rowGo.GetComponent<RectTransform>();
-        _cardsRow.anchorMin = new Vector2(0.5f, 0.42f);
-        _cardsRow.anchorMax = new Vector2(0.5f, 0.42f);
-        _cardsRow.pivot = new Vector2(0.5f, 0.5f);
-        _cardsRow.sizeDelta = new Vector2(1200f, _cardHeight + 16f);
-        _cardsRow.anchoredPosition = Vector2.zero;
-
-        var layout = rowGo.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 20f;
-        layout.childControlWidth = false;
-        layout.childControlHeight = false;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-
-        _canvas.gameObject.SetActive(false);
-    }
-
-    private void CacheRowIfNeeded()
-    {
-        if (_cardsRow != null || _canvas == null)
-            return;
-
-        Transform row = _canvas.transform.Find("Panel/CardsRow");
-        if (row == null)
-            row = _canvas.transform.Find("Panel/ButtonsRow");
-        if (row != null)
-            _cardsRow = row as RectTransform;
-
-        Transform title = _canvas.transform.Find("Panel/Title");
-        if (title != null)
-            _titleText = title.GetComponent<TextMeshProUGUI>();
-    }
-
-    private void RefreshCards()
-    {
-        if (_currentOptions == null || _cardsRow == null)
-            return;
-
-        foreach (Button button in _spawnedButtons)
-        {
-            if (button != null)
-                Destroy(button.gameObject);
-        }
-
-        _spawnedButtons.Clear();
-
-        for (int i = 0; i < _currentOptions.Count; i++)
-        {
-            LevelUpChoiceOption option = _currentOptions[i];
-            int captured = i;
-            Button btn = CreateChoiceCard(option, captured);
-            _spawnedButtons.Add(btn);
-        }
-    }
-
-    private Button CreateChoiceCard(LevelUpChoiceOption option, int index)
-    {
-        var cardGo = new GameObject($"ChoiceCard_{index}", typeof(RectTransform));
-        cardGo.transform.SetParent(_cardsRow, false);
-        var cardRt = cardGo.GetComponent<RectTransform>();
-        cardRt.sizeDelta = new Vector2(_cardWidth, _cardHeight);
-
-        var bg = cardGo.AddComponent<Image>();
-        bg.sprite = HudUiFactory.WhiteSprite;
-        bg.color = HudUiFactory.BorderColor;
-
-        var btn = cardGo.AddComponent<Button>();
-        var colors = btn.colors;
-        colors.highlightedColor = new Color(0.35f, 0.4f, 0.5f);
-        colors.pressedColor = new Color(0.2f, 0.22f, 0.28f);
-        btn.colors = colors;
-        btn.onClick.AddListener(() => OnOptionClicked(index));
-
-        var iconGo = new GameObject("Icon", typeof(RectTransform));
-        iconGo.transform.SetParent(cardGo.transform, false);
-        var iconRt = iconGo.GetComponent<RectTransform>();
-        iconRt.anchorMin = new Vector2(0.5f, 1f);
-        iconRt.anchorMax = new Vector2(0.5f, 1f);
-        iconRt.pivot = new Vector2(0.5f, 1f);
-        iconRt.anchoredPosition = new Vector2(0f, -12f);
-        iconRt.sizeDelta = new Vector2(64f, 64f);
-        var icon = iconGo.AddComponent<Image>();
-        icon.sprite = option.Icon != null ? option.Icon : HudUiFactory.WhiteSprite;
-        icon.color = option.Icon != null ? Color.white : HudUiFactory.GetPlaceholderColor(option.Placeholder);
-        icon.raycastTarget = false;
-
-        var titleGo = new GameObject("Title", typeof(RectTransform));
-        titleGo.transform.SetParent(cardGo.transform, false);
-        var titleRt = titleGo.GetComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0f, 0.42f);
-        titleRt.anchorMax = new Vector2(1f, 0.42f);
-        titleRt.offsetMin = new Vector2(10f, 0f);
-        titleRt.offsetMax = new Vector2(-10f, 28f);
-        var title = titleGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(title);
-        title.fontSize = 18f;
-        title.fontStyle = FontStyles.Bold;
-        title.alignment = TextAlignmentOptions.Center;
-        title.color = Color.white;
-        title.text = option.DisplayName;
-        title.raycastTarget = false;
-
-        var descGo = new GameObject("Description", typeof(RectTransform));
-        descGo.transform.SetParent(cardGo.transform, false);
-        var descRt = descGo.GetComponent<RectTransform>();
-        descRt.anchorMin = new Vector2(0f, 0f);
-        descRt.anchorMax = new Vector2(1f, 0.42f);
-        descRt.offsetMin = new Vector2(10f, 10f);
-        descRt.offsetMax = new Vector2(-10f, 0f);
-        var desc = descGo.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(desc);
-        desc.fontSize = 14f;
-        desc.alignment = TextAlignmentOptions.Top;
-        desc.color = HudUiFactory.MutedTextColor;
-        desc.text = string.IsNullOrEmpty(option.Description) ? " " : option.Description;
-        desc.enableWordWrapping = true;
-        desc.raycastTarget = false;
-
-        return btn;
-    }
-
-    private static void EnsureEventSystemWithInputSystemUi()
-    {
-        EventSystem existing = UnityEngine.Object.FindFirstObjectByType<EventSystem>();
-        if (existing != null)
-        {
-            StandaloneInputModule legacy = existing.GetComponent<StandaloneInputModule>();
-            if (legacy != null)
-                UnityEngine.Object.Destroy(legacy);
-
-            if (existing.GetComponent<InputSystemUIInputModule>() == null)
-                existing.gameObject.AddComponent<InputSystemUIInputModule>();
-            return;
-        }
-
-        var esGo = new GameObject("EventSystem");
-        esGo.AddComponent<EventSystem>();
-        esGo.AddComponent<InputSystemUIInputModule>();
+        if (_isVisible)
+            CompleteChoice(-1);
+        else
+            GameplayPause.SetHeld(ref _holdsUiPause, false);
     }
 
     private void SetCameraBlocked(bool blocked)
@@ -339,7 +159,7 @@ public class LevelUpChoiceUI : MonoBehaviour
         {
             _resolvedCamera = _thirdPersonCamera != null
                 ? _thirdPersonCamera
-                : UnityEngine.Object.FindFirstObjectByType<ThirdPersonCamera>();
+                : FindFirstObjectByType<ThirdPersonCamera>();
         }
 
         _resolvedCamera?.SetLookBlockedByUi(blocked);

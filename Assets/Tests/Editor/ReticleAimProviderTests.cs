@@ -5,7 +5,7 @@ using UnityEngine;
 public class ReticleAimProviderTests
 {
     [Test]
-    public void TryGetAimDirection_WhenReticleHitsDamageableAndAimPointIsPreferred_AimsAtTargetAimPoint()
+    public void TryGetAimDirection_WhenReticleHitsDamageableAndAimPointIsPreferred_KeepsSurfaceHit()
     {
         GameObject cameraGo = new("AimCamera");
         GameObject providerGo = new("AimProvider");
@@ -27,7 +27,7 @@ public class ReticleAimProviderTests
             SetPrivateField(provider, "_aimCamera", camera);
 
             Vector3 muzzle = new Vector3(1.5f, 1f, 0f);
-            Vector3 expectedDirection = EnemyRegistry.GetAimPoint(targetGo.transform) - muzzle;
+            Vector3 expectedDirection = new Vector3(0f, 1f, 9f) - muzzle;
 
             bool hasAim = provider.TryGetAimDirection(muzzle, 20f, true, out Vector3 direction);
 

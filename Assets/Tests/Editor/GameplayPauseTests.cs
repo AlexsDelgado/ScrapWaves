@@ -1,5 +1,6 @@
 using System.Reflection;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -175,10 +176,16 @@ public class GameplayPauseTests
     public void LevelUpChoiceUI_ShowWithPause_HoldsUiPauseLock()
     {
         GameObject go = new("LevelUp");
+        GameObject viewObject = null;
         try
         {
             EnsureEventSystem();
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Prefabs/UI/RunMenus/LevelUpMenu.prefab");
+            Assert.That(prefab, Is.Not.Null, "The level-up view must be authored in the project.");
+            viewObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
             LevelUpChoiceUI ui = go.AddComponent<LevelUpChoiceUI>();
+            SetPrivateField(ui, "_levelUpView", viewObject.GetComponent<ChoiceMenuView>());
             ui.Show("Level up", new[] { new LevelUpChoiceOption("A") }, _ => { });
 
             Assert.That(ui.IsVisible, Is.True);
@@ -188,6 +195,8 @@ public class GameplayPauseTests
         finally
         {
             Object.DestroyImmediate(go);
+            if (viewObject != null)
+                Object.DestroyImmediate(viewObject);
         }
     }
 

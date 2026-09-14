@@ -11,7 +11,7 @@ public static class PassiveItemUiText
         if (offer.IsUpgrade && offer.TargetInstance != null)
         {
             int nextLevel = offer.TargetInstance.Level + 1;
-            return $"Mejora a nivel {nextLevel}.\n{BuildBonusesLine(offer.Data, nextLevel)}";
+            return $"Upgrade to level {nextLevel}.\n{BuildBonusesLine(offer.Data, nextLevel)}";
         }
 
         return $"Slot: {offer.Data.Slot}.\n{BuildBonusesLine(offer.Data, 1)}";
@@ -49,6 +49,6 @@ public static class PassiveItemUiText
             sb.Append($"{sign}{value:0.##} {StatDisplayNames.GetDisplayName(bonus.StatType)}");
         }
 
-        return sb.Length > 0 ? sb.ToString() : "Sin bonus configurado.";
+        return sb.Length > 0 ? sb.ToString() : "No bonuses configured.";
     }
 }
