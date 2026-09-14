@@ -79,7 +79,7 @@ public sealed class RunMenuUiTests
     }
 
     [Test]
-    public void PlayerPrefab_ReferencesItsNestedMenusAndEditableContent()
+    public void PlayerPrefab_KeepsContentAndControllersWithoutOwningSceneUi()
     {
         // Inspect the asset directly; do not run player Awake or persistent save initialization.
         GameObject player = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/player.prefab");
@@ -88,9 +88,12 @@ public sealed class RunMenuUiTests
         CraftingUI crafting = player.GetComponent<CraftingUI>();
         Assert.That(choices, Is.Not.Null);
         Assert.That(crafting, Is.Not.Null);
-        AssertNestedReference(choices, "_levelUpView", "LevelUpMenu", player.transform);
-        AssertNestedReference(choices, "_weaponSelectionView", "WeaponSelectionMenu", player.transform);
-        AssertNestedReference(crafting, "_view", "CraftingMenu", player.transform);
+        Assert.That(player.GetComponentsInChildren<Canvas>(true), Is.Empty);
+        Assert.That(player.GetComponentsInChildren<ChoiceMenuView>(true), Is.Empty);
+        Assert.That(player.GetComponentsInChildren<CraftingMenuView>(true), Is.Empty);
+        Assert.That(new SerializedObject(choices).FindProperty("_levelUpView").objectReferenceValue, Is.Null);
+        Assert.That(new SerializedObject(choices).FindProperty("_weaponSelectionView").objectReferenceValue, Is.Null);
+        Assert.That(new SerializedObject(crafting).FindProperty("_view").objectReferenceValue, Is.Null);
         RunMenuContent content = AssetDatabase.LoadAssetAtPath<RunMenuContent>(ContentPath);
         Assert.That(content, Is.Not.Null);
         Assert.That(new SerializedObject(choices).FindProperty("_content").objectReferenceValue, Is.EqualTo(content));
@@ -99,11 +102,8 @@ public sealed class RunMenuUiTests
         foreach (WeaponMenuCopy copy in content.Weapons)
         {
             Assert.That(copy.Weapon, Is.Not.Null);
-            Assert.That(copy.Summary, Is.Null.Or.Empty);
-            Assert.That(copy.Description, Is.Null.Or.Empty);
-            Assert.That(copy.PathADescription, Is.Null.Or.Empty);
-            Assert.That(copy.PathBDescription, Is.Null.Or.Empty);
         }
+        Assert.That(content.Weapons.Select(copy => copy.Weapon).Distinct().Count(), Is.EqualTo(5));
     }
 
     [Test]
@@ -544,15 +544,6 @@ public sealed class RunMenuUiTests
                 foreach (object value in values) Assert.That(value, Is.Not.Null, field.Name);
             }
         }
-    }
-
-    private static void AssertNestedReference(Object controller, string field, string prefabName, Transform player)
-    {
-        var reference = new SerializedObject(controller).FindProperty(field).objectReferenceValue as Component;
-        Assert.That(reference, Is.Not.Null, field);
-        Assert.That(reference.transform.IsChildOf(player), Is.True, field);
-        Assert.That(AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(reference)),
-            Is.EqualTo(Folder + prefabName + ".prefab"));
     }
 
     private static T GetField<T>(object target, string name) =>

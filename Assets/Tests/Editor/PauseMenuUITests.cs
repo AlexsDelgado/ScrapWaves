@@ -540,6 +540,7 @@ public class PauseMenuUITests
     private static Component CreatePauseMenu(GameObject root)
     {
         PauseMenuUI pauseMenu = root.AddComponent<PauseMenuUI>();
+        pauseMenu.AuthorUi();
         MethodInfo awake = typeof(PauseMenuUI).GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic);
 
         Assert.That(awake, Is.Not.Null);

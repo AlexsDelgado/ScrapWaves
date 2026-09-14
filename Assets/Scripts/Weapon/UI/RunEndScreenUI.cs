@@ -12,11 +12,12 @@ public class RunEndScreenUI : MonoBehaviour
     [SerializeField] private Color _victoryTextColor = new(0.4f, 1f, 0.5f, 1f);
     [SerializeField] private Color _defeatTextColor = new Color(1f, 0.35f, 0.3f, 1f);
 
-    private GameObject _root;
-    private TextMeshProUGUI _titleText;
-    private TextMeshProUGUI _statsText;
-    private Button _retryButton;
-    private Button _mainMenuButton;
+    [Header("Authored UI")]
+    [SerializeField] private GameObject _root;
+    [SerializeField] private TextMeshProUGUI _titleText;
+    [SerializeField] private TextMeshProUGUI _statsText;
+    [SerializeField] private Button _retryButton;
+    [SerializeField] private Button _mainMenuButton;
     private ThirdPersonCamera _camera;
     private bool _isWired;
 
@@ -71,16 +72,16 @@ public class RunEndScreenUI : MonoBehaviour
 
     private bool TryWireFromHierarchy()
     {
-        Transform runEndRoot = transform.Find("RunEndRoot");
+        Transform runEndRoot = _root != null ? _root.transform : transform.Find("RunEndRoot");
         if (runEndRoot == null)
             return false;
 
         _root = runEndRoot.gameObject;
         Transform panel = runEndRoot.Find("Panel");
-        _titleText = panel != null ? HudUiWire.FindTmp(panel, "Title") : HudUiWire.FindTmp(runEndRoot, "Title");
-        _statsText = panel != null ? HudUiWire.FindTmp(panel, "Stats") : HudUiWire.FindTmp(runEndRoot, "Stats");
-        _retryButton = panel != null ? HudUiWire.FindButton(panel, "RetryButton") : HudUiWire.FindButton(runEndRoot, "RetryButton");
-        _mainMenuButton = panel != null ? HudUiWire.FindButton(panel, "MainMenuButton") : HudUiWire.FindButton(runEndRoot, "MainMenuButton");
+        if (_titleText == null) _titleText = panel != null ? HudUiWire.FindTmp(panel, "Title") : HudUiWire.FindTmp(runEndRoot, "Title");
+        if (_statsText == null) _statsText = panel != null ? HudUiWire.FindTmp(panel, "Stats") : HudUiWire.FindTmp(runEndRoot, "Stats");
+        if (_retryButton == null) _retryButton = panel != null ? HudUiWire.FindButton(panel, "RetryButton") : HudUiWire.FindButton(runEndRoot, "RetryButton");
+        if (_mainMenuButton == null) _mainMenuButton = panel != null ? HudUiWire.FindButton(panel, "MainMenuButton") : HudUiWire.FindButton(runEndRoot, "MainMenuButton");
 
         if (_titleText == null || _statsText == null)
             return false;
@@ -99,6 +100,21 @@ public class RunEndScreenUI : MonoBehaviour
 
         return true;
     }
+
+#if UNITY_EDITOR
+    public void AuthorUi()
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Author run-end UI outside Play Mode.");
+        if (TryWireFromHierarchy())
+            return;
+        if (_root != null)
+            throw new System.InvalidOperationException("The existing run-end hierarchy is incomplete; repair its references before authoring.");
+        GameplayHudHierarchyBuilder.BuildRunEndHierarchy(transform);
+        if (!TryWireFromHierarchy())
+            throw new System.InvalidOperationException("Failed to author run-end UI.");
+    }
+#endif
 
     private void Retry()
     {

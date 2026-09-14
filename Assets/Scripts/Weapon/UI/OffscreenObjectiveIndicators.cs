@@ -13,10 +13,14 @@ public class OffscreenObjectiveIndicators : MonoBehaviour
     [SerializeField] private OverheatEliteWaveSpawner _eliteSpawner;
     [SerializeField] private Camera _worldCamera;
 
-    private readonly List<ArrowUi> _pool = new(PoolSize);
+    [Header("Authored UI")]
+    [SerializeField] private List<ArrowUi> _pool = new(PoolSize);
+    [SerializeField] private RectTransform _containerRt;
+    [SerializeField] private Color _bossColor = new(0.95f, 0.2f, 0.18f, 0.95f);
+    [SerializeField] private Color _eliteColor = new(1f, 0.55f, 0.15f, 0.95f);
     private readonly List<TargetEntry> _targets = new(PoolSize);
-    private RectTransform _containerRt;
 
+    [System.Serializable]
     private struct ArrowUi
     {
         public GameObject Root;
@@ -33,7 +37,8 @@ public class OffscreenObjectiveIndicators : MonoBehaviour
     private void Awake()
     {
         ResolveRefs();
-        BuildUi();
+        TryWireFromHierarchy();
+        _pool.RemoveAll(arrow => arrow.Root == null || arrow.Rt == null || arrow.Icon == null);
     }
 
     private void OnEnable()
@@ -73,6 +78,35 @@ public class OffscreenObjectiveIndicators : MonoBehaviour
             _worldCamera = Camera.main;
     }
 
+    private bool TryWireFromHierarchy()
+    {
+        if (_containerRt == null)
+            _containerRt = transform.Find("OffscreenIndicators") as RectTransform;
+        if (_containerRt == null)
+            return false;
+        if (_pool.Count == 0)
+        {
+            foreach (Transform child in _containerRt)
+            {
+                if (child is RectTransform rect && child.TryGetComponent(out Image icon))
+                    _pool.Add(new ArrowUi { Root = child.gameObject, Rt = rect, Icon = icon });
+            }
+        }
+        return _pool.Count > 0;
+    }
+
+#if UNITY_EDITOR
+    public void AuthorUi()
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Author objective indicators outside Play Mode.");
+        if (TryWireFromHierarchy())
+            return;
+        if (_containerRt != null)
+            throw new System.InvalidOperationException("The existing indicator container has no authored arrows.");
+        BuildUi();
+    }
+
     private void BuildUi()
     {
         var container = new GameObject("OffscreenIndicators", typeof(RectTransform));
@@ -99,9 +133,12 @@ public class OffscreenObjectiveIndicators : MonoBehaviour
             _pool.Add(new ArrowUi { Root = go, Rt = rt, Icon = img });
         }
     }
+#endif
 
     private void LateUpdate()
     {
+        if (_containerRt == null || _pool.Count == 0)
+            return;
         if (_overheatManager == null || !_overheatManager.IsOverheating)
         {
             HideAll();
@@ -188,9 +225,7 @@ public class OffscreenObjectiveIndicators : MonoBehaviour
             arrow.Rt.anchoredPosition = edgeLocal;
             float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
             arrow.Rt.localRotation = Quaternion.Euler(0f, 0f, angle);
-            arrow.Icon.color = entry.IsBoss
-                ? new Color(0.95f, 0.2f, 0.18f, 0.95f)
-                : new Color(1f, 0.55f, 0.15f, 0.95f);
+            arrow.Icon.color = entry.IsBoss ? _bossColor : _eliteColor;
             shown++;
         }
 
@@ -201,6 +236,7 @@ public class OffscreenObjectiveIndicators : MonoBehaviour
     private void HideAll()
     {
         for (int i = 0; i < _pool.Count; i++)
-            _pool[i].Root.SetActive(false);
+            if (_pool[i].Root != null)
+                _pool[i].Root.SetActive(false);
     }
 }

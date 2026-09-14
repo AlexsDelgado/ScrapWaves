@@ -8,14 +8,14 @@ public class OverheatObjectiveHud : MonoBehaviour
     [SerializeField] private BossManager _bossManager;
     [SerializeField] private OverheatEliteWaveSpawner _eliteSpawner;
 
-    private TextMeshProUGUI _objectiveText;
-    private GameObject _root;
+    [Header("Authored UI")]
+    [SerializeField] private TextMeshProUGUI _objectiveText;
+    [SerializeField] private GameObject _root;
 
     private void Awake()
     {
         ResolveRefs();
-        if (!TryWireFromHierarchy())
-            BuildUi();
+        TryWireFromHierarchy();
         Refresh();
     }
 
@@ -75,13 +75,27 @@ public class OverheatObjectiveHud : MonoBehaviour
 
     private bool TryWireFromHierarchy()
     {
-        Transform objective = transform.Find("OverheatObjective");
+        if (_root != null && _objectiveText != null)
+            return true;
+        Transform objective = _root != null ? _root.transform : transform.Find("OverheatObjective");
         if (objective == null)
             return false;
 
         _root = objective.gameObject;
         _objectiveText = HudUiWire.FindTmp(objective, "Text");
         return _objectiveText != null;
+    }
+
+#if UNITY_EDITOR
+    public void AuthorUi()
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Author overheat UI outside Play Mode.");
+        if (TryWireFromHierarchy())
+            return;
+        if (_root != null)
+            throw new System.InvalidOperationException("The existing overheat hierarchy is incomplete; repair its references before authoring.");
+        BuildUi();
     }
 
     private void BuildUi()
@@ -99,6 +113,7 @@ public class OverheatObjectiveHud : MonoBehaviour
         _objectiveText.fontStyle = FontStyles.Bold;
         _objectiveText.color = new Color(1f, 0.55f, 0.2f, 1f);
     }
+#endif
 
     private void Refresh()
     {

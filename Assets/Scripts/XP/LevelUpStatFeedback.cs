@@ -14,15 +14,48 @@ public class LevelUpStatFeedback : MonoBehaviour
     [SerializeField, Min(0.02f)] private float _messageSpacing = 0.08f;
     [SerializeField, Min(20f)] private float _floatDistance = 36f;
 
-    private Canvas _canvas;
-    private RectTransform _container;
+    [SerializeField] private Canvas _canvas;
+    [SerializeField] private RectTransform _container;
+    [SerializeField] private TextMeshProUGUI[] _messageSlots;
+    private Vector2[] _restPositions;
+    private Color[] _restColors;
     private readonly Queue<List<StatUpgradeResult>> _pendingBatches = new();
     private bool _isShowing;
 
+    private void Awake() => CacheMessageRestState();
+
+    private void CacheMessageRestState()
+    {
+        if (_messageSlots == null) return;
+        if (_restPositions != null && _restPositions.Length == _messageSlots.Length) return;
+        _restPositions = new Vector2[_messageSlots.Length];
+        _restColors = new Color[_messageSlots.Length];
+        for (int i = 0; i < _messageSlots.Length; i++)
+        {
+            TextMeshProUGUI message = _messageSlots[i];
+            if (message == null) continue;
+            _restPositions[i] = message.rectTransform.anchoredPosition;
+            _restColors[i] = message.color;
+            message.gameObject.SetActive(false);
+        }
+    }
+
+    private void OnDisable()
+    {
+        StopAllCoroutines();
+        _pendingBatches.Clear();
+        _isShowing = false;
+        if (_messageSlots == null || _restPositions == null) return;
+        for (int i = 0; i < _messageSlots.Length; i++) ResetMessage(i);
+    }
+
     public void Show(IReadOnlyList<StatUpgradeResult> upgrades)
     {
-        if (upgrades == null || upgrades.Count == 0)
+        if (upgrades == null || upgrades.Count == 0 || _canvas == null
+            || _messageSlots == null || _messageSlots.Length == 0)
             return;
+
+        CacheMessageRestState();
 
         _pendingBatches.Enqueue(new List<StatUpgradeResult>(upgrades));
         if (!_isShowing)
@@ -32,7 +65,6 @@ public class LevelUpStatFeedback : MonoBehaviour
     private IEnumerator ShowBatchesCoroutine()
     {
         _isShowing = true;
-        EnsureUiExists();
 
         while (_pendingBatches.Count > 0)
         {
@@ -45,61 +77,67 @@ public class LevelUpStatFeedback : MonoBehaviour
 
     private IEnumerator ShowBatchCoroutine(List<StatUpgradeResult> batch)
     {
-        var active = new List<Coroutine>(batch.Count);
-
-        for (int i = 0; i < batch.Count; i++)
+        for (int start = 0; start < batch.Count; start += _messageSlots.Length)
         {
-            StatUpgradeResult upgrade = batch[i];
-            string label = $"++{StatDisplayNames.GetDisplayName(upgrade.StatType)}";
-            active.Add(StartCoroutine(AnimateMessage(label, i)));
-            yield return new WaitForSecondsRealtime(_messageSpacing);
-        }
+            var active = new List<Coroutine>(_messageSlots.Length);
+            int count = Mathf.Min(_messageSlots.Length, batch.Count - start);
+            for (int i = 0; i < count; i++)
+            {
+                if (_messageSlots[i] == null) continue;
+                StatUpgradeResult upgrade = batch[start + i];
+                string label = $"++{StatDisplayNames.GetDisplayName(upgrade.StatType)}";
+                active.Add(StartCoroutine(AnimateMessage(label, i)));
+                yield return new WaitForSecondsRealtime(_messageSpacing);
+            }
 
-        for (int i = 0; i < active.Count; i++)
-            yield return active[i];
+            for (int i = 0; i < active.Count; i++) yield return active[i];
+        }
     }
 
     private IEnumerator AnimateMessage(string text, int stackIndex)
     {
-        var go = new GameObject("StatUpgradeMsg", typeof(RectTransform));
-        go.transform.SetParent(_container, false);
-
-        var rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = _anchorPosition;
-        rt.anchorMax = _anchorPosition;
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(360f, 32f);
-        rt.anchoredPosition = new Vector2(0f, -stackIndex * 28f);
-
-        var tmp = go.AddComponent<TextMeshProUGUI>();
-        TmpUiHelper.ApplyDefaultFont(tmp);
-        tmp.fontSize = _fontSize;
-        tmp.alignment = TextAlignmentOptions.Left;
-        tmp.color = _textColor;
+        TextMeshProUGUI tmp = _messageSlots[stackIndex];
+        RectTransform rt = tmp.rectTransform;
+        tmp.gameObject.SetActive(true);
         tmp.text = text;
 
         float elapsed = 0f;
-        Vector2 start = rt.anchoredPosition;
-        Color startColor = _textColor;
+        Vector2 start = _restPositions[stackIndex];
+        Color startColor = _restColors[stackIndex];
 
         while (elapsed < _messageDuration)
         {
             elapsed += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(elapsed / _messageDuration);
             rt.anchoredPosition = start + new Vector2(0f, _floatDistance * t);
-            tmp.color = new Color(startColor.r, startColor.g, startColor.b, 1f - t);
+            tmp.color = new Color(startColor.r, startColor.g, startColor.b, startColor.a * (1f - t));
             yield return null;
         }
 
-        Destroy(go);
+        ResetMessage(stackIndex);
     }
 
-    private void EnsureUiExists()
+    private void ResetMessage(int index)
+    {
+        TextMeshProUGUI message = _messageSlots[index];
+        if (message == null) return;
+        message.rectTransform.anchoredPosition = _restPositions[index];
+        message.color = _restColors[index];
+        message.gameObject.SetActive(false);
+    }
+
+#if UNITY_EDITOR
+    public void AuthorUi(Transform uiRoot)
     {
         if (_canvas != null)
+        {
+            if (uiRoot != null && !_canvas.transform.IsChildOf(uiRoot))
+                _canvas.transform.SetParent(uiRoot, false);
             return;
+        }
 
         var canvasGo = new GameObject("LevelUpStatFeedbackCanvas", typeof(RectTransform));
+        canvasGo.transform.SetParent(uiRoot, false);
         _canvas = canvasGo.AddComponent<Canvas>();
         _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         _canvas.sortingOrder = 4900;
@@ -116,7 +154,32 @@ public class LevelUpStatFeedback : MonoBehaviour
         _container.anchorMax = Vector2.one;
         _container.offsetMin = Vector2.zero;
         _container.offsetMax = Vector2.zero;
+
+        // The level-36 upgrade batch contains at most twenty messages.
+        _messageSlots = new TextMeshProUGUI[20];
+        for (int i = 0; i < _messageSlots.Length; i++)
+        {
+            var go = new GameObject($"StatUpgradeMsg_{i + 1}", typeof(RectTransform));
+            go.transform.SetParent(_container, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = _anchorPosition;
+            rt.anchorMax = _anchorPosition;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(360f, 32f);
+            rt.anchoredPosition = new Vector2(0f, -i * 28f);
+            var tmp = go.AddComponent<TextMeshProUGUI>();
+            TmpUiHelper.ApplyDefaultFont(tmp);
+            tmp.fontSize = _fontSize;
+            tmp.alignment = TextAlignmentOptions.Left;
+            tmp.color = _textColor;
+            tmp.raycastTarget = false;
+            tmp.text = "++Stat";
+            _messageSlots[i] = tmp;
+            go.SetActive(false);
+        }
+        UnityEditor.EditorUtility.SetDirty(this);
     }
+#endif
 }
 
 public static class StatDisplayNames

@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// HUD básico: vida, XP, nivel, Heat y estado de Overheat. Crea Canvas en runtime; referencias opcionales (autobúsqueda).
+/// HUD básico: vida, XP, nivel, Heat y estado de Overheat. Vista editable en escena; referencias opcionales.
 /// </summary>
 [DisallowMultipleComponent]
 public class UIManager : MonoBehaviour
@@ -30,22 +30,20 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Color _overheatActiveColor = new Color(1f, 0.35f, 0.2f, 1f);
     [SerializeField] private Color _overheatInactiveColor = new Color(0.75f, 0.75f, 0.75f, 1f);
 
-    private TextMeshProUGUI _overheatLabel;
-    private TextMeshProUGUI _levelLabel;
-    private TextMeshProUGUI _hpLabel;
-    private TextMeshProUGUI _xpLabel;
-    private TextMeshProUGUI _heatLabel;
+    [SerializeField] private Canvas _canvas;
+    [SerializeField] private TextMeshProUGUI _overheatLabel;
+    [SerializeField] private TextMeshProUGUI _levelLabel;
+    [SerializeField] private TextMeshProUGUI _hpLabel;
+    [SerializeField] private TextMeshProUGUI _xpLabel;
+    [SerializeField] private TextMeshProUGUI _heatLabel;
 
-    private Image _hpBarImage;
-    private Image _xpBarImage;
-    private Image _heatBarImage;
-
-    private static Sprite s_whiteSprite;
+    [SerializeField] private Image _hpBarImage;
+    [SerializeField] private Image _xpBarImage;
+    [SerializeField] private Image _heatBarImage;
 
     private void Awake()
     {
         ResolveRefs();
-        BuildUi();
     }
 
     private void ResolveRefs()
@@ -189,15 +187,23 @@ public class UIManager : MonoBehaviour
         _overheatLabel.color = active ? _overheatActiveColor : _overheatInactiveColor;
     }
 
-    private void BuildUi()
+#if UNITY_EDITOR
+    public void AuthorUi(Transform uiRoot)
     {
+        if (_canvas != null)
+        {
+            if (uiRoot != null && !_canvas.transform.IsChildOf(uiRoot))
+                _canvas.transform.SetParent(uiRoot, false);
+            return;
+        }
         var canvasGo = new GameObject("GameplayUI_Canvas");
-        canvasGo.transform.SetParent(transform, false);
+        canvasGo.transform.SetParent(uiRoot, false);
         int uiLayer = LayerMask.NameToLayer("UI");
         if (uiLayer >= 0)
             canvasGo.layer = uiLayer;
 
         var canvas = canvasGo.AddComponent<Canvas>();
+        _canvas = canvas;
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 400;
 
@@ -229,6 +235,7 @@ public class UIManager : MonoBehaviour
 
         _heatLabel = CreateCaption(panel.transform, "HeatCaption", ref y);
         CreateFilledBar(panel.transform, "HeatBar", ref y, out _, out _heatBarImage, _heatFillColor, _trackColor);
+        UnityEditor.EditorUtility.SetDirty(this);
     }
 
     private RectTransform CreatePanel(Transform canvas)
@@ -340,17 +347,6 @@ public class UIManager : MonoBehaviour
         yFromTop -= _barHeight + _barSpacing;
     }
 
-    private static Sprite GetWhiteSprite()
-    {
-        if (s_whiteSprite != null)
-            return s_whiteSprite;
-
-        var tex = Texture2D.whiteTexture;
-        s_whiteSprite = Sprite.Create(
-            tex,
-            new Rect(0f, 0f, tex.width, tex.height),
-            new Vector2(0.5f, 0.5f),
-            100f);
-        return s_whiteSprite;
-    }
+    private static Sprite GetWhiteSprite() => HudUiFactory.WhiteSprite;
+#endif
 }

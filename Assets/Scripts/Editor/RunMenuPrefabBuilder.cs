@@ -17,7 +17,6 @@ public static class RunMenuPrefabBuilder
     public const string WeaponSelectionPrefabPath = PrefabFolder + "/WeaponSelectionMenu.prefab";
     public const string CraftingPrefabPath = PrefabFolder + "/CraftingMenu.prefab";
     public const string ContentPath = "Assets/Data/UI/RunMenus/RunMenuContent.asset";
-    private const string PlayerPrefabPath = "Assets/Prefabs/player.prefab";
     private const string FontPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset";
 
     // Match the authored title screen and pause menu. Each resulting Graphic remains editable.
@@ -30,88 +29,22 @@ public static class RunMenuPrefabBuilder
     private static readonly Color RustLight = new(0.95f, 0.60f, 0.36f, 1f);
     private static TMP_FontAsset s_font;
 
-    [MenuItem("ScrapWaves/UI/Create Missing Run Menus And Attach To Player")]
-    public static void BuildAndAttach()
+    /// <summary>Compatibility entry point. Menu ownership and binding now belong to scenes.</summary>
+    public static void BuildAndAttach() => CreateMissingMenuAssets();
+
+    [MenuItem("ScrapWaves/UI/Create Missing Run Menu Assets")]
+    public static void CreateMissingMenuAssets()
     {
         s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
         if (s_font == null)
             throw new InvalidOperationException($"Missing menu font: {FontPath}");
-        GameObject playerAsset = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        if (playerAsset == null)
-            throw new InvalidOperationException($"Missing player prefab: {PlayerPrefabPath}");
-
         EnsureFolder(PrefabFolder);
         EnsureFolder("Assets/Data/UI/RunMenus");
-        RunMenuContent content = GetOrCreateContent();
-        GameObject levelUp = GetOrCreatePrefab(LevelUpPrefabPath, () => CreateChoiceMenu(false));
-        GameObject weaponSelection = GetOrCreatePrefab(WeaponSelectionPrefabPath, () => CreateChoiceMenu(true));
-        GameObject crafting = GetOrCreatePrefab(CraftingPrefabPath, CreateCraftingMenu);
-
-        // Read the imported prefab before opening editable contents. A repeat invocation
-        // must not reserialize unrelated player components or overwrite authored tuning.
-        if (HasCorrectAttachments(playerAsset, content))
-        {
-            Debug.Log("Run menus and content are already attached correctly. No player prefab was loaded for editing or saved.");
-            return;
-        }
-
-        GameObject player = PrefabUtility.LoadPrefabContents(PlayerPrefabPath);
-        try
-        {
-            LevelUpChoiceUI choicePresenter = player.GetComponent<LevelUpChoiceUI>();
-            CraftingUI craftingPresenter = player.GetComponent<CraftingUI>();
-            if (choicePresenter == null || craftingPresenter == null)
-                throw new InvalidOperationException("The player prefab must already contain its choice and crafting presenters.");
-
-            Transform menus = player.transform.Find("RunMenus");
-            if (menus == null)
-            {
-                var menusObject = new GameObject("RunMenus");
-                menus = menusObject.transform;
-                menus.SetParent(player.transform, false);
-            }
-
-            ChoiceMenuView levelView = Attach<ChoiceMenuView>(menus, levelUp);
-            ChoiceMenuView weaponView = Attach<ChoiceMenuView>(menus, weaponSelection);
-            CraftingMenuView craftingView = Attach<CraftingMenuView>(menus, crafting);
-            Wire(choicePresenter, ("_levelUpView", levelView), ("_weaponSelectionView", weaponView), ("_content", content));
-            Wire(craftingPresenter, ("_view", craftingView), ("_content", content));
-            PrefabUtility.SaveAsPrefabAsset(player, PlayerPrefabPath);
-        }
-        finally
-        {
-            PrefabUtility.UnloadPrefabContents(player);
-        }
-
-        AssetDatabase.SaveAssets();
-        Debug.Log("Run menus are attached to player.prefab. Edit the saved menu prefabs and RunMenuContent asset by hand; existing assets were preserved.");
-    }
-
-    private static bool HasCorrectAttachments(GameObject player, RunMenuContent content)
-    {
-        LevelUpChoiceUI choices = player.GetComponent<LevelUpChoiceUI>();
-        CraftingUI crafting = player.GetComponent<CraftingUI>();
-        if (choices == null || crafting == null)
-            return false;
-
-        var choiceFields = new SerializedObject(choices);
-        var craftingFields = new SerializedObject(crafting);
-        return IsAttachedView<ChoiceMenuView>(choiceFields, "_levelUpView", player, LevelUpPrefabPath)
-            && IsAttachedView<ChoiceMenuView>(choiceFields, "_weaponSelectionView", player, WeaponSelectionPrefabPath)
-            && IsAttachedView<CraftingMenuView>(craftingFields, "_view", player, CraftingPrefabPath)
-            && choiceFields.FindProperty("_content")?.objectReferenceValue == content
-            && craftingFields.FindProperty("_content")?.objectReferenceValue == content;
-    }
-
-    private static bool IsAttachedView<T>(SerializedObject presenter, string field, GameObject player, string expectedPath)
-        where T : Component
-    {
-        var view = presenter.FindProperty(field)?.objectReferenceValue as T;
-        if (view == null || !view.transform.IsChildOf(player.transform))
-            return false;
-
-        T source = PrefabUtility.GetCorrespondingObjectFromOriginalSource(view);
-        return source != null && AssetDatabase.GetAssetPath(source) == expectedPath;
+        GetOrCreateContent();
+        GetOrCreatePrefab(LevelUpPrefabPath, () => CreateChoiceMenu(false));
+        GetOrCreatePrefab(WeaponSelectionPrefabPath, () => CreateChoiceMenu(true));
+        GetOrCreatePrefab(CraftingPrefabPath, CreateCraftingMenu);
+        Debug.Log("Missing run menu assets created. Existing prefabs and copy were preserved. Place and bind menu instances under each gameplay scene's UI root.");
     }
 
     private static RunMenuContent GetOrCreateContent()
@@ -162,33 +95,6 @@ public static class RunMenuPrefabBuilder
         {
             Object.DestroyImmediate(root);
         }
-    }
-
-    private static T Attach<T>(Transform parent, GameObject prefab) where T : Component
-    {
-        Transform existing = parent.Find(prefab.name);
-        GameObject instance = existing != null
-            ? existing.gameObject
-            : (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-        T view = instance.GetComponent<T>();
-        if (view == null)
-            throw new InvalidOperationException($"Menu {prefab.name} has no {typeof(T).Name}.");
-        if (existing == null)
-            instance.SetActive(false);
-        return view;
-    }
-
-    private static void Wire(Object target, params (string Name, Object Value)[] references)
-    {
-        var serialized = new SerializedObject(target);
-        foreach (var reference in references)
-        {
-            SerializedProperty property = serialized.FindProperty(reference.Name);
-            if (property == null)
-                throw new InvalidOperationException($"Missing menu reference {target.GetType().Name}.{reference.Name}");
-            property.objectReferenceValue = reference.Value;
-        }
-        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static GameObject CreateChoiceMenu(bool firstWeapon)

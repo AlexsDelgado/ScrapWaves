@@ -29,26 +29,27 @@ public class PauseMenuUI : MonoBehaviour
     [SerializeField] private UserSettingsService _settingsService;
     [SerializeField] private WeaponSandboxDebugUI _sandboxDebugUi;
 
-    private GameObject _root;
-    private GameObject _mainActionPanel;
-    private GameObject _settingsPanel;
-    private TextMeshProUGUI _statsText;
-    private TextMeshProUGUI _runStatsText;
-    private Button _resumeButton;
-    private Button _settingsButton;
-    private Button _quitButton;
-    private Button _settingsBackButton;
-    private Slider _hSensSlider;
-    private Slider _vSensSlider;
-    private Toggle _invertYToggle;
-    private Slider _sfxSlider;
-    private Slider _musicSlider;
-    private Toggle _reducedMotionToggle;
-    private Toggle _reducedShakeToggle;
-    private Toggle _reducedFlashToggle;
-    private TMP_Dropdown _combatTextModeDropdown;
-    private Slider _combatTextScaleSlider;
-    private TextMeshProUGUI _combatTextScaleLabel;
+    [Header("Authored UI")]
+    [SerializeField] private GameObject _root;
+    [SerializeField] private GameObject _mainActionPanel;
+    [SerializeField] private GameObject _settingsPanel;
+    [SerializeField] private TextMeshProUGUI _statsText;
+    [SerializeField] private TextMeshProUGUI _runStatsText;
+    [SerializeField] private Button _resumeButton;
+    [SerializeField] private Button _settingsButton;
+    [SerializeField] private Button _quitButton;
+    [SerializeField] private Button _settingsBackButton;
+    [SerializeField] private Slider _hSensSlider;
+    [SerializeField] private Slider _vSensSlider;
+    [SerializeField] private Toggle _invertYToggle;
+    [SerializeField] private Slider _sfxSlider;
+    [SerializeField] private Slider _musicSlider;
+    [SerializeField] private Toggle _reducedMotionToggle;
+    [SerializeField] private Toggle _reducedShakeToggle;
+    [SerializeField] private Toggle _reducedFlashToggle;
+    [SerializeField] private TMP_Dropdown _combatTextModeDropdown;
+    [SerializeField] private Slider _combatTextScaleSlider;
+    [SerializeField] private TextMeshProUGUI _combatTextScaleLabel;
     private float _savedTimeScale = 1f;
     private bool _isPaused;
     private bool _holdsUiPause;
@@ -57,7 +58,12 @@ public class PauseMenuUI : MonoBehaviour
     private void Awake()
     {
         ResolveRefs();
-        BuildUi();
+        if (!TryWireFromHierarchy())
+        {
+            Debug.LogError("PauseMenuUI requires its authored PauseRoot hierarchy. Run the gameplay UI authoring tool in the Editor.", this);
+            return;
+        }
+        BindControlListeners();
         BindSettingsService(_settingsService != null ? _settingsService : UserSettingsService.Instance);
         _root.SetActive(false);
     }
@@ -83,6 +89,8 @@ public class PauseMenuUI : MonoBehaviour
 
     private void Update()
     {
+        if (_root == null)
+            return;
         if (_isPaused)
             RefreshRunStats();
 
@@ -151,6 +159,8 @@ public class PauseMenuUI : MonoBehaviour
 
     private void ShowPause()
     {
+        if (_root == null)
+            return;
         ResolveRefs();
         _savedTimeScale = Time.timeScale > 0.001f ? Time.timeScale : 1f;
         SetSettingsView(false, false);
@@ -397,6 +407,130 @@ public class PauseMenuUI : MonoBehaviour
             $"BOSS KILLS    {RunSessionStats.BossKills}";
     }
 
+    private bool TryWireFromHierarchy()
+    {
+        if (_root == null) _root = transform.Find("PauseRoot")?.gameObject;
+        if (_root == null) return false;
+        Transform root = _root.transform;
+        if (_mainActionPanel == null) _mainActionPanel = root.Find("MainActionPanel")?.gameObject;
+        if (_settingsPanel == null) _settingsPanel = root.Find("SettingsPanel")?.gameObject;
+        Cache(ref _statsText, root, "PlayerStatsPanel/StatsContent");
+        Cache(ref _runStatsText, root, "RunStatsPanel/RunStats");
+        Cache(ref _resumeButton, root, "MainActionPanel/ResumeButton");
+        Cache(ref _settingsButton, root, "MainActionPanel/SettingsButton");
+        Cache(ref _quitButton, root, "MainActionPanel/QuitButton");
+        Cache(ref _settingsBackButton, root, "SettingsPanel/BackButton");
+        Cache(ref _hSensSlider, root, "SettingsPanel/HORIZONTAL SENSITIVITY/Slider");
+        Cache(ref _vSensSlider, root, "SettingsPanel/VERTICAL SENSITIVITY/Slider");
+        Cache(ref _invertYToggle, root, "SettingsPanel/INVERT Y/Toggle");
+        Cache(ref _sfxSlider, root, "SettingsPanel/SFX VOLUME/Slider");
+        Cache(ref _musicSlider, root, "SettingsPanel/MUSIC VOLUME/Slider");
+        Cache(ref _reducedMotionToggle, root, "SettingsPanel/Reduced Motion/Toggle");
+        Cache(ref _reducedShakeToggle, root, "SettingsPanel/Reduced Shake/Toggle");
+        Cache(ref _reducedFlashToggle, root, "SettingsPanel/Reduced Flash/Toggle");
+        Cache(ref _combatTextModeDropdown, root, "SettingsPanel/Combat Text/Dropdown");
+        Cache(ref _combatTextScaleSlider, root, "SettingsPanel/Combat Text Scale/Slider");
+        Cache(ref _combatTextScaleLabel, root, "SettingsPanel/Combat Text Scale/Value");
+        return _mainActionPanel != null && _settingsPanel != null && _statsText != null && _runStatsText != null
+            && _resumeButton != null && _settingsButton != null && _quitButton != null && _settingsBackButton != null
+            && _hSensSlider != null && _vSensSlider != null && _invertYToggle != null && _sfxSlider != null && _musicSlider != null
+            && _reducedMotionToggle != null && _reducedShakeToggle != null && _reducedFlashToggle != null
+            && _combatTextModeDropdown != null && _combatTextScaleSlider != null && _combatTextScaleLabel != null;
+    }
+
+    private static void Cache<T>(ref T field, Transform root, string path) where T : Component
+    {
+        if (field == null)
+            field = root.Find(path)?.GetComponent<T>();
+    }
+
+    private void BindControlListeners()
+    {
+        _resumeButton.onClick.RemoveListener(Resume);
+        _resumeButton.onClick.AddListener(Resume);
+        _settingsButton.onClick.RemoveListener(OpenSettings);
+        _settingsButton.onClick.AddListener(OpenSettings);
+        _quitButton.onClick.RemoveListener(ReturnToTitle);
+        _quitButton.onClick.AddListener(ReturnToTitle);
+        _settingsBackButton.onClick.RemoveListener(CloseSettings);
+        _settingsBackButton.onClick.AddListener(CloseSettings);
+        _hSensSlider.onValueChanged.RemoveListener(OnHorizontalSensitivityChanged);
+        _hSensSlider.onValueChanged.AddListener(OnHorizontalSensitivityChanged);
+        _vSensSlider.onValueChanged.RemoveListener(OnVerticalSensitivityChanged);
+        _vSensSlider.onValueChanged.AddListener(OnVerticalSensitivityChanged);
+        _invertYToggle.onValueChanged.RemoveListener(OnInvertYChanged);
+        _invertYToggle.onValueChanged.AddListener(OnInvertYChanged);
+        _sfxSlider.onValueChanged.RemoveListener(OnSfxVolumeChanged);
+        _sfxSlider.onValueChanged.AddListener(OnSfxVolumeChanged);
+        _musicSlider.onValueChanged.RemoveListener(OnMusicVolumeChanged);
+        _musicSlider.onValueChanged.AddListener(OnMusicVolumeChanged);
+        _reducedMotionToggle.onValueChanged.RemoveListener(OnReducedMotionChanged);
+        _reducedMotionToggle.onValueChanged.AddListener(OnReducedMotionChanged);
+        _reducedShakeToggle.onValueChanged.RemoveListener(OnReducedShakeChanged);
+        _reducedShakeToggle.onValueChanged.AddListener(OnReducedShakeChanged);
+        _reducedFlashToggle.onValueChanged.RemoveListener(OnReducedFlashChanged);
+        _reducedFlashToggle.onValueChanged.AddListener(OnReducedFlashChanged);
+        _combatTextModeDropdown.onValueChanged.RemoveListener(OnCombatTextModeChanged);
+        _combatTextModeDropdown.onValueChanged.AddListener(OnCombatTextModeChanged);
+        _combatTextScaleSlider.onValueChanged.RemoveListener(OnCombatTextScaleChanged);
+        _combatTextScaleSlider.onValueChanged.AddListener(OnCombatTextScaleChanged);
+    }
+
+    private void OnHorizontalSensitivityChanged(float value)
+    {
+        if (TryGetSettingsService(out UserSettingsService settings)) settings.HorizontalSensitivity = value;
+    }
+
+    private void OnVerticalSensitivityChanged(float value)
+    {
+        if (TryGetSettingsService(out UserSettingsService settings)) settings.VerticalSensitivity = value;
+    }
+
+    private void OnInvertYChanged(bool value)
+    {
+        if (TryGetSettingsService(out UserSettingsService settings)) settings.InvertY = value;
+    }
+
+    private void OnSfxVolumeChanged(float value)
+    {
+        if (TryGetSettingsService(out UserSettingsService settings)) settings.SfxVolume = value;
+    }
+
+    private void OnMusicVolumeChanged(float value)
+    {
+        if (TryGetSettingsService(out UserSettingsService settings)) settings.MusicVolume = value;
+    }
+
+    private void OnReducedMotionChanged(bool value)
+    {
+        if (TryGetSettingsService(out UserSettingsService settings)) settings.ReducedMotion = value;
+        PresentationAccessibilityState current = PresentationAccessibilityRuntime.Current;
+        if (current.ReducedMotion != value) PersistAccessibility(current.WithReducedMotion(value));
+    }
+
+    private void OnReducedShakeChanged(bool value) => PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedShake(value));
+    private void OnReducedFlashChanged(bool value) => PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedFlash(value));
+    private void OnCombatTextModeChanged(int value) => PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatText(value <= 0 ? CombatTextMode.Off : CombatTextMode.Full));
+
+    private void OnCombatTextScaleChanged(float value)
+    {
+        UpdateCombatTextScaleLabel(value);
+        PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatTextScale(value));
+    }
+
+#if UNITY_EDITOR
+    public void AuthorUi()
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Author pause UI outside Play Mode.");
+        if (TryWireFromHierarchy())
+            return;
+        if (_root != null)
+            throw new System.InvalidOperationException("The existing pause hierarchy is incomplete; repair its references before authoring.");
+        BuildUi();
+        _root.SetActive(false);
+    }
+
     private void BuildUi()
     {
         _root = new GameObject("PauseRoot", typeof(RectTransform));
@@ -449,15 +583,12 @@ public class PauseMenuUI : MonoBehaviour
 
         _resumeButton = CreateIndustrialButton(panel.transform, "ResumeButton", "RESUME", new Vector2(330f, 64f), ScrapGreen);
         SetAnchoredRect((RectTransform)_resumeButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 82f), new Vector2(330f, 64f));
-        _resumeButton.onClick.AddListener(Resume);
 
         _settingsButton = CreateIndustrialButton(panel.transform, "SettingsButton", "SETTINGS", new Vector2(330f, 64f), WarningRust);
         SetAnchoredRect((RectTransform)_settingsButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(330f, 64f));
-        _settingsButton.onClick.AddListener(OpenSettings);
 
         _quitButton = CreateIndustrialButton(panel.transform, "QuitButton", "QUIT", new Vector2(330f, 64f), Danger);
         SetAnchoredRect((RectTransform)_quitButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -82f), new Vector2(330f, 64f));
-        _quitButton.onClick.AddListener(ReturnToTitle);
 
         ConfigureVerticalNavigation(_resumeButton, _settingsButton, _quitButton);
     }
@@ -525,30 +656,16 @@ public class PauseMenuUI : MonoBehaviour
             ref y,
             UserSettingsData.MinimumSensitivity,
             UserSettingsData.MaximumSensitivity,
-            UserSettingsData.DefaultHorizontalSensitivity,
-            v =>
-        {
-            if (TryGetSettingsService(out UserSettingsService settings))
-                settings.HorizontalSensitivity = v;
-        });
+            UserSettingsData.DefaultHorizontalSensitivity);
         _vSensSlider = CreateSettingRow(
             panel.transform,
             "VERTICAL SENSITIVITY",
             ref y,
             UserSettingsData.MinimumSensitivity,
             UserSettingsData.MaximumSensitivity,
-            UserSettingsData.DefaultVerticalSensitivity,
-            v =>
-        {
-            if (TryGetSettingsService(out UserSettingsService settings))
-                settings.VerticalSensitivity = v;
-        });
+            UserSettingsData.DefaultVerticalSensitivity);
 
-        _invertYToggle = CreateToggleRow(panel.transform, "INVERT Y", ref y, on =>
-        {
-            if (TryGetSettingsService(out UserSettingsService settings))
-                settings.InvertY = on;
-        });
+        _invertYToggle = CreateToggleRow(panel.transform, "INVERT Y", ref y);
 
         _sfxSlider = CreateSettingRow(
             panel.transform,
@@ -556,61 +673,31 @@ public class PauseMenuUI : MonoBehaviour
             ref y,
             0f,
             1f,
-            UserSettingsData.DefaultSfxVolume,
-            v =>
-        {
-            if (TryGetSettingsService(out UserSettingsService settings))
-                settings.SfxVolume = v;
-        });
+            UserSettingsData.DefaultSfxVolume);
         _musicSlider = CreateSettingRow(
             panel.transform,
             "MUSIC VOLUME",
             ref y,
             0f,
             1f,
-            UserSettingsData.DefaultMusicVolume,
-            v =>
-        {
-            if (TryGetSettingsService(out UserSettingsService settings))
-                settings.MusicVolume = v;
-        });
+            UserSettingsData.DefaultMusicVolume);
 
         CreateSectionHeader(panel.transform, "ACCESSIBILITY", ref y);
-        _reducedMotionToggle = CreateToggleRow(panel.transform, "Reduced Motion", ref y, on =>
-        {
-            if (TryGetSettingsService(out UserSettingsService settings))
-                settings.ReducedMotion = on;
-
-            PresentationAccessibilityState current = PresentationAccessibilityRuntime.Current;
-            if (current.ReducedMotion != on)
-                PersistAccessibility(current.WithReducedMotion(on));
-        });
-        _reducedShakeToggle = CreateToggleRow(panel.transform, "Reduced Shake", ref y, on =>
-            PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedShake(on)));
-        _reducedFlashToggle = CreateToggleRow(panel.transform, "Reduced Flash", ref y, on =>
-            PersistAccessibility(PresentationAccessibilityRuntime.Current.WithReducedFlash(on)));
-        _combatTextModeDropdown = CreateCombatTextModeRow(panel.transform, ref y, value =>
-        {
-            CombatTextMode mode = value <= 0 ? CombatTextMode.Off : CombatTextMode.Full;
-            PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatText(mode));
-        });
+        _reducedMotionToggle = CreateToggleRow(panel.transform, "Reduced Motion", ref y);
+        _reducedShakeToggle = CreateToggleRow(panel.transform, "Reduced Shake", ref y);
+        _reducedFlashToggle = CreateToggleRow(panel.transform, "Reduced Flash", ref y);
+        _combatTextModeDropdown = CreateCombatTextModeRow(panel.transform, ref y);
         _combatTextScaleSlider = CreateSettingRow(
             panel.transform,
             "Combat Text Scale",
             ref y,
             PresentationAccessibilitySettings.MinimumCombatTextScale,
             PresentationAccessibilitySettings.MaximumCombatTextScale,
-            1f,
-            value =>
-            {
-                UpdateCombatTextScaleLabel(value);
-                PersistAccessibility(PresentationAccessibilityRuntime.Current.WithCombatTextScale(value));
-            });
+            1f);
         _combatTextScaleLabel = CreateSettingValueLabel(_combatTextScaleSlider, "100%");
 
         _settingsBackButton = CreateIndustrialButton(panel.transform, "BackButton", "BACK", new Vector2(280f, 58f), WarningRust);
         SetAnchoredRect((RectTransform)_settingsBackButton.transform, new Vector2(0.5f, 0f), new Vector2(0f, 30f), new Vector2(280f, 58f), new Vector2(0.5f, 0f));
-        _settingsBackButton.onClick.AddListener(CloseSettings);
 
         ConfigureVerticalNavigation(
             _hSensSlider,
@@ -626,6 +713,7 @@ public class PauseMenuUI : MonoBehaviour
             _settingsBackButton);
         _settingsPanel.SetActive(false);
     }
+#endif
 
     private void SetSettingsView(bool showSettings, bool updateFocus)
     {
@@ -668,6 +756,7 @@ public class PauseMenuUI : MonoBehaviour
         builder.AppendLine(value);
     }
 
+#if UNITY_EDITOR
     private static void CreateSectionHeader(Transform parent, string text, ref float y)
     {
         TextMeshProUGUI header = CreateLabel(
@@ -720,8 +809,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private static TMP_Dropdown CreateCombatTextModeRow(
         Transform parent,
-        ref float y,
-        UnityEngine.Events.UnityAction<int> onChanged)
+        ref float y)
     {
         var row = new GameObject("Combat Text", typeof(RectTransform));
         row.transform.SetParent(parent, false);
@@ -805,7 +893,6 @@ public class PauseMenuUI : MonoBehaviour
         dropdown.template = BuildCombatTextDropdownTemplate(dropdownGo.transform, out TextMeshProUGUI itemLabel);
         dropdown.itemText = itemLabel;
         dropdown.SetValueWithoutNotify(1);
-        dropdown.onValueChanged.AddListener(onChanged);
         dropdown.RefreshShownValue();
 
         y -= 54f;
@@ -911,8 +998,7 @@ public class PauseMenuUI : MonoBehaviour
         ref float y,
         float min,
         float max,
-        float defaultValue,
-        UnityEngine.Events.UnityAction<float> onChanged)
+        float defaultValue)
     {
         var row = new GameObject(label, typeof(RectTransform));
         row.transform.SetParent(parent, false);
@@ -926,13 +1012,12 @@ public class PauseMenuUI : MonoBehaviour
 
         Slider slider = CreateIndustrialSlider(row.transform, "Slider", new Vector2(540f, 24f), min, max, defaultValue);
         SetAnchoredRect((RectTransform)slider.transform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(540f, 24f), new Vector2(0.5f, 0f));
-        slider.onValueChanged.AddListener(onChanged);
 
         y -= 68f;
         return slider;
     }
 
-    private static Toggle CreateToggleRow(Transform parent, string label, ref float y, UnityEngine.Events.UnityAction<bool> onChanged)
+    private static Toggle CreateToggleRow(Transform parent, string label, ref float y)
     {
         var row = new GameObject(label, typeof(RectTransform));
         row.transform.SetParent(parent, false);
@@ -981,7 +1066,6 @@ public class PauseMenuUI : MonoBehaviour
         colors.colorMultiplier = 1f;
         colors.fadeDuration = 0.08f;
         toggle.colors = colors;
-        toggle.onValueChanged.AddListener(onChanged);
 
         TextMeshProUGUI lbl = CreateLabel(toggleGo.transform, "Label", label, 15f, TextAlignmentOptions.MidlineLeft, Bone);
         Stretch(lbl.rectTransform, new Vector2(48f, 0f), Vector2.zero);
@@ -1209,6 +1293,7 @@ public class PauseMenuUI : MonoBehaviour
         rect.offsetMin = offsetMin;
         rect.offsetMax = offsetMax;
     }
+#endif
 
     private static void FocusSelectable(Selectable selectable)
     {
@@ -1229,22 +1314,5 @@ public class PauseMenuUI : MonoBehaviour
         GameObject selected = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
         if (selected != null && _root != null && selected.transform.IsChildOf(_root.transform))
             eventSystem.SetSelectedGameObject(null);
-    }
-}
-
-internal sealed class PauseMenuDropdown : TMP_Dropdown
-{
-    protected override GameObject CreateDropdownList(GameObject template)
-    {
-        GameObject dropdownList = base.CreateDropdownList(template);
-        Canvas pauseCanvas = transform.GetComponentInParent<Canvas>();
-        Canvas popupCanvas = dropdownList.GetComponent<Canvas>();
-        if (pauseCanvas == null || popupCanvas == null)
-            return dropdownList;
-
-        popupCanvas.overrideSorting = true;
-        popupCanvas.sortingLayerID = pauseCanvas.sortingLayerID;
-        popupCanvas.sortingOrder = pauseCanvas.sortingOrder + 2;
-        return dropdownList;
     }
 }

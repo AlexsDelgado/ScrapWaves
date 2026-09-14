@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// HUD mínimo: stats arriba-izquierda (nivel, EXP, enemigos eliminados) y barra superior de overheat (roja, 0–100%).
-/// Crea Canvas e hijos en runtime; asigna <see cref="PlayerXP"/> y <see cref="HeatManager"/> o déjalos vacíos para autobúsqueda.
+/// La vista se edita en la escena; referencias de gameplay opcionales (autobúsqueda).
 /// </summary>
 [DisallowMultipleComponent]
 public class SurvivorHud : MonoBehaviour
@@ -27,12 +27,11 @@ public class SurvivorHud : MonoBehaviour
 
     [SerializeField] private Color _statsPanelColor = new Color(0f, 0f, 0f, 0.45f);
 
-    private TextMeshProUGUI _levelText;
-    private TextMeshProUGUI _expText;
-    private TextMeshProUGUI _killsText;
-    private Image _heatFill;
-
-    private static Sprite s_whiteSprite;
+    [SerializeField] private Canvas _canvas;
+    [SerializeField] private TextMeshProUGUI _levelText;
+    [SerializeField] private TextMeshProUGUI _expText;
+    [SerializeField] private TextMeshProUGUI _killsText;
+    [SerializeField] private Image _heatFill;
 
     private void Awake()
     {
@@ -41,7 +40,6 @@ public class SurvivorHud : MonoBehaviour
         if (_heatManager == null)
             _heatManager = HeatManager.GetInstance();
 
-        BuildUi();
     }
 
     private void OnEnable()
@@ -77,15 +75,23 @@ public class SurvivorHud : MonoBehaviour
     private void OnXpOrLevelChanged(int _) => RefreshLevelAndExp();
     private void OnXpOrLevelChanged() => RefreshLevelAndExp();
 
-    private void BuildUi()
+#if UNITY_EDITOR
+    public void AuthorUi(Transform uiRoot)
     {
+        if (_canvas != null)
+        {
+            if (uiRoot != null && !_canvas.transform.IsChildOf(uiRoot))
+                _canvas.transform.SetParent(uiRoot, false);
+            return;
+        }
         var canvasGo = new GameObject("SurvivorHUD_Canvas");
-        canvasGo.transform.SetParent(transform, false);
+        canvasGo.transform.SetParent(uiRoot, false);
         int uiLayer = LayerMask.NameToLayer("UI");
         if (uiLayer >= 0)
             canvasGo.layer = uiLayer;
 
         var canvas = canvasGo.AddComponent<Canvas>();
+        _canvas = canvas;
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 500;
 
@@ -104,6 +110,7 @@ public class SurvivorHud : MonoBehaviour
 
         CreateHeatBar(canvasGo.transform);
         CreateStatsBlock(canvasGo.transform);
+        UnityEditor.EditorUtility.SetDirty(this);
     }
 
     private void CreateHeatBar(Transform canvas)
@@ -188,6 +195,7 @@ public class SurvivorHud : MonoBehaviour
         return text;
     }
 
+#endif
     private void RefreshAll()
     {
         RefreshLevelAndExp();
@@ -229,17 +237,7 @@ public class SurvivorHud : MonoBehaviour
         _heatFill.fillAmount = Mathf.Clamp01(n);
     }
 
-    private static Sprite GetWhiteSprite()
-    {
-        if (s_whiteSprite != null)
-            return s_whiteSprite;
-
-        var tex = Texture2D.whiteTexture;
-        s_whiteSprite = Sprite.Create(
-            tex,
-            new Rect(0f, 0f, tex.width, tex.height),
-            new Vector2(0.5f, 0.5f),
-            100f);
-        return s_whiteSprite;
-    }
+#if UNITY_EDITOR
+    private static Sprite GetWhiteSprite() => HudUiFactory.WhiteSprite;
+#endif
 }

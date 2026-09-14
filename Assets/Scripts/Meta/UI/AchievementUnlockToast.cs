@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Toast no bloqueante (esquina superior derecha) cuando se completa un challenge meta.
@@ -27,6 +28,11 @@ public sealed class AchievementUnlockToast : MonoBehaviour
     private RectTransform _slot;
     private bool _isShowing;
     private SaveManager _subscribedSaveManager;
+    private AchievementUnlockToastView _sceneView;
+    private bool _sceneViewBound;
+    private GameObject _legacyToast;
+    private CanvasGroup _legacyGroup;
+    private RectTransform _legacyRect;
 
     private void Awake()
     {
@@ -53,6 +59,7 @@ public sealed class AchievementUnlockToast : MonoBehaviour
     private void OnDestroy()
     {
         Unsubscribe();
+        FinishPresentation();
         if (Instance == this)
             Instance = null;
     }
@@ -105,8 +112,6 @@ public sealed class AchievementUnlockToast : MonoBehaviour
     private IEnumerator ShowQueueCoroutine()
     {
         _isShowing = true;
-        EnsureUiExists();
-
         while (_pending.Count > 0)
         {
             AchievementDefinition achievement = _pending.Dequeue();
@@ -118,31 +123,21 @@ public sealed class AchievementUnlockToast : MonoBehaviour
 
     private IEnumerator ShowToastCoroutine(AchievementDefinition achievement)
     {
-        GameObject toastGo = BuildToast(achievement);
-        CanvasGroup group = toastGo.GetComponent<CanvasGroup>();
-        RectTransform rt = toastGo.GetComponent<RectTransform>();
-
-        group.alpha = 0f;
-        Vector2 shown = _anchoredOffset;
-        Vector2 hidden = shown + new Vector2(24f, 0f);
-        rt.anchoredPosition = hidden;
-
         float fadeIn = 0f;
         while (fadeIn < _fadeDuration)
         {
+            if (!TryPreparePresentation(achievement)) { yield return null; continue; }
             fadeIn += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(fadeIn / _fadeDuration);
-            group.alpha = t;
-            rt.anchoredPosition = Vector2.Lerp(hidden, shown, t);
+            SetPresentationAlpha(t);
             yield return null;
         }
-
-        group.alpha = 1f;
-        rt.anchoredPosition = shown;
 
         float hold = 0f;
         while (hold < _visibleDuration)
         {
+            if (!TryPreparePresentation(achievement)) { yield return null; continue; }
+            SetPresentationAlpha(1f);
             hold += Time.unscaledDeltaTime;
             yield return null;
         }
@@ -150,14 +145,87 @@ public sealed class AchievementUnlockToast : MonoBehaviour
         float fadeOut = 0f;
         while (fadeOut < _fadeDuration)
         {
+            if (!TryPreparePresentation(achievement)) { yield return null; continue; }
             fadeOut += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(fadeOut / _fadeDuration);
-            group.alpha = 1f - t;
-            rt.anchoredPosition = Vector2.Lerp(shown, hidden, t);
+            SetPresentationAlpha(1f - t);
             yield return null;
         }
 
-        Destroy(toastGo);
+        FinishPresentation();
+    }
+
+    // The title screen retains its existing toast construction. Gameplay uses only
+    // the saved scene view and waits through scene transitions without losing queue order.
+    private bool TryPreparePresentation(AchievementDefinition achievement)
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.name == "TitleScreen")
+        {
+            if (_sceneView != null) _sceneView.Hide();
+            _sceneView = null;
+            _sceneViewBound = false;
+            EnsureUiExists();
+            _canvas.gameObject.SetActive(true);
+            if (_legacyToast == null)
+            {
+                _legacyToast = BuildToast(achievement);
+                _legacyGroup = _legacyToast.GetComponent<CanvasGroup>();
+                _legacyRect = _legacyToast.GetComponent<RectTransform>();
+            }
+            return true;
+        }
+
+        if (_legacyToast != null) Destroy(_legacyToast);
+        _legacyToast = null;
+        if (_canvas != null) _canvas.gameObject.SetActive(false);
+        if (_sceneView == null || !_sceneView.IsConfigured || _sceneView.gameObject.scene != scene)
+        {
+            if (_sceneView != null) _sceneView.Hide();
+            _sceneView = null;
+            _sceneViewBound = false;
+            foreach (AchievementUnlockToastView candidate in FindObjectsByType<AchievementUnlockToastView>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject.scene != scene || !candidate.IsConfigured) continue;
+                _sceneView = candidate;
+                break;
+            }
+        }
+        if (_sceneView == null) return false;
+        if (!_sceneView.CanPresent)
+        {
+            _sceneView.Hide();
+            _sceneViewBound = false;
+            return false;
+        }
+        if (!_sceneViewBound)
+        {
+            _sceneView.Bind(achievement);
+            _sceneViewBound = true;
+        }
+        return true;
+    }
+
+    private void SetPresentationAlpha(float alpha)
+    {
+        if (_sceneView != null)
+            _sceneView.SetAnimation(alpha);
+        else if (_legacyGroup != null && _legacyRect != null)
+        {
+            _legacyGroup.alpha = alpha;
+            _legacyRect.anchoredPosition = _anchoredOffset + new Vector2(24f * (1f - alpha), 0f);
+        }
+    }
+
+    private void FinishPresentation()
+    {
+        if (_sceneView != null) _sceneView.Hide();
+        _sceneViewBound = false;
+        if (_legacyToast != null) Destroy(_legacyToast);
+        _legacyToast = null;
+        _legacyGroup = null;
+        _legacyRect = null;
     }
 
     private GameObject BuildToast(AchievementDefinition achievement)

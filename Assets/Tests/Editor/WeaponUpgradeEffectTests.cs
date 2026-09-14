@@ -1275,8 +1275,8 @@ public class WeaponUpgradeEffectTests
         try
         {
             ReticleHud hud = owner.AddComponent<ReticleHud>();
-            if (ReadField<GameObject>(hud, "_canvasRoot") == null)
-                InvokePrivate(hud, "Awake");
+            hud.AuthorUi(owner.transform);
+            InvokePrivate(hud, "Awake");
             InvokePrivate(hud, "OnEnable");
 
             WeaponWeakPointFeedback.NotifyWeakPointHit();

@@ -149,6 +149,7 @@ public sealed class PresentationAccessibilityTests
         try
         {
             PauseMenuUI pauseMenu = root.AddComponent<PauseMenuUI>();
+            pauseMenu.AuthorUi();
             MethodInfo awake = typeof(PauseMenuUI).GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(awake, Is.Not.Null);
             awake.Invoke(pauseMenu, null);

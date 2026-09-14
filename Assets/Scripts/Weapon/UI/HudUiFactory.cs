@@ -20,6 +20,7 @@ public static class HudUiFactory
     public static readonly Color MutedTextColor = new(0.78f, 0.82f, 0.88f, 1f);
 
     private static Sprite s_whiteSprite;
+    public const string WhiteSpriteResourcePath = "UI/HudWhite";
 
     public static Sprite WhiteSprite
     {
@@ -28,13 +29,51 @@ public static class HudUiFactory
             if (s_whiteSprite != null)
                 return s_whiteSprite;
 
-            var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            s_whiteSprite = Sprite.Create(tex, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+            s_whiteSprite = Resources.Load<Sprite>(WhiteSpriteResourcePath);
             return s_whiteSprite;
         }
     }
+
+#if UNITY_EDITOR
+    /// <summary>Creates the durable shared fill sprite once during editor authoring.</summary>
+    public static Sprite EnsureWhiteSpriteAsset()
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Author the shared HUD sprite outside Play Mode.");
+        const string folder = "Assets/Resources/UI";
+        const string path = folder + "/HudWhite.asset";
+        Sprite existing = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (existing != null)
+        {
+            s_whiteSprite = existing;
+            return existing;
+        }
+        if (UnityEditor.AssetDatabase.LoadMainAssetAtPath(path) != null)
+            throw new System.InvalidOperationException("The shared HUD sprite asset exists but contains no Sprite: " + path);
+        if (!UnityEditor.AssetDatabase.IsValidFolder("Assets/Resources"))
+            UnityEditor.AssetDatabase.CreateFolder("Assets", "Resources");
+        if (!UnityEditor.AssetDatabase.IsValidFolder(folder))
+            UnityEditor.AssetDatabase.CreateFolder("Assets/Resources", "UI");
+
+        var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+        {
+            name = "HudWhiteTexture",
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        texture.SetPixel(0, 0, Color.white);
+        texture.Apply(false, true);
+        Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+        sprite.name = "HudWhite";
+        UnityEditor.AssetDatabase.CreateAsset(texture, path);
+        UnityEditor.AssetDatabase.AddObjectToAsset(sprite, path);
+        UnityEditor.AssetDatabase.SetMainObject(sprite, path);
+        UnityEditor.EditorUtility.SetDirty(sprite);
+        UnityEditor.AssetDatabase.SaveAssetIfDirty(sprite);
+        s_whiteSprite = sprite;
+        return sprite;
+    }
+#endif
 
     public static Image CreatePanel(Transform parent, string name, Vector2 size)
     {

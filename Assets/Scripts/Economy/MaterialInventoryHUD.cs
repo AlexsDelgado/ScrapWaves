@@ -16,14 +16,14 @@ public class MaterialInventoryHUD : MonoBehaviour
     [SerializeField, Tooltip("Si está activo, muestra todos los materiales; si no, solo los que tengas (>0).")]
     private bool _showEmpty = true;
 
-    private MaterialInventoryDisplayView _display;
+    [SerializeField] private MaterialInventoryDisplayView _display;
+    [SerializeField] private Canvas _canvas;
 
     private void Awake() => ResolveInventory();
 
     private void OnEnable()
     {
         ResolveInventory();
-        EnsureUi();
         if (_inventory != null)
         {
             _inventory.OnInventoryChanged += Refresh;
@@ -52,13 +52,20 @@ public class MaterialInventoryHUD : MonoBehaviour
             _display.Refresh(_inventory);
     }
 
-    private void EnsureUi()
+#if UNITY_EDITOR
+    public void AuthorUi(Transform uiRoot)
     {
         if (_display != null)
+        {
+            if (_canvas != null && uiRoot != null && !_canvas.transform.IsChildOf(uiRoot))
+                _canvas.transform.SetParent(uiRoot, false);
             return;
+        }
 
         var canvasGo = new GameObject("MaterialInventoryHUDCanvas", typeof(RectTransform));
+        canvasGo.transform.SetParent(uiRoot, false);
         var canvas = canvasGo.AddComponent<Canvas>();
+        _canvas = canvas;
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 100;
 
@@ -100,5 +107,7 @@ public class MaterialInventoryHUD : MonoBehaviour
             showNames: true,
             iconSize: _iconSize,
             fontSize: _fontSize);
+        UnityEditor.EditorUtility.SetDirty(this);
     }
+#endif
 }

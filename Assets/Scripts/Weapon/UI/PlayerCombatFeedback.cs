@@ -11,11 +11,15 @@ public class PlayerCombatFeedback : MonoBehaviour
     [SerializeField] private PlayerHealth _playerHealth;
     [SerializeField] private PlayerMovement _playerMovement;
 
-    private Image _damageFlash;
-    private Image _invulnOverlay;
-    private Image _stunOverlay;
-    private Image _burnIcon;
-    private TextMeshProUGUI _stunLabel;
+    [Header("Authored UI")]
+    [SerializeField] private Image _damageFlash;
+    [SerializeField] private Image _invulnOverlay;
+    [SerializeField] private Image _stunOverlay;
+    [SerializeField] private Image _burnIcon;
+    [SerializeField] private TextMeshProUGUI _stunLabel;
+    private Color _damageTint = new(0.9f, 0.1f, 0.08f);
+    private Color _invulnTint = new(1f, 0.4f, 0.4f);
+    private Color _stunTint = new(1f, 0.9f, 0.2f);
     private float _flashTimer;
     private bool _reducedMotion;
     private bool _screenFlashEnabled = true;
@@ -23,7 +27,10 @@ public class PlayerCombatFeedback : MonoBehaviour
     private void Awake()
     {
         ResolveRefs();
-        BuildUi();
+        TryWireFromHierarchy();
+        if (_damageFlash != null) _damageTint = _damageFlash.color;
+        if (_invulnOverlay != null) _invulnTint = _invulnOverlay.color;
+        if (_stunOverlay != null) _stunTint = _stunOverlay.color;
     }
 
     private void OnEnable()
@@ -67,7 +74,7 @@ public class PlayerCombatFeedback : MonoBehaviour
 
         _flashTimer = 0f;
         if (_damageFlash != null)
-            _damageFlash.color = new Color(0.9f, 0.1f, 0.08f, 0f);
+            _damageFlash.color = WithAlpha(_damageTint, 0f);
     }
 
     private void OnStunned()
@@ -75,14 +82,36 @@ public class PlayerCombatFeedback : MonoBehaviour
         if (_stunOverlay != null)
         {
             float alpha = _reducedMotion || !_screenFlashEnabled ? 0.18f : 0.35f;
-            _stunOverlay.color = new Color(1f, 0.9f, 0.2f, alpha);
+            _stunOverlay.color = WithAlpha(_stunTint, alpha);
         }
+    }
+
+    private bool TryWireFromHierarchy()
+    {
+        if (_damageFlash == null) _damageFlash = HudUiWire.FindImage(transform, "DamageFlash");
+        if (_invulnOverlay == null) _invulnOverlay = HudUiWire.FindImage(transform, "InvulnOverlay");
+        if (_stunOverlay == null) _stunOverlay = HudUiWire.FindImage(transform, "StunOverlay");
+        if (_burnIcon == null) _burnIcon = HudUiWire.FindImage(transform, "BurnIcon");
+        if (_stunLabel == null) _stunLabel = HudUiWire.FindTmp(transform, "StunLabel");
+        return _damageFlash != null && _invulnOverlay != null && _stunOverlay != null && _burnIcon != null && _stunLabel != null;
+    }
+
+#if UNITY_EDITOR
+    public void AuthorUi()
+    {
+        if (Application.isPlaying)
+            throw new InvalidOperationException("Author player feedback UI outside Play Mode.");
+        if (TryWireFromHierarchy())
+            return;
+        if (_damageFlash != null || _invulnOverlay != null || _stunOverlay != null || _burnIcon != null || _stunLabel != null)
+            throw new InvalidOperationException("The existing player feedback hierarchy is incomplete; repair its references before authoring.");
+        BuildUi();
     }
 
     private void BuildUi()
     {
         _damageFlash = CreateFullscreenImage("DamageFlash", new Color(0.9f, 0.1f, 0.08f, 0f));
-        _invulnOverlay = CreateFullscreenImage("InvulnOverlay", new Color(1f, 0.35f, 0.35f, 0f));
+        _invulnOverlay = CreateFullscreenImage("InvulnOverlay", new Color(1f, 0.4f, 0.4f, 0f));
         _stunOverlay = CreateFullscreenImage("StunOverlay", new Color(1f, 0.9f, 0.2f, 0f));
 
         var burnGo = new GameObject("BurnIcon", typeof(RectTransform));
@@ -126,6 +155,13 @@ public class PlayerCombatFeedback : MonoBehaviour
         img.raycastTarget = false;
         return img;
     }
+#endif
+
+    private static Color WithAlpha(Color color, float alpha)
+    {
+        color.a = alpha;
+        return color;
+    }
 
     private void Update()
     {
@@ -135,11 +171,11 @@ public class PlayerCombatFeedback : MonoBehaviour
             {
                 _flashTimer -= Time.deltaTime;
                 float t = Mathf.Clamp01(_flashTimer / 0.15f);
-                _damageFlash.color = new Color(0.9f, 0.1f, 0.08f, 0.45f * t);
+                _damageFlash.color = WithAlpha(_damageTint, 0.45f * t);
             }
             else
             {
-                _damageFlash.color = new Color(0.9f, 0.1f, 0.08f, 0f);
+                _damageFlash.color = WithAlpha(_damageTint, 0f);
             }
         }
 
@@ -150,11 +186,11 @@ public class PlayerCombatFeedback : MonoBehaviour
                 float pulse = _reducedMotion || !_screenFlashEnabled
                     ? 0.14f
                     : 0.12f + 0.1f * (0.5f + 0.5f * Mathf.Sin(Time.time * 12f));
-                _invulnOverlay.color = new Color(1f, 0.4f, 0.4f, pulse);
+                _invulnOverlay.color = WithAlpha(_invulnTint, pulse);
             }
             else
             {
-                _invulnOverlay.color = new Color(1f, 0.4f, 0.4f, 0f);
+                _invulnOverlay.color = WithAlpha(_invulnTint, 0f);
             }
 
             if (_burnIcon != null)
@@ -170,8 +206,8 @@ public class PlayerCombatFeedback : MonoBehaviour
                     ? 0.18f
                     : 0.18f + 0.08f * Mathf.Sin(Time.time * 8f);
                 _stunOverlay.color = stunned
-                    ? new Color(1f, 0.9f, 0.2f, stunAlpha)
-                    : new Color(1f, 0.9f, 0.2f, 0f);
+                    ? WithAlpha(_stunTint, stunAlpha)
+                    : WithAlpha(_stunTint, 0f);
             }
             if (_stunLabel != null)
                 _stunLabel.gameObject.SetActive(stunned);

@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
+#if UNITY_EDITOR
+using UnityEditor;
+using System.Globalization;
+#endif
 
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(100)]
@@ -49,39 +53,48 @@ public class ReticleHud : MonoBehaviour
     [SerializeField, Min(1f)] private float _rocketCornerArmLength = 96f;
     [SerializeField, Min(0.1f)] private float _rocketFrameEaseSpeed = 9f;
 
-    private GameObject _canvasRoot;
-    private RectTransform _wideBracketRoot;
-    private RectTransform _circleDotRoot;
-    private RectTransform _mortarVRoot;
-    private RectTransform _rocketFrame;
+    [Header("Authored Views")]
+    [SerializeField] private GameObject _canvasRoot;
+    [SerializeField] private RectTransform _wideBracketRoot;
+    [SerializeField] private RectTransform _circleDotRoot;
+    [SerializeField] private RectTransform _mortarVRoot;
+    [SerializeField] private RectTransform _rocketFrame;
+    [SerializeField] private Image[] _authoredTintImages = System.Array.Empty<Image>();
 
     private WeaponTestingSandboxManager _sandbox;
-    private GameObject _mortarMarkerRoot;
-    private LineRenderer _mortarLandingRing;
-    private LineRenderer _mortarBlastRing;
-    private Transform _mortarCenterDot;
-    private Material _mortarLineMaterial;
-    private Material _mortarDotMaterial;
+    [SerializeField] private GameObject _mortarMarkerRoot;
+    [SerializeField] private LineRenderer _mortarLandingRing;
+    [SerializeField] private LineRenderer _mortarBlastRing;
+    [SerializeField] private Transform _mortarCenterDot;
+    [System.Serializable]
+    private sealed class MortarMarkerBinding
+    {
+        public GameObject Prefab;
+        public MortarLandingIndicatorVfx Marker;
+    }
+    [SerializeField] private List<MortarMarkerBinding> _mortarMarkerBindings = new();
     private float _mortarPredictionTimer;
     private MortarLandingIndicatorVfx _authoredMortarMarker;
     private GameObject _authoredMortarMarkerPrefab;
     private readonly RaycastHit[] _mortarPresentationSupportHits = new RaycastHit[16];
 
-    private Texture2D _circleRingTexture;
-    private Sprite _circleRingSprite;
     private readonly List<Image> _reticleTintImages = new();
     private readonly Dictionary<Image, Color> _reticleBaseColors = new();
     private bool _isVisible;
     private bool _sandboxLookupComplete;
     private bool _weakPointFlashActive;
     private float _weakPointFlashTimer;
-    private static Sprite s_whiteSprite;
+
+    public bool HasAuthoredUi => _canvasRoot != null && _wideBracketRoot != null
+        && _circleDotRoot != null && _mortarVRoot != null && _rocketFrame != null
+        && _mortarMarkerRoot != null && _mortarLandingRing != null
+        && _mortarBlastRing != null && _mortarCenterDot != null;
 
     private void Awake()
     {
         ResolveDependencies();
-        BuildUi();
-        BuildMortarMarker();
+        CacheReticleTintColors();
+        SetMortarMarkerVisible(false);
         SetVisible(_visibleOnStart);
     }
 
@@ -89,11 +102,14 @@ public class ReticleHud : MonoBehaviour
     {
         WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
         WeaponWeakPointFeedback.WeakPointHit += HandleWeakPointHit;
+        if (_canvasRoot != null) _canvasRoot.SetActive(_isVisible);
     }
 
     private void OnDisable()
     {
         WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
+        if (_canvasRoot != null) _canvasRoot.SetActive(false);
+        SetMortarMarkerVisible(false);
     }
 
     private void LateUpdate()
@@ -140,20 +156,16 @@ public class ReticleHud : MonoBehaviour
     private void OnDestroy()
     {
         WeaponWeakPointFeedback.WeakPointHit -= HandleWeakPointHit;
-        DestroyOwnedObject(_authoredMortarMarker != null ? _authoredMortarMarker.gameObject : null);
-        DestroyOwnedObject(_mortarMarkerRoot);
-        DestroyOwnedObject(_mortarLineMaterial);
-        DestroyOwnedObject(_mortarDotMaterial);
-        DestroyOwnedObject(_circleRingSprite);
-        DestroyOwnedObject(_circleRingTexture);
+        if (_canvasRoot != null) _canvasRoot.SetActive(false);
+        SetMortarMarkerVisible(false);
     }
 
     public void SetVisible(bool visible)
     {
-        _isVisible = visible;
+        _isVisible = visible && HasAuthoredUi;
         if (_canvasRoot != null)
-            _canvasRoot.SetActive(visible);
-        if (!visible)
+            _canvasRoot.SetActive(_isVisible);
+        if (!_isVisible)
             SetMortarMarkerVisible(false);
     }
 
@@ -206,10 +218,56 @@ public class ReticleHud : MonoBehaviour
         ? _sandbox.CurrentAimSolution
         : _weaponManager != null ? _weaponManager.CurrentAimSolution : default;
 
-    private void BuildUi()
+#if UNITY_EDITOR
+    /// <summary>One-time scene authoring. Existing views and hand-edited values are preserved.</summary>
+    public void AuthorUi(Transform uiRoot)
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Reticle views must be authored outside Play Mode.");
+        if (uiRoot == null)
+            throw new System.ArgumentNullException(nameof(uiRoot));
+
+        if (_canvasRoot == null)
+        {
+            _reticleTintImages.Clear();
+            _reticleBaseColors.Clear();
+            BuildUi(uiRoot);
+            _authoredTintImages = _reticleTintImages.ToArray();
+        }
+        if (_mortarMarkerRoot == null) BuildMortarMarker(uiRoot);
+        AuthorMortarProfileMarkers(uiRoot);
+        CacheReticleTintColors();
+        ApplyMode(ReticleMode.CircleDot);
+        SetMortarMarkerVisible(false);
+        SetVisible(_visibleOnStart);
+        EditorUtility.SetDirty(this);
+    }
+
+    private void AuthorMortarProfileMarkers(Transform uiRoot)
+    {
+        foreach (string guid in AssetDatabase.FindAssets("t:WeaponPresentationProfile"))
+        {
+            WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(AssetDatabase.GUIDToAssetPath(guid));
+            GameObject prefab = profile != null ? profile.Mortar?.LandingIndicatorPrefab : null;
+            if (prefab == null || prefab.GetComponent<MortarLandingIndicatorVfx>() == null) continue;
+            MortarMarkerBinding binding = _mortarMarkerBindings.Find(entry => entry != null && entry.Prefab == prefab);
+            if (binding?.Marker != null) continue;
+            if (binding == null)
+            {
+                binding = new MortarMarkerBinding { Prefab = prefab };
+                _mortarMarkerBindings.Add(binding);
+            }
+            GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, uiRoot);
+            instance.name = "MortarPrediction_" + prefab.name;
+            binding.Marker = instance.GetComponent<MortarLandingIndicatorVfx>();
+            instance.SetActive(false);
+        }
+    }
+
+    private void BuildUi(Transform uiRoot)
     {
         _canvasRoot = new GameObject("ReticleHUD_Canvas");
-        _canvasRoot.transform.SetParent(transform, false);
+        _canvasRoot.transform.SetParent(uiRoot, false);
 
         int uiLayer = LayerMask.NameToLayer("UI");
         if (uiLayer >= 0)
@@ -258,21 +316,21 @@ public class ReticleHud : MonoBehaviour
             "CircleDotReticle",
             new Vector2(_circleDiameter, _circleDiameter));
 
-        _circleRingSprite = CreateRingSprite();
+        Sprite circleRingSprite = CreateRingSprite();
         CreateImage(
             _circleDotRoot,
             "CircleShadow",
             _shadowOffset,
             new Vector2(_circleDiameter, _circleDiameter),
             _shadowColor,
-            _circleRingSprite);
+            circleRingSprite);
         CreateImage(
             _circleDotRoot,
             "Circle",
             Vector2.zero,
             new Vector2(_circleDiameter, _circleDiameter),
             _lineColor,
-            _circleRingSprite,
+            circleRingSprite,
             tintWithWeakPointFlash: true);
 
         CreateImage(
@@ -340,6 +398,7 @@ public class ReticleHud : MonoBehaviour
             verticalPosition,
             new Vector2(_lineThickness, _rocketCornerArmLength));
     }
+#endif
 
     private void ApplyMode(ReticleMode mode)
     {
@@ -351,6 +410,7 @@ public class ReticleHud : MonoBehaviour
 
     private void UpdateRocketFrame(IRocketReticleStatus rocket)
     {
+        if (_rocketFrame == null) return;
         float progress = ReticlePresentationLogic.GetRocketLockProgress(
             rocket.CurrentRocketLocks,
             rocket.InitialRocketLocks,
@@ -373,22 +433,24 @@ public class ReticleHud : MonoBehaviour
             _rocketFrame.sizeDelta = _rocketMinimumFrameSize;
     }
 
-    private void BuildMortarMarker()
+#if UNITY_EDITOR
+    private void BuildMortarMarker(Transform uiRoot)
     {
         _mortarMarkerRoot = new GameObject("MortarLandingMarker");
-        _mortarLineMaterial = CreateLineMaterial();
-        _mortarDotMaterial = CreateUnlitMaterial(_mortarLandingColor);
+        _mortarMarkerRoot.transform.SetParent(uiRoot, false);
+        Material lineMaterial = GetAuthoredMaterial("MortarLine", Color.white, true);
+        Material dotMaterial = GetAuthoredMaterial("MortarDot_" + ColorUtility.ToHtmlStringRGBA(_mortarLandingColor), _mortarLandingColor, false);
 
         _mortarLandingRing = CreateWorldRing(
             _mortarMarkerRoot.transform,
             "LandingRing",
             _mortarInnerRingWidth,
-            _mortarLandingColor);
+            _mortarLandingColor, lineMaterial);
         _mortarBlastRing = CreateWorldRing(
             _mortarMarkerRoot.transform,
             "BlastRing",
             _mortarOuterRingWidth,
-            _mortarBlastColor);
+            _mortarBlastColor, lineMaterial);
 
         GameObject centerDot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         centerDot.name = "LandingPoint";
@@ -396,14 +458,18 @@ public class ReticleHud : MonoBehaviour
         centerDot.transform.localScale = Vector3.one * 0.13f;
         Collider dotCollider = centerDot.GetComponent<Collider>();
         if (dotCollider != null)
-            Destroy(dotCollider);
+            DestroyImmediate(dotCollider);
         Renderer renderer = centerDot.GetComponent<Renderer>();
         if (renderer != null)
-            renderer.sharedMaterial = _mortarDotMaterial;
+            renderer.sharedMaterial = dotMaterial;
         _mortarCenterDot = centerDot.transform;
+
+        UpdateWorldRing(_mortarLandingRing, _mortarMarkerRoot.transform.position, Vector3.up, _mortarLandingRingRadius);
+        UpdateWorldRing(_mortarBlastRing, _mortarMarkerRoot.transform.position, Vector3.up, _mortarLandingRingRadius);
 
         SetMortarMarkerVisible(false);
     }
+#endif
 
     private void UpdateMortarMarker(WeaponInstance runtime, IMortarReticleStatus mortar)
     {
@@ -469,11 +535,13 @@ public class ReticleHud : MonoBehaviour
         SetMortarMarkerVisible(true);
     }
 
+#if UNITY_EDITOR
     private LineRenderer CreateWorldRing(
         Transform parent,
         string name,
         float width,
-        Color color)
+        Color color,
+        Material material)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
@@ -485,13 +553,14 @@ public class ReticleHud : MonoBehaviour
         line.widthMultiplier = width;
         line.numCapVertices = 2;
         line.numCornerVertices = 2;
-        line.sharedMaterial = _mortarLineMaterial;
+        line.sharedMaterial = material;
         line.startColor = color;
         line.endColor = color;
         line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         line.receiveShadows = false;
         return line;
     }
+#endif
 
     private static void UpdateWorldRing(
         LineRenderer line,
@@ -518,6 +587,9 @@ public class ReticleHud : MonoBehaviour
 
     private void SetMortarMarkerVisible(bool visible)
     {
+        foreach (MortarMarkerBinding binding in _mortarMarkerBindings)
+            if (binding?.Marker != null && binding.Marker != _authoredMortarMarker)
+                binding.Marker.gameObject.SetActive(false);
         if (_authoredMortarMarker != null && _authoredMortarMarker.gameObject.activeSelf != visible)
             _authoredMortarMarker.gameObject.SetActive(visible);
         bool showLegacy = visible && _authoredMortarMarker == null;
@@ -532,24 +604,20 @@ public class ReticleHud : MonoBehaviour
             return;
 
         if (_authoredMortarMarker != null)
-            DestroyOwnedObject(_authoredMortarMarker.gameObject);
+            _authoredMortarMarker.gameObject.SetActive(false);
         _authoredMortarMarker = null;
         _authoredMortarMarkerPrefab = prefab;
         if (prefab == null)
             return;
-
-        GameObject instance = Instantiate(prefab);
-        instance.name = "Mortar Authored Landing Prediction";
-        _authoredMortarMarker = instance.GetComponent<MortarLandingIndicatorVfx>();
-        if (_authoredMortarMarker == null)
+        foreach (MortarMarkerBinding binding in _mortarMarkerBindings)
         {
-            DestroyOwnedObject(instance);
-            _authoredMortarMarkerPrefab = null;
-            return;
+            if (binding == null || binding.Prefab != prefab || binding.Marker == null) continue;
+            _authoredMortarMarker = binding.Marker;
+            break;
         }
-        instance.SetActive(false);
     }
 
+#if UNITY_EDITOR
     private RectTransform CreateCenteredRoot(string name, Vector2 size)
     {
         GameObject root = new GameObject(name);
@@ -613,6 +681,7 @@ public class ReticleHud : MonoBehaviour
             _lineColor,
             tintWithWeakPointFlash: true);
     }
+#endif
 
     private static void SetRootActive(RectTransform root, bool active)
     {
@@ -620,6 +689,7 @@ public class ReticleHud : MonoBehaviour
             root.gameObject.SetActive(active);
     }
 
+#if UNITY_EDITOR
     private Image CreateImage(
         Transform parent,
         string name,
@@ -648,7 +718,17 @@ public class ReticleHud : MonoBehaviour
         RegisterReticleTintImage(image, color, tintWithWeakPointFlash);
         return image;
     }
+#endif
 
+    private void CacheReticleTintColors()
+    {
+        _reticleTintImages.Clear();
+        _reticleBaseColors.Clear();
+        foreach (Image image in _authoredTintImages)
+            if (image != null) RegisterReticleTintImage(image, image.color, true);
+    }
+
+#if UNITY_EDITOR
     private Image CreateAnchoredImage(
         Transform parent,
         string name,
@@ -675,6 +755,7 @@ public class ReticleHud : MonoBehaviour
         RegisterReticleTintImage(image, color, tintWithWeakPointFlash);
         return image;
     }
+#endif
 
     private void RegisterReticleTintImage(Image image, Color baseColor, bool tintWithWeakPointFlash)
     {
@@ -744,10 +825,19 @@ public class ReticleHud : MonoBehaviour
         }
     }
 
+#if UNITY_EDITOR
+    private const string ReticleResourceFolder = "Assets/Art/UI/Reticle";
+
     private Sprite CreateRingSprite()
     {
-        // Generate a crisp circular outline without requiring a project texture asset.
-        _circleRingTexture = new Texture2D(
+        EnsureResourceFolder();
+        string key = _circleDiameter.ToString("R", CultureInfo.InvariantCulture) + "_" + _circleLineThickness.ToString("R", CultureInfo.InvariantCulture);
+        string path = ReticleResourceFolder + "/Circle_" + key.Replace('.', '_') + ".asset";
+        foreach (Object existing in AssetDatabase.LoadAllAssetsAtPath(path))
+            if (existing is Sprite sprite) return sprite;
+
+        // The generated outline is saved once; runtime Images reference this durable sprite.
+        Texture2D texture = new Texture2D(
             CircleTextureSize,
             CircleTextureSize,
             TextureFormat.RGBA32,
@@ -756,7 +846,7 @@ public class ReticleHud : MonoBehaviour
             name = "ReticleCircleRing",
             filterMode = FilterMode.Bilinear,
             wrapMode = TextureWrapMode.Clamp,
-            hideFlags = HideFlags.HideAndDontSave
+            hideFlags = HideFlags.None
         };
 
         Color[] pixels = new Color[CircleTextureSize * CircleTextureSize];
@@ -776,68 +866,53 @@ public class ReticleHud : MonoBehaviour
             }
         }
 
-        _circleRingTexture.SetPixels(pixels);
-        _circleRingTexture.Apply(false, true);
-        return Sprite.Create(
-            _circleRingTexture,
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        Sprite result = Sprite.Create(
+            texture,
             new Rect(0f, 0f, CircleTextureSize, CircleTextureSize),
             new Vector2(0.5f, 0.5f),
             CircleTextureSize);
+        result.name = "ReticleCircleRing";
+        AssetDatabase.CreateAsset(texture, path);
+        AssetDatabase.AddObjectToAsset(result, texture);
+        return result;
     }
 
-    private static Sprite GetWhiteSprite()
-    {
-        if (s_whiteSprite != null)
-            return s_whiteSprite;
+    // An Image with no sprite renders a solid rectangle, without a generated resource.
+    private static Sprite GetWhiteSprite() => null;
 
-        Texture2D texture = Texture2D.whiteTexture;
-        s_whiteSprite = Sprite.Create(
-            texture,
-            new Rect(0f, 0f, texture.width, texture.height),
-            new Vector2(0.5f, 0.5f),
-            100f);
-        return s_whiteSprite;
-    }
-
-    private static Material CreateUnlitMaterial(Color color)
+    private static Material GetAuthoredMaterial(string name, Color color, bool line)
     {
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        EnsureResourceFolder();
+        string path = ReticleResourceFolder + "/" + name + ".mat";
+        Material existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (existing != null) return existing;
+        Shader shader = Shader.Find(line ? "Sprites/Default" : "Universal Render Pipeline/Unlit");
         if (shader == null)
-            shader = Shader.Find("Sprites/Default");
+            shader = Shader.Find(line ? "Universal Render Pipeline/Unlit" : "Sprites/Default");
         if (shader == null)
             shader = Shader.Find("Unlit/Color");
 
         Material material = new Material(shader)
         {
             color = color,
-            hideFlags = HideFlags.HideAndDontSave
+            name = name
         };
+        AssetDatabase.CreateAsset(material, path);
         return material;
     }
 
-    private static Material CreateLineMaterial()
+    private static void EnsureResourceFolder()
     {
-        Shader shader = Shader.Find("Sprites/Default");
-        if (shader == null)
-            shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null)
-            shader = Shader.Find("Unlit/Color");
-
-        return new Material(shader)
+        string current = "Assets";
+        string[] parts = ReticleResourceFolder.Split('/');
+        for (int i = 1; i < parts.Length; i++)
         {
-            color = Color.white,
-            hideFlags = HideFlags.HideAndDontSave
-        };
+            string next = current + "/" + parts[i];
+            if (!AssetDatabase.IsValidFolder(next)) AssetDatabase.CreateFolder(current, parts[i]);
+            current = next;
+        }
     }
-
-    private static void DestroyOwnedObject(Object ownedObject)
-    {
-        if (ownedObject == null)
-            return;
-
-        if (Application.isPlaying)
-            Destroy(ownedObject);
-        else
-            DestroyImmediate(ownedObject);
-    }
+#endif
 }

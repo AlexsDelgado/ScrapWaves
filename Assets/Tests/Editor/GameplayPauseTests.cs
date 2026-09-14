@@ -50,6 +50,7 @@ public class GameplayPauseTests
         try
         {
             PauseMenuUI pauseMenu = root.AddComponent<PauseMenuUI>();
+            pauseMenu.AuthorUi();
             InvokePrivate(pauseMenu, "Awake");
             InvokePrivate(pauseMenu, "ShowPause");
 

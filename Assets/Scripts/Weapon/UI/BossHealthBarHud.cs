@@ -7,16 +7,17 @@ public class BossHealthBarHud : MonoBehaviour
 {
     [SerializeField] private BossManager _bossManager;
 
-    private GameObject _root;
-    private Image _fill;
-    private TextMeshProUGUI _nameText;
+    [Header("Authored UI")]
+    [SerializeField] private GameObject _root;
+    [SerializeField] private Image _fill;
+    [SerializeField] private TextMeshProUGUI _nameText;
     private EnemyHealth _trackedBoss;
 
     private void Awake()
     {
         if (_bossManager == null)
             _bossManager = FindAnyObjectByType<BossManager>();
-        BuildUi();
+        TryWireFromHierarchy();
         RefreshTarget();
     }
 
@@ -46,6 +47,31 @@ public class BossHealthBarHud : MonoBehaviour
 
         if (_fill != null && _trackedBoss.MaxHealth > 0)
             _fill.fillAmount = (float)_trackedBoss.CurrentHealth / _trackedBoss.MaxHealth;
+    }
+
+    private bool TryWireFromHierarchy()
+    {
+        if (_root == null)
+            _root = transform.Find("BossHealthBar")?.gameObject;
+        if (_root == null)
+            return false;
+        if (_nameText == null)
+            _nameText = HudUiWire.FindTmp(_root.transform, "BossName");
+        if (_fill == null)
+            _fill = _root.transform.Find("Bar/HealthFill/Fill")?.GetComponent<Image>();
+        return _fill != null && _nameText != null;
+    }
+
+#if UNITY_EDITOR
+    public void AuthorUi()
+    {
+        if (Application.isPlaying)
+            throw new System.InvalidOperationException("Author boss UI outside Play Mode.");
+        if (TryWireFromHierarchy())
+            return;
+        if (_root != null)
+            throw new System.InvalidOperationException("The existing boss health hierarchy is incomplete; repair its references before authoring.");
+        BuildUi();
     }
 
     private void BuildUi()
@@ -81,6 +107,7 @@ public class BossHealthBarHud : MonoBehaviour
         (_, _fill) = HudUiFactory.CreateHorizontalBar(barRoot.transform, "HealthFill", new Vector2(1152f, 28f), new Color(0.85f, 0.2f, 0.18f, 1f));
         _root.SetActive(false);
     }
+#endif
 
     private void RefreshTarget()
     {
@@ -88,7 +115,8 @@ public class BossHealthBarHud : MonoBehaviour
         _trackedBoss = _bossManager != null ? _bossManager.PrimaryBoss : null;
 
         bool show = _trackedBoss != null && _trackedBoss.CurrentHealth > 0;
-        _root.SetActive(show);
+        if (_root != null)
+            _root.SetActive(show);
         if (!show)
             return;
 

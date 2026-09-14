@@ -17,6 +17,7 @@ public enum MaterialDisplayLayout
 [DisallowMultipleComponent]
 public class MaterialInventoryDisplayView : MonoBehaviour
 {
+    [Serializable]
     private struct Entry
     {
         public MaterialType Type;
@@ -31,9 +32,10 @@ public class MaterialInventoryDisplayView : MonoBehaviour
     [SerializeField] private bool _showEmpty = true;
     [SerializeField] private bool _showNames;
 
-    private readonly List<Entry> _entries = new();
-    private RectTransform _contentRoot;
+    [SerializeField] private List<Entry> _entries = new();
+    [SerializeField] private RectTransform _contentRoot;
 
+#if UNITY_EDITOR
     public static MaterialInventoryDisplayView Create(
         Transform parent,
         MaterialDisplayLayout layout,
@@ -53,7 +55,7 @@ public class MaterialInventoryDisplayView : MonoBehaviour
         view._iconSize = iconSize;
         view._fontSize = fontSize;
         view._spacing = spacing;
-        view.EnsureEntries();
+        view.AuthorUi();
         return view;
     }
 
@@ -62,15 +64,15 @@ public class MaterialInventoryDisplayView : MonoBehaviour
         _layout = layout;
         _showEmpty = showEmpty;
         _showNames = showNames;
-        EnsureEntries();
+        AuthorUi();
     }
+#endif
 
     public void Refresh(MaterialInventory inventory)
     {
-        EnsureEntries();
-
         foreach (Entry entry in _entries)
         {
+            if (entry.Root == null || entry.AmountLabel == null) continue;
             int amount = inventory != null ? inventory.GetAmount(entry.Type) : 0;
             bool visible = _showEmpty || amount > 0;
             entry.Root.SetActive(visible);
@@ -84,7 +86,8 @@ public class MaterialInventoryDisplayView : MonoBehaviour
             LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRoot);
     }
 
-    private void EnsureEntries()
+#if UNITY_EDITOR
+    public void AuthorUi()
     {
         if (_contentRoot != null && _entries.Count > 0)
             return;
@@ -97,13 +100,13 @@ public class MaterialInventoryDisplayView : MonoBehaviour
         _contentRoot.pivot = new Vector2(0f, 1f);
         _contentRoot.anchoredPosition = Vector2.zero;
 
-        var layout = gameObject.AddComponent<LayoutGroupForMaterialDisplay>();
-        layout.Configure(_layout, _spacing);
+        ConfigureLayout();
 
         foreach (MaterialType type in Enum.GetValues(typeof(MaterialType)))
             _entries.Add(CreateEntry(type));
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRoot);
+        UnityEditor.EditorUtility.SetDirty(this);
     }
 
     private Entry CreateEntry(MaterialType type)
@@ -178,47 +181,34 @@ public class MaterialInventoryDisplayView : MonoBehaviour
             _contentRoot = GetComponent<RectTransform>();
 
         for (int i = _contentRoot.childCount - 1; i >= 0; i--)
-            Destroy(_contentRoot.GetChild(i).gameObject);
+            DestroyImmediate(_contentRoot.GetChild(i).gameObject);
 
         LayoutGroup existingLayout = GetComponent<LayoutGroup>();
         if (existingLayout != null)
-            Destroy(existingLayout);
-
-        LayoutGroupForMaterialDisplay helper = GetComponent<LayoutGroupForMaterialDisplay>();
-        if (helper != null)
-            Destroy(helper);
+            DestroyImmediate(existingLayout);
     }
 
-    private sealed class LayoutGroupForMaterialDisplay : MonoBehaviour
+    private void ConfigureLayout()
     {
-        private LayoutGroup _layoutGroup;
-
-        public void Configure(MaterialDisplayLayout layout, float spacing)
-        {
-            if (_layoutGroup != null)
-                Destroy(_layoutGroup);
-
-            if (layout == MaterialDisplayLayout.Horizontal)
+            if (_layout == MaterialDisplayLayout.Horizontal)
             {
                 var horizontal = gameObject.AddComponent<HorizontalLayoutGroup>();
                 horizontal.childAlignment = TextAnchor.MiddleCenter;
-                horizontal.spacing = spacing;
+                horizontal.spacing = _spacing;
                 horizontal.childControlWidth = false;
                 horizontal.childControlHeight = false;
                 horizontal.childForceExpandWidth = false;
                 horizontal.childForceExpandHeight = false;
-                _layoutGroup = horizontal;
             }
             else
             {
                 var vertical = gameObject.AddComponent<VerticalLayoutGroup>();
                 vertical.childAlignment = TextAnchor.UpperLeft;
-                vertical.spacing = spacing;
+                vertical.spacing = _spacing;
                 vertical.childControlWidth = false;
                 vertical.childControlHeight = false;
                 vertical.childForceExpandWidth = false;
                 vertical.childForceExpandHeight = false;
-                _layoutGroup = vertical;
             }
 
             var fitter = gameObject.GetComponent<ContentSizeFitter>();
@@ -226,6 +216,6 @@ public class MaterialInventoryDisplayView : MonoBehaviour
                 fitter = gameObject.AddComponent<ContentSizeFitter>();
             fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        }
     }
+#endif
 }

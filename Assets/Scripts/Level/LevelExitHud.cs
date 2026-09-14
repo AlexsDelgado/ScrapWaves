@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// HUD de llaves, carga de puerta y presión de salida (sin flecha offscreen).
@@ -11,14 +12,13 @@ public class LevelExitHud : MonoBehaviour
     [SerializeField] private ExitDoor _exitDoor;
     [SerializeField] private LevelExitPressure _exitPressure;
 
-    private TextMeshProUGUI _statusText;
-    private GameObject _root;
+    [SerializeField] private TextMeshProUGUI _statusText;
+    [SerializeField] private GameObject _root;
 
     private void Awake()
     {
         ResolveRefs();
-        if (!TryWireFromHierarchy())
-            BuildUi();
+        TryWireFromHierarchy();
         Refresh();
     }
 
@@ -92,6 +92,7 @@ public class LevelExitHud : MonoBehaviour
 
     private bool TryWireFromHierarchy()
     {
+        if (_root != null && _statusText != null) return true;
         Transform exitHud = transform.Find("LevelExitHud");
         if (exitHud == null)
             return false;
@@ -101,10 +102,26 @@ public class LevelExitHud : MonoBehaviour
         return _statusText != null;
     }
 
-    private void BuildUi()
+#if UNITY_EDITOR
+    public void AuthorUi(Transform uiRoot)
     {
+        if (TryWireFromHierarchy()) return;
+        Transform parent = GetComponentInParent<Canvas>() != null ? transform : uiRoot;
+        if (parent == null || parent.GetComponentInParent<Canvas>() == null)
+        {
+            var canvasGo = new GameObject("LevelExitHudCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+            canvasGo.transform.SetParent(uiRoot, false);
+            Canvas canvas = canvasGo.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 100;
+            CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+            parent = canvasGo.transform;
+        }
         _root = new GameObject("LevelExitHud", typeof(RectTransform));
-        _root.transform.SetParent(transform, false);
+        _root.transform.SetParent(parent, false);
         var rootRt = _root.GetComponent<RectTransform>();
         rootRt.anchorMin = new Vector2(0.5f, 1f);
         rootRt.anchorMax = new Vector2(0.5f, 1f);
@@ -115,7 +132,9 @@ public class LevelExitHud : MonoBehaviour
         _statusText = HudUiFactory.CreateLabel(_root.transform, "Text", string.Empty, 24f, TextAlignmentOptions.Center);
         _statusText.fontStyle = FontStyles.Bold;
         _statusText.color = new Color(0.95f, 0.85f, 0.35f, 1f);
+        UnityEditor.EditorUtility.SetDirty(this);
     }
+#endif
 
     private void Refresh()
     {
