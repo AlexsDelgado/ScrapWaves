@@ -129,6 +129,7 @@ public static class GameplayUiSceneMigration
         foreach (RunEndScreenUI component in Find<RunEndScreenUI>(scene)) Author(component, component.AuthorUi);
         foreach (LevelExitHud component in Find<LevelExitHud>(scene)) Author(component, () => component.AuthorUi(ui));
         AchievementUnlockToastView.AuthorUi(ui);
+        RearThreatIndicatorAuthoring.AuthorUi(ui, player.transform);
 
         foreach (Canvas canvas in ui.GetComponentsInChildren<Canvas>(true))
         {

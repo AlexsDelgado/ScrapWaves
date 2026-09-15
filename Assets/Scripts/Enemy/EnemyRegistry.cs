@@ -9,6 +9,9 @@ public static class EnemyRegistry
 
     public static int ActiveCount => _activeEnemies.Count;
 
+    /// <summary>Raised after an explicit removal, including pooled despawns and temporary burrowing.</summary>
+    public static event System.Action<Transform> Unregistered;
+
     public static void Register(Transform enemyTransform)
     {
         if (enemyTransform == null)
@@ -33,6 +36,7 @@ public static class EnemyRegistry
             if (_activeEnemies[i] == enemyTransform)
             {
                 _activeEnemies.RemoveAt(i);
+                Unregistered?.Invoke(enemyTransform);
                 return;
             }
         }
