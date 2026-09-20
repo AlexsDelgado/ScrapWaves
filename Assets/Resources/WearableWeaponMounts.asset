@@ -22,14 +22,14 @@ MonoBehaviour:
   - Type: 0
     Prefab: {fileID: 2435818511521798166, guid: 2a8165a86ed968247bc9272728084752, type: 3}
     AttachmentPath: 
-    LocalPosition: {x: 0.32, y: 0.835, z: 0.025}
+    LocalPosition: {x: 0.28085136, y: 0.8521202, z: 0.028236747}
     LocalEulerAngles: {x: 0, y: 0, z: 0}
     LocalScale: {x: 1, y: 1, z: 1}
   - Type: 1
     Prefab: {fileID: 2574199832557896948, guid: fcbe23f8b17dba74c99ec3627c842697, type: 3}
     AttachmentPath: 
     LocalPosition: {x: -0.515, y: 0.418, z: 0}
-    LocalEulerAngles: {x: 0, y: 0, z: 53}
+    LocalEulerAngles: {x: 31.647787, y: 251.16446, z: 9.779104}
     LocalScale: {x: 1, y: 1, z: 1}
   - Type: 2
     Prefab: {fileID: 3462672423354997292, guid: 252027c1a1426054686e23372755e73b, type: 3}

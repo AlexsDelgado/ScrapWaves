@@ -1,14 +1,49 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+[System.Serializable]
+public sealed class AnimatedWeaponSocket
+{
+    public WeaponType Type;
+    [Tooltip("Bone child with the final artifact position, rotation and scale. Its local transform is the attachment offset.")]
+    public Transform Socket;
+}
+
 [DisallowMultipleComponent]
 public sealed class PlayerWeaponMountController : MonoBehaviour
 {
     [SerializeField] private Transform _mainFirePoint;
     [SerializeField] private WearableWeaponMountCatalog _catalog;
+    [SerializeField, Tooltip("Per-player animated attachment overrides. Unmapped weapons use the shared catalog's original placement.")]
+    private AnimatedWeaponSocket[] _animatedSockets = System.Array.Empty<AnimatedWeaponSocket>();
     private readonly Dictionary<WeaponType, AutomaticWeaponMount> _mounts = new();
     private readonly Dictionary<IWeaponBehaviour, AutomaticWeaponMount> _equipped = new();
     private readonly HashSet<IWeaponBehaviour> _automatic = new();
+
+    public Transform MainFirePoint => _mainFirePoint;
+
+    public void ConfigureAnimatedSockets(AnimatedWeaponSocket[] sockets)
+    {
+        _animatedSockets = sockets ?? System.Array.Empty<AnimatedWeaponSocket>();
+        // Reconfiguration preserves live muzzle objects and their behaviour bindings,
+        // so an in-flight burst is not cancelled just by changing attachment offsets.
+        foreach (KeyValuePair<WeaponType, AutomaticWeaponMount> pair in _mounts)
+        {
+            if (_catalog != null && _catalog.TryGet(pair.Key, out WearableWeaponMountDefinition definition)
+                && TryResolveAttachment(definition, out Transform anchor, out bool animated))
+                PlaceMount(pair.Value.transform, anchor, definition, animated);
+        }
+    }
+
+    public Transform GetAnimatedSocket(WeaponType type)
+    {
+        foreach (AnimatedWeaponSocket binding in _animatedSockets)
+        {
+            if (binding != null && binding.Type == type && binding.Socket != null)
+                return binding.Socket;
+        }
+        return null;
+    }
 
     public void Initialize(Transform mainFirePoint)
     {
@@ -147,18 +182,14 @@ public sealed class PlayerWeaponMountController : MonoBehaviour
             Debug.LogError($"No wearable fire point configured for {type}.", this);
             return null;
         }
-        Transform anchor = string.IsNullOrEmpty(definition.AttachmentPath)
-            ? transform : transform.Find(definition.AttachmentPath);
-        if (anchor == null)
+        if (!TryResolveAttachment(definition, out Transform anchor, out bool animated))
         {
             Debug.LogError($"Wearable attachment '{definition.AttachmentPath}' was not found for {type}.", this);
             return null;
         }
         GameObject instance = Instantiate(definition.Prefab, anchor, false);
         instance.name = $"{type} Wearable Fire Point";
-        instance.transform.localPosition = definition.LocalPosition;
-        instance.transform.localRotation = Quaternion.Euler(definition.LocalEulerAngles);
-        instance.transform.localScale = definition.LocalScale;
+        PlaceMount(instance.transform, anchor, definition, animated);
         AutomaticWeaponMount mount = instance.GetComponent<AutomaticWeaponMount>();
         if (mount == null)
         {
@@ -169,6 +200,26 @@ public sealed class PlayerWeaponMountController : MonoBehaviour
         }
         mount.SetOwner(transform);
         return mount;
+    }
+
+    private bool TryResolveAttachment(WearableWeaponMountDefinition definition, out Transform anchor, out bool animated)
+    {
+        anchor = GetAnimatedSocket(definition.Type);
+        animated = anchor != null;
+        if (!animated)
+            anchor = string.IsNullOrEmpty(definition.AttachmentPath)
+                ? transform : transform.Find(definition.AttachmentPath);
+        return anchor != null;
+    }
+
+    private static void PlaceMount(Transform mount, Transform anchor, WearableWeaponMountDefinition definition, bool animated)
+    {
+        mount.SetParent(anchor, false);
+        // Animated sockets carry the full calibrated bind-pose offset. Reapplying
+        // the root-relative catalog offset here would displace the artifact twice.
+        mount.localPosition = animated ? Vector3.zero : definition.LocalPosition;
+        mount.localRotation = animated ? Quaternion.identity : Quaternion.Euler(definition.LocalEulerAngles);
+        mount.localScale = animated ? Vector3.one : definition.LocalScale;
     }
 
     private static void DestroyMount(AutomaticWeaponMount mount)

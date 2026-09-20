@@ -18,11 +18,13 @@ public class PlayerAutoAttack : MonoBehaviour
     private float _fireCooldown;
     private PlayerStats _stats;
     private WeaponManager _weaponManager;
+    private PlayerAnimationDriver _animationDriver;
 
     private void Awake()
     {
         _stats = GetComponent<PlayerStats>();
         _weaponManager = GetComponent<WeaponManager>();
+        _animationDriver = GetComponent<PlayerAnimationDriver>();
     }
 
     private void Update()
@@ -46,6 +48,9 @@ public class PlayerAutoAttack : MonoBehaviour
 
         if (!EnemyRegistry.TryGetClosestOnPlaneWithinVerticalDelta(transform.position, _detectionRange, _maxAimVerticalDelta, out Transform target))
             return;
+
+        if (_animationDriver != null && _animationDriver.isActiveAndEnabled)
+            _animationDriver.EvaluatePoseForWeapons(Time.deltaTime, target.position);
 
         // Dirección 3D hacia el enemigo (incluye altura); el registro sigue eligiendo el más cercano en XZ.
         Vector3 aim = target.position - _firePoint.position;

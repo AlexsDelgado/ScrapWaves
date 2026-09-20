@@ -51,8 +51,10 @@ public static class WearableWeaponMountBuilder
     private static readonly Layout[] Layouts =
     {
         new Layout("BeltCharm(Sword)", WeaponType.RotatingBlade, new Vector3(-0.12f, 0.12f, -0.126f), new Vector3(0f, 180f, 0f), 0.16f, "Green indicator lens", Vector3.back, new Vector3(14f, 11f, 0f)),
-        new Layout("ScrapFeeder(Cannon)", WeaponType.AutomaticCannon, new Vector3(0.32f, 0.835f, 0.025f), new Vector3(0f, -90f, 0f), 0.21f, "Muzzle flange", Vector3.forward),
-        new Layout("ACBracelet(Flame)", WeaponType.Flamethrower, new Vector3(-0.515f, 0.418f, 0f), new Vector3(0f, 90f, 0f), 0.086f, "Rounded ivory vent rim", Vector3.forward, new Vector3(0f, 0f, 53f)),
+        new Layout("ScrapFeeder(Cannon)", WeaponType.AutomaticCannon, new Vector3(0.28f, 0.85f, 0.03f), new Vector3(0f, -90f, 0f), 0.21f, "Muzzle flange", Vector3.forward),
+        // This bind rotation places the vent along the held forearm, facing
+        // forward in the neutral Aim pose instead of upward across the wrist.
+        new Layout("ACBracelet(Flame)", WeaponType.Flamethrower, new Vector3(-0.515f, 0.418f, 0f), new Vector3(0f, 90f, 0f), 0.086f, "Rounded ivory vent rim", Vector3.forward, new Vector3(31.647787f, 251.16446f, 9.779104f)),
         new Layout("BackPipe(Rocket)", WeaponType.RocketLauncher, new Vector3(0.12f, 0.57f, -0.15f), new Vector3(0f, 180f, 0f), 0.55f, "Thick outlet lip", Vector3.up),
         new Layout("ShoulderChute(Mortar)", WeaponType.Mortar, new Vector3(-0.14f, 0.505f, -0.16f), new Vector3(0f, 180f, 0f), 0.49f, "Rolled cross top edge", Vector3.up)
     };
@@ -97,7 +99,7 @@ public static class WearableWeaponMountBuilder
                 Renderer outlet = model.GetComponentsInChildren<Renderer>(true).Single(r => r.name == layout.Outlet);
                 Vector3 muzzlePosition = outlet.bounds.center;
                 if (layout.Type == WeaponType.AutomaticCannon || layout.Type == WeaponType.Flamethrower)
-                    muzzlePosition.z = outlet.bounds.max.z + 0.015f;
+                    muzzlePosition.z = outlet.bounds.max.z + (layout.Type == WeaponType.Flamethrower ? 0.003f : 0.015f);
                 else if (layout.Type == WeaponType.RocketLauncher)
                     muzzlePosition.y = outlet.bounds.max.y + 0.015f;
                 else if (layout.Type == WeaponType.Mortar)
@@ -149,6 +151,8 @@ public static class WearableWeaponMountBuilder
             PrefabUtility.UnloadPrefabContents(player);
         }
         AssetDatabase.SaveAssets();
+        if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/player.prefab").transform.Find("PlaceholderPlayerVisual") != null)
+            PlaceholderPlayerAnimationBuilder.RefitWearableSockets();
         Preview();
         Debug.Log("Five wearable fire points rebuilt and player catalog assigned.");
     }
@@ -171,6 +175,10 @@ public static class WearableWeaponMountBuilder
             GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/player.prefab");
             Transform sourceModel = playerPrefab.transform.Find("Player (1)");
             GameObject player = UnityEngine.Object.Instantiate(sourceModel.gameObject);
+            // The animation setup preserves this old source with its renderer hidden
+            // in gameplay. This disposable preview still validates its rest-pose layout.
+            foreach (Renderer renderer in player.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = true;
             SceneManager.MoveGameObjectToScene(player, previewScene);
             player.name = "Player model (actual prefab transform)";
             player.transform.SetPositionAndRotation(sourceModel.localPosition, sourceModel.localRotation);

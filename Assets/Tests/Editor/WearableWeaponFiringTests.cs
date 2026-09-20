@@ -41,6 +41,71 @@ public sealed class WearableWeaponFiringTests
     }
 
     [Test]
+    public void BurnStatusCleanup_AfterPresenterDestroyed_AcceptsRetainedFeedbackInterfaces()
+    {
+        GameObject owner = CreateObject("Presentation owner destroyed before its status target");
+        WeaponPresentationController presenter = owner.AddComponent<WeaponPresentationController>();
+        IWeaponFeedbackSink feedback = presenter;
+        ICombatTextStatusLifecycleSink lifecycle = presenter;
+        GameObject target = CreateObject("Remaining burn target");
+        FlamethrowerBurnStatus burn = target.AddComponent<FlamethrowerBurnStatus>();
+        WeaponInstance weapon = CreateRuntime(WeaponType.Flamethrower, WeaponState.Automatic);
+        StatusDamageSource source = new(weapon, feedback, WeaponFeedbackMode.Automatic,
+            WeaponUpgradePath.None, 1f, 1234, WeaponStatusKind.Burn, false);
+        burn.Refresh(null, 1, 2f, 1f, WeaponStatusKind.Burn, in source);
+        Object.DestroyImmediate(owner);
+        Assert.That(presenter == null, Is.True);
+        Assert.That(ReferenceEquals(feedback, null), Is.False, "The status still retains the managed interface.");
+
+        // This matches a burn's OnDisable after the player's presenter is gone.
+        Assert.DoesNotThrow(() => Object.DestroyImmediate(target));
+        Assert.DoesNotThrow(() => lifecycle.OnStatusSegmentClosed(null, WeaponStatusKind.Burn, 1234, 0));
+        WeaponFeedbackContext context = new(weapon, WeaponFeedbackMode.Automatic, 0f, Vector3.zero, Vector3.forward);
+        Assert.DoesNotThrow(() => feedback.OnDamageConfirmed(in context));
+        Assert.DoesNotThrow(() => feedback.OnProjectileImpact(in context));
+    }
+
+    [Test]
+    public void AnimatedRocketSocket_UsesCurrentBonePoseButKeepsWorldUpLaunchAndIndependentProjectiles()
+    {
+        Transform owner = CreateObject("Owner").transform;
+        Transform bone = CreateObject("Animated chest").transform;
+        bone.SetParent(owner, false);
+        Transform socket = CreateObject("Rocket socket").transform;
+        socket.SetParent(bone, false);
+        socket.localPosition = new Vector3(0.2f, 1f, -0.3f);
+        PlayerWeaponMountController mounts = owner.gameObject.AddComponent<PlayerWeaponMountController>();
+        mounts.Initialize(owner);
+        mounts.ConfigureAnimatedSockets(new[] { new AnimatedWeaponSocket { Type = WeaponType.RocketLauncher, Socket = socket } });
+        Transform target = RegisterEnemy(Vector3.forward * 8f);
+        ProjectilePool pool = CreatePool(out Transform container);
+        WeaponInstance runtime = CreateRuntime(WeaponType.RocketLauncher, WeaponState.Automatic);
+        runtime.Data.RocketLauncher.RocketAutoBaseRocketCount = 2;
+        runtime.Data.RocketLauncher.RocketAutoVolleyShotInterval = 0.11f;
+        RocketLauncherWeapon weapon = new(new FixedTargeting(target), pool, owner);
+        weapon.Setup(runtime, owner, null, null);
+        mounts.AddWeapon(weapon, false);
+        Transform muzzle = weapon.FireOrigin.Muzzle;
+        weapon.TickAutomatic(0.01f, Vector3.back);
+        Vector3 firstOrigin = muzzle.position;
+
+        bone.localRotation = Quaternion.Euler(70f, 40f, 20f);
+        bone.localPosition = new Vector3(1f, 0.2f, 0f);
+        mounts.RefreshWeaponModes();
+        weapon.TickAutomatic(0.12f, Vector3.back);
+
+        Projectile[] projectiles = container.GetComponentsInChildren<Projectile>();
+        Assert.That(projectiles, Has.Length.EqualTo(2));
+        Assert.That(Vector3.Distance(projectiles[0].transform.position, firstOrigin), Is.LessThan(0.0001f));
+        Assert.That(Vector3.Distance(projectiles[1].transform.position, muzzle.position), Is.LessThan(0.0001f));
+        foreach (Projectile projectile in projectiles)
+        {
+            Assert.That(projectile.transform.IsChildOf(owner), Is.False);
+            Assert.That(Vector3.Dot(projectile.transform.forward, Vector3.up), Is.GreaterThan(0.99f));
+        }
+    }
+
+    [Test]
     public void CannonBodyCone_UsesRotatedBodyAndSkipsCloserEnemyBehindIt()
     {
         Transform owner = CreateObject("Owner").transform;

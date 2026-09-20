@@ -63,6 +63,8 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 _moveInput;
     private Vector3 _moveDirectionWorld;
     private Vector3 _slideDirectionWorld;
+    private Vector3 _dashLaunchDirectionWorld;
+    private int _dashLaunchFrame = -1;
     private bool _jumpPressed;
     private bool _crouchHeld;
     private bool _crouchPressed;
@@ -99,6 +101,27 @@ public class PlayerMovement : MonoBehaviour
 
     /// <summary>El jugador está en contacto con el suelo (para detección de vibraciones enemigas).</summary>
     public bool IsGroundedOnSurface => _isGrounded;
+
+    // Read-only presentation state; gameplay remains the owner of all action timing.
+    public bool IsCrouching => _isCrouching;
+    public bool IsSliding => _isSliding;
+    public bool IsDashing => _isDashing;
+    public Vector3 CurrentVelocity => _rb != null ? _rb.linearVelocity : Vector3.zero;
+
+    /// <summary>Actual planar dash travel, including momentum and collision deflection.</summary>
+    public Vector3 CurrentDashDirectionWorld
+    {
+        get
+        {
+            if (!_isDashing) return Vector3.zero;
+            // AddForce is consumed by the next physics simulation. Present the
+            // requested resulting velocity during that first render frame.
+            if (_dashLaunchFrame == Time.frameCount) return _dashLaunchDirectionWorld;
+            Vector3 velocity = CurrentVelocity;
+            velocity.y = 0f;
+            return velocity.sqrMagnitude > .0001f ? velocity.normalized : Vector3.zero;
+        }
+    }
 
     public int CurrentDashCharges => _currentDashCharges;
 
@@ -233,6 +256,8 @@ public class PlayerMovement : MonoBehaviour
 
         Vector3 currentPlanar = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         Vector3 desiredVelocity = direction * speed;
+        _dashLaunchDirectionWorld = direction;
+        _dashLaunchFrame = Time.frameCount;
         Vector3 velocityChange = desiredVelocity - currentPlanar;
         _rb.AddForce(velocityChange * _rb.mass, ForceMode.Impulse);
         OnDashStarted?.Invoke();
@@ -672,6 +697,8 @@ public class PlayerMovement : MonoBehaviour
         float dashBoost = Mathf.Max(0.1f, _stats.GetStat(StatType.DashSpeed));
         Vector3 currentPlanar = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         Vector3 desiredVelocity = currentPlanar + (dashDirection * dashBoost);
+        _dashLaunchDirectionWorld = desiredVelocity.sqrMagnitude > .0001f ? desiredVelocity.normalized : dashDirection.normalized;
+        _dashLaunchFrame = Time.frameCount;
         Vector3 velocityChange = desiredVelocity - currentPlanar;
         _rb.AddForce(velocityChange * _rb.mass, ForceMode.Impulse);
 
