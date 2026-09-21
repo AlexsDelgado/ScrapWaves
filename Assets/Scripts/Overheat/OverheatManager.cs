@@ -121,7 +121,13 @@ public class OverheatManager : MonoBehaviour
 
         _isOverheating = true;
         OverheatSwarmBoost.SetIntensity(false);
-        _heatManager?.StopPostOverheatDecay();
+        if (_heatManager != null)
+        {
+            _heatManager.StopPostOverheatDecay();
+            // Durante la fase de Overheat el heat queda clavado al máximo; sin esto la curva de
+            // escalado por heat metería presión máxima encima de la pelea.
+            _heatManager.SetSpawnScalingSuppressed(true);
+        }
 
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(_fireRateMultiplier);
@@ -141,7 +147,12 @@ public class OverheatManager : MonoBehaviour
 
         _isOverheating = true;
         OverheatSwarmBoost.SetIntensity(false);
-        _heatManager?.StopPostOverheatDecay();
+        if (_heatManager != null)
+        {
+            _heatManager.StopPostOverheatDecay();
+            // Ver nota en EnterPermanentOverheat: el escalado por heat no aplica durante la pelea.
+            _heatManager.SetSpawnScalingSuppressed(true);
+        }
 
         if (_playerStats != null)
             _playerStats.SetRuntimeFireRateMultiplier(_fireRateMultiplier);
@@ -184,6 +195,9 @@ public class OverheatManager : MonoBehaviour
                 : _heatManager.PointsFirstSegment + _heatManager.PointsSecondSegment * 0.5f;
             residual = Mathf.Clamp(residual, 0f, _heatManager.MaxHeat);
             _heatManager.BeginPostOverheatCooldown(residual);
+            // Recién acá: entre la escalación y el residual el heat pasa por 1.0 y dispara OnHeatChanged
+            // dos veces; des-suprimir antes haría parpadear los readouts en intensidad máxima.
+            _heatManager.SetSpawnScalingSuppressed(false);
         }
 
         if (_logState)

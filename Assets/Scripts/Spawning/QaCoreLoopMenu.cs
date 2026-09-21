@@ -28,6 +28,9 @@ public class QaCoreLoopMenu : MonoBehaviour
     [SerializeField, Tooltip("Vacío = FindAnyObjectByType.")]
     private DifficultyManager _difficultyManager;
 
+    [SerializeField, Tooltip("Vacío = FindAnyObjectByType.")]
+    private HeatManager _heatManager;
+
     [SerializeField, Tooltip("Mostrar el panel al iniciar el play.")]
     private bool _show;
 
@@ -91,6 +94,8 @@ public class QaCoreLoopMenu : MonoBehaviour
             _orbitalSpawner = FindAnyObjectByType<OrbitalSpawner>(FindObjectsInactive.Include);
         if (_difficultyManager == null)
             _difficultyManager = FindAnyObjectByType<DifficultyManager>(FindObjectsInactive.Include);
+        if (_heatManager == null)
+            _heatManager = FindAnyObjectByType<HeatManager>(FindObjectsInactive.Include);
     }
 
     private void SnapshotConfig()
@@ -173,14 +178,24 @@ public class QaCoreLoopMenu : MonoBehaviour
             GUILayout.Label("Sin OrbitalSpawner.");
         }
 
-        GUILayout.Label($"Overheat wave x{OverheatSwarmBoost.SpawnWaveMultiplier}");
+        GUILayout.Label($"Exit pressure wave x{OverheatSwarmBoost.ExitPressureSpawnMultiplier}");
 
         if (_difficultyManager != null)
         {
             GUILayout.Space(4f);
-            GUILayout.Label("<b>Dificultad</b>", QaPanels.RichLabel());
+            GUILayout.Label("<b>Dificultad (tiempo)</b>", QaPanels.RichLabel());
+            GUILayout.Label($"  intensidad {_difficultyManager.CurrentIntensity:0.##}");
             GUILayout.Label($"  count x{_difficultyManager.GetSpawnCountMultiplier():0.##}");
-            GUILayout.Label($"  interval x{_difficultyManager.GetSpawnIntervalScale():0.##}");
+        }
+
+        if (_heatManager != null)
+        {
+            GUILayout.Space(4f);
+            GUILayout.Label("<b>Heat (cadencia)</b>", QaPanels.RichLabel());
+            GUILayout.Label($"  ratio {_heatManager.HeatRatio:0.##} (barra {_heatManager.NormalizedHeat * 100f:0}%)");
+            GUILayout.Label($"  intensidad {_heatManager.CurrentSpawnIntensity:0.##}{(_heatManager.IsSpawnScalingSuppressed ? " (suprimida)" : string.Empty)}");
+            GUILayout.Label($"  count x{_heatManager.GetSpawnCountMultiplier():0.##}");
+            GUILayout.Label($"  interval x{_heatManager.GetSpawnIntervalScale():0.##}");
         }
 
         GUILayout.Space(6f);
@@ -240,7 +255,7 @@ public class QaCoreLoopMenu : MonoBehaviour
             sb.AppendLine($"Active orbitals: {_orbitalSpawner.ActiveSpawnedCount} | enabled: {on}");
         }
 
-        sb.AppendLine($"Overheat wave x{OverheatSwarmBoost.SpawnWaveMultiplier}");
+        sb.AppendLine($"Exit pressure wave x{OverheatSwarmBoost.ExitPressureSpawnMultiplier}");
         sb.AppendLine();
 
         sb.AppendLine("## SPAWNER ORBITAL");
@@ -275,11 +290,19 @@ public class QaCoreLoopMenu : MonoBehaviour
             sb.AppendLine("  (no config)");
         }
 
+        if (_heatManager != null)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## HEAT (CADENCIA)");
+            sb.AppendLine($"  ratio {_heatManager.HeatRatio:0.##} | barra {_heatManager.NormalizedHeat * 100f:0}% | intensidad {_heatManager.CurrentSpawnIntensity:0.##}{(_heatManager.IsSpawnScalingSuppressed ? " (suprimida)" : string.Empty)}");
+            sb.AppendLine($"  count x{_heatManager.GetSpawnCountMultiplier():0.##} | interval x{_heatManager.GetSpawnIntervalScale():0.##}");
+        }
+
         if (_difficultyManager != null)
         {
             sb.AppendLine();
-            sb.AppendLine("## DIFICULTAD");
-            sb.AppendLine($"  count x{_difficultyManager.GetSpawnCountMultiplier():0.##} | interval x{_difficultyManager.GetSpawnIntervalScale():0.##}");
+            sb.AppendLine("## DIFICULTAD (TIEMPO)");
+            sb.AppendLine($"  intensidad {_difficultyManager.CurrentIntensity:0.##} | count x{_difficultyManager.GetSpawnCountMultiplier():0.##}");
         }
 
         sb.AppendLine("===== FIN DEL REPORTE =====");
