@@ -1,0 +1,107 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: acaf0a36a55c11a49a465fffc39912f2, type: 3}
+  m_Name: SpawnBalanceProfile
+  m_EditorClassIdentifier: Assembly-CSharp::SpawnBalanceProfile
+  _scalingStartDelaySeconds: 30
+  _intensityOverMinutesAfterStart:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 5
+      value: 0.212854
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 9.997177
+      value: 0.39984435
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 19.460941
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _difficultyRampSpeedMultiplier: 1
+  _maxSpawnCountMultiplier: 4
+  _scaleEnemyHealth: 1
+  _maxEnemyHealthMultiplier: 10
+  _scaleEnemyMoveSpeed: 1
+  _maxEnemySpeedMultiplier: 4
+  _scaleEnemyDamage: 1
+  _maxEnemyDamageMultiplier: 1.35
+  _spawnScalingOverHeatRatio:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.35
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _maxSpawnCountMultiplierAtFullHeat: 2
+  _spawnIntervalScaleAtFullHeat: 0.45
+  _pointsToReachDisplay80: 100
+  _pointsFromDisplay80To100: 100
+  _escalationPerOverheatCycle: 1.5
+  _heatPerKill: 5
+  _postOverheatDecayPerSecond: 12
+  _spawnInterval: 5
+  _maxActiveEnemies: 300

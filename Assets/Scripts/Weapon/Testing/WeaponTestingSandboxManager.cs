@@ -40,6 +40,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
 
     private PlayerStats _playerStats;
     private PlayerMovement _playerMovement;
+    private PlayerAnimationDriver _animationDriver;
     private ReticleAimProvider _aimProvider;
     private WeaponPresentationController _presentationController;
     private PlayerWeaponMountController _mountController;
@@ -83,6 +84,13 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             return;
 
         _currentAimDirection = ResolveAimDirection();
+        if (_animationDriver != null && _animationDriver.isActiveAndEnabled)
+        {
+            _animationDriver.SetManualWeaponOverride(CurrentManualWeapon);
+            _animationDriver.EvaluatePoseForWeapons(Time.deltaTime, CurrentAimSolution.TargetPoint);
+            _currentAimDirection = ResolveAimDirection();
+        }
+        _mountController?.RefreshWeaponModes();
         TickWeapons(Time.deltaTime);
     }
 
@@ -484,6 +492,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         PlayerTransform = playerGo.transform;
         _playerStats = playerGo.GetComponent<PlayerStats>();
         _playerMovement = playerGo.GetComponent<PlayerMovement>();
+        _animationDriver = playerGo.GetComponent<PlayerAnimationDriver>();
         _aimProvider = playerGo.GetComponent<ReticleAimProvider>();
         _presentationController = playerGo.GetComponent<WeaponPresentationController>();
         _mountController = playerGo.GetComponent<PlayerWeaponMountController>();
@@ -493,7 +502,16 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             _presentationController = playerGo.AddComponent<WeaponPresentationController>();
         DisableProductionRuntimeComponents(playerGo);
 
-        ProjectileSpawn = FindChildByNameContains(playerGo.transform, "Fire");
+        // Use the production serialized reference even after the main point is
+        // nested under a hand. An automatic artifact can also contain "Fire".
+        WeaponManager productionWeapons = playerGo.GetComponent<WeaponManager>();
+        ProjectileSpawn = productionWeapons != null ? productionWeapons.GetProjectileSpawn() : null;
+        if (ProjectileSpawn == null || ProjectileSpawn == playerGo.transform)
+            ProjectileSpawn = _mountController.MainFirePoint;
+        if (ProjectileSpawn == null)
+            ProjectileSpawn = FindChildByNameContains(playerGo.transform, "Main Weapon Fire Point");
+        if (ProjectileSpawn == null)
+            ProjectileSpawn = FindChildByNameContains(playerGo.transform, "Fire");
         if (ProjectileSpawn == null)
             ProjectileSpawn = playerGo.transform;
         _mountController.Initialize(ProjectileSpawn);

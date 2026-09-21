@@ -25,6 +25,13 @@ public static class OverheatSwarmBoost
 
     public static int SpawnWaveMultiplier => Mathf.Max(1, Mathf.RoundToInt(SpeedMultiplier));
 
+    /// <summary>
+    /// Solo la parte de exit pressure, sin el boost de la fase intermedia. La cantidad de enemigos por
+    /// oleada la maneja ahora la curva de <see cref="HeatManager"/>; esto evita contar el boost dos veces.
+    /// Conserva el mismo redondeo que <see cref="SpawnWaveMultiplier"/> para no cambiar la fase de escape.
+    /// </summary>
+    public static int ExitPressureSpawnMultiplier => Mathf.Max(1, Mathf.RoundToInt(s_exitPressureMultiplier));
+
     public static bool IsIntensityActive => s_intensityActive;
 
     public static void SetIntensity(bool active) => s_intensityActive = active;

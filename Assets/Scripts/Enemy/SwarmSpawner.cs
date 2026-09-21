@@ -54,6 +54,9 @@ public class SwarmSpawner : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Paso horizontal por iteración al despegar de geometría.")]
     private float _resolveStepOut = 0.06f;
 
+    [SerializeField, Tooltip("Vacío = HeatManager.GetInstance(). Escala la frecuencia y el tamaño de los grupos según el heat.")]
+    private HeatManager _heatManager;
+
     private Transform _player;
     private float _nextSpawnTime;
 
@@ -61,6 +64,10 @@ public class SwarmSpawner : MonoBehaviour
     {
         if (_difficultyManager == null)
             _difficultyManager = FindAnyObjectByType<DifficultyManager>();
+
+        // En Awake y no en Start: Start() ya llama a EffectiveSpawnInterval().
+        if (_heatManager == null)
+            _heatManager = HeatManager.GetInstance();
 
         if (_groundRaycastMask.value == 0)
             _groundRaycastMask = LayerMask.GetMask("Terrain");
@@ -109,7 +116,10 @@ public class SwarmSpawner : MonoBehaviour
 
     private float EffectiveSpawnInterval()
     {
-        float scale = _difficultyManager != null ? _difficultyManager.GetSpawnIntervalScale() : 1f;
+        if (_heatManager == null)
+            _heatManager = HeatManager.GetInstance();
+
+        float scale = _heatManager != null ? _heatManager.GetSpawnIntervalScale() : 1f;
         float interval = Mathf.Max(0.05f, _spawnInterval * scale);
         if (ExitSpawnPressure.IsActive && ExitSpawnPressure.SpawnRateMultiplier > 1f)
             interval /= ExitSpawnPressure.SpawnRateMultiplier;
@@ -119,7 +129,9 @@ public class SwarmSpawner : MonoBehaviour
     private void SpawnWave()
     {
         float diffCount = _difficultyManager != null ? _difficultyManager.GetSpawnCountMultiplier() : 1f;
-        int count = Mathf.Max(1, Mathf.RoundToInt(_spawnPerWave * diffCount * OverheatSwarmBoost.SpawnWaveMultiplier));
+        float heatCount = _heatManager != null ? _heatManager.GetSpawnCountMultiplier() : 1f;
+        float pressure = Mathf.Max(heatCount, OverheatSwarmBoost.ExitPressureSpawnMultiplier);
+        int count = Mathf.Max(1, Mathf.RoundToInt(_spawnPerWave * diffCount * pressure));
         for (int i = 0; i < count; i++)
         {
             if (EnemyRegistry.ActiveCount >= _maxActiveEnemies)

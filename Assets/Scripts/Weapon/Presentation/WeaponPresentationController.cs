@@ -8,6 +8,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     ICombatTextStatusLifecycleSink
 {
     public static event Action<WeaponPresentationController> BecameAvailable;
+    /// <summary>Confirmed gameplay feedback, independent of optional sound/VFX profiles.</summary>
+    public event Action<WeaponFeedbackEvent, WeaponFeedbackContext> FeedbackEmitted;
 
     private sealed class DirectorRuntime
     {
@@ -161,6 +163,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnChargeStarted(in WeaponFeedbackContext context)
     {
+        FeedbackEmitted?.Invoke(WeaponFeedbackEvent.ChargeStarted, context);
         CombatFeedbackDirector director = ResolveDirector(context.Weapon);
         director?.BeginSemanticLoop(
             WeaponFeedbackEvent.ChargeStarted,
@@ -181,6 +184,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnChargeUpdated(in WeaponFeedbackContext context, float normalizedProgress)
     {
+        FeedbackEmitted?.Invoke(WeaponFeedbackEvent.ChargeUpdated, context);
         WeaponFeedbackContext scaled = new(
             context.Weapon,
             context.Mode,
@@ -228,6 +232,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnSustainedFireStarted(in WeaponFeedbackContext context)
     {
+        FeedbackEmitted?.Invoke(WeaponFeedbackEvent.SustainedFireStarted, context);
         ResolveDirector(context.Weapon)?.BeginSemanticLoop(
             WeaponFeedbackEvent.SustainedFireStarted,
             in context,
@@ -246,6 +251,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     public void OnDamageConfirmed(in WeaponFeedbackContext context)
     {
+        if (this == null) return;
+        FeedbackEmitted?.Invoke(WeaponFeedbackEvent.DamageConfirmed, context);
         EnsureCombatTextDirector();
         CombatFeedbackDirector director = ResolveDirector(context.Weapon);
         if (director != null)
@@ -267,7 +274,9 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
         int statusInstanceId,
         int segmentIndex)
     {
-        if (statusInstanceId <= 0)
+        // Burn/puddle statuses retain this through an interface, which does not
+        // apply Unity's destroyed-object null check during scene teardown.
+        if (this == null || statusInstanceId <= 0)
             return;
         EnsureCombatTextDirector();
         _combatText?.NotifyStatusSegmentClosed(
@@ -479,6 +488,8 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void EmitSemantic(WeaponFeedbackEvent feedbackEvent, in WeaponFeedbackContext context)
     {
+        if (this == null) return;
+        FeedbackEmitted?.Invoke(feedbackEvent, context);
         ResolveDirector(context.Weapon)?.EmitSemantic(
             feedbackEvent,
             in context,
@@ -500,7 +511,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private CombatFeedbackDirector GetOrCreateDirector(WeaponPresentationProfile profile)
     {
-        if (profile == null)
+        if (this == null || profile == null)
             return null;
         if (_directors.TryGetValue(profile, out DirectorRuntime existing))
             return existing.Director;

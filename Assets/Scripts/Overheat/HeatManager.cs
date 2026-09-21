@@ -10,6 +10,20 @@ using UnityEngine;
 [DefaultExecutionOrder(-33)]
 public class HeatManager : MonoBehaviour
 {
+    [SerializeField, Tooltip("Si está asignado, sus valores mandan y los campos de abajo se ignoran. Normalmente lo inyecta el GameObject BalanceTuning.")]
+    private SpawnBalanceProfile _profile;
+
+    [Header("Fallback (se usa solo si no hay profile) — escalado de spawn por heat")]
+    [SerializeField, Tooltip("Intensidad 0–1 en función del % LINEAL de heat (X = CurrentHeat / TotalHeatCapacity). Ojo: X=0.5 es el 80% de la barra visible, porque los dos tramos cuestan los mismos puntos.")]
+    private AnimationCurve _spawnScalingOverHeatRatio = DefaultHeatScalingCurve();
+
+    [SerializeField, Min(1f), Tooltip("Multiplicador del tamaño de los grupos cuando la curva de heat vale 1.")]
+    private float _maxSpawnCountMultiplierAtFullHeat = 2f;
+
+    [SerializeField, Range(0.15f, 1f), Tooltip("Cuando la curva de heat vale 1, el intervalo de spawn se multiplica por este valor (menor a 1 = spawns más frecuentes).")]
+    private float _spawnIntervalScaleAtFullHeat = 0.45f;
+
+    [Header("Fallback (se usa solo si no hay profile) — medidor")]
     [SerializeField, Min(0.01f), Tooltip("Scaled heat points required to fill the bar from 0% to 80%.")]
     private float _pointsToReachDisplay80 = 50f;
 
@@ -22,6 +36,10 @@ public class HeatManager : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Heat granted by each enemy kill (through RegisterKill or AddHeat).")]
     private float _heatPerKill = 5f;
 
+    [SerializeField, Min(0f), Tooltip("Decay de heat por segundo tras Overheat (pausa de spawn). 0 = usar default runtime (12).")]
+    private float _postOverheatDecayPerSecond = 12f;
+
+    [Header("Estado en runtime")]
     [SerializeField, Tooltip("Log Overheat events to the console.")]
     private bool _logOverheat;
 
@@ -30,23 +48,47 @@ public class HeatManager : MonoBehaviour
 
     [SerializeField] private float _currentHeat;
 
-    [SerializeField, Min(0f), Tooltip("Decay de heat por segundo tras Overheat (pausa de spawn). 0 = usar default runtime (12).")]
-    private float _postOverheatDecayPerSecond = 12f;
-
     private bool _intermediateBoostActive;
     private bool _postOverheatDecayActive;
     private float _activeDecayPerSecond;
+    private bool _spawnScalingSuppressed;
 
     private const float DefaultPostOverheatDecayPerSecond = 12f;
+
+    /// <summary>Lo llama <see cref="BalanceTuningHub"/> antes de que nadie lea valores.</summary>
+    public void SetProfile(SpawnBalanceProfile profile) => _profile = profile;
+
+    public SpawnBalanceProfile Profile => _profile;
+
+    private float BasePointsFirstSegment =>
+        _profile != null ? _profile.PointsToReachDisplay80 : _pointsToReachDisplay80;
+
+    private float BasePointsSecondSegment =>
+        _profile != null ? _profile.PointsFromDisplay80To100 : _pointsFromDisplay80To100;
+
+    private float EscalationPerOverheatCycle =>
+        _profile != null ? _profile.EscalationPerOverheatCycle : _escalationPerOverheatCycle;
+
+    private float PostOverheatDecayPerSecond =>
+        _profile != null ? _profile.PostOverheatDecayPerSecond : _postOverheatDecayPerSecond;
+
+    private AnimationCurve SpawnScalingCurve =>
+        _profile != null ? _profile.SpawnScalingOverHeatRatio : _spawnScalingOverHeatRatio;
+
+    private float MaxSpawnCountMultiplierAtFullHeat =>
+        _profile != null ? _profile.MaxSpawnCountMultiplierAtFullHeat : _maxSpawnCountMultiplierAtFullHeat;
+
+    private float SpawnIntervalScaleAtFullHeat =>
+        _profile != null ? _profile.SpawnIntervalScaleAtFullHeat : _spawnIntervalScaleAtFullHeat;
 
     /// <summary>Puntos actuales de heat.</summary>
     public float CurrentHeat => _currentHeat;
 
     /// <summary>Puntos necesarios para el primer tramo (0 → 80 % de barra), con escalado.</summary>
-    public float PointsFirstSegment => _pointsToReachDisplay80 * _heatRequirementEscalation;
+    public float PointsFirstSegment => BasePointsFirstSegment * _heatRequirementEscalation;
 
     /// <summary>Puntos necesarios para el segundo tramo (80 % → 100 % de barra), con escalado.</summary>
-    public float PointsSecondSegment => _pointsFromDisplay80To100 * _heatRequirementEscalation;
+    public float PointsSecondSegment => BasePointsSecondSegment * _heatRequirementEscalation;
 
     /// <summary>Total de puntos para disparar Overheat.</summary>
     public float TotalHeatCapacity => PointsFirstSegment + PointsSecondSegment;
@@ -54,9 +96,61 @@ public class HeatManager : MonoBehaviour
     /// <summary>Compatibilidad UI: mismo significado que capacidad total actual.</summary>
     public float MaxHeat => TotalHeatCapacity;
 
-    public float HeatPerKill => _heatPerKill;
+    public float HeatPerKill => _profile != null ? _profile.HeatPerKill : _heatPerKill;
 
     public float HeatRequirementEscalation => _heatRequirementEscalation;
+
+    /// <summary>
+    /// % LINEAL de heat sobre la capacidad total (0–1). Es el eje X de la curva de escalado de spawn.
+    /// NO es lo mismo que <see cref="NormalizedHeat"/>, que es por tramos: con los dos tramos iguales,
+    /// un ratio de 0.5 equivale al 80 % de la barra visible.
+    /// </summary>
+    public float HeatRatio
+    {
+        get
+        {
+            float total = TotalHeatCapacity;
+            if (total <= 0f)
+                return 0f;
+            return Mathf.Clamp01(_currentHeat / total);
+        }
+    }
+
+    /// <summary>Intensidad 0–1 que sale de la curva evaluada en <see cref="HeatRatio"/>.</summary>
+    public float CurrentSpawnIntensity
+    {
+        get
+        {
+            AnimationCurve curve = SpawnScalingCurve;
+            if (curve == null || curve.length == 0)
+                return 0f;
+            return Mathf.Clamp01(curve.Evaluate(HeatRatio));
+        }
+    }
+
+    /// <summary>
+    /// Mientras esté suprimido (fase de Overheat activa), el escalado por heat no aplica:
+    /// ambos multiplicadores vuelven a 1.
+    /// </summary>
+    public bool IsSpawnScalingSuppressed => _spawnScalingSuppressed;
+
+    public void SetSpawnScalingSuppressed(bool suppressed) => _spawnScalingSuppressed = suppressed;
+
+    /// <summary>Multiplicador del tamaño de los grupos que spawnean, según el heat actual.</summary>
+    public float GetSpawnCountMultiplier()
+    {
+        if (_spawnScalingSuppressed)
+            return 1f;
+        return Mathf.Lerp(1f, MaxSpawnCountMultiplierAtFullHeat, CurrentSpawnIntensity);
+    }
+
+    /// <summary>Multiplicador sobre el intervalo base del spawner (menor = spawns más frecuentes).</summary>
+    public float GetSpawnIntervalScale()
+    {
+        if (_spawnScalingSuppressed)
+            return 1f;
+        return Mathf.Lerp(1f, SpawnIntervalScaleAtFullHeat, CurrentSpawnIntensity);
+    }
 
     /// <summary>Progreso 0–1 de la barra (0–80 % lineal en puntos del 1.er tramo; 80–100 % lineal en el 2.º).</summary>
     public float NormalizedHeat
@@ -149,8 +243,9 @@ public class HeatManager : MonoBehaviour
     /// </summary>
     public void BeginPostOverheatCooldown(float residualHeat)
     {
-        _activeDecayPerSecond = _postOverheatDecayPerSecond > 0f
-            ? _postOverheatDecayPerSecond
+        float configuredDecay = PostOverheatDecayPerSecond;
+        _activeDecayPerSecond = configuredDecay > 0f
+            ? configuredDecay
             : DefaultPostOverheatDecayPerSecond;
 
         SetHeat(residualHeat);
@@ -163,7 +258,7 @@ public class HeatManager : MonoBehaviour
 
     public void RegisterKill()
     {
-        AddHeat(_heatPerKill);
+        AddHeat(HeatPerKill);
     }
 
     /// <summary>
@@ -207,7 +302,7 @@ public class HeatManager : MonoBehaviour
     /// <summary>Llama <see cref="OverheatManager"/> al terminar un Overheat: sube el requisito de puntos para el siguiente ciclo.</summary>
     public void ApplyEscalationAfterOverheat()
     {
-        _heatRequirementEscalation *= _escalationPerOverheatCycle;
+        _heatRequirementEscalation *= EscalationPerOverheatCycle;
         _currentHeat = Mathf.Clamp(_currentHeat, 0f, TotalHeatCapacity);
         SyncIntermediateSwarmBoost();
         OnHeatChanged?.Invoke();
@@ -218,6 +313,7 @@ public class HeatManager : MonoBehaviour
     {
         _heatRequirementEscalation = 1f;
         _currentHeat = 0f;
+        _spawnScalingSuppressed = false;
         SyncIntermediateSwarmBoost();
         OnHeatChanged?.Invoke();
     }
@@ -232,6 +328,15 @@ public class HeatManager : MonoBehaviour
         OverheatSwarmBoost.SetIntensity(want);
     }
 
+    /// <summary>X = ratio lineal de heat (0.5 es el codo del 80 % de barra), Y = intensidad de spawn.</summary>
+    private static AnimationCurve DefaultHeatScalingCurve()
+    {
+        return new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.5f, 0.35f),
+            new Keyframe(1f, 1f));
+    }
+
 #if UNITY_EDITOR
     private void OnValidate()
     {
@@ -243,6 +348,10 @@ public class HeatManager : MonoBehaviour
             _escalationPerOverheatCycle = 1.001f;
         if (_heatRequirementEscalation < 0.01f)
             _heatRequirementEscalation = 0.01f;
+        if (_maxSpawnCountMultiplierAtFullHeat < 1f)
+            _maxSpawnCountMultiplierAtFullHeat = 1f;
+        if (_spawnIntervalScaleAtFullHeat < 0.15f)
+            _spawnIntervalScaleAtFullHeat = 0.15f;
         _currentHeat = Mathf.Clamp(_currentHeat, 0f, TotalHeatCapacity);
     }
 #endif

@@ -25,6 +25,86 @@ public sealed class AutomaticWeaponMountTests
     }
 
     [Test]
+    public void AnimatedSockets_AllArtifactsFollowTheirBonesAndKeepManualPointSeparate()
+    {
+        GameObject owner = Track(new GameObject("Player"));
+        Transform hand = CreateChild(owner.transform, "Hand", new Vector3(0.4f, 1.3f, 0f));
+        Transform main = CreateChild(hand, "Main Weapon Fire Point", Vector3.forward * 0.2f);
+        PlayerWeaponMountController controller = owner.AddComponent<PlayerWeaponMountController>();
+        controller.Initialize(main);
+        WeaponType[] types =
+        {
+            WeaponType.AutomaticCannon, WeaponType.Flamethrower, WeaponType.RocketLauncher,
+            WeaponType.Mortar, WeaponType.RotatingBlade
+        };
+        AnimatedWeaponSocket[] bindings = new AnimatedWeaponSocket[types.Length];
+        BasicProjectileWeapon[] weapons = new BasicProjectileWeapon[types.Length];
+        Vector3[] muzzleOffsets = new Vector3[types.Length];
+        for (int i = 0; i < types.Length; i++)
+        {
+            Transform bone = CreateChild(owner.transform, "Bone " + types[i], new Vector3(i * 0.2f, 1f, 0f));
+            Transform socket = CreateChild(bone, "Socket", new Vector3(0f, 0.1f, -0.2f));
+            socket.localRotation = Quaternion.Euler(12f, 23f, 34f);
+            bindings[i] = new AnimatedWeaponSocket { Type = types[i], Socket = socket };
+        }
+        controller.ConfigureAnimatedSockets(bindings);
+        for (int i = 0; i < types.Length; i++)
+        {
+            weapons[i] = CreateWeapon(owner.transform, types[i]);
+            controller.AddWeapon(weapons[i], false);
+            AutomaticWeaponMount mount = controller.GetEquippedMount(weapons[i]);
+            Assert.That(mount.transform.parent, Is.SameAs(bindings[i].Socket));
+            Assert.That(mount.transform.localPosition, Is.EqualTo(Vector3.zero));
+            muzzleOffsets[i] = bindings[i].Socket.InverseTransformPoint(mount.Muzzle.position);
+        }
+
+        weapons[0].Runtime.State = WeaponState.Manual;
+        controller.SetManualWeapon(weapons[0]);
+        hand.localRotation = Quaternion.Euler(0f, 80f, 15f);
+        for (int i = 0; i < types.Length; i++)
+        {
+            bindings[i].Socket.parent.localRotation = Quaternion.Euler(25f, -70f, 10f);
+            bindings[i].Socket.parent.localPosition += Vector3.up * 0.3f;
+        }
+        controller.RefreshWeaponModes();
+
+        Assert.That(weapons[0].FireOrigin.Muzzle, Is.SameAs(main));
+        Assert.That(controller.MainFirePoint, Is.SameAs(main));
+        for (int i = 0; i < types.Length; i++)
+        {
+            AutomaticWeaponMount mount = controller.GetEquippedMount(weapons[i]);
+            Assert.That(Vector3.Distance(mount.Muzzle.position,
+                bindings[i].Socket.TransformPoint(muzzleOffsets[i])), Is.LessThan(0.0001f), types[i].ToString());
+            if (i > 0)
+                Assert.That(weapons[i].FireOrigin.Muzzle, Is.SameAs(mount.Muzzle).And.Not.SameAs(main));
+        }
+    }
+
+    [Test]
+    public void ReconfiguringAnimatedSocket_PreservesMuzzleBindingAndPendingBurst()
+    {
+        GameObject owner = Track(new GameObject("Player"));
+        PlayerWeaponMountController controller = owner.AddComponent<PlayerWeaponMountController>();
+        controller.Initialize(CreateChild(owner.transform, "Main", Vector3.zero));
+        WeaponData data = CreateWeaponData(WeaponType.AutomaticCannon);
+        AutomaticCannonWeapon weapon = new(null, null, owner.transform);
+        weapon.Setup(new WeaponInstance { Data = data, State = WeaponState.Automatic }, owner.transform, null, null);
+        controller.AddWeapon(weapon, false);
+        Transform muzzle = weapon.FireOrigin.Muzzle;
+        SetPrivateField(weapon, "_lineBurstActive", true);
+        SetPrivateField(weapon, "_lineBurstRemaining", 2);
+        Transform socket = CreateChild(owner.transform, "Animated Shoulder Socket", Vector3.one);
+
+        controller.ConfigureAnimatedSockets(new[] { new AnimatedWeaponSocket { Type = data.WeaponType, Socket = socket } });
+        controller.RefreshWeaponModes();
+
+        Assert.That(weapon.FireOrigin.Muzzle, Is.SameAs(muzzle));
+        Assert.That(muzzle.IsChildOf(socket), Is.True);
+        Assert.That(ReadPrivate<bool>(weapon, "_lineBurstActive"), Is.True);
+        Assert.That(ReadPrivate<int>(weapon, "_lineBurstRemaining"), Is.EqualTo(2));
+    }
+
+    [Test]
     public void ManualCycle_KeepsEachWeaponOnItsOwnVisibleMount()
     {
         GameObject owner = Track(new GameObject("Player"));

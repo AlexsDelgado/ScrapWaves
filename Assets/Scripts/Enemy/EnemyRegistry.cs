@@ -56,6 +56,12 @@ public static class EnemyRegistry
                 continue;
             }
 
+            // Los dormidos por altura siguen registrados (cuentan para el techo) pero no deben
+            // participar de succión ni de separación: uno justo debajo empujaría para siempre
+            // a los vivos de arriba, porque la separación anula la componente Y.
+            if (EnemyVerticalEngagement.IsDisengaged(t))
+                continue;
+
             results.Add(t);
         }
 
@@ -584,6 +590,9 @@ public static class EnemyRegistry
                 if (_excludeScratch.Contains(candidate))
                     continue;
 
+                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                    continue;
+
                 Vector3 delta = candidate.position - from;
                 float sqr = delta.sqrMagnitude;
                 if (sqr <= 0.0001f || sqr > rangeSqr || sqr >= bestSqr)
@@ -640,6 +649,12 @@ public static class EnemyRegistry
                 }
 
                 if (_excludeScratch.Contains(candidate))
+                    continue;
+
+                // Sin esto las armas de polilínea (cañón, lanzallamas, cuchillas) le pegarían a
+                // enemigos dormidos un piso más abajo: con los colliders apagados el cálculo cae
+                // en candidate.position y siguen contando como blanco.
+                if (EnemyVerticalEngagement.IsDisengaged(candidate))
                     continue;
 
                 float distanceSqr = DistanceSqrToCandidate(candidate, points, pointCount, out Vector3 closestPoint);

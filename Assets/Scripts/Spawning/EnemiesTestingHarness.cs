@@ -166,7 +166,8 @@ public class EnemiesTestingHarness : MonoBehaviour
         return PlayerMovement.PlayerTransform;
     }
 
-    private int CurrentOnScreenCount => EnemyRegistry.ActiveCount;
+    // Los dormidos por altura siguen registrados; no deben bloquear el spawn de QA.
+    private int CurrentOnScreenCount => EnemyPoolProfiler.AwakeActiveCount;
 
     private bool CanSpawnMore => CurrentOnScreenCount < _maxActiveEnemies;
 

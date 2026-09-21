@@ -22,8 +22,11 @@ public class OrbitalSpawner : MonoBehaviour
     [SerializeField, Tooltip("Vacio = se resuelve desde el player.")]
     private PlayerStats _playerStats;
 
-    [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Escala intervalo y cantidad.")]
+    [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Escala la cantidad de enemigos por oleada.")]
     private DifficultyManager _difficultyManager;
+
+    [SerializeField, Tooltip("Si está asignado, de acá salen el intervalo base y el techo de enemigos. Normalmente lo inyecta el GameObject BalanceTuning.")]
+    private SpawnBalanceProfile _profile;
 
     [SerializeField, Tooltip("Vacío = FindAnyObjectByType. Usado para pausar spawn tras Overheat.")]
     private OverheatManager _overheatManager;
@@ -31,13 +34,15 @@ public class OrbitalSpawner : MonoBehaviour
     [SerializeField, Tooltip("Vacío = HeatManager.GetInstance().")]
     private HeatManager _heatManager;
 
-    [Header("Cadencia (SpawnCooldown * dificultad * overheat)")]
-    [SerializeField, Min(0.05f)] private float _spawnInterval = 1.5f;
+    [Header("Cadencia (intervalo base * escalado por heat)")]
+    [SerializeField, Min(0.05f), Tooltip("Fallback: se usa si no hay profile asignado.")]
+    private float _spawnInterval = 1.5f;
 
     [SerializeField, Tooltip("Empieza a spawnear apenas arranca la escena.")]
     private bool _spawnOnStart = true;
 
-    [SerializeField, Min(1)] private int _maxActiveEnemies = 300;
+    [SerializeField, Min(1), Tooltip("Fallback: se usa si no hay profile asignado.")]
+    private int _maxActiveEnemies = 300;
 
     [Header("Pausa post-Overheat")]
     [SerializeField, Tooltip("Si true, no spawnea mientras heat >= umbral (primer tramo / 80% visual).")]
@@ -85,6 +90,19 @@ public class OrbitalSpawner : MonoBehaviour
         }
     }
 
+    /// <summary>Lo llama <see cref="BalanceTuningHub"/> antes de que nadie lea valores.</summary>
+    public void SetProfile(SpawnBalanceProfile profile) => _profile = profile;
+
+    public SpawnBalanceProfile Profile => _profile;
+
+    /// <summary>Intervalo antes de aplicar el escalado por heat.</summary>
+    public float BaseSpawnInterval => _profile != null ? _profile.SpawnInterval : _spawnInterval;
+
+    public int MaxActiveEnemies => _profile != null ? _profile.MaxActiveEnemies : _maxActiveEnemies;
+
+    /// <summary>Intervalo real entre oleadas con el heat actual. Para readouts de QA y del hub de balance.</summary>
+    public float CurrentSpawnInterval => EffectiveSpawnInterval();
+
     private void Awake()
     {
         if (_difficultyManager == null)
@@ -111,12 +129,15 @@ public class OrbitalSpawner : MonoBehaviour
     private void OnEnable()
     {
         _runStartTime = Time.timeSinceLevelLoad;
-        _nextSpawnTime = _spawnOnStart ? 0f : Time.time + EffectiveSpawnInterval();
 
+        // Se resuelven ANTES del primer EffectiveSpawnInterval(): ahora la cadencia sale del heat,
+        // así que con _heatManager en null el primer intervalo tras cada re-enable saldría sin escalar.
         if (_overheatManager == null)
             _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_heatManager == null)
             _heatManager = HeatManager.GetInstance();
+
+        _nextSpawnTime = _spawnOnStart ? 0f : Time.time + EffectiveSpawnInterval();
     }
 
     private void OnDisable()
@@ -175,10 +196,17 @@ public class OrbitalSpawner : MonoBehaviour
         return _heatManager.CurrentHeat < _heatManager.PointsFirstSegment;
     }
 
+    /// <summary>
+    /// La frecuencia de spawn depende del heat, no del tiempo de partida (el tiempo escala cantidad
+    /// y stats de los enemigos, no la cadencia).
+    /// </summary>
     private float EffectiveSpawnInterval()
     {
-        float scale = _difficultyManager != null ? _difficultyManager.GetSpawnIntervalScale() : 1f;
-        return Mathf.Max(0.05f, _spawnInterval * scale);
+        if (_heatManager == null)
+            _heatManager = HeatManager.GetInstance();
+
+        float scale = _heatManager != null ? _heatManager.GetSpawnIntervalScale() : 1f;
+        return Mathf.Max(0.05f, BaseSpawnInterval * scale);
     }
 
     private float RunTimeSeconds => Time.timeSinceLevelLoad - _runStartTime;
@@ -190,11 +218,15 @@ public class OrbitalSpawner : MonoBehaviour
             return;
 
         float diffCount = _difficultyManager != null ? _difficultyManager.GetSpawnCountMultiplier() : 1f;
-        int batch = Mathf.Max(1, Mathf.RoundToInt(roll.BatchSize * diffCount * OverheatSwarmBoost.SpawnWaveMultiplier));
+        float heatCount = _heatManager != null ? _heatManager.GetSpawnCountMultiplier() : 1f;
+        // Max y no producto entre heat y exit pressure: antes los dos se fusionaban con Max dentro de
+        // OverheatSwarmBoost.SpeedMultiplier, multiplicarlos duplicaría la ráfaga en la fase de escape.
+        float pressure = Mathf.Max(heatCount, OverheatSwarmBoost.ExitPressureSpawnMultiplier);
+        int batch = Mathf.Max(1, Mathf.RoundToInt(roll.BatchSize * diffCount * pressure));
 
         for (int i = 0; i < batch; i++)
         {
-            if (EnemyRegistry.ActiveCount >= _maxActiveEnemies)
+            if (EnemyRegistry.ActiveCount >= MaxActiveEnemies)
                 break;
 
             int dir = OrbitalSpawnPlacement.PickRandomDirectionIndex();

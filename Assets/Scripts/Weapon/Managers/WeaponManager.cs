@@ -27,6 +27,7 @@ public class WeaponManager : MonoBehaviour
 
     private PlayerStats _stats;
     private PlayerMovement _movement;
+    private PlayerAnimationDriver _animationDriver;
     private HeatManager _heat;
     private IWeaponTargeting _targeting;
     public AimSolution CurrentAimSolution { get; private set; }
@@ -36,6 +37,7 @@ public class WeaponManager : MonoBehaviour
     {
         _stats = GetComponent<PlayerStats>();
         _movement = GetComponent<PlayerMovement>();
+        _animationDriver = GetComponent<PlayerAnimationDriver>();
         if (_reticleAimProvider == null)
             _reticleAimProvider = GetComponent<ReticleAimProvider>();
         if (_presentationController == null)
@@ -61,6 +63,16 @@ public class WeaponManager : MonoBehaviour
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 
+        // Camera gameplay aim is already current (Update order -100). Evaluate
+        // the animated/aimed skeleton before any behaviour reads its muzzle.
+        // Re-resolving then uses the new muzzle without shifting weapon cadence.
+        if (_animationDriver != null && _animationDriver.isActiveAndEnabled)
+        {
+            _animationDriver.ClearManualWeaponOverride();
+            _animationDriver.EvaluatePoseForWeapons(Time.deltaTime, CurrentAimSolution.TargetPoint);
+            aimDirection = GetAimDirection();
+        }
+        _mountController?.RefreshWeaponModes();
         UpdateAutomaticWeapons(Time.deltaTime, aimDirection);
         UpdateManualWeapon(Time.deltaTime, aimDirection);
         UpdateManualCycle(Time.deltaTime);

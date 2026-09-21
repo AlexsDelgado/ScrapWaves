@@ -2,7 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Escala la dificultad con el tiempo de partida. Curva Y = intensidad 0–1 sobre el eje X (minutos tras el retraso inicial).
-/// Expone multiplicadores para <see cref="SwarmSpawner"/> y para vida/velocidad al spawnear enemigos del pool.
+/// Controla CUÁNTOS enemigos spawnean y qué tan fuertes son (vida, velocidad, daño).
+/// La FRECUENCIA de spawn ya no depende del tiempo: la maneja <see cref="HeatManager"/> según el % de heat.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-45)]
@@ -10,6 +11,10 @@ public class DifficultyManager : MonoBehaviour
 {
     public static DifficultyManager Instance { get; private set; }
 
+    [SerializeField, Tooltip("Si está asignado, sus valores mandan y los campos de abajo se ignoran. Normalmente lo inyecta el GameObject BalanceTuning.")]
+    private SpawnBalanceProfile _profile;
+
+    [Header("Fallback (se usa solo si no hay profile)")]
     [SerializeField, Min(0f), Tooltip("Segundos desde el inicio de la partida antes de que empiece a subir la dificultad.")]
     private float _scalingStartDelaySeconds = 30f;
 
@@ -21,9 +26,6 @@ public class DifficultyManager : MonoBehaviour
 
     [SerializeField, Min(1f), Tooltip("Multiplicador de enemigos por oleada cuando la intensidad es 1.")]
     private float _maxSpawnCountMultiplier = 2.5f;
-
-    [SerializeField, Range(0.15f, 1f), Tooltip("A intensidad 1, el intervalo de spawn se multiplica por este valor (&lt;1 = más rápido).")]
-    private float _spawnIntervalScaleAtMaxIntensity = 0.45f;
 
     [SerializeField, Tooltip("Si está activo, escala la vida máxima al spawnear enemigos del pool.")]
     private bool _scaleEnemyHealth = true;
@@ -44,6 +46,38 @@ public class DifficultyManager : MonoBehaviour
     private float _maxEnemyDamageMultiplier = 1.35f;
 
     private float _runStartTime;
+
+    /// <summary>Lo llama <see cref="BalanceTuningHub"/> antes de que nadie lea valores.</summary>
+    public void SetProfile(SpawnBalanceProfile profile) => _profile = profile;
+
+    public SpawnBalanceProfile Profile => _profile;
+
+    private float ScalingStartDelaySeconds =>
+        _profile != null ? _profile.ScalingStartDelaySeconds : _scalingStartDelaySeconds;
+
+    private AnimationCurve IntensityCurve =>
+        _profile != null ? _profile.IntensityOverMinutesAfterStart : _intensityOverMinutesAfterStart;
+
+    private float RampSpeedMultiplier =>
+        _profile != null ? _profile.DifficultyRampSpeedMultiplier : _difficultyRampSpeedMultiplier;
+
+    private float MaxSpawnCountMultiplier =>
+        _profile != null ? _profile.MaxSpawnCountMultiplier : _maxSpawnCountMultiplier;
+
+    private bool ScaleEnemyHealth => _profile != null ? _profile.ScaleEnemyHealth : _scaleEnemyHealth;
+
+    private float MaxEnemyHealthMultiplier =>
+        _profile != null ? _profile.MaxEnemyHealthMultiplier : _maxEnemyHealthMultiplier;
+
+    private bool ScaleEnemyMoveSpeed => _profile != null ? _profile.ScaleEnemyMoveSpeed : _scaleEnemyMoveSpeed;
+
+    private float MaxEnemySpeedMultiplier =>
+        _profile != null ? _profile.MaxEnemySpeedMultiplier : _maxEnemySpeedMultiplier;
+
+    private bool ScaleEnemyDamage => _profile != null ? _profile.ScaleEnemyDamage : _scaleEnemyDamage;
+
+    private float MaxEnemyDamageMultiplier =>
+        _profile != null ? _profile.MaxEnemyDamageMultiplier : _maxEnemyDamageMultiplier;
 
     private void Awake()
     {
@@ -66,7 +100,7 @@ public class DifficultyManager : MonoBehaviour
     {
         get
         {
-            float elapsed = Time.timeSinceLevelLoad - _scalingStartDelaySeconds;
+            float elapsed = Time.timeSinceLevelLoad - ScalingStartDelaySeconds;
             if (elapsed <= 0f)
                 return 0f;
             return elapsed / 60f;
@@ -78,50 +112,47 @@ public class DifficultyManager : MonoBehaviour
     {
         get
         {
-            if (Time.timeSinceLevelLoad < _scalingStartDelaySeconds)
+            if (Time.timeSinceLevelLoad < ScalingStartDelaySeconds)
                 return 0f;
 
-            float minutes = MinutesSinceScalingStarted * _difficultyRampSpeedMultiplier;
-            float lastKey = _intensityOverMinutesAfterStart.length > 0
-                ? _intensityOverMinutesAfterStart.keys[_intensityOverMinutesAfterStart.length - 1].time
+            AnimationCurve curve = IntensityCurve;
+            if (curve == null)
+                return 0f;
+
+            float minutes = MinutesSinceScalingStarted * RampSpeedMultiplier;
+            float lastKey = curve.length > 0
+                ? curve.keys[curve.length - 1].time
                 : 30f;
             float t = Mathf.Max(0f, minutes);
-            return Mathf.Clamp01(_intensityOverMinutesAfterStart.Evaluate(Mathf.Min(t, lastKey)));
+            return Mathf.Clamp01(curve.Evaluate(Mathf.Min(t, lastKey)));
         }
     }
 
     public float GetSpawnCountMultiplier()
     {
         float i = CurrentIntensity;
-        return Mathf.Lerp(1f, _maxSpawnCountMultiplier, i);
-    }
-
-    /// <summary>Multiplicador sobre el intervalo base del spawner (menor = spawns más frecuentes).</summary>
-    public float GetSpawnIntervalScale()
-    {
-        float i = CurrentIntensity;
-        return Mathf.Lerp(1f, _spawnIntervalScaleAtMaxIntensity, i);
+        return Mathf.Lerp(1f, MaxSpawnCountMultiplier, i);
     }
 
     public float GetEnemyHealthMultiplier()
     {
-        if (!_scaleEnemyHealth)
+        if (!ScaleEnemyHealth)
             return 1f;
-        return Mathf.Lerp(1f, _maxEnemyHealthMultiplier, CurrentIntensity);
+        return Mathf.Lerp(1f, MaxEnemyHealthMultiplier, CurrentIntensity);
     }
 
     public float GetEnemyMoveSpeedMultiplier()
     {
-        if (!_scaleEnemyMoveSpeed)
+        if (!ScaleEnemyMoveSpeed)
             return 1f;
-        return Mathf.Lerp(1f, _maxEnemySpeedMultiplier, CurrentIntensity);
+        return Mathf.Lerp(1f, MaxEnemySpeedMultiplier, CurrentIntensity);
     }
 
     public float GetEnemyDamageMultiplier()
     {
-        if (!_scaleEnemyDamage)
+        if (!ScaleEnemyDamage)
             return 1f;
-        return Mathf.Lerp(1f, _maxEnemyDamageMultiplier, CurrentIntensity);
+        return Mathf.Lerp(1f, MaxEnemyDamageMultiplier, CurrentIntensity);
     }
 
     /// <summary>Aplica vida, velocidad y daño según dificultad (enemigos del pool tras <see cref="SwarmEnemyPool.TryGet"/>).</summary>
@@ -165,8 +196,6 @@ public class DifficultyManager : MonoBehaviour
             _maxSpawnCountMultiplier = 1f;
         if (_difficultyRampSpeedMultiplier < 0.1f)
             _difficultyRampSpeedMultiplier = 0.1f;
-        if (_spawnIntervalScaleAtMaxIntensity < 0.15f)
-            _spawnIntervalScaleAtMaxIntensity = 0.15f;
         if (_maxEnemyHealthMultiplier < 1f)
             _maxEnemyHealthMultiplier = 1f;
         if (_maxEnemySpeedMultiplier < 1f)

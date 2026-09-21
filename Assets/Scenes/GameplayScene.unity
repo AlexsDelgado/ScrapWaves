@@ -17736,6 +17736,54 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1119647510}
   m_CullTransparentMesh: 1
+--- !u!1 &1126236674
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1126236675}
+  - component: {fileID: 1126236676}
+  m_Layer: 0
+  m_Name: BalanceTuning
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1126236675
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1126236674}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1126236676
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1126236674}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9c9a4d00d0506247801d994a4ae70eb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BalanceTuningHub
+  _profile: {fileID: 11400000, guid: e6339d21a67f3ca409682bf8a85c07bc, type: 2}
+  _difficultyManager: {fileID: 1443009583}
+  _heatManager: {fileID: 2026883592}
+  _orbitalSpawner: {fileID: 1700000012}
 --- !u!1 &1130156085
 GameObject:
   m_ObjectHideFlags: 0
@@ -20266,7 +20314,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3787747927528908228, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.29995
+      value: 0.54995
       objectReference: {fileID: 0}
     - target: {fileID: 3787747927528908228, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
       propertyPath: m_LocalPosition.z
@@ -20300,6 +20348,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4151294132127611409, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: c09a3d3f0e8163246ab2ef89d9e894b7, type: 2}
     - target: {fileID: 6900047909791450198, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
       propertyPath: _player
       value: 
@@ -20315,6 +20367,14 @@ PrefabInstance:
     - target: {fileID: 7883729820849005377, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
       propertyPath: m_Name
       value: RearThreatIndicator
+      objectReference: {fileID: 0}
+    - target: {fileID: 8344249136718648090, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: be08365010856674088c9ac056645742, type: 2}
+    - target: {fileID: 8593895835763218051, guid: d11ab04059dbf86498f061e3e77883c3, type: 3}
+      propertyPath: m_Enabled
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -22293,6 +22353,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ecac01fa04877074c94ca68b646815fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DifficultyManager
+  _profile: {fileID: 0}
   _scalingStartDelaySeconds: 30
   _intensityOverMinutesAfterStart:
     serializedVersion: 2
@@ -22338,7 +22399,6 @@ MonoBehaviour:
     m_RotationOrder: 4
   _difficultyRampSpeedMultiplier: 1
   _maxSpawnCountMultiplier: 4
-  _spawnIntervalScaleAtMaxIntensity: 0.45
   _scaleEnemyHealth: 1
   _maxEnemyHealthMultiplier: 10
   _scaleEnemyMoveSpeed: 1
@@ -25244,6 +25304,7 @@ MonoBehaviour:
   _maxProjectionIterations: 14
   _resolveStepUp: 0.08
   _resolveStepOut: 0.06
+  _heatManager: {fileID: 0}
 --- !u!4 &1586107779
 Transform:
   m_ObjectHideFlags: 0
@@ -27519,6 +27580,7 @@ MonoBehaviour:
   _player: {fileID: 0}
   _playerStats: {fileID: 0}
   _difficultyManager: {fileID: 1443009583}
+  _profile: {fileID: 0}
   _overheatManager: {fileID: 0}
   _heatManager: {fileID: 2026883592}
   _spawnInterval: 5
@@ -32523,14 +32585,50 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0f8ea6dadc441a346bd00f1de6b9df6f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HeatManager
+  _profile: {fileID: 0}
+  _spawnScalingOverHeatRatio:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.35
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _maxSpawnCountMultiplierAtFullHeat: 2
+  _spawnIntervalScaleAtFullHeat: 0.45
   _pointsToReachDisplay80: 100
   _pointsFromDisplay80To100: 100
   _escalationPerOverheatCycle: 1.5
   _heatPerKill: 2
+  _postOverheatDecayPerSecond: 12
   _logOverheat: 0
   _heatRequirementEscalation: 1
   _currentHeat: 0
-  _postOverheatDecayPerSecond: 12
 --- !u!4 &2026883593
 Transform:
   m_ObjectHideFlags: 0
@@ -34591,3 +34689,4 @@ SceneRoots:
   - {fileID: 1603196539}
   - {fileID: 1800829816}
   - {fileID: 1874491352}
+  - {fileID: 1126236675}

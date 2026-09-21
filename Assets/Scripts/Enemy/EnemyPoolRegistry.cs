@@ -147,6 +147,19 @@ public class EnemyPoolRegistry : MonoBehaviour
             entry.MaxSize);
     }
 
+    /// <summary>
+    /// True si el pool de ese prefab todavía puede servir una instancia. Prefabs no registrados
+    /// devuelven true porque se autoregistran en el primer <see cref="TryGet"/>.
+    /// </summary>
+    public bool HasAvailableInstance(GameObject prefab)
+    {
+        if (prefab == null || !_useEnemyPool)
+            return false;
+
+        return !_poolsByPrefabId.TryGetValue(prefab.GetInstanceID(), out EnemyPrefabPool pool)
+            || pool.HasAvailableInstance;
+    }
+
     public bool TryGet(GameObject prefab, out GameObject instance)
     {
         instance = null;

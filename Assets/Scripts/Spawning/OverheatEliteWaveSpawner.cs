@@ -62,11 +62,32 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
     private readonly List<GameObject> _spawned = new(32);
     private readonly List<Transform> _aliveEliteTransformBuffer = new(32);
-    private readonly Dictionary<EnemyHealth, Action> _onEliteDiedHandlers = new(32);
+
+    /// <summary>
+    /// Fuente de verdad única del objetivo, clavada por Transform (el EnemyHealth de una
+    /// instancia pooleada se reusa entre oleadas, así que no sirve como clave).
+    /// </summary>
+    private readonly Dictionary<Transform, TrackedElite> _tracked = new(32);
+
     private int _aliveEliteCount;
     private bool _waveActive;
     private int _cycleIndex;
     private bool _exitPhaseDisabled;
+    private bool _clearing;
+
+    private readonly struct TrackedElite
+    {
+        public readonly EnemyHealth Health;
+        public readonly Action DiedHandler;
+        public readonly EliteObjectiveMarker Marker;
+
+        public TrackedElite(EnemyHealth health, Action diedHandler, EliteObjectiveMarker marker)
+        {
+            Health = health;
+            DiedHandler = diedHandler;
+            Marker = marker;
+        }
+    }
 
     public int EliteWaveTotal { get; private set; }
     public int ElitesRemaining => _aliveEliteCount;
@@ -197,7 +218,11 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         for (int i = 0; i < _spawned.Count; i++)
         {
             GameObject go = _spawned[i];
-            if (go == null)
+            if (go == null || !go.activeInHierarchy)
+                continue;
+
+            // Solo los que siguen siendo objetivo: _spawned puede tener instancias ya recicladas.
+            if (!_tracked.ContainsKey(go.transform))
                 continue;
 
             EnemyHealth health = go.GetComponent<EnemyHealth>();
@@ -286,6 +311,15 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     private void RegisterSpawned(GameObject instance)
     {
         _difficultyManager?.ApplySpawnModifiers(instance);
+
+        // Los elites son objetivo de progresión: nunca se duermen ni se despawnean por altura.
+        // Se marca después de obtener la instancia, porque el reset del pool corre antes y
+        // devolvería el exento a su valor de fábrica.
+        EnemyVerticalEngagement engagement = instance.GetComponent<EnemyVerticalEngagement>();
+        if (engagement == null)
+            engagement = EnemyVerticalEngagement.EnsureOn(instance);
+        engagement?.SetExempt(true);
+
         _spawned.Add(instance);
         TrackElite(instance);
     }
@@ -306,31 +340,56 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         if (health == null)
             return;
 
-        EnemyHealth captured = health;
-        Action handler = () => OnEliteDied(captured);
-        _onEliteDiedHandlers[health] = handler;
+        Transform key = instance.transform;
+        if (_tracked.ContainsKey(key))
+            return;
+
+        Action handler = () => UntrackElite(key);
         health.OnDied += handler;
+
+        // Red de seguridad: avisa si la instancia sale de juego sin morir (pool, destrucción, QA).
+        EliteObjectiveMarker marker = EliteObjectiveMarker.Bind(instance, UntrackElite);
+
+        _tracked[key] = new TrackedElite(health, handler, marker);
         _aliveEliteCount++;
     }
 
-    private void OnEliteDied(EnemyHealth health)
+    /// <summary>
+    /// Único punto que decrementa el objetivo. Idempotente: la pertenencia al diccionario
+    /// decide, así que muerte y despawn seguidos (que es lo que pasa siempre: OnDied primero,
+    /// OnPoolDespawn después) cuentan una sola vez.
+    /// </summary>
+    private void UntrackElite(Transform key)
     {
-        if (health != null && _onEliteDiedHandlers.TryGetValue(health, out Action handler))
+        if (key == null || !_tracked.TryGetValue(key, out TrackedElite entry))
+            return;
+
+        _tracked.Remove(key);
+
+        if (entry.Health != null)
+            entry.Health.OnDied -= entry.DiedHandler;
+        if (entry.Marker != null)
+            entry.Marker.Unbind();
+
+        // _spawned no se purgaba nunca: un elite muerto y reciclado por el OrbitalSpawner
+        // dejaba una flecha fantasma en el HUD apuntando a un enemigo común.
+        for (int i = _spawned.Count - 1; i >= 0; i--)
         {
-            health.OnDied -= handler;
-            _onEliteDiedHandlers.Remove(health);
+            GameObject go = _spawned[i];
+            if (go == null || go.transform == key)
+                _spawned.RemoveAt(i);
         }
 
         _aliveEliteCount = Mathf.Max(0, _aliveEliteCount - 1);
         NotifyEliteWaveProgressChanged();
 
-        if (!_waveActive || _aliveEliteCount > 0)
+        if (_clearing || !_waveActive || _aliveEliteCount > 0)
             return;
 
-        // Último elite derrotado: el Overheat termina como éxito (igual que con el boss).
+        // Último elite fuera de juego: el Overheat termina como éxito (igual que con el boss).
         _waveActive = false;
         if (_logState)
-            Debug.Log("[EliteWave] Todos los elites derrotados; fin de Overheat.", this);
+            Debug.Log("[EliteWave] No quedan elites; fin de Overheat.", this);
 
         if (_overheatManager != null && _overheatManager.IsOverheating)
             _overheatManager.NotifyOverheatObjectiveCleared();
@@ -339,39 +398,61 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     /// <summary>Devuelve al pool o destruye los elites que spawneó esta oleada.</summary>
     public void ClearSpawned()
     {
-        foreach (KeyValuePair<EnemyHealth, Action> kv in _onEliteDiedHandlers)
-        {
-            if (kv.Key != null)
-                kv.Key.OnDied -= kv.Value;
-        }
-        _onEliteDiedHandlers.Clear();
-        _aliveEliteCount = 0;
-        _waveActive = false;
+        // Reentrancia: liberar un elite dispara OnPoolDespawn -> UntrackElite, y si eso cerrara
+        // el Overheat volveríamos acá mientras todavía se itera _spawned.
+        if (_clearing)
+            return;
 
-        if (EnemyPoolRegistry.UseEnemyPool && EnemyPoolRegistry.Instance != null)
+        _clearing = true;
+        try
         {
+            bool hadActiveWave = _waveActive;
+
+            // Desengancharse de todo ANTES de liberar, así la limpieza no se avisa a sí misma.
+            foreach (KeyValuePair<Transform, TrackedElite> kv in _tracked)
+            {
+                TrackedElite entry = kv.Value;
+                if (entry.Health != null)
+                    entry.Health.OnDied -= entry.DiedHandler;
+                if (entry.Marker != null)
+                    entry.Marker.Unbind();
+            }
+            _tracked.Clear();
+            _aliveEliteCount = 0;
+            _waveActive = false;
+
             for (int i = _spawned.Count - 1; i >= 0; i--)
             {
                 GameObject go = _spawned[i];
-                if (go != null && go.activeSelf)
-                    EnemyPoolRegistry.Instance.Release(go);
-            }
-        }
-        else
-        {
-            for (int i = _spawned.Count - 1; i >= 0; i--)
-            {
-                if (_spawned[i] != null)
-                {
-                    Destroy(_spawned[i]);
-                    EnemyPoolProfiler.RegisterDestroy();
-                }
-            }
-        }
+                if (go == null)
+                    continue;
 
-        _spawned.Clear();
-        EliteWaveTotal = 0;
-        NotifyEliteWaveProgressChanged();
+                if (go.TryGetComponent(out SwarmPooledEnemy pooled) && pooled.IsBound)
+                {
+                    if (go.activeSelf)
+                        pooled.Despawn();
+                    continue;
+                }
+
+                // Sin binding al pool (fallback con Instantiate): antes quedaba vivo y hostil
+                // para siempre porque EnemyPoolRegistry.Release hacía early-return.
+                Destroy(go);
+                EnemyPoolProfiler.RegisterDestroy();
+            }
+
+            _spawned.Clear();
+            EliteWaveTotal = 0;
+            NotifyEliteWaveProgressChanged();
+
+            // QA limpiando en medio de un Overheat: sin esto la fase queda colgada con cero
+            // objetivos. En la ruta normal EndOverheat ya apagó _isOverheating, así que es no-op.
+            if (hadActiveWave && _overheatManager != null && _overheatManager.IsOverheating)
+                _overheatManager.NotifyOverheatObjectiveCleared();
+        }
+        finally
+        {
+            _clearing = false;
+        }
     }
 
     private void NotifyEliteWaveProgressChanged() => OnEliteWaveProgressChanged?.Invoke();

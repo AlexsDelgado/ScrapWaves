@@ -23,6 +23,9 @@ public sealed class EnemyKnockbackReceiver : MonoBehaviour
         _planarVelocity = Vector3.ClampMagnitude(_planarVelocity, _maxPlanarSpeed);
     }
 
+    /// <summary>Descarta el empuje pendiente (al dormir un enemigo, para que no salte al despertar).</summary>
+    public void ClearPending() => _planarVelocity = Vector3.zero;
+
     // Movement controllers consume displacement so knockback does not fight their normal steering.
     public Vector3 ConsumeDisplacement(float deltaTime)
     {
