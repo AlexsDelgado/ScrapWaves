@@ -32,22 +32,10 @@ public class BossKeyDrop : MonoBehaviour
         if (prefab == null)
             return;
 
-        Vector3 preferred = transform.position + Vector3.up * 0.75f;
-        Vector3 pos = ResolveGroundDropPosition(preferred);
+        // Spawnea en la muerte; WorldPickup cae al suelo con PickupGroundFall.
+        // No snappeamos con raycast aquí: el fallback ~0 podía golpear al boss (layer Enemy)
+        // o dejar la llave flotando si el suelo no está en Terrain/Default.
+        Vector3 pos = transform.position + Vector3.up * 0.75f;
         Instantiate(prefab, pos, Quaternion.identity);
-    }
-
-    private static Vector3 ResolveGroundDropPosition(Vector3 preferred)
-    {
-        int mask = LayerMask.GetMask("Terrain", "Default");
-        if (Physics.Raycast(preferred + Vector3.up * 8f, Vector3.down, out RaycastHit hit, 40f, mask,
-                QueryTriggerInteraction.Ignore))
-            return hit.point + Vector3.up * 0.35f;
-
-        if (Physics.Raycast(preferred + Vector3.up * 20f, Vector3.down, out hit, 80f, ~0,
-                QueryTriggerInteraction.Ignore))
-            return hit.point + Vector3.up * 0.35f;
-
-        return preferred;
     }
 }

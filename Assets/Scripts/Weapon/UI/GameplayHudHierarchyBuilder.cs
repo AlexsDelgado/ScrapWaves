@@ -210,17 +210,33 @@ public static class GameplayHudHierarchyBuilder
             existing.gameObject.AddComponent(componentType);
     }
 
+    // Same industrial palette as RunMenuPrefabBuilder / LevelUpMenu.
+    private static readonly Color DeepSteel = new(0.067f, 0.078f, 0.075f, 1f);
+    private static readonly Color SelectedPlate = new(0.22f, 0.25f, 0.22f, 1f);
+    private static readonly Color Bone = new(0.949f, 0.961f, 0.922f, 1f);
+    private static readonly Color MutedSteel = new(0.678f, 0.741f, 0.69f, 1f);
+    private static readonly Color Rust = new(0.851f, 0.416f, 0.196f, 1f);
+    private static readonly Color RustLight = new(0.95f, 0.60f, 0.36f, 1f);
+    private static readonly Color RunEndBackdrop = new(0.018f, 0.026f, 0.022f, 0.55f);
+
+    public static bool HasStyledRunEndFrame(Transform runEndRoot)
+    {
+        if (runEndRoot == null)
+            return false;
+        Transform panel = runEndRoot.Find("RunEndRoot/Panel") ?? runEndRoot.Find("Panel");
+        return panel != null && panel.Find("Background/FineBorder") != null;
+    }
+
     public static void BuildRunEndHierarchy(Transform runEndRoot)
     {
         if (runEndRoot == null)
             return;
 
-        // Si ya existe RunEndRoot con el Panel completo no hay nada que hacer.
-        // Si existe pero sin Panel (jerarquía incompleta del prefab), lo eliminamos y lo reconstruimos.
+        // Preserve only a fully styled industrial frame; rebuild placeholder / incomplete roots.
         Transform existingRoot = runEndRoot.Find("RunEndRoot");
         if (existingRoot != null)
         {
-            if (existingRoot.Find("Panel") != null)
+            if (HasStyledRunEndFrame(runEndRoot))
                 return;
             Object.DestroyImmediate(existingRoot.gameObject);
         }
@@ -229,42 +245,54 @@ public static class GameplayHudHierarchyBuilder
         rootGo.transform.SetParent(runEndRoot, false);
         HudUiWire.StretchFull(rootGo.GetComponent<RectTransform>());
 
-        var overlay = HudUiFactory.CreatePanel(rootGo.transform, "Overlay", Vector2.zero);
-        var overlayRt = overlay.GetComponent<RectTransform>();
-        HudUiWire.StretchFull(overlayRt);
-        overlay.color = new Color(0f, 0f, 0f, 0.72f);
-        overlay.raycastTarget = true;
+        Image backdrop = CreateSolidImage(rootGo.transform, "Overlay", RunEndBackdrop, raycast: true);
+        HudUiWire.StretchFull(backdrop.rectTransform);
 
         var panelGo = new GameObject("Panel", typeof(RectTransform));
         panelGo.transform.SetParent(rootGo.transform, false);
         var panelRt = panelGo.GetComponent<RectTransform>();
-        panelRt.anchorMin = new Vector2(0.5f, 0.5f);
-        panelRt.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRt.pivot = new Vector2(0.5f, 0.5f);
-        panelRt.sizeDelta = new Vector2(560f, 420f);
-        HudUiFactory.CreatePanel(panelGo.transform, "Background", new Vector2(560f, 420f));
+        panelRt.anchorMin = panelRt.anchorMax = panelRt.pivot = new Vector2(0.5f, 0.5f);
+        panelRt.sizeDelta = new Vector2(720f, 480f);
+        Image panelFrame = panelGo.AddComponent<Image>();
+        panelFrame.sprite = HudUiFactory.WhiteSprite;
+        panelFrame.color = MutedSteel;
+        panelFrame.raycastTarget = true;
+
+        Image background = CreateSolidImage(panelGo.transform, "Background", DeepSteel);
+        StretchInsets(background.rectTransform, 3f, 3f, 3f, 3f);
+        var backgroundLayout = background.gameObject.AddComponent<LayoutElement>();
+        backgroundLayout.ignoreLayout = true;
+
+        Image fineBorder = CreateSolidImage(background.transform, "FineBorder",
+            new Color(MutedSteel.r, MutedSteel.g, MutedSteel.b, 0.55f));
+        StretchInsets(fineBorder.rectTransform, 3f, 3f, 3f, 3f);
+        Image fill = CreateSolidImage(fineBorder.transform, "Fill", DeepSteel);
+        StretchInsets(fill.rectTransform, 1f, 1f, 1f, 1f);
 
         var layout = panelGo.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(24, 24, 24, 24);
-        layout.spacing = 16f;
+        layout.padding = new RectOffset(48, 48, 40, 40);
+        layout.spacing = 18f;
         layout.childAlignment = TextAnchor.UpperCenter;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        CreateRunEndLabel(panelGo.transform, "Title", 52f, FontStyles.Bold, 80f);
-        CreateRunEndLabel(panelGo.transform, "Stats", 24f, FontStyles.Normal, 160f);
-        var retryButton = HudUiFactory.CreateButton(panelGo.transform, "Retry", new Vector2(240f, 52f));
-        retryButton.gameObject.name = "RetryButton";
-
-        var mainMenuButton = HudUiFactory.CreateButton(panelGo.transform, "Main Menu", new Vector2(240f, 52f));
-        mainMenuButton.gameObject.name = "MainMenuButton";
+        CreateRunEndLabel(panelGo.transform, "Title", 42f, FontStyles.Bold, 64f, Bone);
+        CreateRunEndLabel(panelGo.transform, "Stats", 24f, FontStyles.Normal, 140f, MutedSteel);
+        CreateRunEndMenuButton(panelGo.transform, "RetryButton", "Retry", primary: true);
+        CreateRunEndMenuButton(panelGo.transform, "MainMenuButton", "Main Menu", primary: false);
 
         rootGo.SetActive(false);
     }
 
-    private static void CreateRunEndLabel(Transform parent, string name, float fontSize, FontStyles style, float height)
+    private static void CreateRunEndLabel(
+        Transform parent,
+        string name,
+        float fontSize,
+        FontStyles style,
+        float height,
+        Color color)
     {
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -278,8 +306,76 @@ public static class GameplayHudHierarchyBuilder
         tmp.fontSize = fontSize;
         tmp.fontStyle = style;
         tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = Color.white;
+        tmp.color = color;
         tmp.raycastTarget = false;
+    }
+
+    private static Button CreateRunEndMenuButton(Transform parent, string name, string label, bool primary)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var le = go.AddComponent<LayoutElement>();
+        le.preferredHeight = 56f;
+        le.minHeight = 56f;
+        le.preferredWidth = 320f;
+
+        Image border = go.AddComponent<Image>();
+        border.sprite = HudUiFactory.WhiteSprite;
+        border.color = MutedSteel;
+        border.raycastTarget = true;
+
+        Image fill = CreateSolidImage(go.transform, "Fill", primary ? Rust : SelectedPlate, raycast: true);
+        StretchInsets(fill.rectTransform, 2f, 2f, 2f, 2f);
+
+        Image topEdge = CreateSolidImage(fill.transform, "TopEdge", primary ? RustLight : MutedSteel);
+        topEdge.rectTransform.anchorMin = new Vector2(0f, 1f);
+        topEdge.rectTransform.anchorMax = new Vector2(1f, 1f);
+        topEdge.rectTransform.pivot = new Vector2(0.5f, 1f);
+        topEdge.rectTransform.anchoredPosition = Vector2.zero;
+        topEdge.rectTransform.sizeDelta = new Vector2(0f, 2f);
+
+        Button button = go.AddComponent<Button>();
+        button.targetGraphic = fill;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        colors.selectedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        colors.pressedColor = new Color(0.75f, 0.75f, 0.75f, 1f);
+        colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.8f);
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        var labelGo = new GameObject("Label", typeof(RectTransform));
+        labelGo.transform.SetParent(go.transform, false);
+        StretchInsets(labelGo.GetComponent<RectTransform>(), 18f, 18f, 6f, 6f);
+        var tmp = labelGo.AddComponent<TextMeshProUGUI>();
+        TmpUiHelper.ApplyDefaultFont(tmp);
+        tmp.text = label;
+        tmp.fontSize = 23f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Bone;
+        tmp.raycastTarget = false;
+        return button;
+    }
+
+    private static Image CreateSolidImage(Transform parent, string name, Color color, bool raycast = false)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var image = go.AddComponent<Image>();
+        image.sprite = HudUiFactory.WhiteSprite;
+        image.color = color;
+        image.raycastTarget = raycast;
+        return image;
+    }
+
+    private static void StretchInsets(RectTransform rect, float left, float right, float top, float bottom)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(left, bottom);
+        rect.offsetMax = new Vector2(-right, -top);
     }
 }
 

@@ -1,8 +1,9 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Global audio: SFX through <see cref="PlayOneShot"/> and two music layers (normal + optional Overheat layer).
+/// Global audio: SFX through <see cref="PlayOneShot"/> and playlist BGM (normal + optional Overheat layer).
 /// Assign <see cref="AudioSource"/> and clips in the Inspector; other scripts call <see cref="Instance"/> or the static helpers.
 /// </summary>
 [DisallowMultipleComponent]
@@ -17,7 +18,7 @@ public class AudioManager : MonoBehaviour
     [SerializeField, Tooltip("SFX: disparos, golpes, UI corta.")]
     private AudioSource _sfx;
 
-    [SerializeField, Tooltip("Música base, en loop.")]
+    [SerializeField, Tooltip("Música base (playlist, sin loop).")]
     private AudioSource _musicNormal;
 
     [SerializeField, Tooltip("Segunda capa en loop (volumen 0 fuera de Overheat). Opcional.")]
@@ -34,15 +35,20 @@ public class AudioManager : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float _sfxVolumeScale = 1f;
 
-    [Header("Música — clips")]
-    [SerializeField] private AudioClip _bgmMain;
+    [Header("Música — playlist")]
+    [SerializeField] private AudioClip[] _bgmTracks;
+    [SerializeField] private BgmTrackSelector.Mode _bgmMode = BgmTrackSelector.Mode.ShuffleBag;
     [SerializeField] private AudioClip _bgmOverheatLayer;
+    [SerializeField, Min(0f)] private float _bgmGapMinSeconds = 10f;
+    [SerializeField, Min(0f)] private float _bgmGapMaxSeconds = 30f;
 
     [SerializeField, Range(0f, 1f)] private float _musicMainVolume = 0.45f;
     [SerializeField, Range(0f, 1f)] private float _musicOverheatVolume = 0.35f;
 
     private PlayerXP _subscribedXp;
     private OverheatManager _subscribedOverheat;
+    private BgmTrackSelector _trackSelector;
+    private Coroutine _playlistRoutine;
 
     private void OnEnable()
     {
@@ -65,6 +71,7 @@ public class AudioManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        StopPlaylist();
         UnsubscribeGameEvents();
     }
 
@@ -113,13 +120,80 @@ public class AudioManager : MonoBehaviour
 
     private void StartMainBgm()
     {
-        if (_musicNormal == null || _bgmMain == null)
+        StopPlaylist();
+        if (_musicNormal == null || _bgmTracks == null || _bgmTracks.Length == 0)
             return;
 
-        _musicNormal.loop = true;
-        _musicNormal.clip = _bgmMain;
+        int usable = CountUsableTracks(_bgmTracks);
+        if (usable == 0)
+            return;
+
+        _musicNormal.loop = false;
         _musicNormal.volume = _musicMainVolume;
-        _musicNormal.Play();
+        _trackSelector = CreateSelector();
+        _playlistRoutine = StartCoroutine(RunPlaylist());
+    }
+
+    private BgmTrackSelector CreateSelector()
+    {
+        BgmTrackSelector.Mode mode = _bgmMode;
+        int count = _bgmTracks.Length;
+        if (mode == BgmTrackSelector.Mode.AlternateTwo && count != 2)
+            mode = BgmTrackSelector.Mode.ShuffleBag;
+        return new BgmTrackSelector(mode, count);
+    }
+
+    private IEnumerator RunPlaylist()
+    {
+        while (_musicNormal != null && _bgmTracks != null && _bgmTracks.Length > 0)
+        {
+            AudioClip clip = null;
+            for (int attempt = 0; attempt < _bgmTracks.Length; attempt++)
+            {
+                int index = _trackSelector.Next();
+                clip = _bgmTracks[index];
+                if (clip != null)
+                    break;
+            }
+
+            if (clip == null)
+                yield break;
+
+            _musicNormal.clip = clip;
+            _musicNormal.Play();
+
+            while (_musicNormal != null && _musicNormal.isPlaying)
+                yield return null;
+
+            if (_musicNormal == null)
+                yield break;
+
+            float gapMin = Mathf.Min(_bgmGapMinSeconds, _bgmGapMaxSeconds);
+            float gapMax = Mathf.Max(_bgmGapMinSeconds, _bgmGapMaxSeconds);
+            float gap = gapMin >= gapMax ? gapMin : UnityEngine.Random.Range(gapMin, gapMax);
+            if (gap > 0f)
+                yield return new WaitForSecondsRealtime(gap);
+        }
+    }
+
+    private void StopPlaylist()
+    {
+        if (_playlistRoutine != null)
+        {
+            StopCoroutine(_playlistRoutine);
+            _playlistRoutine = null;
+        }
+    }
+
+    private static int CountUsableTracks(AudioClip[] tracks)
+    {
+        int count = 0;
+        for (int i = 0; i < tracks.Length; i++)
+        {
+            if (tracks[i] != null)
+                count++;
+        }
+        return count;
     }
 
     /// <summary>

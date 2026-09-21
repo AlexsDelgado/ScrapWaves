@@ -27,14 +27,27 @@ public class WorldPickup : MonoBehaviour
     [SerializeField, Tooltip("Si false, ignora PickupRange del jugador y usa solo PickupRadius.")]
     private bool _usePlayerPickupRange = true;
 
+    [SerializeField, Min(0f), Tooltip("Offset vertical sobre el suelo al aterrizar.")]
+    private float _groundOffset = 0.35f;
+
+    [SerializeField, Tooltip("Layer(s) contra las que cae el pickup. Vacío = Terrain + Default.")]
+    private LayerMask _groundMask;
+
+    [SerializeField, Tooltip("Si true, cae por gravedad hasta el suelo al spawnear (bosses/enemigos en el aire).")]
+    private bool _fallToGround = true;
+
     private IPickable _pickable;
     private Vector3 _basePosition;
     private float _bobPhase;
     private bool _pickedUp;
+    private bool _isFalling;
+    private float _fallVelocity;
 
     private void Awake()
     {
         TryResolvePickable();
+        if (_groundMask.value == 0)
+            _groundMask = LayerMask.GetMask("Terrain", "Default");
     }
 
     private void OnEnable()
@@ -43,6 +56,8 @@ public class WorldPickup : MonoBehaviour
         _basePosition = transform.position;
         _bobPhase = Random.Range(0f, Mathf.PI * 2f);
         _pickedUp = false;
+        _isFalling = _fallToGround;
+        _fallVelocity = 0f;
     }
 
     /// <summary>Recogida al acercarse, sin imán ni PickupRange de stats (escenas de prueba).</summary>
@@ -52,6 +67,9 @@ public class WorldPickup : MonoBehaviour
         MagnetRadius = 0f;
         MagnetSpeed = 0f;
         _usePlayerPickupRange = false;
+        _fallToGround = false;
+        _isFalling = false;
+        _basePosition = transform.position;
     }
 
     /// <summary>Recogida de gameplay: radio base + imán + PickupRange del jugador.</summary>
@@ -61,6 +79,13 @@ public class WorldPickup : MonoBehaviour
         MagnetRadius = Mathf.Max(0f, magnetRadius);
         MagnetSpeed = Mathf.Max(0f, magnetSpeed);
         _usePlayerPickupRange = true;
+        _fallToGround = true;
+        if (isActiveAndEnabled)
+        {
+            _isFalling = true;
+            _fallVelocity = 0f;
+            _basePosition = transform.position;
+        }
     }
 
     private void OnValidate()
@@ -73,6 +98,19 @@ public class WorldPickup : MonoBehaviour
     {
         if (_pickedUp)
             return;
+
+        if (_isFalling)
+        {
+            Vector3 fallPos = transform.position;
+            if (PickupGroundFall.Tick(ref fallPos, ref _fallVelocity, Time.deltaTime, _groundOffset, _groundMask))
+            {
+                _isFalling = false;
+                _basePosition = fallPos;
+            }
+
+            transform.position = fallPos;
+            return;
+        }
 
         Transform player = PlayerMovement.PlayerTransform;
         if (player == null)

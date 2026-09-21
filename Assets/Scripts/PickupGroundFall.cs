@@ -10,7 +10,8 @@ public static class PickupGroundFall
 {
     private const float Gravity = -20f;
     private const float GroundProbeHeight = 5f;
-    private const float GroundProbeExtraDistance = 5f;
+    // Long enough to find ground under flying bosses / elevated death positions.
+    private const float GroundProbeExtraDistance = 80f;
 
     /// <summary>
     /// Avanza la caída un frame. Devuelve true cuando aterrizó (a partir de ahí dejar de llamarla

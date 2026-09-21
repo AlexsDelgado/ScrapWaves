@@ -8,9 +8,9 @@ public class RunEndScreenUI : MonoBehaviour
 {
     public static RunEndScreenUI Instance { get; private set; }
 
-    [SerializeField] private Color _overlayColor = new(0f, 0f, 0f, 0.72f);
-    [SerializeField] private Color _victoryTextColor = new(0.4f, 1f, 0.5f, 1f);
-    [SerializeField] private Color _defeatTextColor = new Color(1f, 0.35f, 0.3f, 1f);
+    [SerializeField] private Color _overlayColor = new(0.018f, 0.026f, 0.022f, 0.55f);
+    [SerializeField] private Color _victoryTextColor = new(0.659f, 0.78f, 0.561f, 1f);
+    [SerializeField] private Color _defeatTextColor = new(0.851f, 0.416f, 0.196f, 1f);
 
     [Header("Authored UI")]
     [SerializeField] private GameObject _root;
@@ -63,6 +63,10 @@ public class RunEndScreenUI : MonoBehaviour
             $"Level: {level}\n" +
             $"Bosses: {RunSessionStats.BossKills}";
 
+        Transform overlay = _root.transform.Find("Overlay") ?? _root.transform.Find("Backdrop");
+        if (overlay != null && overlay.TryGetComponent(out Image overlayImage))
+            overlayImage.color = _overlayColor;
+
         if (_camera == null)
             _camera = FindAnyObjectByType<ThirdPersonCamera>();
         _camera?.SetLookBlockedByUi(true);
@@ -106,10 +110,21 @@ public class RunEndScreenUI : MonoBehaviour
     {
         if (Application.isPlaying)
             throw new System.InvalidOperationException("Author run-end UI outside Play Mode.");
-        if (TryWireFromHierarchy())
+
+        bool styled = GameplayHudHierarchyBuilder.HasStyledRunEndFrame(transform);
+        if (styled && TryWireFromHierarchy())
             return;
-        if (_root != null)
-            throw new System.InvalidOperationException("The existing run-end hierarchy is incomplete; repair its references before authoring.");
+
+        Transform existing = transform.Find("RunEndRoot");
+        if (existing != null)
+            DestroyImmediate(existing.gameObject);
+
+        _root = null;
+        _titleText = null;
+        _statsText = null;
+        _retryButton = null;
+        _mainMenuButton = null;
+
         GameplayHudHierarchyBuilder.BuildRunEndHierarchy(transform);
         if (!TryWireFromHierarchy())
             throw new System.InvalidOperationException("Failed to author run-end UI.");
