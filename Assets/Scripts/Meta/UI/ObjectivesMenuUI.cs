@@ -53,6 +53,7 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private GameObject _objectivesDataUnavailableState;
     [SerializeField] private GameObject _objectiveDetailRoot;
     [SerializeField] private GameObject _objectiveDetailEmptyState;
+    [SerializeField] private Image _objectiveIconImage;
     [SerializeField] private TextMeshProUGUI _objectiveNameText;
     [SerializeField] private TextMeshProUGUI _objectiveDescriptionText;
     [SerializeField] private TextMeshProUGUI _objectiveProgressText;
@@ -743,6 +744,7 @@ public class ObjectivesMenuUI : MonoBehaviour
             $"{ObjectiveRowView.FormatValue(_selectedObjectiveRow.CurrentProgress)} / {ObjectiveRowView.FormatValue(_selectedObjectiveRow.TargetProgress)}");
         SetText(_objectiveCompletionText, _selectedObjectiveRow.IsComplete ? "COMPLETE" : "IN PROGRESS");
         SetText(_objectiveRewardText, BuildObjectiveRewardText(achievement));
+        SetObjectiveIcon(AchievementUiIcons.Resolve(achievement));
 
         if (_objectiveProgressBar != null)
         {
@@ -814,6 +816,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         SetText(_objectiveProgressText, string.Empty);
         SetText(_objectiveCompletionText, string.Empty);
         SetText(_objectiveRewardText, string.Empty);
+        SetObjectiveIcon(null);
         if (_objectiveProgressBar != null)
             _objectiveProgressBar.SetValueWithoutNotify(0f);
     }
@@ -1206,6 +1209,17 @@ public class ObjectivesMenuUI : MonoBehaviour
     {
         if (text != null)
             text.text = value ?? string.Empty;
+    }
+
+    private void SetObjectiveIcon(Sprite icon)
+    {
+        if (_objectiveIconImage == null)
+            return;
+
+        _objectiveIconImage.sprite = icon;
+        _objectiveIconImage.enabled = icon != null;
+        _objectiveIconImage.preserveAspect = true;
+        _objectiveIconImage.color = icon != null ? Color.white : new Color(1f, 1f, 1f, 0f);
     }
 
     private static void SetActive(GameObject target, bool active)

@@ -67,6 +67,7 @@ public class SaveManager : MonoBehaviour
         // AssetDatabase, que solo existe en el Editor) — necesario para que los logros no
         // aparezcan vacíos en builds reales.
         _achievementCatalog.AddRange(Resources.LoadAll<AchievementDefinition>("Meta/Achievements"));
+        AchievementUiIcons.ApplyToAll(_achievementCatalog);
     }
 
     private void OnEnable() => SceneManager.sceneLoaded += HandleSceneLoaded;
@@ -289,6 +290,7 @@ public class SaveManager : MonoBehaviour
                 _achievementCatalog.Add(achievement);
         }
 
+        AchievementUiIcons.ApplyToAll(_achievementCatalog);
         EvaluateAchievements();
     }
 

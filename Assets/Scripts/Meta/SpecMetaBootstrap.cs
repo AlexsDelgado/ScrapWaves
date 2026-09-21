@@ -76,6 +76,7 @@ public static class SpecMetaBootstrap
                 "Shop_Arm_AdvancedTargetingModule", 30),
         };
 
+        AchievementUiIcons.ApplyToAll(list);
         SaveManager.Instance.RegisterRuntimeAchievements(list);
         RegisterPathUnlockCards();
         s_Registered = true;

@@ -10,6 +10,7 @@ using UnityEngine.UI;
 public sealed class ObjectiveRowView : MonoBehaviour
 {
     [SerializeField] private Button _button;
+    [SerializeField] private Image _iconImage;
     [SerializeField] private TextMeshProUGUI _nameText;
     [SerializeField] private TextMeshProUGUI _progressText;
     [SerializeField] private Slider _progressBar;
@@ -43,6 +44,8 @@ public sealed class ObjectiveRowView : MonoBehaviour
             _button.interactable = achievement != null;
             _button.onClick.AddListener(HandleActivated);
         }
+
+        ApplyIcon(achievement);
 
         if (_nameText != null)
             _nameText.text = achievement != null ? achievement.DisplayName : string.Empty;
@@ -86,6 +89,18 @@ public sealed class ObjectiveRowView : MonoBehaviour
     {
         if (Achievement != null)
             _selected?.Invoke(this);
+    }
+
+    private void ApplyIcon(AchievementDefinition achievement)
+    {
+        if (_iconImage == null)
+            return;
+
+        Sprite icon = AchievementUiIcons.Resolve(achievement);
+        _iconImage.sprite = icon;
+        _iconImage.enabled = icon != null;
+        _iconImage.preserveAspect = true;
+        _iconImage.color = icon != null ? Color.white : new Color(1f, 1f, 1f, 0f);
     }
 
     private static void SetActive(GameObject target, bool active)

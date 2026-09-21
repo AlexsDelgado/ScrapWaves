@@ -41,11 +41,12 @@ public sealed class AchievementUnlockToastView : MonoBehaviour
     {
         if (!IsConfigured || achievement == null) return;
         CachePosition();
-        _icon.sprite = achievement.Icon;
-        _iconRoot.SetActive(achievement.Icon != null);
+        Sprite icon = AchievementUiIcons.Resolve(achievement);
+        _icon.sprite = icon;
+        _iconRoot.SetActive(icon != null);
         _title.text = achievement.DisplayName;
         _scrap.text = achievement.ScrapReward > 0 ? $"+{achievement.ScrapReward} scrap" : string.Empty;
-        float left = achievement.Icon != null ? _textInsetWithIcon : _textInsetWithoutIcon;
+        float left = icon != null ? _textInsetWithIcon : _textInsetWithoutIcon;
         SetTextInset(_header, left);
         SetTextInset(_title, left);
         SetTextInset(_scrap, left);

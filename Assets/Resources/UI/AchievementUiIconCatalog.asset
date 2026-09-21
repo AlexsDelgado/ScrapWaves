@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee040a918fe09f147a61f67a1a6e0d19, type: 3}
+  m_Name: AchievementUiIconCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::AchievementUiIconCatalog
+  _entries:
+  - AchievementId: first_kill
+    Icon: {fileID: 21300000, guid: b51c5871b51f1d74bb9cf40b8523bf0b, type: 3}
+  - AchievementId: first_death
+    Icon: {fileID: 21300000, guid: 498b77b9cc2f1224c8ac3cd4d3bd05db, type: 3}
+  - AchievementId: first_extraction
+    Icon: {fileID: 21300000, guid: 86526839aba01c64e9d6a6445bcc6bc7, type: 3}
+  - AchievementId: thaw_them_out
+    Icon: {fileID: 21300000, guid: 0d3c6e7163e3fad469e0c644ac85a833, type: 3}
+  - AchievementId: to_little_pieces
+    Icon: {fileID: 21300000, guid: b4128a0dd137676419e8e7f1f152dbb9, type: 3}
+  - AchievementId: make_it_rain
+    Icon: {fileID: 21300000, guid: 9b31445ddf23d7b46856e30d0c7b37ba, type: 3}
+  - AchievementId: go_for_the_head
+    Icon: {fileID: 21300000, guid: c5d23bea56269ff4fa589e9d6ec9a51b, type: 3}
+  - AchievementId: studied_the_blade
+    Icon: {fileID: 21300000, guid: 190431f9ea21bda4c922616b72c0be44, type: 3}
+  - AchievementId: high_value_targets
+    Icon: {fileID: 21300000, guid: 6da98381c8a6629469f877eaa3e1f301, type: 3}
+  - AchievementId: resourcefulness
+    Icon: {fileID: 21300000, guid: 3537c2992c4ee86428affca782d3608a, type: 3}
+  - AchievementId: not_how_you_heal
+    Icon: {fileID: 21300000, guid: bc3a1d54eaaff1944802fca587add65a, type: 3}
+  - AchievementId: survival_adept
+    Icon: {fileID: 21300000, guid: acbb6f0eee540ca4485941aeef7497bf, type: 3}
+  - AchievementId: one_shot_one_kill
+    Icon: {fileID: 21300000, guid: 2c6e05e2f7fac704886e502c0615caf9, type: 3}
+  - AchievementId: BossHunter
+    Icon: {fileID: 21300000, guid: ddee0eb4d3bfa7e4ba007068875e6111, type: 3}
+  - AchievementId: RustyMarathoner
+    Icon: {fileID: 21300000, guid: 246405b052ef3e84598b083ededc42ec, type: 3}

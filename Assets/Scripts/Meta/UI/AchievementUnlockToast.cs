@@ -268,9 +268,10 @@ public sealed class AchievementUnlockToast : MonoBehaviour
         panel.color = new Color(0f, 0f, 0f, 0f);
 
         float leftPad = 14f;
-        if (achievement.Icon != null)
+        Sprite iconSprite = AchievementUiIcons.Resolve(achievement);
+        if (iconSprite != null)
         {
-            Image icon = HudUiFactory.CreateIconSlot(panel.transform, "Icon", 56f, achievement.Icon, HudPlaceholderKind.None);
+            Image icon = HudUiFactory.CreateIconSlot(panel.transform, "Icon", 56f, iconSprite, HudPlaceholderKind.None);
             RectTransform iconRt = icon.transform.parent as RectTransform;
             iconRt.anchorMin = new Vector2(0f, 0.5f);
             iconRt.anchorMax = new Vector2(0f, 0.5f);

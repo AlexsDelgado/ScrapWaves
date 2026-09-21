@@ -40,6 +40,13 @@ public class AchievementDefinition : ScriptableObject
     public int ScrapReward => _scrapReward;
     public IReadOnlyList<string> RewardUnlockIds => _rewardUnlockIds;
 
+    /// <summary>Assigns presentation icon (catalog/bootstrap). No-op if sprite is null.</summary>
+    public void SetIcon(Sprite icon)
+    {
+        if (icon != null)
+            _icon = icon;
+    }
+
     public static AchievementDefinition CreateRuntime(
         string id,
         string displayName,

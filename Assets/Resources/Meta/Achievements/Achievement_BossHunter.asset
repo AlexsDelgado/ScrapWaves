@@ -14,12 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AchievementDefinition
   _achievementId: BossHunter
   _displayName: Cazador de Jefes
-  _description: Los bosses aparecen cada dos ciclos de Overheat y sueltan la llave para
-    la puerta de salida. Derrotalos 3 veces en total, sumando todas tus runs, para
-    desbloquear el Núcleo Recalentado.
-  _icon: {fileID: 0}
+  _description: "Los bosses aparecen cada dos ciclos de Overheat y sueltan la llave
+    para la puerta de salida. Derrotalos 3 veces en total, sumando todas tus runs,
+    para desbloquear el N\xFAcleo Recalentado."
+  _icon: {fileID: 21300000, guid: ddee0eb4d3bfa7e4ba007068875e6111, type: 3}
   _conditionType: 0
   _targetValue: 3
-  _weaponIdFilter:
-  _customKey:
+  _weaponIdFilter: 
+  _customKey: 
+  _cumulative: 1
   _scrapReward: 50
+  _rewardUnlockIds: []
