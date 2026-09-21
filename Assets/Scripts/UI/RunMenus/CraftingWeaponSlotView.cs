@@ -18,8 +18,9 @@ public sealed class CraftingWeaponSlotView : MonoBehaviour
         bool occupied = weapon?.Data != null;
         NameText.text = occupied ? weapon.Data.DisplayName : "Empty slot";
         LevelText.text = occupied ? $"LV {weapon.Level}" : "+ Tinker";
-        Icon.sprite = occupied ? weapon.Data.Icon : null;
+        Icon.sprite = occupied ? WeaponUiIcons.Resolve(weapon.Data, selected: true) : null;
         Icon.gameObject.SetActive(Icon.sprite != null);
+        Icon.color = Color.white;
         Background.color = selected ? SelectedColor : NormalColor;
         Border.gameObject.SetActive(selected);
         Button.interactable = interactable;

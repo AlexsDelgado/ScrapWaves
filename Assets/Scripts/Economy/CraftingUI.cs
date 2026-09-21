@@ -225,8 +225,9 @@ public class CraftingUI : MonoBehaviour
             field.Root.SetActive(visible);
             if (!visible) continue;
             field.NameText.text = candidates[i].DisplayName;
-            field.Icon.sprite = candidates[i].Icon;
+            field.Icon.sprite = WeaponUiIcons.Resolve(candidates[i], selected: false);
             field.Icon.gameObject.SetActive(field.Icon.sprite != null);
+            field.Icon.color = Color.white;
         }
         IReadOnlyList<MaterialCost> cost = _crafting.GetTinkeringCost(slot);
         _view.TinkerCostLabel.text = $"COST · SLOT {slot}";

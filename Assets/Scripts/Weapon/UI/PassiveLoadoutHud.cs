@@ -65,10 +65,12 @@ public class PassiveLoadoutHud : MonoBehaviour
             if (slotRoot == null)
                 return false;
 
-            Image icon = HudUiWire.FindImage(slotRoot, "Icon");
+            Image icon = ResolveSlotIcon(slotRoot);
             TextMeshProUGUI badge = HudUiWire.FindTmp(slotRoot, "Level");
             if (icon == null)
                 return false;
+
+            icon.preserveAspect = true;
 
             (PassiveItemSlot slot, int index) = SlotLayout[i];
             _passiveSlots[i] = new PassiveSlotUi
@@ -81,6 +83,22 @@ public class PassiveLoadoutHud : MonoBehaviour
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// CreateIconSlot nests Icon/Icon; paint the leaf so the outer border frame does not get the sprite.
+    /// </summary>
+    private static Image ResolveSlotIcon(Transform slotRoot)
+    {
+        Transform nested = slotRoot.Find("Icon/Icon");
+        if (nested != null)
+        {
+            Image nestedImage = nested.GetComponent<Image>();
+            if (nestedImage != null)
+                return nestedImage;
+        }
+
+        return HudUiWire.FindImage(slotRoot, "Icon");
     }
 
     private void RefreshPassiveSlots()

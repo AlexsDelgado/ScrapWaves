@@ -46,7 +46,7 @@ public class RunStartWeaponChoice : MonoBehaviour
         for (int i = 0; i < offer.Count; i++)
         {
             WeaponData data = offer[i];
-            options.Add(new LevelUpChoiceOption(data.DisplayName, null, data.Icon, HudPlaceholderKind.Weapon, data));
+            options.Add(new LevelUpChoiceOption(data.DisplayName, null, WeaponUiIcons.Resolve(data, selected: true), HudPlaceholderKind.Weapon, data));
         }
 
         int selected = -1;

@@ -69,7 +69,7 @@ public class WeaponLevelUpHandler : MonoBehaviour
             uiOptions.Add(new LevelUpChoiceOption(
                 weaponOffer.DisplayLabel,
                 description,
-                weaponOffer.Data?.Icon,
+                WeaponUiIcons.Resolve(weaponOffer.Data, selected: true),
                 HudPlaceholderKind.Weapon));
         }
 

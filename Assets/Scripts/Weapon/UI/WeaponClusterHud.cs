@@ -95,9 +95,11 @@ public class WeaponClusterHud : MonoBehaviour
                 return false;
 
             Image frame = HudUiWire.FindImage(slotRoot, "Frame");
-            Image icon = HudUiWire.FindImage(slotRoot, "Icon");
+            Image icon = ResolveWeaponSlotIcon(slotRoot);
             if (icon == null)
                 return false;
+
+            icon.preserveAspect = true;
 
             _weaponSlots.Add(new WeaponSlotUi
             {
@@ -140,6 +142,23 @@ public class WeaponClusterHud : MonoBehaviour
         WireDashIconsFromHierarchy();
 
         return _weaponNameText != null && _ammoFill != null;
+    }
+
+    /// <summary>
+    /// Prefers a leaf Icon under Icon/Icon when present (legacy CreateIconSlot layout),
+    /// otherwise the direct Icon child. Avoids painting the frame Image that covers the sprite.
+    /// </summary>
+    private static Image ResolveWeaponSlotIcon(Transform slotRoot)
+    {
+        Transform nested = slotRoot.Find("Icon/Icon");
+        if (nested != null)
+        {
+            Image nestedImage = nested.GetComponent<Image>();
+            if (nestedImage != null)
+                return nestedImage;
+        }
+
+        return HudUiWire.FindImage(slotRoot, "Icon");
     }
 
     private void EnsureFillImagesReady()
@@ -273,16 +292,17 @@ public class WeaponClusterHud : MonoBehaviour
 
             WeaponInstance runtime = weapons[equippedIndex].Runtime;
             WeaponData data = runtime.Data;
-            Sprite sprite = data.Icon;
+            bool isActiveManual = rotationSlot == 0;
+            Sprite sprite = WeaponUiIcons.Resolve(data, selected: isActiveManual);
             slot.Icon.sprite = sprite != null ? sprite : HudUiFactory.WhiteSprite;
             slot.Icon.color = sprite != null ? Color.white : HudUiFactory.GetPlaceholderColor(HudPlaceholderKind.Weapon);
             if (slot.LevelBadge != null)
                 slot.LevelBadge.text = runtime.Level > 0 ? runtime.Level.ToString() : string.Empty;
 
-            bool isActiveManual = rotationSlot == 0 && runtime.State == WeaponState.Manual;
             if (slot.Frame != null)
             {
-                slot.Frame.color = isActiveManual
+                bool highlight = isActiveManual && runtime.State == WeaponState.Manual;
+                slot.Frame.color = highlight
                     ? new Color(0.95f, 0.75f, 0.2f, 1f)
                     : HudUiFactory.BorderColor;
             }

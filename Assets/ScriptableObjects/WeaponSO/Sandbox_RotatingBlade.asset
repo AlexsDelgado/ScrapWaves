@@ -25,7 +25,7 @@ MonoBehaviour:
   BaseManualAmmo: 50
   ActiveAbilityAmmoCost: 8
   SkillCooldown: 1
-  Icon: {fileID: 0}
+  Icon: {fileID: 21300000, guid: a4c468289a9330c47bc21cf93dd12443, type: 3}
   PresentationProfile: {fileID: 11400000, guid: e83696b42bd757e4f897d3ce46d41d61, type: 2}
   _specificTuning:
     rid: 5516199936037486593

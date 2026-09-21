@@ -95,7 +95,18 @@ public static class HudBottomStripLayouts
             frame.color = HudUiFactory.BorderColor;
             frame.raycastTarget = false;
 
-            HudUiFactory.CreateIconSlot(slotRoot.transform, "Icon", 48f, null, HudPlaceholderKind.Weapon);
+            var iconGo = new GameObject("Icon", typeof(RectTransform));
+            iconGo.transform.SetParent(slotRoot.transform, false);
+            var iconRt = iconGo.GetComponent<RectTransform>();
+            iconRt.anchorMin = iconRt.anchorMax = new Vector2(0.5f, 0.5f);
+            iconRt.pivot = new Vector2(0.5f, 0.5f);
+            iconRt.sizeDelta = new Vector2(48f, 48f);
+            var icon = iconGo.AddComponent<Image>();
+            icon.sprite = HudUiFactory.WhiteSprite;
+            icon.color = HudUiFactory.GetPlaceholderColor(HudPlaceholderKind.Weapon);
+            icon.preserveAspect = true;
+            icon.raycastTarget = false;
+
             CreateLevelBadge(slotRoot.transform, "Level", 11f);
         }
     }

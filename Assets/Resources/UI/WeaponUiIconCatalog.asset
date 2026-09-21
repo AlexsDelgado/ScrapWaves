@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f2b39dbcd02de474ebc64039ab2062e4, type: 3}
+  m_Name: WeaponUiIconCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponUiIconCatalog
+  _entries:
+  - Type: 0
+    Locked: {fileID: 21300000, guid: 1ee855b515656c04a9ba11ec3cff2b47, type: 3}
+    Selected: {fileID: 21300000, guid: 1e652b08faa0fcd4f8639ca8e7467a10, type: 3}
+  - Type: 1
+    Locked: {fileID: 21300000, guid: b0138a78381215240b98ad33939d2391, type: 3}
+    Selected: {fileID: 21300000, guid: 522eeffa19071234ead408324324796f, type: 3}
+  - Type: 2
+    Locked: {fileID: 21300000, guid: d671fffe14ed56d40a3aefd07154422f, type: 3}
+    Selected: {fileID: 21300000, guid: 77fad924ad9542842b2c3555e774e374, type: 3}
+  - Type: 3
+    Locked: {fileID: 21300000, guid: 4432e20c1ce66a848a6eb106ba4ea88d, type: 3}
+    Selected: {fileID: 21300000, guid: b2d7a9ac76fcc9a44b4dd5007cff229a, type: 3}
+  - Type: 4
+    Locked: {fileID: 21300000, guid: f3faf14e3b03084409a1df5d59b51aa9, type: 3}
+    Selected: {fileID: 21300000, guid: a4c468289a9330c47bc21cf93dd12443, type: 3}
