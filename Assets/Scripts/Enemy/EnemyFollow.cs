@@ -120,6 +120,12 @@ public class EnemyFollow : MonoBehaviour
     {
     }
 
+    /// <summary>
+    /// Limpia la velocidad vertical acumulada. Mientras el enemigo está disengaged no se aplica
+    /// gravedad, así que sin esto al despertar arrancaría con un valor viejo y pegaría un tirón.
+    /// </summary>
+    public void ResetVerticalVelocity() => _verticalVelocity = 0f;
+
     private void Update()
     {
         if (_characterController == null)

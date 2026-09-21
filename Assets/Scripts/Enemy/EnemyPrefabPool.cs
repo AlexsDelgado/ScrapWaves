@@ -32,6 +32,13 @@ public sealed class EnemyPrefabPool
             CreateInstance(enqueueInactive: true);
     }
 
+    /// <summary>
+    /// True si un <see cref="TryGet"/> podría servir ahora mismo. Lo usa la expulsión de dormidos
+    /// para liberar primero los tipos que ya no pueden spawnear.
+    /// </summary>
+    public bool HasAvailableInstance =>
+        _prefab != null && (_inactive.Count > 0 || (_allowGrowth && _instances.Count < _maxSize));
+
     public GameObject TryGet()
     {
         if (_prefab == null)

@@ -11,6 +11,12 @@ public static class EnemyPoolProfiler
     public static int PoolReleaseCount { get; private set; }
 
     public static int RegistryActiveCount => EnemyRegistry.ActiveCount;
+
+    /// <summary>Congelados y ocultos por altura. Siguen contando dentro de RegistryActiveCount.</summary>
+    public static int DormantCount => EnemyDormancyRegistry.DormantCount;
+
+    /// <summary>Activos que realmente se mueven: el número útil para leer presión real.</summary>
+    public static int AwakeActiveCount => Mathf.Max(0, EnemyRegistry.ActiveCount - EnemyDormancyRegistry.DormantCount);
     public static int InactiveEnemyObjects { get; private set; }
 
     public static void RegisterInstantiate() => InstantiateCount++;

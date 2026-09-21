@@ -179,6 +179,7 @@ public class QaCoreLoopMenu : MonoBehaviour
         }
 
         GUILayout.Label($"Exit pressure wave x{OverheatSwarmBoost.ExitPressureSpawnMultiplier}");
+        GUILayout.Label($"Dormidos (otro piso): {EnemyDormancyRegistry.DormantCount}/{EnemyDormancyRegistry.MaxDormant} | despiertos: {EnemyPoolProfiler.AwakeActiveCount}");
 
         if (_difficultyManager != null)
         {
@@ -256,6 +257,7 @@ public class QaCoreLoopMenu : MonoBehaviour
         }
 
         sb.AppendLine($"Exit pressure wave x{OverheatSwarmBoost.ExitPressureSpawnMultiplier}");
+        sb.AppendLine($"Dormidos: {EnemyDormancyRegistry.DormantCount}/{EnemyDormancyRegistry.MaxDormant} | despiertos: {EnemyPoolProfiler.AwakeActiveCount}");
         sb.AppendLine();
 
         sb.AppendLine("## SPAWNER ORBITAL");

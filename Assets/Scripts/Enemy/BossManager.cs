@@ -240,7 +240,16 @@ public class BossManager : MonoBehaviour
                 go.AddComponent<EnemyScrapDrop>();
             if (go.GetComponent<EnemyTemporaryPowerupDrop>() == null)
                 go.AddComponent<EnemyTemporaryPowerupDrop>();
-            EnemyVerticalEngagement.EnsureOn(go)?.ResetEngagement();
+            // El boss es objetivo de progresión: nunca se duerme ni se despawnea por altura.
+            // GetComponent y no EnsureOn: EnsureOn devuelve null si el prefab es GigaWorm.
+            EnemyVerticalEngagement bossEngagement = EnemyVerticalEngagement.EnsureOn(go);
+            if (bossEngagement == null)
+                bossEngagement = go.GetComponent<EnemyVerticalEngagement>();
+            if (bossEngagement != null)
+            {
+                bossEngagement.ResetEngagement();
+                bossEngagement.SetExempt(true);
+            }
 
             EnemyHealth captured = health;
             Action handler = () => OnBossInstanceDied(captured);
