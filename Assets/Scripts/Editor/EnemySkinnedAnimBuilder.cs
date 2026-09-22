@@ -15,6 +15,8 @@ public static class EnemySkinnedAnimBuilder
     private const string ChaserControllerPath = "Assets/Arte/EnemiesAnim/ChaserWalk.controller";
     private const string DroneVisualPath = "Assets/Arte/EnemiesAnim/Avispa_Vuelo.fbx";
     private const string DroneControllerPath = "Assets/Arte/EnemiesAnim/DroneFly.controller";
+    private const string SlimeVisualPath = "Assets/Arte/EnemiesAnim/Basurita_MiniSalto.fbx";
+    private const string SlimeControllerPath = "Assets/Arte/EnemiesAnim/SlimeHop.controller";
 
     private static readonly string[] ChaserPrefabs =
     {
@@ -30,6 +32,13 @@ public static class EnemySkinnedAnimBuilder
         "Assets/Prefabs/Drone_Elite.prefab"
     };
 
+    private static readonly string[] SlimePrefabs =
+    {
+        "Assets/Prefabs/EnemyPro.prefab",
+        "Assets/Prefabs/Slime (variant).prefab",
+        "Assets/Prefabs/Slime_Elite.prefab"
+    };
+
     [MenuItem("Tools/ScrapWaves/Fix Enemy Skinned Animations (Chaser+Drone)")]
     public static void BuildAll()
     {
@@ -38,6 +47,7 @@ public static class EnemySkinnedAnimBuilder
 
         BuildChaser();
         BuildDrone();
+        BuildSlime();
         AssetDatabase.SaveAssets();
         Debug.Log("ENEMY_SKINNED_ANIM_FIX_COMPLETE");
     }
@@ -50,6 +60,16 @@ public static class EnemySkinnedAnimBuilder
         BuildChaser();
         AssetDatabase.SaveAssets();
         Debug.Log("CHASER_WALK_BUILD_COMPLETE: " + ChaserControllerPath);
+    }
+
+    [MenuItem("Tools/ScrapWaves/Build Slime Hop Animation")]
+    public static void BuildSlimeMenu()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            throw new InvalidOperationException("Build Slime hop animation in Edit Mode.");
+        BuildSlime();
+        AssetDatabase.SaveAssets();
+        Debug.Log("SLIME_HOP_BUILD_COMPLETE: " + SlimeControllerPath);
     }
 
     [MenuItem("Tools/ScrapWaves/Build Drone Fly Animation")]
@@ -114,7 +134,29 @@ public static class EnemySkinnedAnimBuilder
                 controller,
                 ChaserPoseDefault,
                 hidePlaceholders: new[] { "Cylinder" },
-                rootLocalScale: rootScale);
+                rootLocalScale: rootScale,
+                preserveExistingPose: false);
+        }
+    }
+
+    private static void BuildSlime()
+    {
+        ConfigureSkinnedAnimImport(SlimeVisualPath);
+        AnimatorController controller = BuildSingleStateController(SlimeControllerPath, SlimeVisualPath, "Hop");
+        foreach (string prefabPath in SlimePrefabs)
+        {
+            ReplaceVisual(
+                prefabPath,
+                "Bola de Tierra",
+                SlimeVisualPath,
+                "Basurita",
+                controller,
+                defaultPose: new VisualPose(Vector3.zero, Vector3.zero, Vector3.one),
+                hidePlaceholders: null,
+                rootLocalScale: null,
+                preserveExistingPose: true,
+                forceLocalEuler: Vector3.zero,
+                offsetAnimPhase: true);
         }
     }
 
@@ -133,7 +175,8 @@ public static class EnemySkinnedAnimBuilder
                 controller,
                 DronePoseDefault,
                 hidePlaceholders: new[] { "drone" },
-                rootLocalScale: rootScale);
+                rootLocalScale: rootScale,
+                preserveExistingPose: false);
         }
     }
 
@@ -209,9 +252,12 @@ public static class EnemySkinnedAnimBuilder
         string skinnedModelPath,
         string newVisualName,
         RuntimeAnimatorController controller,
-        VisualPose pose,
+        VisualPose defaultPose,
         string[] hidePlaceholders,
-        Vector3? rootLocalScale = null)
+        Vector3? rootLocalScale = null,
+        bool preserveExistingPose = false,
+        Vector3? forceLocalEuler = null,
+        bool offsetAnimPhase = false)
     {
         GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(skinnedModelPath);
         if (model == null)
@@ -227,9 +273,29 @@ public static class EnemySkinnedAnimBuilder
             Transform existing = root.GetComponentsInChildren<Transform>(true)
                 .FirstOrDefault(t => t.name == existingVisualName);
 
+            VisualPose pose = defaultPose;
+            if (preserveExistingPose && existing != null)
+            {
+                pose = new VisualPose(
+                    existing.localPosition,
+                    forceLocalEuler ?? existing.localEulerAngles,
+                    existing.localScale);
+            }
+            else if (forceLocalEuler.HasValue)
+            {
+                pose = new VisualPose(pose.LocalPosition, forceLocalEuler.Value, pose.LocalScale);
+            }
+
             Material[] materials = null;
+            var materialsByName = new System.Collections.Generic.Dictionary<string, Material[]>(StringComparer.Ordinal);
             if (existing != null)
             {
+                foreach (Renderer renderer in existing.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer.sharedMaterials != null && renderer.sharedMaterials.Length > 0)
+                        materialsByName[renderer.gameObject.name] = renderer.sharedMaterials;
+                }
+
                 var oldSkin = existing.GetComponentInChildren<SkinnedMeshRenderer>(true);
                 var oldMr = existing.GetComponentInChildren<MeshRenderer>(true);
                 if (oldSkin != null)
@@ -255,7 +321,17 @@ public static class EnemySkinnedAnimBuilder
             visual.transform.localScale = pose.LocalScale;
             PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
 
-            if (materials != null && materials.Length > 0)
+            if (preserveExistingPose)
+            {
+                foreach (SkinnedMeshRenderer skin in visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    if (materialsByName.TryGetValue(skin.gameObject.name, out Material[] named) && named.Length > 0)
+                        skin.sharedMaterials = named;
+                    skin.updateWhenOffscreen = true;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(skin);
+                }
+            }
+            else if (materials != null && materials.Length > 0)
             {
                 foreach (SkinnedMeshRenderer skin in visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
@@ -281,6 +357,9 @@ public static class EnemySkinnedAnimBuilder
                 animator.avatar = avatar;
             PrefabUtility.RecordPrefabInstancePropertyModifications(animator);
 
+            if (offsetAnimPhase && visual.GetComponent<EnemyAnimPhaseOffset>() == null)
+                visual.AddComponent<EnemyAnimPhaseOffset>();
+
             if (hidePlaceholders != null)
             {
                 foreach (string placeholder in hidePlaceholders)
@@ -303,6 +382,45 @@ public static class EnemySkinnedAnimBuilder
         {
             PrefabUtility.UnloadPrefabContents(root);
         }
+    }
+
+    /// <summary>
+    /// El mesh animado mira en +Z. El yaw 90° del mesh estático los dejaba de costado.
+    /// </summary>
+    public static string FixSlimeFacing()
+    {
+        var report = new System.Text.StringBuilder();
+        foreach (string prefabPath in SlimePrefabs)
+        {
+            GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
+            try
+            {
+                Transform visual = root.GetComponentsInChildren<Transform>(true)
+                    .FirstOrDefault(t => t.name == "Basurita");
+                if (visual == null)
+                {
+                    report.AppendLine("missing Basurita: " + prefabPath);
+                    continue;
+                }
+
+                Vector3 scale = visual.localScale;
+                visual.localRotation = Quaternion.identity;
+                visual.localScale = scale;
+
+                if (visual.GetComponent<EnemyAnimPhaseOffset>() == null)
+                    visual.gameObject.AddComponent<EnemyAnimPhaseOffset>();
+
+                PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                report.AppendLine(prefabPath + " yaw=0 scale=" + scale + " root=" + root.transform.localScale);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+        return report.ToString();
     }
 }
 #endif
