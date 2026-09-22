@@ -98,7 +98,8 @@ public sealed class WeaponStatOverride : MonoBehaviour
             return;
 
         float current = _stats.GetStat(statType);
-        _stats.AddModifier(new StatModifier(statType, targetValue - current, StatUpgradeSource.TemporaryEffect, this));
+        string target = targetValue.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        _stats.AddModifier(new StatModifier(statType, targetValue - current, StatUpgradeSource.TemporaryEffect, this, label: $"Testing override -> {target}"));
     }
 
     private void ClearAppliedModifiers()
