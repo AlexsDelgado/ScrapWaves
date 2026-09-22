@@ -137,20 +137,31 @@ public class SwarmSpawner : MonoBehaviour
             if (EnemyRegistry.ActiveCount >= _maxActiveEnemies)
                 break;
 
+            Vector3 ringPos = _player.position;
+            bool clear = false;
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                float angle = Random.Range(0f, Mathf.PI * 2f);
+                float radius = Random.Range(_minSpawnRadius, _maxSpawnRadius);
+                ringPos = _player.position + new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    _spawnHeightOffset,
+                    Mathf.Sin(angle) * radius);
+                if (EnemySpawnBlockVolume.Blocks(ringPos))
+                    continue;
+
+                clear = true;
+                break;
+            }
+
+            if (!clear)
+                continue;
+
             GameObject enemy = _pool.TryGet();
             if (enemy == null)
                 break;
 
             _difficultyManager?.ApplySpawnModifiers(enemy);
-
-            float angle = Random.Range(0f, Mathf.PI * 2f);
-            float radius = Random.Range(_minSpawnRadius, _maxSpawnRadius);
-            Vector3 offset = new Vector3(
-                Mathf.Cos(angle) * radius,
-                _spawnHeightOffset,
-                Mathf.Sin(angle) * radius);
-
-            Vector3 ringPos = _player.position + offset;
 
             CharacterController cc = enemy.GetComponent<CharacterController>();
             if (cc == null || !cc.enabled)

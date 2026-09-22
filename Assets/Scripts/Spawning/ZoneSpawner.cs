@@ -118,8 +118,21 @@ public class ZoneSpawner : MonoBehaviour
 
         for (int i = 0; i < _spawnCount; i++)
         {
-            Vector2 disc = Random.insideUnitCircle * _spawnAreaRadius;
-            Vector3 desired = transform.position + new Vector3(disc.x, _spawnHeightOffset, disc.y);
+            Vector3 desired = transform.position;
+            bool clear = false;
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                Vector2 disc = Random.insideUnitCircle * _spawnAreaRadius;
+                desired = transform.position + new Vector3(disc.x, _spawnHeightOffset, disc.y);
+                if (EnemySpawnBlockVolume.Blocks(desired))
+                    continue;
+
+                clear = true;
+                break;
+            }
+
+            if (!clear)
+                continue;
 
             if (OrbitalSpawnPlacement.TrySpawnGrounded(
                     _enemyPrefab,

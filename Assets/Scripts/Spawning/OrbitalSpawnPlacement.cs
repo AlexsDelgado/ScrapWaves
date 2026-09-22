@@ -21,6 +21,8 @@ public static class OrbitalSpawnPlacement
         return Random.Range(0, 8);
     }
 
+    private const int MaxBlockRetries = 8;
+
     public static bool TrySpawnAtOrbitalPoint(
         Transform player,
         GameObject prefab,
@@ -49,32 +51,47 @@ public static class OrbitalSpawnPlacement
         if (player == null || prefab == null)
             return false;
 
-        float angleRad = GetDirectionAngleDegrees(directionIndex) * Mathf.Deg2Rad;
-        float radius = Random.Range(minRadius, maxRadius);
-        Vector3 offset = new Vector3(
-            Mathf.Sin(angleRad) * radius,
-            spawnHeightOffset,
-            Mathf.Cos(angleRad) * radius);
-
-        Vector3 ringPos = player.position + offset;
-
-        if (!TrySpawnGrounded(
-                prefab,
-                ringPos,
-                groundRaycastMask,
-                fallbackGroundRaycastMask,
-                overlapSolidMask,
-                raycastStartHeight,
-                raycastMaxDistance,
-                maxAbsSpawnSurfaceDeltaY,
-                surfaceSeparation,
-                maxProjectionIterations,
-                resolveStepUp,
-                resolveStepOut,
-                out instance,
-                out spawnPosition))
+        for (int attempt = 0; attempt < MaxBlockRetries; attempt++)
         {
-            placementLog = "ground resolve failed";
+            int dir = attempt == 0 ? directionIndex : PickRandomDirectionIndex();
+            float angleRad = GetDirectionAngleDegrees(dir) * Mathf.Deg2Rad;
+            float radius = Random.Range(minRadius, maxRadius);
+            Vector3 offset = new Vector3(
+                Mathf.Sin(angleRad) * radius,
+                spawnHeightOffset,
+                Mathf.Cos(angleRad) * radius);
+            Vector3 ringPos = player.position + offset;
+
+            if (EnemySpawnBlockVolume.Blocks(ringPos))
+                continue;
+
+            if (!TrySpawnGrounded(
+                    prefab,
+                    ringPos,
+                    groundRaycastMask,
+                    fallbackGroundRaycastMask,
+                    overlapSolidMask,
+                    raycastStartHeight,
+                    raycastMaxDistance,
+                    maxAbsSpawnSurfaceDeltaY,
+                    surfaceSeparation,
+                    maxProjectionIterations,
+                    resolveStepUp,
+                    resolveStepOut,
+                    out instance,
+                    out spawnPosition))
+            {
+                placementLog = "ground resolve failed";
+                return false;
+            }
+
+            directionIndex = dir;
+            break;
+        }
+
+        if (instance == null)
+        {
+            placementLog = "spawn blocked";
             return false;
         }
 
@@ -113,6 +130,9 @@ public static class OrbitalSpawnPlacement
         spawnPosition = desiredPosition;
 
         if (prefab == null)
+            return false;
+
+        if (EnemySpawnBlockVolume.Blocks(desiredPosition))
             return false;
 
         bool fromPool = EnemyPoolRegistry.UseEnemyPool
