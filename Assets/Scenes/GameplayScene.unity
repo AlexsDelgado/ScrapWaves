@@ -29133,7 +29133,7 @@ MonoBehaviour:
   _overheatStart: {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
   _overheatEnd: {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
   _playerHurt: {fileID: 8300000, guid: 515aeae675683fe4386479086cde493b, type: 3}
-  _sfxVolumeScale: 1
+  _sfxVolumeScale: 0.2
   _bgmTracks:
   - {fileID: 8300000, guid: dd071c814dcb4f14197dedf2eef6c46f, type: 3}
   - {fileID: 8300000, guid: 2b52e4c802c3f604f914174cbbcb51ad, type: 3}
@@ -29143,8 +29143,8 @@ MonoBehaviour:
   _bgmOverheatLayer: {fileID: 0}
   _bgmGapMinSeconds: 10
   _bgmGapMaxSeconds: 30
-  _musicMainVolume: 0.45
-  _musicOverheatVolume: 0.35
+  _musicMainVolume: 0.2
+  _musicOverheatVolume: 0.1556
 --- !u!4 &1792624557
 Transform:
   m_ObjectHideFlags: 0
