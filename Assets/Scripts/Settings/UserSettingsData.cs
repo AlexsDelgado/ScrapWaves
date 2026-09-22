@@ -7,8 +7,10 @@ public sealed class UserSettingsData
     public const float DefaultHorizontalSensitivity = 0.12f;
     public const float DefaultVerticalSensitivity = 0.12f;
     public const bool DefaultInvertY = false;
-    public const float DefaultSfxVolume = 1f;
-    public const float DefaultMusicVolume = 0.45f;
+    public const float DefaultSfxVolume = 0.2f;
+    public const float DefaultMusicVolume = 0.2f;
+    public const float LegacyDefaultSfxVolume = 1f;
+    public const float LegacyDefaultMusicVolume = 0.45f;
     public const bool DefaultReducedMotion = false;
     public const bool DefaultScreenShake = true;
     public const bool DefaultScreenFlash = true;

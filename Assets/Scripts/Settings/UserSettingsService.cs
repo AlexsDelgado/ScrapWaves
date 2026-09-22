@@ -276,8 +276,29 @@ public sealed class UserSettingsService : MonoBehaviour
             _data = UserSettingsData.CreateDefault();
         }
 
+        bool migratedLegacyAudioDefaults = MigrateLegacyAudioDefaults();
         _data.Sanitize();
         _initialized = true;
+        if (migratedLegacyAudioDefaults)
+            SaveToStorage();
+    }
+
+    private bool MigrateLegacyAudioDefaults()
+    {
+        bool changed = false;
+        if (Mathf.Approximately(_data.SfxVolume, UserSettingsData.LegacyDefaultSfxVolume))
+        {
+            _data.SfxVolume = UserSettingsData.DefaultSfxVolume;
+            changed = true;
+        }
+
+        if (Mathf.Approximately(_data.MusicVolume, UserSettingsData.LegacyDefaultMusicVolume))
+        {
+            _data.MusicVolume = UserSettingsData.DefaultMusicVolume;
+            changed = true;
+        }
+
+        return changed;
     }
 
     private void Apply(UserSettingsData source, UserSettingsChange requested)

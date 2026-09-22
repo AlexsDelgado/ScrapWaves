@@ -32,8 +32,11 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioClip _overheatStart;
     [SerializeField] private AudioClip _overheatEnd;
     [SerializeField] private AudioClip _playerHurt;
+    [SerializeField, Min(0f), Tooltip("Mínimo entre hurts. El daño puede llegar más seguido; el SFX no se apila.")]
+    private float _playerHurtCooldown = 1f;
+    private float _nextPlayerHurtTime;
 
-    [SerializeField, Range(0f, 1f)] private float _sfxVolumeScale = 1f;
+    [SerializeField, Range(0f, 1f)] private float _sfxVolumeScale = UserSettingsData.DefaultSfxVolume;
 
     [Header("Música — playlist")]
     [SerializeField] private AudioClip[] _bgmTracks;
@@ -42,8 +45,8 @@ public class AudioManager : MonoBehaviour
     [SerializeField, Min(0f)] private float _bgmGapMinSeconds = 10f;
     [SerializeField, Min(0f)] private float _bgmGapMaxSeconds = 30f;
 
-    [SerializeField, Range(0f, 1f)] private float _musicMainVolume = 0.45f;
-    [SerializeField, Range(0f, 1f)] private float _musicOverheatVolume = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float _musicMainVolume = UserSettingsData.DefaultMusicVolume;
+    [SerializeField, Range(0f, 1f)] private float _musicOverheatVolume = 0.1556f;
 
     private PlayerXP _subscribedXp;
     private OverheatManager _subscribedOverheat;
@@ -238,7 +241,14 @@ public class AudioManager : MonoBehaviour
 
     public void PlayOverheatEnd() => PlaySfx(_overheatEnd);
 
-    public void PlayPlayerHurt() => PlaySfx(_playerHurt);
+    public void PlayPlayerHurt()
+    {
+        if (_playerHurt == null || Time.unscaledTime < _nextPlayerHurtTime)
+            return;
+
+        _nextPlayerHurtTime = Time.unscaledTime + _playerHurtCooldown;
+        PlaySfx(_playerHurt);
+    }
 
     public float SfxVolume
     {

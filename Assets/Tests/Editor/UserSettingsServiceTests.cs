@@ -106,7 +106,7 @@ public sealed class UserSettingsServiceTests
 
         service.HorizontalSensitivity = 0.3f;
         service.InvertY = true;
-        service.MusicVolume = 0.2f;
+        service.MusicVolume = 0.55f;
         service.ReducedMotion = true;
         changes.Clear();
 
@@ -114,7 +114,7 @@ public sealed class UserSettingsServiceTests
 
         Assert.That(service.HorizontalSensitivity, Is.EqualTo(UserSettingsData.DefaultHorizontalSensitivity));
         Assert.That(service.InvertY, Is.False);
-        Assert.That(service.MusicVolume, Is.EqualTo(0.2f));
+        Assert.That(service.MusicVolume, Is.EqualTo(0.55f));
         Assert.That(service.ReducedMotion, Is.True);
         Assert.That(changes, Has.Count.EqualTo(1));
         Assert.That(changes[0], Is.EqualTo(UserSettingsChange.HorizontalSensitivity | UserSettingsChange.InvertY));
@@ -165,7 +165,7 @@ public sealed class UserSettingsServiceTests
         Assert.That(audioManager.MusicVolume, Is.EqualTo(0.65f));
         Assert.That(normalMusic.volume, Is.EqualTo(0.65f));
         audioManager.SetOverheatLayerActive(true);
-        Assert.That(overheatMusic.volume, Is.EqualTo(0.35f * (0.65f / 0.45f)).Within(0.0001f));
+        Assert.That(overheatMusic.volume, Is.EqualTo(0.1556f * (0.65f / UserSettingsData.DefaultMusicVolume)).Within(0.0001f));
         Assert.That(EnemyReactionRuntime.ScreenFlashEnabled, Is.False);
         Assert.That(presentation.RuntimeOptions.ScreenShakeEnabled, Is.False);
         Assert.That(presentation.RuntimeOptions.ScreenFlashEnabled, Is.False);

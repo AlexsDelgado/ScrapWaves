@@ -57046,11 +57046,11 @@ MonoBehaviour:
   _overheatStart: {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
   _overheatEnd: {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
   _playerHurt: {fileID: 8300000, guid: 515aeae675683fe4386479086cde493b, type: 3}
-  _sfxVolumeScale: 1
+  _sfxVolumeScale: 0.2
   _bgmMain: {fileID: 8300000, guid: 6c7b5784fbc77ce40b6de96cd0f0faa1, type: 3}
   _bgmOverheatLayer: {fileID: 0}
-  _musicMainVolume: 0.45
-  _musicOverheatVolume: 0.35
+  _musicMainVolume: 0.2
+  _musicOverheatVolume: 0.1556
 --- !u!4 &1792624557
 Transform:
   m_ObjectHideFlags: 0
