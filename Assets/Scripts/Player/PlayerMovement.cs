@@ -81,6 +81,8 @@ public class PlayerMovement : MonoBehaviour
     private float _dashRegenTimer;
     private float _postDashFrictionTimer;
     private float _knockbackTimer;
+    private float _launchTimer;
+    private float _launchGroundGrace;
     private float _stunTimer;
     private float _momentumPreservingStunTimer;
     private float _aimFacingTimer;
@@ -182,6 +184,25 @@ public class PlayerMovement : MonoBehaviour
         _rb.AddForce(dir * acceleration, ForceMode.Acceleration);
         _knockbackTimer = Mathf.Max(_knockbackTimer, _knockbackWindow);
     }
+
+    /// <summary>
+    /// Lanzamiento balístico (jump pad). Durante el vuelo no hay aceleración, fricción ni speed-cap.
+    /// Al volver a tocar suelo después de un breve margen, la velocidad se anula para no patinar.
+    /// </summary>
+    public void LaunchWithVelocity(Vector3 velocity, float duration)
+    {
+        if (_rb == null || duration <= 0f)
+            return;
+
+        StopSlide(false);
+        _isDashing = false;
+        _dashTimer = 0f;
+        _rb.linearVelocity = velocity;
+        _launchTimer = duration;
+        _launchGroundGrace = 0.45f;
+    }
+
+    public bool IsLaunching => _launchTimer > 0f;
 
     /// <summary>Aturde al jugador durante <paramref name="seconds"/> (Shocker). Refresca, no apila.</summary>
     public void ApplyStun(float seconds)
@@ -318,7 +339,7 @@ public class PlayerMovement : MonoBehaviour
 
         ReadInput();
 
-        if (!IsMovementInputLocked)
+        if (!IsMovementInputLocked && !IsLaunching)
         {
             if (_jumpPressed) TryJump();
             if (_crouchPressed) TryStartCrouchOrSlide();
@@ -338,9 +359,21 @@ public class PlayerMovement : MonoBehaviour
         if (_rb == null || _cameraTransform == null) return;
 
         UpdateGroundedState();
-        HoldMomentumPreservingStun();
+        if (!IsLaunching)
+            HoldMomentumPreservingStun();
 
-        if (_isDashing)
+        if (IsLaunching)
+        {
+            _launchTimer = Mathf.Max(0f, _launchTimer - Time.fixedDeltaTime);
+            if (_launchGroundGrace > 0f)
+                _launchGroundGrace = Mathf.Max(0f, _launchGroundGrace - Time.fixedDeltaTime);
+            else if (_isGrounded && _rb.linearVelocity.y <= 1f)
+            {
+                _rb.linearVelocity = Vector3.zero;
+                _launchTimer = 0f;
+            }
+        }
+        else if (_isDashing)
         {
             HandleDashTimer();
         }
