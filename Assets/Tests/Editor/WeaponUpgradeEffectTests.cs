@@ -6,6 +6,28 @@ using UnityEngine.UI;
 
 public class WeaponUpgradeEffectTests
 {
+    private GameObject _challengeTracker;
+
+    [SetUp]
+    public void InitializeDamageTracking()
+    {
+        if (ChallengeProgressTracker.Instance != null)
+            return;
+        _challengeTracker = new GameObject("Test challenge tracker");
+        ChallengeProgressTracker tracker = _challengeTracker.AddComponent<ChallengeProgressTracker>();
+        // Edit Mode does not call Awake, which normally assigns this singleton.
+        typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance))
+            .SetValue(null, tracker);
+    }
+
+    [TearDown]
+    public void CleanupDamageTracking()
+    {
+        if (_challengeTracker != null)
+            Object.DestroyImmediate(_challengeTracker);
+        _challengeTracker = null;
+    }
+
     [Test]
     public void DamageAmplifierStatus_IncreasesDamageAppliedThroughWeaponDamageApplier()
     {
@@ -1512,6 +1534,84 @@ public class WeaponUpgradeEffectTests
         }
     }
 
+    [TestCase(0f, false, 2f, 0f, true)]
+    [TestCase(60f, false, 2f, 0f, true)]
+    [TestCase(90f, false, 2f, 0f, true)]
+    [TestCase(-60f, false, 2f, 0f, true)]
+    [TestCase(-90f, false, 2f, 0f, true)]
+    [TestCase(60f, true, 2f, 0f, true)]
+    [TestCase(90f, true, 2f, 0f, true)]
+    [TestCase(60f, false, 0.1f, 0f, true)]
+    [TestCase(60f, false, 1.5f, 20f, true)]
+    [TestCase(60f, false, 2.99f, 29f, true)]
+    [TestCase(60f, false, 3.1f, 0f, false)]
+    [TestCase(60f, false, 2f, 31f, false)]
+    public void RotatingBladeManual_FillsConeFromPlayerToSlash(float pitch, bool multiBlade, float distance, float offsetAngle, bool shouldHit)
+    {
+        GameObject owner = new("Sword owner");
+        GameObject hand = new("Hand muzzle");
+        GameObject target = new("Aimed drone");
+        GameObject behind = new("Drone behind slash");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        try
+        {
+            hand.transform.position = new Vector3(8f, 2f, 0f);
+            Vector3 direction = Quaternion.AngleAxis(-pitch, Vector3.right) * Vector3.forward;
+            owner.transform.position = new Vector3(3f, 1f, -2f);
+            Quaternion aimFrame = Quaternion.LookRotation(direction,
+                Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > 0.999f ? Vector3.forward : Vector3.up);
+            Vector3 targetDirection = Quaternion.AngleAxis(offsetAngle, aimFrame * Vector3.up) * direction;
+            target.transform.position = owner.transform.position + targetDirection * distance;
+            behind.transform.position = owner.transform.position - direction * 2f;
+            TestDamageable hit = target.AddComponent<TestDamageable>();
+            TestDamageable missed = behind.AddComponent<TestDamageable>();
+            EnemyRegistry.Register(target.transform);
+            EnemyRegistry.Register(behind.transform);
+            data.WeaponType = WeaponType.RotatingBlade;
+            data.BaseDamage = 10f;
+            data.BaseManualAmmo = 100f;
+            data.EnsureSpecificTuningForCurrentType();
+            data.RotatingBlade.BladeManualRange = 3f;
+            data.RotatingBlade.BladeManualConeAngle = 60f;
+            WeaponInstance runtime = new()
+            {
+                Data = data, State = WeaponState.Manual, CurrentAmmo = 100f,
+                Level = multiBlade ? 7 : 1,
+                SelectedPath = multiBlade ? WeaponUpgradePath.PathA : WeaponUpgradePath.None
+            };
+            RotatingBladeWeapon weapon = new(null, null, hand.transform);
+            weapon.Setup(runtime, owner.transform, null, null);
+            weapon.TickManual(0.01f, direction, true);
+            if (multiBlade)
+                for (int i = 0; i < 5; i++) weapon.TickManual(0.25f, direction, false);
+            Assert.That(hit.TotalDamage > 0, Is.EqualTo(shouldHit), "Damage must fill the cone up to its outer radius, excluding targets beyond its range or angle.");
+            Assert.That(missed.TotalDamage, Is.Zero, "Targets behind the 3D slash must be excluded.");
+            RotatingBladeVfx vfx = Object.FindFirstObjectByType<RotatingBladeVfx>();
+            Assert.That(vfx, Is.Not.Null);
+            Assert.That(vfx.ActiveSlashSurfaceCount, Is.GreaterThan(0));
+            foreach (MeshRenderer mesh in vfx.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (!mesh.name.StartsWith("Blade Slash Surface") || !mesh.enabled) continue;
+                Assert.That(Vector3.Dot(mesh.transform.forward, direction), Is.GreaterThan(0.97f));
+                Assert.That(Vector3.Distance(mesh.transform.position, owner.transform.position), Is.LessThan(0.001f));
+                Mesh surface = mesh.GetComponent<MeshFilter>().sharedMesh;
+                float outerRadius = 0f;
+                foreach (Vector3 vertex in surface.vertices) outerRadius = Mathf.Max(outerRadius, vertex.magnitude);
+                Assert.That(outerRadius, Is.InRange(2.9f, 3f), "The visual slash marks the end of the damage cone.");
+            }
+        }
+        finally
+        {
+            EnemyRegistry.Unregister(target.transform);
+            EnemyRegistry.Unregister(behind.transform);
+            Object.DestroyImmediate(owner);
+            Object.DestroyImmediate(hand);
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(behind);
+            Object.DestroyImmediate(data);
+            DestroyGeneratedVfx();
+        }
+    }
     [Test]
     public void RotatingBladeAutomatic_DamagesEnemySweptByOrbitingBlade()
     {

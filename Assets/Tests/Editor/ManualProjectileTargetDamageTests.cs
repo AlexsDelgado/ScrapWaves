@@ -7,6 +7,18 @@ public class ManualProjectileTargetDamageTests
 {
     private readonly List<Object> _cleanup = new();
 
+    [SetUp]
+    public void InitializeDamageTracking()
+    {
+        if (ChallengeProgressTracker.Instance != null)
+            return;
+        GameObject trackerObject = new("Test challenge tracker");
+        _cleanup.Add(trackerObject);
+        ChallengeProgressTracker tracker = trackerObject.AddComponent<ChallengeProgressTracker>();
+        typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance))
+            .SetValue(null, tracker);
+    }
+
     [TearDown]
     public void TearDown()
     {
@@ -15,8 +27,10 @@ public class ManualProjectileTargetDamageTests
         _cleanup.Clear();
     }
 
-    [Test]
-    public void ManualProjectile_AppliesEliteDamageMultiplierToHitTarget()
+    [TestCase(false, 0)]
+    [TestCase(true, 0)]
+    [TestCase(true, 24)]
+    public void ManualProjectile_AppliesEliteDamageMultiplierToHitTarget(bool trigger, int interveningTriggers)
     {
         GameObject owner = new("Manual Projectile Owner");
         GameObject spawn = new("Manual Projectile Spawn");
@@ -33,6 +47,16 @@ public class ManualProjectileTargetDamageTests
         _cleanup.Add(prefab);
         _cleanup.Add(data);
 
+        target.GetComponent<Collider>().isTrigger = trigger;
+        for (int i = 0; i < interveningTriggers; i++)
+        {
+            GameObject volume = new("Non-damageable trigger");
+            _cleanup.Add(volume);
+            volume.transform.position = Vector3.forward * (0.1f + i * 0.01f);
+            BoxCollider collider = volume.AddComponent<BoxCollider>();
+            collider.size = Vector3.one * 0.01f;
+            collider.isTrigger = true;
+        }
         target.name = "Elite Target";
         target.transform.position = Vector3.forward;
         TestDamageable damageable = target.AddComponent<TestDamageable>();

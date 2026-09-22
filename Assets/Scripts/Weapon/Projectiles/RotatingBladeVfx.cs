@@ -197,17 +197,16 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     public void ShowSlash(Vector3 origin, Vector3 direction, float range, float coneAngle, float duration, Color color)
     {
         Initialize();
-        direction = GetHorizontalDirection(direction);
+        direction = direction.normalized;
         if (direction.sqrMagnitude <= 0.0001f)
             return;
 
-        Vector3 liftedOrigin = origin + Vector3.up * 0.18f;
         float safeDuration = Mathf.Max(0.05f, duration);
         LineRenderer slashLine = GetNextSlashLine(out int index);
         _slashTimers[index] = safeDuration;
         _slashDurations[index] = safeDuration;
         _slashColors[index] = color;
-        _slashOrigins[index] = liftedOrigin;
+        _slashOrigins[index] = origin;
         _slashDirections[index] = direction;
         _slashRanges[index] = range;
         _slashHalfAngles[index] = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
@@ -224,7 +223,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         SetSlashLineGradient(slashLine, color, 1f);
 
         MeshPulse surface = GetMeshPulse(_slashSurfaces, "Blade Slash Surface", _slashMaterial, ownsMesh: true);
-        surface.Root.transform.SetPositionAndRotation(liftedOrigin, Quaternion.LookRotation(direction, Vector3.up));
+        surface.Root.transform.SetPositionAndRotation(origin, GetSlashRotation(direction));
         surface.Root.transform.localScale = Vector3.one;
         surface.Timer = surface.Duration = safeDuration;
         surface.Color = color;
@@ -651,7 +650,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             float u = i / (float)(SlashHeadSegmentCount - 1);
             float arcProgress = Mathf.Clamp01(Mathf.Lerp(tail, head, u));
             float yaw = Mathf.Lerp(-halfAngle, halfAngle, arcProgress);
-            Vector3 pointDirection = Quaternion.AngleAxis(yaw, Vector3.up) * direction;
+            Vector3 pointDirection = GetSlashRotation(direction) * (Quaternion.AngleAxis(yaw, Vector3.up) * Vector3.forward);
             line.SetPosition(i, origin + pointDirection * radius);
         }
     }
@@ -840,6 +839,9 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         line.startColor = visible;
         line.endColor = visible;
     }
+
+    private static Quaternion GetSlashRotation(Vector3 direction) => Quaternion.LookRotation(direction,
+        Mathf.Abs(Vector3.Dot(direction.normalized, Vector3.up)) > 0.999f ? Vector3.forward : Vector3.up);
 
     private static Vector3 GetHorizontalDirection(Vector3 direction)
     {

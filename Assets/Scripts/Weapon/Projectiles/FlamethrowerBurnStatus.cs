@@ -17,6 +17,8 @@ public sealed class FlamethrowerBurnStatus : MonoBehaviour
     private float _segmentElapsed;
     private bool _hasFeedbackSource;
     private bool _segmentClosureNotified;
+    private bool _applyingDamage;
+    private bool _clearPending;
 
     public int StatusInstanceId => _statusInstanceId;
     public int TallySegmentIndex => _segmentIndex;
@@ -142,17 +144,33 @@ public sealed class FlamethrowerBurnStatus : MonoBehaviour
         {
             Vector3 impactPosition = transform.position;
             string weaponId = _source.Weapon?.Data != null ? _source.Weapon.Data.WeaponId : null;
-            DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
-                _target,
-                _damagePerTick,
-                DamageChannel.Status,
-                _statusKind,
-                sourceWeaponId: weaponId);
-            if (result.AppliedDamage > 0)
+            // A lethal hit may synchronously disable this pooled enemy. Preserve
+            // the source and tally until its final damage event has been emitted.
+            DamageApplicationResult result;
+            _applyingDamage = true;
+            try
             {
-                EnemyStatusFeedback.Pulse(transform, _statusKind, 0.75f);
-                EmitDamageFeedback(in result, impactPosition);
+                result = WeaponDamageApplier.ApplyDamage(
+                    _target,
+                    _damagePerTick,
+                    DamageChannel.Status,
+                    _statusKind,
+                    sourceWeaponId: weaponId);
+                if (result.AppliedDamage > 0)
+                {
+                    if (!_clearPending)
+                        EnemyStatusFeedback.Pulse(transform, _statusKind, 0.75f);
+                    EmitDamageFeedback(in result, impactPosition);
+                }
             }
+            finally
+            {
+                _applyingDamage = false;
+                if (_clearPending)
+                    StopStatusAndClear();
+            }
+            if (_target == null)
+                return;
             _tickTimer += _tickInterval;
 
             if (result.Killed)
@@ -225,6 +243,12 @@ public sealed class FlamethrowerBurnStatus : MonoBehaviour
 
     private void StopStatusAndClear()
     {
+        if (_applyingDamage)
+        {
+            _clearPending = true;
+            return;
+        }
+        _clearPending = false;
         bool hadStatus = _statusInstanceId > 0 || _target != null || _remainingDuration > 0f;
         WeaponStatusKind endingKind = _statusKind;
         CloseCurrentSegment();
