@@ -127,8 +127,11 @@ public static class OrbitalSpawnPlacement
 
         Transform root = instance.transform;
 
+        // Prefabs like Chaser keep a disabled CharacterController while moving with
+        // Rigidbody + BoxCollider. Using that CC for capsule depenetration (esp. with
+        // non-1 root scale and center at origin) fails spawn silently.
         CharacterController cc = instance.GetComponent<CharacterController>();
-        if (cc == null)
+        if (cc == null || !cc.enabled)
         {
             root.SetPositionAndRotation(desiredPosition, Quaternion.identity);
             spawnPosition = desiredPosition;

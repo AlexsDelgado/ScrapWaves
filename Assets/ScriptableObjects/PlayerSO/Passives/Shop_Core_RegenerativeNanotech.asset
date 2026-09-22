@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Regenerative Nano-tech
   _slot: 1
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: cae14d83cafd44f4c9ce79ef5ab468dc, type: 3}
   _bonusesPerLevel:
   - StatType: 15
     ModifierType: 0

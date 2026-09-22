@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: CQB module
   _slot: 0
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: c2fdfa2277c6be147a635b69cb26093b, type: 3}
   _bonusesPerLevel:
   - StatType: 26
     ModifierType: 1

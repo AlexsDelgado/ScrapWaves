@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Heel Charges
   _slot: 3
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: bdb74252402193a4987867151ba440c2, type: 3}
   _bonusesPerLevel:
   - StatType: 2
     ModifierType: 0

@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Electromagnetic Shield
   _slot: 1
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: c9cae94a848366c4eb9f56a14f9fa2c4, type: 3}
   _bonusesPerLevel:
   - StatType: 27
     ModifierType: 0

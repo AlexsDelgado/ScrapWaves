@@ -286,8 +286,22 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
                     name = "[Enemy Death Pose] " + skinned.sharedMesh.name,
                     hideFlags = HideFlags.DontSave
                 };
-                skinned.BakeMesh(mesh);
+                // Bake with scale so vertices match world size; then keep transform scale at 1
+                // to avoid double-applying lossyScale (common with skinned FBX hierarchies).
+                skinned.BakeMesh(mesh, true);
                 ownsMesh = true;
+                snapshot.Pieces.Add(new SnapshotPiece
+                {
+                    Name = renderer.gameObject.name,
+                    Mesh = mesh,
+                    OwnsMesh = ownsMesh,
+                    Position = renderer.transform.position,
+                    Rotation = renderer.transform.rotation,
+                    Scale = Vector3.one,
+                    Materials = renderer.sharedMaterials,
+                    Layer = renderer.gameObject.layer
+                });
+                continue;
             }
             else if (renderer is MeshRenderer && renderer.TryGetComponent(out MeshFilter filter))
             {

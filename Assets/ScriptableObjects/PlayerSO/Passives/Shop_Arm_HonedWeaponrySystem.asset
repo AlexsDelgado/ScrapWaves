@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Honed Weaponry System
   _slot: 2
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: aca50d0e639d5e240ad96776848f0ba9, type: 3}
   _bonusesPerLevel:
   - StatType: 5
     ModifierType: 0

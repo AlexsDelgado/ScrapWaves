@@ -153,7 +153,7 @@ public class SwarmSpawner : MonoBehaviour
             Vector3 ringPos = _player.position + offset;
 
             CharacterController cc = enemy.GetComponent<CharacterController>();
-            if (cc == null)
+            if (cc == null || !cc.enabled)
             {
                 enemy.transform.SetPositionAndRotation(ringPos, Quaternion.identity);
             }

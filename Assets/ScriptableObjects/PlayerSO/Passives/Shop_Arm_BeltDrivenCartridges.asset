@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Belt-driven cartridges
   _slot: 2
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: 847b2b7b2df3293429831f1e23259c07, type: 3}
   _bonusesPerLevel:
   - StatType: 8
     ModifierType: 0

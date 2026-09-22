@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Piston-assisted Jumping
   _slot: 3
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: 06ae313fb91307046987a1587d460466, type: 3}
   _bonusesPerLevel:
   - StatType: 1
     ModifierType: 1
@@ -24,7 +24,7 @@ MonoBehaviour:
     - 1.4
     - 1.6
     - 1.8
-    - 2.0
+    - 2
     - 2.25
   _unlockId: Shop_Leg_PistonAssistedJumping
   _unlockedFromStart: 1

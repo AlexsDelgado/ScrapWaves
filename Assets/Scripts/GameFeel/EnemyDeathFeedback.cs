@@ -108,7 +108,7 @@ public sealed class EnemyDeathFeedback : MonoBehaviour
                 bounds.Encapsulate(renderer.bounds);
         }
         center = found ? bounds.center : transform.position + Vector3.up * 0.6f;
-        radius = found ? Mathf.Clamp(bounds.extents.magnitude * 0.65f, 0.4f, 4f) : 0.75f;
+        radius = found ? Mathf.Clamp(bounds.extents.magnitude * 0.65f, 0.4f, 8f) : 0.75f;
         color.a = 1f;
     }
 

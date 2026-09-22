@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Bionic Boots
   _slot: 3
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: 26af06a9c6c67494897029b1cff8f63f, type: 3}
   _bonusesPerLevel:
   - StatType: 0
     ModifierType: 1

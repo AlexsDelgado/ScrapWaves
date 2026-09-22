@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Gauge expansion
   _slot: 2
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: d5adfd1a06cd51e45b1e6d47b5962014, type: 3}
   _bonusesPerLevel:
   - StatType: 9
     ModifierType: 0

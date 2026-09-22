@@ -8,6 +8,9 @@ using UnityEngine.UI;
 public static class HudBottomStripLayouts
 {
     public const float PassiveSlotSpacing = 20f;
+    public const float PassiveIconSize = 96f;
+    public const float PassiveSlotWidth = 104f;
+    public const float PassiveSlotHeight = 112f;
 
     public static void BuildPassivesColumn(Transform columnCenter)
     {
@@ -42,9 +45,9 @@ public static class HudBottomStripLayouts
         {
             var slotRoot = new GameObject($"PassiveSlot_{i}", typeof(RectTransform));
             slotRoot.transform.SetParent(passivesGo.transform, false);
-            slotRoot.GetComponent<RectTransform>().sizeDelta = new Vector2(52f, 56f);
+            slotRoot.GetComponent<RectTransform>().sizeDelta = new Vector2(PassiveSlotWidth, PassiveSlotHeight);
 
-            HudUiFactory.CreateIconSlot(slotRoot.transform, "Icon", 48f, null, slots[i].placeholder);
+            HudUiFactory.CreateIconSlot(slotRoot.transform, "Icon", PassiveIconSize, null, slots[i].placeholder);
             CreateLevelBadge(slotRoot.transform, "Level");
         }
     }

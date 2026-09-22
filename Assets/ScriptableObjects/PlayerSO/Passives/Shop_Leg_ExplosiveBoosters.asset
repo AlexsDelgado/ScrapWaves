@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Explosive Boosters
   _slot: 3
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: 45b96175553a7714d9e5f5b16e82ef75, type: 3}
   _bonusesPerLevel:
   - StatType: 3
     ModifierType: 0

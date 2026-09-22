@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Scavenger module
   _slot: 0
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: b501fc357efe1174db55c1278fdc32d2, type: 3}
   _bonusesPerLevel:
   - StatType: 20
     ModifierType: 0

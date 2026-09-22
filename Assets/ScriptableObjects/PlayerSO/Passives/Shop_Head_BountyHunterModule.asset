@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Bounty-hunter module
   _slot: 0
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: 329f626e82ef18748be40cf0063fb5f5, type: 3}
   _bonusesPerLevel:
   - StatType: 7
     ModifierType: 0

@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Ordnance production
   _slot: 2
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: e3c0173f721e8fc4cb949a48c8d19c0d, type: 3}
   _bonusesPerLevel:
   - StatType: 13
     ModifierType: 0
@@ -24,7 +24,7 @@ MonoBehaviour:
     - 0.4
     - 0.6
     - 0.8
-    - 1.0
+    - 1
     - 1.2
   _unlockId: Shop_Arm_OrdnanceProduction
   _unlockedFromStart: 1

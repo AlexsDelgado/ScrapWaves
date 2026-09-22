@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Advanced targeting module
   _slot: 2
   _maxLevel: 6
-  _icon: {fileID: 0}
+  _icon: {fileID: 21300000, guid: 1ea402b3d357f6d4cafabd0c3755a3e0, type: 3}
   _bonusesPerLevel:
   - StatType: 10
     ModifierType: 0
