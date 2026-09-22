@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: Achievement_RustyMarathoner
   m_EditorClassIdentifier: Assembly-CSharp::AchievementDefinition
   _achievementId: RustyMarathoner
-  _displayName: Maratonista Oxidado
-  _description: "Aguant\xE1 10 minutos seguidos sin morir en una misma run (no hace
-    falta ganarla). Se mide tu mejor tiempo de supervivencia hist\xF3rico. Desbloquea
-    las Botas a Reacci\xF3n."
+  _displayName: Rusty Marathoner
+  _description: "Survive 10 straight minutes without dying in a single run (you do
+    not need to win it). Your best all-time survival streak is what counts. Unlocks
+    the Jet Boots."
   _icon: {fileID: 21300000, guid: 246405b052ef3e84598b083ededc42ec, type: 3}
   _conditionType: 3
   _targetValue: 600
