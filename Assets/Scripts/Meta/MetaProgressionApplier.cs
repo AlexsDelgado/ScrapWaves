@@ -53,7 +53,8 @@ public class MetaProgressionApplier : MonoBehaviour
                 mult,
                 StatUpgradeSource.Base,
                 _metaSource,
-                StatModifierType.Multiplicative));
+                StatModifierType.Multiplicative,
+                "Meta base upgrade"));
         }
 
         if (health != null)

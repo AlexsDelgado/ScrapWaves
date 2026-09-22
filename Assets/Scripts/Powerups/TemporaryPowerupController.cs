@@ -268,18 +268,22 @@ public class TemporaryPowerupController : MonoBehaviour
             HideBuffFx();
     }
 
+    // ApplyTimedBuff asigna _activeBuff antes de invocar las lambdas que llaman a estos
+    // helpers, así que el buff en curso identifica al modificador sin propagar parámetros.
+    private string CurrentBuffLabel() => $"Powerup {_activeBuff}";
+
     private void AddMul(StatType type, float multiplier)
     {
         if (_stats == null || _stats.GetDefinition(type) == null)
             return;
-        _stats.AddModifier(new StatModifier(type, multiplier, StatUpgradeSource.TemporaryPowerup, _buffSource, StatModifierType.Multiplicative));
+        _stats.AddModifier(new StatModifier(type, multiplier, StatUpgradeSource.TemporaryPowerup, _buffSource, StatModifierType.Multiplicative, CurrentBuffLabel()));
     }
 
     private void AddAdd(StatType type, float value)
     {
         if (_stats == null || _stats.GetDefinition(type) == null)
             return;
-        _stats.AddModifier(new StatModifier(type, value, StatUpgradeSource.TemporaryPowerup, _buffSource, StatModifierType.Additive));
+        _stats.AddModifier(new StatModifier(type, value, StatUpgradeSource.TemporaryPowerup, _buffSource, StatModifierType.Additive, CurrentBuffLabel()));
     }
 
     private float GetLevelT()
