@@ -55,8 +55,8 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _difficultyRampSpeedMultiplier: 1
-  _maxSpawnCountMultiplier: 2
+  _difficultyRampSpeedMultiplier: 0.95
+  _maxSpawnCountMultiplier: 3
   _scaleEnemyHealth: 1
   _maxEnemyHealthMultiplier: 6
   _scaleEnemyMoveSpeed: 1
@@ -96,7 +96,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _maxSpawnCountMultiplierAtFullHeat: 4.5
+  _maxSpawnCountMultiplierAtFullHeat: 2.5
   _spawnIntervalScaleAtFullHeat: 0.5
   _pointsToReachDisplay80: 60
   _pointsFromDisplay80To100: 60
