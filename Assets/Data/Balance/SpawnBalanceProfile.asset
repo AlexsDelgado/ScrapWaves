@@ -35,8 +35,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 9.997177
-      value: 0.39984435
+      time: 10.036667
+      value: 0.49747008
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -56,11 +56,11 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _difficultyRampSpeedMultiplier: 1
-  _maxSpawnCountMultiplier: 4
+  _maxSpawnCountMultiplier: 2
   _scaleEnemyHealth: 1
-  _maxEnemyHealthMultiplier: 10
+  _maxEnemyHealthMultiplier: 6
   _scaleEnemyMoveSpeed: 1
-  _maxEnemySpeedMultiplier: 4
+  _maxEnemySpeedMultiplier: 3
   _scaleEnemyDamage: 1
   _maxEnemyDamageMultiplier: 1.35
   _spawnScalingOverHeatRatio:
@@ -69,39 +69,39 @@ MonoBehaviour:
     - serializedVersion: 3
       time: 0
       value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
+      inSlope: 0.0847811
+      outSlope: 0.0847811
+      tangentMode: 34
       weightedMode: 0
       inWeight: 0
-      outWeight: 0
+      outWeight: 0.33333334
     - serializedVersion: 3
-      time: 0.5
-      value: 0.35
-      inSlope: 0
-      outSlope: 0
+      time: 0.11436623
+      value: 0.009696095
+      inSlope: 0.34243056
+      outSlope: 0.34243056
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0
-      outWeight: 0
+      inWeight: 0.5964403
+      outWeight: 0.33333334
     - serializedVersion: 3
       time: 1
       value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
+      inSlope: 1.1181867
+      outSlope: 1.1181867
+      tangentMode: 34
       weightedMode: 0
-      inWeight: 0
+      inWeight: 0.33333334
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  _maxSpawnCountMultiplierAtFullHeat: 2
-  _spawnIntervalScaleAtFullHeat: 0.45
-  _pointsToReachDisplay80: 100
-  _pointsFromDisplay80To100: 100
-  _escalationPerOverheatCycle: 1.5
-  _heatPerKill: 5
-  _postOverheatDecayPerSecond: 12
-  _spawnInterval: 5
+  _maxSpawnCountMultiplierAtFullHeat: 4.5
+  _spawnIntervalScaleAtFullHeat: 0.5
+  _pointsToReachDisplay80: 60
+  _pointsFromDisplay80To100: 60
+  _escalationPerOverheatCycle: 1.4
+  _heatPerKill: 1
+  _postOverheatDecayPerSecond: 25
+  _spawnInterval: 15
   _maxActiveEnemies: 300

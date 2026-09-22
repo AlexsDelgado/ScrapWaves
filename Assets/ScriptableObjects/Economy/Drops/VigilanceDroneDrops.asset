@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ff5ad954ed921f849a711876fff15a57, type: 3}
   m_Name: VigilanceDroneDrops
   m_EditorClassIdentifier: Assembly-CSharp::MaterialDropConfig
-  _dropChance: 0.65
+  _dropChance: 0.8
   _pool:
   - Material: 2
     WeightPercent: 95

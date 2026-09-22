@@ -7089,7 +7089,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -185
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalPosition.y
@@ -7097,11 +7097,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: -300
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalRotation.x
@@ -7109,7 +7109,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalRotation.z
@@ -7121,7 +7121,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: -90
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
@@ -29133,6 +29133,7 @@ MonoBehaviour:
   _overheatStart: {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
   _overheatEnd: {fileID: 8300000, guid: 8903ae293dd106f468dd3f4a464518bc, type: 3}
   _playerHurt: {fileID: 8300000, guid: 515aeae675683fe4386479086cde493b, type: 3}
+  _playerHurtCooldown: 1
   _sfxVolumeScale: 0.2
   _bgmTracks:
   - {fileID: 8300000, guid: dd071c814dcb4f14197dedf2eef6c46f, type: 3}

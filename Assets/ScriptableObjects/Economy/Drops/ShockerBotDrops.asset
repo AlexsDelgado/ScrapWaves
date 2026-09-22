@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ff5ad954ed921f849a711876fff15a57, type: 3}
   m_Name: ShockerBotDrops
   m_EditorClassIdentifier: Assembly-CSharp::MaterialDropConfig
-  _dropChance: 0.55
+  _dropChance: 0.9
   _pool:
   - Material: 1
     WeightPercent: 40

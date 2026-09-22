@@ -829,7 +829,7 @@ MonoBehaviour:
   RoutineMaximumDistance: 38
   ImportantMaximumDistance: 50
   DistantScaleMultiplier: 1
-  WorldAnchorHeight: 1.25
+  WorldAnchorHeight: 4.34
   WorldAnchorClearance: 0.25
   MajorAbilityRatioThreshold: 1.15
   EliteBossImportantRatioThreshold: 1.5

@@ -18,7 +18,7 @@ MonoBehaviour:
   AutoTargetingMode: 0
   AutomaticAimConstraint: 2
   ManualMode: 0
-  BaseDamage: 8
+  BaseDamage: 5
   BaseAttackRate: 5
   BaseRange: 25
   BaseKnockback: 0.2
@@ -142,9 +142,9 @@ MonoBehaviour:
         CannonAutoLineSpacing: 1.4
         CannonAutoAccuracySpreadDegrees: 0
         CannonBurstProjectileScatterDegrees: 0
-        CannonBurstShotInterval: 0.08
-        CannonAutoBurstsPerSecond: 1
-        CannonManualBurstsPerSecond: 1.5
+        CannonBurstShotInterval: 0.1
+        CannonAutoBurstsPerSecond: 0.5
+        CannonManualBurstsPerSecond: 1
         ContinuousFireAutoAttackSpeedMultiplier: 1.25
         HeadHunterAutoAttackSpeedMultiplier: 0.2
         CannonActiveHeatBulletStepPercent: 5
