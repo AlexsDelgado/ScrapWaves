@@ -20,12 +20,12 @@ MonoBehaviour:
   - StatType: 7
     ModifierType: 0
     ValuesPerLevel:
-    - 0.1
-    - 0.15
     - 0.2
-    - 0.25
-    - 0.3
     - 0.4
+    - 0.6
+    - 0.8
+    - 1
+    - 1.2
   _unlockId: Shop_Head_BountyHunterModule
   _unlockedFromStart: 0
   _requirement:

@@ -27,7 +27,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 5
-      value: 0.212854
+      value: 0.2
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -35,8 +35,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 10.036667
-      value: 0.49747008
+      time: 10
+      value: 0.5
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -44,7 +44,7 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 19.460941
+      time: 20
       value: 1
       inSlope: 0
       outSlope: 0
@@ -98,6 +98,12 @@ MonoBehaviour:
     m_RotationOrder: 4
   _maxSpawnCountMultiplierAtFullHeat: 2.5
   _spawnIntervalScaleAtFullHeat: 0.5
+  _completedCycleIntervalStep: 0.25
+  _completedCycleIntervalFloor: 0.6
+  _completedCycleBatchStep: 0.25
+  _completedCycleBatchCeiling: 2
+  _completedCycleHealthStep: 0.25
+  _completedCycleHealthCeiling: 2
   _pointsToReachDisplay80: 60
   _pointsFromDisplay80To100: 60
   _escalationPerOverheatCycle: 1.4

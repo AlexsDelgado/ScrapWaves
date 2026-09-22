@@ -18,8 +18,8 @@ MonoBehaviour:
   AutoTargetingMode: 0
   AutomaticAimConstraint: 1
   ManualMode: 0
-  BaseDamage: 20
-  BaseAttackRate: 1
+  BaseDamage: 25
+  BaseAttackRate: 0.9
   BaseRange: 20
   BaseKnockback: 1.5
   BaseManualAmmo: 40
@@ -141,13 +141,13 @@ MonoBehaviour:
         RocketActiveTargetLockInterval: 0.15
         RocketActiveConeAngle: 90
         RocketActiveTargetMarkerRadius: 0.7
-        RocketAutoExplosionRadius: 3
+        RocketAutoExplosionRadius: 2.5
         RocketManualExplosionRadius: 4
         RocketActiveExplosionRadius: 2
-        RocketAutoExplosionFalloff: 0.85
+        RocketAutoExplosionFalloff: 1
         RocketManualExplosionFalloff: 0.65
         RocketActiveExplosionFalloff: 0.85
-        RocketAutoSpeedMultiplier: 0.4
+        RocketAutoSpeedMultiplier: 0.3
         RocketManualSpeedMultiplier: 0.6
         RocketActiveSpeedMultiplier: 1.15
         RocketActiveDamageScale: 1.5

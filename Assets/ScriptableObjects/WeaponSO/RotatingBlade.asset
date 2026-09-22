@@ -19,7 +19,7 @@ MonoBehaviour:
   AutomaticAimConstraint: 0
   ManualMode: 2
   BaseDamage: 25
-  BaseAttackRate: 1
+  BaseAttackRate: 0.8
   BaseRange: 4.4
   BaseKnockback: 0.3
   BaseManualAmmo: 50

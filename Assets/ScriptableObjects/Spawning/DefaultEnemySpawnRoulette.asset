@@ -21,7 +21,7 @@ MonoBehaviour:
   - Kind: 1
     Prefab: {fileID: 100000, guid: aefb60095c090fc4ba790479da511bed, type: 3}
     BaseWeight: 25
-    BatchSize: 3
+    BatchSize: 4
     IsVariant: 0
   - Kind: 2
     Prefab: {fileID: 100000, guid: 1780b9abf01edad45945412918dd7eda, type: 3}
@@ -36,12 +36,12 @@ MonoBehaviour:
   - Kind: 4
     Prefab: {fileID: 100000, guid: 35733be1c68a9a142adee00a35d5332b, type: 3}
     BaseWeight: 0
-    BatchSize: 1
+    BatchSize: 2
     IsVariant: 1
   - Kind: 5
     Prefab: {fileID: 100000, guid: e7399044b8ae65645adf47f3ab7a0cb3, type: 3}
     BaseWeight: 0
-    BatchSize: 1
+    BatchSize: 2
     IsVariant: 1
   _variantWeightBonusEverySeconds: 120
   _variantWeightBonusPerStep: 4
