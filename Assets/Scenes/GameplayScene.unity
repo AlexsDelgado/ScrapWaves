@@ -32754,6 +32754,12 @@ MonoBehaviour:
     m_RotationOrder: 4
   _maxSpawnCountMultiplierAtFullHeat: 2
   _spawnIntervalScaleAtFullHeat: 0.45
+  _completedCycleIntervalStep: 0.1
+  _completedCycleIntervalFloor: 0.3
+  _completedCycleBatchStep: 0.1
+  _completedCycleBatchCeiling: 2
+  _completedCycleHealthStep: 0.1
+  _completedCycleHealthCeiling: 2
   _pointsToReachDisplay80: 100
   _pointsFromDisplay80To100: 100
   _escalationPerOverheatCycle: 1.5
@@ -32761,6 +32767,7 @@ MonoBehaviour:
   _postOverheatDecayPerSecond: 12
   _logOverheat: 0
   _heatRequirementEscalation: 1
+  _completedOverheatCycles: 0
   _currentHeat: 0
 --- !u!4 &2026883593
 Transform:
@@ -34739,6 +34746,10 @@ PrefabInstance:
       propertyPath: _cameraTransform
       value: 
       objectReference: {fileID: 330585546}
+    - target: {fileID: 6237314531817170951, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
+      propertyPath: _baseMoveAcceleration
+      value: 75
+      objectReference: {fileID: 0}
     - target: {fileID: 6535847504202732059, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
       propertyPath: _projectilePool
       value: 
