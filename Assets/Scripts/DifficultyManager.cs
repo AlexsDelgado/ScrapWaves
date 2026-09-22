@@ -155,13 +155,22 @@ public class DifficultyManager : MonoBehaviour
         return Mathf.Lerp(1f, MaxEnemyDamageMultiplier, CurrentIntensity);
     }
 
+    /// <summary>
+    /// Vida extra permanente por overheats ya terminados. Si no hay <see cref="HeatManager"/>, es 1.
+    /// </summary>
+    private static float CompletedCycleHealthScale()
+    {
+        HeatManager heat = HeatManager.GetInstance();
+        return heat != null ? heat.GetCompletedCycleHealthScale() : 1f;
+    }
+
     /// <summary>Aplica vida, velocidad y daño según dificultad (enemigos del pool tras <see cref="SwarmEnemyPool.TryGet"/>).</summary>
     public void ApplySpawnModifiers(GameObject enemy)
     {
         if (enemy == null)
             return;
 
-        float h = GetEnemyHealthMultiplier();
+        float h = GetEnemyHealthMultiplier() * CompletedCycleHealthScale();
         float s = GetEnemyMoveSpeedMultiplier();
         float d = GetEnemyDamageMultiplier();
 

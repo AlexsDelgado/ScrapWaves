@@ -58,6 +58,13 @@ public class BalanceTuningHubEditor : Editor
             EditorGUILayout.LabelField("  Intensidad", $"{hub.HeatSpawnIntensity:0.###}");
 
             EditorGUILayout.Space(2f);
+            EditorGUILayout.LabelField("Ciclos de Overheat", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("  Terminados", hub.CompletedOverheatCycles.ToString());
+            EditorGUILayout.LabelField("  Intervalo", $"x{hub.CompletedCycleIntervalScale:0.00}");
+            EditorGUILayout.LabelField("  Batch", $"x{hub.CompletedCycleBatchScale:0.00}");
+            EditorGUILayout.LabelField("  Vida", $"x{hub.CompletedCycleHealthScale:0.00}");
+
+            EditorGUILayout.Space(2f);
             EditorGUILayout.LabelField("Resultado", EditorStyles.miniBoldLabel);
             EditorGUILayout.LabelField("  Intervalo real", $"{hub.EffectiveSpawnIntervalSeconds:0.00} s");
             EditorGUILayout.LabelField("  Cantidad por oleada", $"x{hub.EffectiveSpawnCountMultiplier:0.00} sobre el BatchSize de la ruleta");

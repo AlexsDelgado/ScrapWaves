@@ -4,7 +4,7 @@ using UnityEngine;
 /// Perillas de balance de spawn en un solo asset, para que el game designer las tunee sin
 /// saltar entre GameObjects y sin perder los cambios al salir de Play Mode.
 /// Lo consumen <see cref="DifficultyManager"/> (escalado por tiempo), <see cref="HeatManager"/>
-/// (escalado por heat) y <see cref="OrbitalSpawner"/> (cadencia base).
+/// (escalado por heat y por ciclos de Overheat terminados) y <see cref="OrbitalSpawner"/> (cadencia base).
 /// Si un manager no tiene profile asignado usa sus propios campos de fallback.
 /// </summary>
 [CreateAssetMenu(fileName = "SpawnBalanceProfile", menuName = "ScrapWaves/Balance/Spawn Balance Profile", order = 0)]
@@ -52,6 +52,25 @@ public class SpawnBalanceProfile : ScriptableObject
     [SerializeField, Range(0.15f, 1f), Tooltip("Cuando la curva de heat vale 1, el intervalo de spawn se multiplica por este valor (menor a 1 = spawns más frecuentes).")]
     private float _spawnIntervalScaleAtFullHeat = 0.45f;
 
+    [Header("Escalado por ciclos de Overheat terminados")]
+    [SerializeField, Min(0f), Tooltip("Cuánto baja el multiplicador de intervalo por cada Overheat ya terminado. 0.1 da 0.9, 0.8, 0.7… Se multiplica encima del escalado por heat actual.")]
+    private float _completedCycleIntervalStep = 0.1f;
+
+    [SerializeField, Range(0.05f, 1f), Tooltip("Piso del multiplicador de intervalo por ciclos. Con paso 0.1 se alcanza en el ciclo 7.")]
+    private float _completedCycleIntervalFloor = 0.3f;
+
+    [SerializeField, Min(0f), Tooltip("Cuánto sube el multiplicador de batch por cada Overheat ya terminado. 0.1 da 1.1, 1.2, 1.3…")]
+    private float _completedCycleBatchStep = 0.1f;
+
+    [SerializeField, Min(1f), Tooltip("Techo del multiplicador de batch por ciclos. Con paso 0.1 se alcanza en el ciclo 10.")]
+    private float _completedCycleBatchCeiling = 2f;
+
+    [SerializeField, Min(0f), Tooltip("Cuánto sube el multiplicador de vida por cada Overheat ya terminado. 0.1 da 1.1, 1.2, 1.3…")]
+    private float _completedCycleHealthStep = 0.1f;
+
+    [SerializeField, Min(1f), Tooltip("Techo del multiplicador de vida por ciclos. Con paso 0.1 se alcanza en el ciclo 10.")]
+    private float _completedCycleHealthCeiling = 2f;
+
     [Header("Heat (medidor)")]
     [SerializeField, Min(0.01f), Tooltip("Puntos de heat para llenar la barra de 0% a 80%.")]
     private float _pointsToReachDisplay80 = 100f;
@@ -89,6 +108,13 @@ public class SpawnBalanceProfile : ScriptableObject
     public AnimationCurve SpawnScalingOverHeatRatio => _spawnScalingOverHeatRatio;
     public float MaxSpawnCountMultiplierAtFullHeat => _maxSpawnCountMultiplierAtFullHeat;
     public float SpawnIntervalScaleAtFullHeat => _spawnIntervalScaleAtFullHeat;
+
+    public float CompletedCycleIntervalStep => _completedCycleIntervalStep;
+    public float CompletedCycleIntervalFloor => _completedCycleIntervalFloor;
+    public float CompletedCycleBatchStep => _completedCycleBatchStep;
+    public float CompletedCycleBatchCeiling => _completedCycleBatchCeiling;
+    public float CompletedCycleHealthStep => _completedCycleHealthStep;
+    public float CompletedCycleHealthCeiling => _completedCycleHealthCeiling;
 
     public float PointsToReachDisplay80 => _pointsToReachDisplay80;
     public float PointsFromDisplay80To100 => _pointsFromDisplay80To100;
@@ -135,6 +161,20 @@ public class SpawnBalanceProfile : ScriptableObject
             _maxSpawnCountMultiplierAtFullHeat = 1f;
         if (_spawnIntervalScaleAtFullHeat < 0.15f)
             _spawnIntervalScaleAtFullHeat = 0.15f;
+        if (_completedCycleIntervalStep < 0f)
+            _completedCycleIntervalStep = 0f;
+        if (_completedCycleIntervalFloor < 0.05f)
+            _completedCycleIntervalFloor = 0.05f;
+        if (_completedCycleIntervalFloor > 1f)
+            _completedCycleIntervalFloor = 1f;
+        if (_completedCycleBatchStep < 0f)
+            _completedCycleBatchStep = 0f;
+        if (_completedCycleBatchCeiling < 1f)
+            _completedCycleBatchCeiling = 1f;
+        if (_completedCycleHealthStep < 0f)
+            _completedCycleHealthStep = 0f;
+        if (_completedCycleHealthCeiling < 1f)
+            _completedCycleHealthCeiling = 1f;
         if (_escalationPerOverheatCycle < 1.001f)
             _escalationPerOverheatCycle = 1.001f;
         if (_spawnInterval < 0.05f)
