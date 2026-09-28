@@ -79,6 +79,7 @@ def _sun(col, name, energy, rotation_deg, color):
     obj.data.energy = energy
     obj.data.color = color
     obj.data.angle = math.radians(5)
+    obj.data.use_shadow = False
     obj.rotation_euler = [math.radians(a) for a in rotation_deg]
     return obj
 
