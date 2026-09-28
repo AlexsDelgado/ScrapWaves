@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Gantt Playtest</title>
+<style>
+  :root {
+    --prog:   #2f6f9f;
+    --arte:   #b8641e;
+    --gd:     #4a7c3f;
+    --qa:     #7a4b8c;
+    --ink:    #1b1d1c;
+    --muted:  #6b706d;
+    --rule:   #c9cecb;
+    --rule-2: #e6e9e7;
+    --paper:  #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: #f2f3f2; }
+
+  body {
+    margin: 0;
+    padding: 14mm;
+    background: var(--paper);
+    color: var(--ink);
+    font: 11px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 12px; }
+  h1 { margin: 0 0 3px; font-size: 19px; letter-spacing: .01em; }
+  .sub { color: var(--muted); font-size: 11px; }
+  .sub strong { color: var(--ink); }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 14px; font-size: 10.5px; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 22px; height: 10px; border-radius: 2px; display: inline-block; }
+  .p0-key { font-weight: 700; color: #b3261e; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+  thead th {
+    font-size: 9.5px; font-weight: 600; color: var(--muted);
+    text-align: center; padding: 3px 0; border-bottom: 1px solid var(--rule);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  thead th.wk { border-left: 1px solid var(--rule); color: var(--ink); }
+  thead th.lbl, thead th.meta { text-align: left; padding-left: 4px; }
+
+  col.c-id   { width: 34px; }
+  col.c-task { width: 232px; }
+  col.c-d    { width: 30px; }
+  col.c-dep  { width: 46px; }
+  col.c-day  { width: auto; }
+
+  tbody td {
+    height: 17px; padding: 0; border-bottom: 1px solid var(--rule-2);
+  }
+  td.id   { font-weight: 700; font-size: 10px; padding-left: 4px; }
+  td.task { font-size: 10.5px; padding-left: 4px; }
+  td.d    { text-align: center; font-size: 10px; color: var(--muted); }
+  td.dep  { text-align: center; font-size: 9.5px; color: var(--muted); }
+  td.day  { border-left: 1px solid var(--rule-2); }
+  td.day.wkstart { border-left: 1px solid var(--rule); }
+  td.day.cont { border-left-color: transparent; }
+
+  .bar { display: block; height: 11px; margin: 3px 0; border-radius: 2px; }
+  .bar.prog { background: var(--prog); }
+  .bar.arte { background: var(--arte); }
+  .bar.gd   { background: var(--gd); }
+  .bar.qa   { background: var(--qa); }
+  .bar.l    { border-top-left-radius: 2px; border-bottom-left-radius: 2px; margin-left: 2px; }
+  .bar.r    { border-top-right-radius: 2px; border-bottom-right-radius: 2px; margin-right: 2px; }
+  .bar.mid  { border-radius: 0; }
+
+  tr.lane td {
+    background: #f4f6f5; font-weight: 700; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .05em;
+    padding: 3px 4px; border-bottom: 1px solid var(--rule); border-top: 1px solid var(--rule);
+  }
+  tr.lane td.prog { color: var(--prog); }
+  tr.lane td.arte { color: var(--arte); }
+  tr.lane td.gd   { color: var(--gd); }
+  tr.lane td.qa   { color: var(--qa); }
+
+  .p0 { color: #b3261e; font-weight: 700; }
+
+  footer { margin-top: 14px; padding-top: 9px; border-top: 1px solid var(--rule); font-size: 10px; color: var(--muted); }
+  footer h2 { font-size: 11px; color: var(--ink); margin: 0 0 5px; text-transform: uppercase; letter-spacing: .05em; }
+  footer ul { margin: 0; padding-left: 15px; }
+  footer li { margin-bottom: 2px; }
+  footer b { color: var(--ink); }
+
+  @page { size: A4 landscape; margin: 8mm; }
+  @media print {
+    html, body { background: #fff; }
+    body { padding: 0; font-size: 10px; }
+    tr, .bar { break-inside: avoid; }
+    thead { display: table-header-group; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ScrapWaves — Gantt hacia el playtest</h1>
+  <div class="sub">
+    28-09-2026 · <strong>2 game designers · 2 artistas 3D · 1 QA · 1 programador</strong> ·
+    estimación en días ideales · 4 semanas de 5 días
+  </div>
+</header>
+
+<div class="legend">
+  <span><i class="swatch" style="background:var(--prog)"></i> Programación (Alexs)</span>
+  <span><i class="swatch" style="background:var(--arte)"></i> Arte 3D</span>
+  <span><i class="swatch" style="background:var(--gd)"></i> Game design</span>
+  <span><i class="swatch" style="background:var(--qa)"></i> QA</span>
+  <span class="p0-key">■ P0 = bloquea el playtest</span>
+</div>
+
+<table>
+  <colgroup>
+    <col class="c-id"><col class="c-task"><col class="c-d"><col class="c-dep">
+    <col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day">
+    <col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day">
+    <col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day">
+    <col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day">
+  </colgroup>
+  <thead>
+    <tr>
+      <th class="lbl">#</th><th class="lbl">Tarea</th><th class="meta">D</th><th class="meta">Dep</th>
+      <th class="wk" colspan="5">Semana 1</th>
+      <th class="wk" colspan="5">Semana 2</th>
+      <th class="wk" colspan="5">Semana 3</th>
+      <th class="wk" colspan="5">Semana 4</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr class="lane"><td class="prog" colspan="24">Programación — Alexs · carril único, ~14 días · cuello de botella</td></tr>
+
+    <tr>
+      <td class="id p0">P1</td><td class="task">Fix spawn en el aire (raycast al suelo)</td><td class="d">1</td><td class="dep">—</td>
+      <td class="day wkstart"><span class="bar prog l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id p0">P1b·c·d</td><td class="task">Flag IsFlying · endurecer suelo · limpieza</td><td class="d">0.9</td><td class="dep">P1</td>
+      <td class="day wkstart"></td>
+      <td class="day"><span class="bar prog l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id p0">P6</td><td class="task">Niebla: shader + encender fog de Unity</td><td class="d">0.5</td><td class="dep">A0</td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar prog l r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id p0">P2</td><td class="task">Prompt de interacción [E] genérico</td><td class="d">1.5</td><td class="dep">A2</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td>
+      <td class="day"><span class="bar prog l"></span></td>
+      <td class="day cont"><span class="bar prog r"></span></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">P4</td><td class="task">Mostrar % / valores finales en stats</td><td class="d">2</td><td class="dep">G1</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"><span class="bar prog l"></span></td>
+      <td class="day cont"><span class="bar prog r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">P5</td><td class="task">Proyectil de drone estilo cohete</td><td class="d">1.5</td><td class="dep">—</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar prog l"></span></td>
+      <td class="day cont"><span class="bar prog r"></span></td>
+      <td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">P7</td><td class="task">AudioMixer + unificar volumen + pausa</td><td class="d">1.5</td><td class="dep">—</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day"><span class="bar prog l"></span></td>
+      <td class="day wkstart"><span class="bar prog r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">P8</td><td class="task">Arreglar los 3 clips de audio rotos</td><td class="d">0.5</td><td class="dep">P7</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td>
+      <td class="day"><span class="bar prog l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">P9</td><td class="task">Strings de UI al inglés</td><td class="d">0.5</td><td class="dep">—</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar prog l r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">P3</td><td class="task">Sistema de diálogo del boss</td><td class="d">4</td><td class="dep">G2</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td>
+      <td class="day"><span class="bar prog l"></span></td>
+      <td class="day cont"><span class="bar prog mid"></span></td>
+      <td class="day wkstart"><span class="bar prog mid"></span></td>
+      <td class="day cont"><span class="bar prog r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+
+    <tr class="lane"><td class="arte" colspan="24">Arte 3D — 2 personas</td></tr>
+
+    <tr>
+      <td class="id p0">A0</td><td class="task">Decidir dirección de arte · BLOQUEA A3/A4/niebla</td><td class="d">2</td><td class="dep">—</td>
+      <td class="day wkstart"><span class="bar arte l"></span></td>
+      <td class="day cont"><span class="bar arte r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id p0">A1</td><td class="task">Sanear layers del mapa a Terrain</td><td class="d">0.5</td><td class="dep">—</td>
+      <td class="day wkstart"><span class="bar arte l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id p0">A2</td><td class="task">Asset 3D del prompt de interacción</td><td class="d">1</td><td class="dep">—</td>
+      <td class="day wkstart"></td>
+      <td class="day"><span class="bar arte l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">A3</td><td class="task">Materiales y texturas del mapa nuevo</td><td class="d">5–8</td><td class="dep">A0</td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar arte l"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day wkstart"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte r"></span></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">A4</td><td class="task">Props y dressing de entorno</td><td class="d">5+</td><td class="dep">A0</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td>
+      <td class="day"><span class="bar arte l"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day wkstart"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte mid"></span></td>
+      <td class="day cont"><span class="bar arte r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+
+    <tr class="lane"><td class="gd" colspan="24">Game design — 2 personas</td></tr>
+
+    <tr>
+      <td class="id p0">G4</td><td class="task">Qué se le comunica al jugador y cuándo</td><td class="d">1</td><td class="dep">—</td>
+      <td class="day wkstart"><span class="bar gd l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">G1</td><td class="task">Política de display por StatType</td><td class="d">1</td><td class="dep">—</td>
+      <td class="day wkstart"><span class="bar gd l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">G2</td><td class="task">Guion de diálogos del boss + mockup</td><td class="d">2</td><td class="dep">—</td>
+      <td class="day wkstart"></td>
+      <td class="day"><span class="bar gd l"></span></td>
+      <td class="day cont"><span class="bar gd r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">G5</td><td class="task">Balance de niebla: densidad y alcance</td><td class="d">0.5</td><td class="dep">P6</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td>
+      <td class="day"><span class="bar gd l r"></span></td>
+      <td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">G3</td><td class="task">Priorizar sonidos faltantes + briefs</td><td class="d">1.5</td><td class="dep">—</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day"><span class="bar gd l"></span></td>
+      <td class="day wkstart"><span class="bar gd r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+
+    <tr class="lane"><td class="qa" colspan="24">QA — 1 persona</td></tr>
+
+    <tr>
+      <td class="id">Q1</td><td class="task">Plan de test + guion de observación</td><td class="d">1</td><td class="dep">G4</td>
+      <td class="day wkstart"></td>
+      <td class="day"><span class="bar qa l r"></span></td>
+      <td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id p0">Q2</td><td class="task">Spawn en todos los pisos · 6 enemigos</td><td class="d">1</td><td class="dep">P1·A1</td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar qa l r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">Q4</td><td class="task">Legibilidad de stats</td><td class="d">0.5</td><td class="dep">P4</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar qa l r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+    <tr>
+      <td class="id">Q3</td><td class="task">Regresión de las 5 armas</td><td class="d">1</td><td class="dep">P5·P7</td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td>
+      <td class="day"><span class="bar qa l r"></span></td>
+      <td class="day"></td><td class="day"></td>
+      <td class="day wkstart"></td><td class="day"></td><td class="day"></td><td class="day"></td><td class="day"></td>
+    </tr>
+  </tbody>
+</table>
+
+<footer>
+  <h2>Lo que hay que saber antes de arrancar</h2>
+  <ul>
+    <li><b>A0 y A1 son lo primero.</b> A0 bloquea todo el arte de mundo y la opción de niebla volumétrica. A1 es dependencia dura de P1: sin sanear layers (395 objetos en <i>Default</i> contra 7 en <i>Terrain</i>), el fix del raycast sigue eligiendo mal el piso.</li>
+    <li><b>La niebla no es niebla.</b> Es un plano casi opaco (alpha 0.92) azul-gris con scroll horizontal. La niebla de Unity está apagada. Los jugadores describieron bien lo que ven. P6 son 0.5 días y probablemente resuelve la queja sin tocar el pipeline.</li>
+    <li><b>Un solo programador con ~14 días de backlog es el cuello de botella.</b> Arte y GD se quedan sin dependencias hacia la semana 3. Si aparece un segundo programador, P3 (diálogo) y P7 (audio) son los bloques más independientes para paralelizar.</li>
+    <li><b>No hay artista 2D.</b> Los retratos del boss, el marco de la ventana de diálogo y cualquier icono nuevo no tienen dueño. Decidirlo antes de arrancar P3.</li>
+    <li><b>Riesgo de repo:</b> <i>BalanceAutoImporter</i> y <i>EconomyBootstrap</i> reescriben assets de balance en cada Play. Con 6 personas, revisar <i>git status</i> antes de cada commit.</li>
+  </ul>
+</footer>
+
+</body>
+</html>
