@@ -49,14 +49,21 @@ public class StatModifier
     public object SourceReference;
     public StatModifierType ModifierType;
 
+    /// <summary>
+    /// Descripción legible del origen concreto ("Lv7 roll x1.15", "CQB module Lv2").
+    /// Solo se usa para diagnóstico; puede quedar en null sin afectar el cálculo.
+    /// </summary>
+    public string Label;
+
     // Builds a modifier record with value, source type, and optional source reference.
-    public StatModifier(StatType statType, float value, StatUpgradeSource source, object sourceReference = null, StatModifierType modifierType = StatModifierType.Additive)
+    public StatModifier(StatType statType, float value, StatUpgradeSource source, object sourceReference = null, StatModifierType modifierType = StatModifierType.Additive, string label = null)
     {
         StatType = statType;
         Value = value;
         Source = source;
         SourceReference = sourceReference;
         ModifierType = modifierType;
+        Label = label;
     }
 }
 
@@ -71,6 +78,47 @@ public class RuntimeStat
 
     public StatDefinition Definition => _definition;
     public float BaseValue => _useBaseOverride ? _baseOverride : _definition.BaseValue;
+
+    /// <summary>
+    /// Vista de solo lectura sobre los modificadores aplicados, en orden de inserción.
+    /// NO devuelve copia (List&lt;T&gt; ya implementa IReadOnlyList&lt;T&gt;): recorrer por índice
+    /// y nunca mutar los StatModifier devueltos.
+    /// </summary>
+    public IReadOnlyList<StatModifier> Modifiers => _modifiers;
+
+    public int ModifierCount => _modifiers.Count;
+
+    /// <summary>Suma de los modificadores aditivos, sin incluir BaseValue.</summary>
+    public float AdditiveTotal
+    {
+        get
+        {
+            float total = 0f;
+            for (int i = 0; i < _modifiers.Count; i++)
+            {
+                if (_modifiers[i].ModifierType != StatModifierType.Multiplicative)
+                    total += _modifiers[i].Value;
+            }
+
+            return total;
+        }
+    }
+
+    /// <summary>Producto de los modificadores multiplicativos (1 si no hay ninguno).</summary>
+    public float MultiplicativeTotal
+    {
+        get
+        {
+            float total = 1f;
+            for (int i = 0; i < _modifiers.Count; i++)
+            {
+                if (_modifiers[i].ModifierType == StatModifierType.Multiplicative)
+                    total *= _modifiers[i].Value;
+            }
+
+            return total;
+        }
+    }
 
     public float CurrentValue
     {

@@ -23,6 +23,25 @@ public class HeatManager : MonoBehaviour
     [SerializeField, Range(0.15f, 1f), Tooltip("Cuando la curva de heat vale 1, el intervalo de spawn se multiplica por este valor (menor a 1 = spawns más frecuentes).")]
     private float _spawnIntervalScaleAtFullHeat = 0.45f;
 
+    [Header("Fallback (se usa solo si no hay profile) — ciclos de Overheat terminados")]
+    [SerializeField, Min(0f), Tooltip("Cuánto baja el multiplicador de intervalo por cada Overheat ya terminado.")]
+    private float _completedCycleIntervalStep = 0.1f;
+
+    [SerializeField, Range(0.05f, 1f), Tooltip("Piso del multiplicador de intervalo por ciclos.")]
+    private float _completedCycleIntervalFloor = 0.3f;
+
+    [SerializeField, Min(0f), Tooltip("Cuánto sube el multiplicador de batch por cada Overheat ya terminado.")]
+    private float _completedCycleBatchStep = 0.1f;
+
+    [SerializeField, Min(1f), Tooltip("Techo del multiplicador de batch por ciclos.")]
+    private float _completedCycleBatchCeiling = 2f;
+
+    [SerializeField, Min(0f), Tooltip("Cuánto sube el multiplicador de vida por cada Overheat ya terminado.")]
+    private float _completedCycleHealthStep = 0.1f;
+
+    [SerializeField, Min(1f), Tooltip("Techo del multiplicador de vida por ciclos.")]
+    private float _completedCycleHealthCeiling = 2f;
+
     [Header("Fallback (se usa solo si no hay profile) — medidor")]
     [SerializeField, Min(0.01f), Tooltip("Scaled heat points required to fill the bar from 0% to 80%.")]
     private float _pointsToReachDisplay80 = 50f;
@@ -45,6 +64,9 @@ public class HeatManager : MonoBehaviour
 
     [SerializeField, Tooltip("Accumulated scaling (increases when Overheat ends).")]
     private float _heatRequirementEscalation = 1f;
+
+    [SerializeField, Tooltip("Overheats que ya terminaron. No incluye el que está en curso.")]
+    private int _completedOverheatCycles;
 
     [SerializeField] private float _currentHeat;
 
@@ -80,6 +102,24 @@ public class HeatManager : MonoBehaviour
 
     private float SpawnIntervalScaleAtFullHeat =>
         _profile != null ? _profile.SpawnIntervalScaleAtFullHeat : _spawnIntervalScaleAtFullHeat;
+
+    private float CompletedCycleIntervalStep =>
+        _profile != null ? _profile.CompletedCycleIntervalStep : _completedCycleIntervalStep;
+
+    private float CompletedCycleIntervalFloor =>
+        _profile != null ? _profile.CompletedCycleIntervalFloor : _completedCycleIntervalFloor;
+
+    private float CompletedCycleBatchStep =>
+        _profile != null ? _profile.CompletedCycleBatchStep : _completedCycleBatchStep;
+
+    private float CompletedCycleBatchCeiling =>
+        _profile != null ? _profile.CompletedCycleBatchCeiling : _completedCycleBatchCeiling;
+
+    private float CompletedCycleHealthStep =>
+        _profile != null ? _profile.CompletedCycleHealthStep : _completedCycleHealthStep;
+
+    private float CompletedCycleHealthCeiling =>
+        _profile != null ? _profile.CompletedCycleHealthCeiling : _completedCycleHealthCeiling;
 
     /// <summary>Puntos actuales de heat.</summary>
     public float CurrentHeat => _currentHeat;
@@ -150,6 +190,30 @@ public class HeatManager : MonoBehaviour
         if (_spawnScalingSuppressed)
             return 1f;
         return Mathf.Lerp(1f, SpawnIntervalScaleAtFullHeat, CurrentSpawnIntensity);
+    }
+
+    /// <summary>Overheats que ya terminaron. El ciclo en curso todavía no cuenta.</summary>
+    public int CompletedOverheatCycles => _completedOverheatCycles;
+
+    /// <summary>
+    /// Multiplicador permanente del intervalo según los ciclos ya terminados.
+    /// No lo apaga <see cref="IsSpawnScalingSuppressed"/>: se multiplica encima del heat actual.
+    /// </summary>
+    public float GetCompletedCycleIntervalScale()
+    {
+        return Mathf.Max(CompletedCycleIntervalFloor, 1f - CompletedCycleIntervalStep * _completedOverheatCycles);
+    }
+
+    /// <summary>Multiplicador permanente del batch según los ciclos ya terminados.</summary>
+    public float GetCompletedCycleBatchScale()
+    {
+        return Mathf.Min(CompletedCycleBatchCeiling, 1f + CompletedCycleBatchStep * _completedOverheatCycles);
+    }
+
+    /// <summary>Multiplicador permanente de vida al spawnear, según los ciclos ya terminados.</summary>
+    public float GetCompletedCycleHealthScale()
+    {
+        return Mathf.Min(CompletedCycleHealthCeiling, 1f + CompletedCycleHealthStep * _completedOverheatCycles);
     }
 
     /// <summary>Progreso 0–1 de la barra (0–80 % lineal en puntos del 1.er tramo; 80–100 % lineal en el 2.º).</summary>
@@ -299,10 +363,11 @@ public class HeatManager : MonoBehaviour
         OnHeatChanged?.Invoke();
     }
 
-    /// <summary>Llama <see cref="OverheatManager"/> al terminar un Overheat: sube el requisito de puntos para el siguiente ciclo.</summary>
+    /// <summary>Llama <see cref="OverheatManager"/> al terminar un Overheat: sube el requisito de puntos y cuenta el ciclo para el escalado permanente de spawn.</summary>
     public void ApplyEscalationAfterOverheat()
     {
         _heatRequirementEscalation *= EscalationPerOverheatCycle;
+        _completedOverheatCycles++;
         _currentHeat = Mathf.Clamp(_currentHeat, 0f, TotalHeatCapacity);
         SyncIntermediateSwarmBoost();
         OnHeatChanged?.Invoke();
@@ -312,6 +377,7 @@ public class HeatManager : MonoBehaviour
     public void ResetHeatProgressAndEscalation()
     {
         _heatRequirementEscalation = 1f;
+        _completedOverheatCycles = 0;
         _currentHeat = 0f;
         _spawnScalingSuppressed = false;
         SyncIntermediateSwarmBoost();
@@ -352,6 +418,22 @@ public class HeatManager : MonoBehaviour
             _maxSpawnCountMultiplierAtFullHeat = 1f;
         if (_spawnIntervalScaleAtFullHeat < 0.15f)
             _spawnIntervalScaleAtFullHeat = 0.15f;
+        if (_completedCycleIntervalStep < 0f)
+            _completedCycleIntervalStep = 0f;
+        if (_completedCycleIntervalFloor < 0.05f)
+            _completedCycleIntervalFloor = 0.05f;
+        if (_completedCycleIntervalFloor > 1f)
+            _completedCycleIntervalFloor = 1f;
+        if (_completedCycleBatchStep < 0f)
+            _completedCycleBatchStep = 0f;
+        if (_completedCycleBatchCeiling < 1f)
+            _completedCycleBatchCeiling = 1f;
+        if (_completedCycleHealthStep < 0f)
+            _completedCycleHealthStep = 0f;
+        if (_completedCycleHealthCeiling < 1f)
+            _completedCycleHealthCeiling = 1f;
+        if (_completedOverheatCycles < 0)
+            _completedOverheatCycles = 0;
         _currentHeat = Mathf.Clamp(_currentHeat, 0f, TotalHeatCapacity);
     }
 #endif

@@ -55,6 +55,10 @@ public class PauseMenuUI : MonoBehaviour
     private bool _holdsUiPause;
     private bool _missingSettingsServiceReported;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private StatAttributionPanel _statAttributionPanel;
+#endif
+
     private void Awake()
     {
         ResolveRefs();
@@ -65,7 +69,27 @@ public class PauseMenuUI : MonoBehaviour
         }
         BindControlListeners();
         BindSettingsService(_settingsService != null ? _settingsService : UserSettingsService.Instance);
+        SetUpStatAttributionTabs();
         _root.SetActive(false);
+    }
+
+    // Adds the dev-only attribution tabs to the player stats panel. Release builds skip this
+    // entirely and keep the panel exactly as authored.
+    private void SetUpStatAttributionTabs()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (_statsText == null || _root == null)
+            return;
+
+        Transform panel = HudUiWire.FindDeepChild(_root.transform, "PlayerStatsPanel");
+        if (panel == null)
+            return;
+
+        if (!panel.TryGetComponent(out _statAttributionPanel))
+            _statAttributionPanel = panel.gameObject.AddComponent<StatAttributionPanel>();
+
+        _statAttributionPanel.Initialize(_statsText.gameObject);
+#endif
     }
 
     private void OnEnable()
@@ -188,8 +212,14 @@ public class PauseMenuUI : MonoBehaviour
         SetSettingsView(false, true);
     }
 
+    // Escape closes the topmost popup first and only resumes once the pause menu is bare.
     private void HandlePauseCancel()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (_statAttributionPanel != null && _statAttributionPanel.TryCloseDevTab())
+            return;
+#endif
+
         if (_settingsPanel != null && _settingsPanel.activeSelf)
         {
             CloseSettings();
@@ -374,6 +404,11 @@ public class PauseMenuUI : MonoBehaviour
     private void RefreshStats()
     {
         RefreshRunStats();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (_statAttributionPanel != null)
+            _statAttributionPanel.Refresh();
+#endif
 
         if (_statsText == null)
             return;

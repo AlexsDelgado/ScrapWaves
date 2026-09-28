@@ -1,5 +1,67 @@
 using UnityEngine;
 
+/// <summary>
+/// Cadena de factores multiplicativos que produjo un impacto, en el orden en que se aplican.
+/// Es puramente descriptiva: guarda valores que el cálculo ya computó, sin alterarlo.
+/// No incluye el nombre del arma a propósito — <see cref="WeaponDamageRoll.Weapon"/> ya lo
+/// expone y formatear un string por impacto alocaría en el camino caliente.
+/// </summary>
+public readonly struct WeaponDamageFactors
+{
+    public readonly float BaseDamage;
+    public readonly float LevelMultiplier;
+    public readonly float PathMultiplier;
+    public readonly float StatDamageMultiplier;
+    public readonly float AbilityMultiplier;
+    public readonly float CritMultiplier;
+    public readonly float EliteMultiplier;
+    public readonly float RangeMultiplier;
+    public readonly float DamageScale;
+    public readonly float AdditionalScale;
+    public readonly float FinalDamage;
+
+    /// <summary>Stat CriticalDamage al momento del disparo; 0 si no fue crítico.</summary>
+    public readonly float CritDamageStat;
+
+    /// <summary>Multiplicador de crítico propio del arma que escala al stat.</summary>
+    public readonly float CritOverride;
+
+    public WeaponDamageFactors(
+        float baseDamage,
+        float levelMultiplier,
+        float pathMultiplier,
+        float statDamageMultiplier,
+        float abilityMultiplier,
+        float critMultiplier,
+        float eliteMultiplier,
+        float rangeMultiplier,
+        float damageScale,
+        float additionalScale,
+        float finalDamage,
+        float critDamageStat = 0f,
+        float critOverride = 1f)
+    {
+        CritDamageStat = critDamageStat;
+        CritOverride = critOverride;
+        BaseDamage = baseDamage;
+        LevelMultiplier = levelMultiplier;
+        PathMultiplier = pathMultiplier;
+        StatDamageMultiplier = statDamageMultiplier;
+        AbilityMultiplier = abilityMultiplier;
+        CritMultiplier = critMultiplier;
+        EliteMultiplier = eliteMultiplier;
+        RangeMultiplier = rangeMultiplier;
+        DamageScale = damageScale;
+        AdditionalScale = additionalScale;
+        FinalDamage = finalDamage;
+    }
+
+    /// <summary>Producto de toda la cadena; debe reproducir <see cref="FinalDamage"/>.</summary>
+    public float Product => BaseDamage * LevelMultiplier * PathMultiplier * StatDamageMultiplier
+        * AbilityMultiplier * CritMultiplier * EliteMultiplier * RangeMultiplier
+        * DamageScale * AdditionalScale;
+}
+
 public readonly struct WeaponDamageRoll
 {
     public readonly WeaponInstance Weapon;
@@ -10,6 +72,7 @@ public readonly struct WeaponDamageRoll
     public readonly float BaseDamage;
     public readonly float ReferenceDamage;
     public readonly float FinalDamage;
+    public readonly WeaponDamageFactors Factors;
 
     public WeaponDamageRoll(
         WeaponInstance weapon,
@@ -19,7 +82,8 @@ public readonly struct WeaponDamageRoll
         float baseDamage,
         float finalDamage,
         bool isAbilityDamage = false,
-        float referenceDamage = 0f)
+        float referenceDamage = 0f,
+        WeaponDamageFactors factors = default)
     {
         Weapon = weapon;
         EliteOrBoss = eliteOrBoss;
@@ -29,6 +93,7 @@ public readonly struct WeaponDamageRoll
         BaseDamage = baseDamage;
         ReferenceDamage = Mathf.Max(0f, referenceDamage);
         FinalDamage = finalDamage;
+        Factors = factors;
     }
 }
 
@@ -51,6 +116,15 @@ public readonly struct WeaponDamageContext
     public readonly int StatusInstanceId;
     public readonly WeaponStatusKind StatusKind;
     public readonly int SegmentIndex;
+
+    // Factores intermedios retenidos solo para diagnóstico; el cálculo ya los computaba
+    // como locales. Neutros (1) cuando no aplican.
+    public readonly float LevelMultiplier;
+    public readonly float PathMultiplier;
+    public readonly float StatDamageMultiplier;
+    public readonly float AbilityMultiplier;
+    public readonly float CritMultiplier;
+    public readonly float CritDamageStat;
 
     public WeaponDamageContext(
         PlayerStats stats,
@@ -83,25 +157,44 @@ public readonly struct WeaponDamageContext
         StatusInstanceId = Mathf.Max(0, statusInstanceId);
         StatusKind = statusKind;
         SegmentIndex = Mathf.Max(0, segmentIndex);
+        LevelMultiplier = 1f;
+        PathMultiplier = 1f;
+        StatDamageMultiplier = 1f;
+        AbilityMultiplier = 1f;
+        CritMultiplier = 1f;
+        CritDamageStat = 0f;
 
         if (stats == null || weapon?.Data == null)
             return;
 
         float damage = Mathf.Max(0f, weapon.Data.BaseDamage);
         BaseDamage = damage;
-        damage *= WeaponDamageResolver.GetLevelDamageMultiplier(weapon);
-        damage *= WeaponDamageResolver.GetPathDamageMultiplier(weapon);
-        damage *= Mathf.Max(0f, stats.GetStat(StatType.DamageMultiplier));
+
+        LevelMultiplier = WeaponDamageResolver.GetLevelDamageMultiplier(weapon);
+        damage *= LevelMultiplier;
+
+        PathMultiplier = WeaponDamageResolver.GetPathDamageMultiplier(weapon);
+        damage *= PathMultiplier;
+
+        StatDamageMultiplier = Mathf.Max(0f, stats.GetStat(StatType.DamageMultiplier));
+        damage *= StatDamageMultiplier;
 
         if (isAbilityDamage)
-            damage *= WeaponMath.GetStatScale(stats, StatType.AbilityDamageMultiplier);
+        {
+            AbilityMultiplier = WeaponMath.GetStatScale(stats, StatType.AbilityDamageMultiplier);
+            damage *= AbilityMultiplier;
+        }
 
         EliteDamageMultiplier = Mathf.Max(0f, stats.GetStat(StatType.EliteDamageMultiplier));
         ReferenceDamage = damage * DamageScale;
 
         IsCritical = canCrit && WeaponDamageResolver.RollCrit(stats);
         if (IsCritical)
-            damage *= Mathf.Max(1f, stats.GetStat(StatType.CriticalDamage) * critMultiplierOverride);
+        {
+            CritDamageStat = stats.GetStat(StatType.CriticalDamage);
+            CritMultiplier = Mathf.Max(1f, CritDamageStat * critMultiplierOverride);
+            damage *= CritMultiplier;
+        }
 
         TargetNeutralDamage = damage;
     }
@@ -129,6 +222,12 @@ public readonly struct WeaponDamageContext
         ReferenceDamage = source.ReferenceDamage * safeDamageScale;
         TargetNeutralDamage = source.TargetNeutralDamage;
         EliteDamageMultiplier = source.EliteDamageMultiplier;
+        LevelMultiplier = source.LevelMultiplier;
+        PathMultiplier = source.PathMultiplier;
+        StatDamageMultiplier = source.StatDamageMultiplier;
+        AbilityMultiplier = source.AbilityMultiplier;
+        CritMultiplier = source.CritMultiplier;
+        CritDamageStat = source.CritDamageStat;
         ActionSequenceId = Mathf.Max(0, actionSequenceId);
         DamageKind = damageKind;
         StatusInstanceId = Mathf.Max(0, statusInstanceId);
@@ -209,12 +308,14 @@ public readonly struct WeaponDamageContext
         if (!IsValid)
             return 0f;
 
-        float damage = TargetNeutralDamage;
-        if (eliteOrBoss)
-            damage *= EliteDamageMultiplier;
+        float eliteMultiplier = eliteOrBoss ? EliteDamageMultiplier : 1f;
+        float rangeMultiplier = GetRangeDamageMultiplier(targetPosition);
+        float safeAdditionalScale = Mathf.Max(0f, additionalScale);
 
-        damage *= GetRangeDamageMultiplier(targetPosition);
-        damage *= DamageScale * Mathf.Max(0f, additionalScale);
+        float damage = TargetNeutralDamage;
+        damage *= eliteMultiplier;
+        damage *= rangeMultiplier;
+        damage *= DamageScale * safeAdditionalScale;
 
         if (report)
             WeaponDamageResolver.ReportDamageResolved(new WeaponDamageRoll(
@@ -225,7 +326,21 @@ public readonly struct WeaponDamageContext
                 BaseDamage,
                 damage,
                 IsAbilityDamage,
-                ReferenceDamage));
+                ReferenceDamage,
+                new WeaponDamageFactors(
+                    BaseDamage,
+                    LevelMultiplier,
+                    PathMultiplier,
+                    StatDamageMultiplier,
+                    AbilityMultiplier,
+                    CritMultiplier,
+                    eliteMultiplier,
+                    rangeMultiplier,
+                    DamageScale,
+                    safeAdditionalScale,
+                    damage,
+                    CritDamageStat,
+                    CritMultiplierOverride)));
 
         return damage;
     }

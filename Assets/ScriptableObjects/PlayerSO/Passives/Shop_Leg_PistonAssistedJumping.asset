@@ -20,12 +20,12 @@ MonoBehaviour:
   - StatType: 1
     ModifierType: 1
     ValuesPerLevel:
-    - 1.2
-    - 1.4
-    - 1.6
-    - 1.8
-    - 2
-    - 2.25
+    - 1.3
+    - 1.5
+    - 1.7
+    - 1.9
+    - 2.1
+    - 2.3
   _unlockId: Shop_Leg_PistonAssistedJumping
   _unlockedFromStart: 1
   _requirement:

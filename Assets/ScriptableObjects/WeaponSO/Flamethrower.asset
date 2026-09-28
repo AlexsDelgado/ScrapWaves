@@ -18,7 +18,7 @@ MonoBehaviour:
   AutoTargetingMode: 2
   AutomaticAimConstraint: 0
   ManualMode: 2
-  BaseDamage: 10
+  BaseDamage: 5
   BaseAttackRate: 1
   BaseRange: 7
   BaseKnockback: 0

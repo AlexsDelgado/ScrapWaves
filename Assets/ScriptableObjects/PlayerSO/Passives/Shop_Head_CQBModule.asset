@@ -21,11 +21,11 @@ MonoBehaviour:
     ModifierType: 1
     ValuesPerLevel:
     - 1.2
-    - 1.3
     - 1.4
-    - 1.5
     - 1.6
     - 1.8
+    - 2
+    - 2.2
   _unlockId: Shop_Head_CQBModule
   _unlockedFromStart: 1
   _requirement:

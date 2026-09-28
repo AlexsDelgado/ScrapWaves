@@ -204,7 +204,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
             flatForward = flatForward.sqrMagnitude > 0.0001f ? flatForward.normalized : Vector3.forward;
 
             DrawRuntimeSphere(playerPosition + flatForward * orbitRadius, hitRadius, new Color(0.2f, 1f, 1f, 0.95f));
-            DrawRuntimeCone(origin, forward, tuning.BladeManualRange * size, tuning.BladeManualConeAngle, new Color(0.4f, 1f, 0.55f, 0.8f));
+            DrawSwordCone(playerPosition, forward, tuning.BladeManualRange * size, tuning.BladeManualConeAngle, true);
         }
 
         if (ShowProjectilePaths)
@@ -380,7 +380,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
             Gizmos.DrawWireSphere(_sandbox.PlayerTransform.position + flatForward * orbitRadius, hitRadius);
 
             Gizmos.color = new Color(0.6f, 1f, 0.65f, 0.85f);
-            DrawCone(origin, forward, tuning.BladeManualRange * size, tuning.BladeManualConeAngle);
+            DrawSwordCone(_sandbox.PlayerTransform.position, forward, tuning.BladeManualRange * size, tuning.BladeManualConeAngle, false);
         }
 
         if (ShowProjectilePaths)
@@ -479,6 +479,46 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         result.enabled = true;
         _runtimeLineIndex++;
         return result;
+    }
+
+    // Draw the same 3D angular/range volume used by the manual sword, including
+    // the player apex and the spherical outer edge traced by the slash.
+    private void DrawSwordCone(Vector3 origin, Vector3 forward, float range, float angle, bool runtime)
+    {
+        forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+        Quaternion frame = Quaternion.LookRotation(forward,
+            Mathf.Abs(Vector3.Dot(forward, Vector3.up)) > 0.999f ? Vector3.forward : Vector3.up);
+        float halfAngle = Mathf.Clamp(angle, 1f, 180f) * 0.5f * Mathf.Deg2Rad;
+        Color color = new(0.4f, 1f, 0.55f, 0.8f);
+        void Line(Vector3 a, Vector3 b)
+        {
+            if (runtime) DrawRuntimeLine(a, b, color, RuntimeLineWidth);
+            else { Gizmos.color = color; Gizmos.DrawLine(a, b); }
+        }
+        Vector3 previous = Vector3.zero;
+        for (int i = 0; i <= ArcSegments; i++)
+        {
+            float azimuth = i * 2f * Mathf.PI / ArcSegments;
+            Vector3 edge = origin + frame * new Vector3(
+                Mathf.Sin(halfAngle) * Mathf.Cos(azimuth),
+                Mathf.Sin(halfAngle) * Mathf.Sin(azimuth), Mathf.Cos(halfAngle)) * range;
+            if (i > 0) Line(previous, edge);
+            if (i < ArcSegments && i % (ArcSegments / 4) == 0) Line(origin, edge);
+            previous = edge;
+        }
+        for (int plane = 0; plane < 2; plane++)
+        {
+            for (int i = 0; i <= ArcSegments; i++)
+            {
+                float sweep = Mathf.Lerp(-halfAngle, halfAngle, i / (float)ArcSegments);
+                Vector3 local = plane == 0
+                    ? new Vector3(Mathf.Sin(sweep), 0f, Mathf.Cos(sweep))
+                    : new Vector3(0f, Mathf.Sin(sweep), Mathf.Cos(sweep));
+                Vector3 edge = origin + frame * local * range;
+                if (i > 0) Line(previous, edge);
+                previous = edge;
+            }
+        }
     }
 
     private void DrawRuntimeCone(Vector3 origin, Vector3 forward, float range, float angle, Color color)

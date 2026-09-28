@@ -31,6 +31,11 @@ public class ObjectivesMenuUI : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     [SerializeField, Tooltip("DEV: optional authored reset button. If empty, one is created at runtime.")]
     private Button _devResetProgressButton;
+
+    [SerializeField, Tooltip("DEV: optional authored max-upgrades button. If empty, one is created at runtime.")]
+    private Button _devMaxUpgradesButton;
+
+    private const int DevScrapTarget = 9999;
 #endif
 
     [Header("Authored tabs")]
@@ -419,6 +424,8 @@ public class ObjectivesMenuUI : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         EnsureDevResetProgressButton();
         WireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+        EnsureDevMaxUpgradesButton();
+        WireButton(_devMaxUpgradesButton, HandleDevMaxUpgradesRequested);
 #endif
     }
 
@@ -433,6 +440,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         UnwireButton(_purchaseButton, HandlePurchaseRequested);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         UnwireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+        UnwireButton(_devMaxUpgradesButton, HandleDevMaxUpgradesRequested);
 #endif
     }
 
@@ -469,6 +477,44 @@ public class ObjectivesMenuUI : MonoBehaviour
         _selectedUnlockCard = null;
         RequestRefresh();
         Debug.Log("ObjectivesMenuUI: DEV reset — scrap, unlocks y challenges borrados.");
+    }
+
+    private void EnsureDevMaxUpgradesButton()
+    {
+        if (_devMaxUpgradesButton != null || _screenRoot == null)
+            return;
+
+        _devMaxUpgradesButton = HudUiFactory.CreateButton(
+            _screenRoot.transform,
+            "DEV: Max upgrades + 9999 scrap",
+            new Vector2(260f, 40f));
+        _devMaxUpgradesButton.name = "DevMaxUpgradesButton";
+
+        RectTransform rt = _devMaxUpgradesButton.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 0f);
+        rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(1f, 0f);
+        // Stacked above the reset button so neither overlaps the other.
+        rt.anchoredPosition = new Vector2(-24f, 72f);
+    }
+
+    private void HandleDevMaxUpgradesRequested()
+    {
+        SaveManager save = SaveManager.Instance;
+        if (save == null)
+            return;
+
+        int granted = _metaUpgradeShop != null ? _metaUpgradeShop.DevMaxOutAllUpgrades() : 0;
+        save.DevSetScrap(DevScrapTarget);
+        save.DevCommit();   // single write for the whole batch
+
+        _armedPurchase = null;
+        RequestRefresh();
+
+        if (_metaUpgradeShop == null)
+            Debug.LogWarning("ObjectivesMenuUI: DEV max upgrades — no MetaUpgradeShopUI wired, only scrap was set.", this);
+        else
+            Debug.Log($"ObjectivesMenuUI: DEV max upgrades — {granted} niveles otorgados, scrap en {save.Scrap}.");
     }
 #endif
 

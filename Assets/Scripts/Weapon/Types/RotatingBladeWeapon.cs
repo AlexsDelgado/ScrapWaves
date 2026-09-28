@@ -133,7 +133,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (!isFiring || FireTimer > 0f)
             return;
 
-        Vector3 slashDirection = GetHorizontalAimDirection(aimDirection);
+        Vector3 slashDirection = aimDirection.sqrMagnitude > 0.0001f
+            ? aimDirection.normalized
+            : Owner != null ? Owner.forward : Vector3.forward;
         if (slashDirection.sqrMagnitude <= 0.0001f)
             return;
 
@@ -143,7 +145,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         FireTimer = GetManualSwingInterval(tuning);
 
-        Vector3 origin = GetOwnerOrigin();
+        Vector3 origin = GetManualSlashOrigin();
         float range = GetScaledManualRange(tuning);
         float damageScale = GetManualDamageScale(tuning);
         int swingCount = GetBladeCount();
@@ -326,6 +328,9 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         direction.Normalize();
         return true;
     }
+
+    // The complete manual cone starts at the player; its outer radius is the slash VFX.
+    private Vector3 GetManualSlashOrigin() => GetOwnerOrigin();
 
     private Vector3 GetOwnerOrigin()
     {
@@ -518,7 +523,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
         RotatingBladeTuning tuning = Runtime.Data.RotatingBlade;
         int swing = _multiBladeManualSwingIndex;
-        Vector3 origin = GetOwnerOrigin();
+        Vector3 origin = GetManualSlashOrigin();
         Vector3 swingDirection = GetMultiBladeOffsetDirection(_multiBladeManualDirection, swing, _multiBladeManualSwingCount);
         float knockbackScale = ShouldApplyMultiBladeKnockback(swing, _multiBladeManualSwingCount)
             ? tuning.BladeManualKnockbackScale
@@ -567,7 +572,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             isAbilityDamage: false,
             eventIntensity: strongImpact ? 1.2f : swingCount > 1 ? 0.58f : 0.82f);
 
-        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
+        int hitCount = EnemyRegistry.CollectClosestInCone(
             origin,
             swingDirection,
             range,
@@ -762,7 +767,10 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
 
     private Vector3 GetMultiBladeOffsetDirection(Vector3 direction, int actionIndex, int actionCount)
     {
-        return Quaternion.AngleAxis((actionIndex - (Mathf.Max(1, actionCount) - 1) * 0.5f) * 8f, Vector3.up) * direction;
+        Quaternion frame = Quaternion.LookRotation(direction,
+            Mathf.Abs(Vector3.Dot(direction.normalized, Vector3.up)) > 0.999f ? Vector3.forward : Vector3.up);
+        float angle = (actionIndex - (Mathf.Max(1, actionCount) - 1) * 0.5f) * 8f;
+        return frame * (Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward);
     }
 
     private void ShowOrbit(Vector3 bladeCenter, float hitRadius, RotatingBladeTuning tuning)

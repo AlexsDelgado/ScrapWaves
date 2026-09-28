@@ -20,12 +20,12 @@ MonoBehaviour:
   - StatType: 15
     ModifierType: 0
     ValuesPerLevel:
-    - 0.5
     - 1
-    - 1.5
     - 2
-    - 2.5
+    - 3
     - 4
+    - 5
+    - 6
   - StatType: 29
     ModifierType: 0
     ValuesPerLevel:

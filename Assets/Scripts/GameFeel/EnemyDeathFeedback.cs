@@ -90,8 +90,7 @@ public sealed class EnemyDeathFeedback : MonoBehaviour
         for (int i = 0; i < renderers.Length; i++)
         {
             Renderer renderer = renderers[i];
-            if (renderer == null || renderer is LineRenderer || renderer.GetComponentInParent<EnemyStatusVisual>() != null ||
-                renderer.gameObject.name.StartsWith("[Enemy Hit Flash]"))
+            if (!EnemyDeathReactionVfx.IsSnapshotSource(renderer))
                 continue;
             if (!found)
             {
@@ -107,8 +106,10 @@ public sealed class EnemyDeathFeedback : MonoBehaviour
             else
                 bounds.Encapsulate(renderer.bounds);
         }
-        center = found ? bounds.center : transform.position + Vector3.up * 0.6f;
-        radius = found ? Mathf.Clamp(bounds.extents.magnitude * 0.65f, 0.4f, 8f) : 0.75f;
+        center = found ? bounds.center : transform.TransformPoint(Vector3.up * 0.6f);
+        Vector3 scale = transform.lossyScale;
+        float fallbackScale = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+        radius = found ? Mathf.Max(0.01f, bounds.extents.magnitude * 0.65f) : 0.75f * fallbackScale;
         color.a = 1f;
     }
 

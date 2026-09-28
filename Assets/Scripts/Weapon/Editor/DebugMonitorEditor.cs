@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using UnityEditor;
 using UnityEngine;
 
@@ -168,25 +167,8 @@ public sealed class DebugMonitorEditor : Editor
         EditorGUILayout.EndHorizontal();
     }
 
+    // Kept as a forwarder: the formatting rules now live in runtime so the in-game
+    // attribution view can share them.
     public static string FormatStat(StatDefinition definition, float value)
-    {
-        StatType type = definition.StatType;
-        bool multiplier = type.ToString().EndsWith("Multiplier", StringComparison.Ordinal)
-            || type == StatType.CriticalDamage || type == StatType.ProjectileAreaSize || type == StatType.Knockback;
-        if (multiplier) return value.ToString("0.###", CultureInfo.InvariantCulture) + "x";
-        if (type == StatType.Scavenging || type == StatType.DoubleDrop)
-            return value.ToString("0.###", CultureInfo.InvariantCulture) + "%";
-        if (definition.IsPercentage || type == StatType.Lifesteal || type == StatType.DamageResistance
-            || type == StatType.ExtraEliteChance)
-            return (value * 100f).ToString("0.###", CultureInfo.InvariantCulture) + "%";
-        if (type == StatType.BaseFireInterval || type == StatType.ShieldRechargeDelay || type == StatType.HealthRegenerationDelayReduction)
-            return value.ToString("0.###", CultureInfo.InvariantCulture) + " s";
-        if (type == StatType.MovementSpeed || type == StatType.DashSpeed)
-            return value.ToString("0.###", CultureInfo.InvariantCulture) + " m/s";
-        if (type == StatType.JumpHeight || type == StatType.PickupRange)
-            return value.ToString("0.###", CultureInfo.InvariantCulture) + " m";
-        if (type == StatType.HealthRegeneration)
-            return value.ToString("0.###", CultureInfo.InvariantCulture) + " HP/s";
-        return value.ToString(definition.IsInteger ? "0" : "0.###", CultureInfo.InvariantCulture);
-    }
+        => StatDisplayFormat.FormatStat(definition, value);
 }

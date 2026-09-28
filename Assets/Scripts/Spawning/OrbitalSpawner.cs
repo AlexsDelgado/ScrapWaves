@@ -100,7 +100,7 @@ public class OrbitalSpawner : MonoBehaviour
 
     public int MaxActiveEnemies => _profile != null ? _profile.MaxActiveEnemies : _maxActiveEnemies;
 
-    /// <summary>Intervalo real entre oleadas con el heat actual. Para readouts de QA y del hub de balance.</summary>
+    /// <summary>Intervalo real entre oleadas con el heat actual y los overheats ya terminados. Para readouts de QA y del hub de balance.</summary>
     public float CurrentSpawnInterval => EffectiveSpawnInterval();
 
     private void Awake()
@@ -197,16 +197,17 @@ public class OrbitalSpawner : MonoBehaviour
     }
 
     /// <summary>
-    /// La frecuencia de spawn depende del heat, no del tiempo de partida (el tiempo escala cantidad
-    /// y stats de los enemigos, no la cadencia).
+    /// La frecuencia de spawn depende del heat y de los overheats ya terminados, no del tiempo de
+    /// partida (el tiempo escala cantidad y stats de los enemigos, no la cadencia).
     /// </summary>
     private float EffectiveSpawnInterval()
     {
         if (_heatManager == null)
             _heatManager = HeatManager.GetInstance();
 
-        float scale = _heatManager != null ? _heatManager.GetSpawnIntervalScale() : 1f;
-        return Mathf.Max(0.05f, BaseSpawnInterval * scale);
+        float heatScale = _heatManager != null ? _heatManager.GetSpawnIntervalScale() : 1f;
+        float cycleScale = _heatManager != null ? _heatManager.GetCompletedCycleIntervalScale() : 1f;
+        return Mathf.Max(0.05f, BaseSpawnInterval * heatScale * cycleScale);
     }
 
     private float RunTimeSeconds => Time.timeSinceLevelLoad - _runStartTime;
@@ -219,10 +220,11 @@ public class OrbitalSpawner : MonoBehaviour
 
         float diffCount = _difficultyManager != null ? _difficultyManager.GetSpawnCountMultiplier() : 1f;
         float heatCount = _heatManager != null ? _heatManager.GetSpawnCountMultiplier() : 1f;
+        float cycleBatch = _heatManager != null ? _heatManager.GetCompletedCycleBatchScale() : 1f;
         // Max y no producto entre heat y exit pressure: antes los dos se fusionaban con Max dentro de
         // OverheatSwarmBoost.SpeedMultiplier, multiplicarlos duplicaría la ráfaga en la fase de escape.
         float pressure = Mathf.Max(heatCount, OverheatSwarmBoost.ExitPressureSpawnMultiplier);
-        int batch = Mathf.Max(1, Mathf.RoundToInt(roll.BatchSize * diffCount * pressure));
+        int batch = Mathf.Max(1, Mathf.RoundToInt(roll.BatchSize * diffCount * pressure * cycleBatch));
 
         for (int i = 0; i < batch; i++)
         {

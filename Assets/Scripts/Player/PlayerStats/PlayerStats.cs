@@ -10,6 +10,8 @@ public class PlayerStats : MonoBehaviour
 
     private readonly Dictionary<StatType, RuntimeStat> _stats = new();
 
+    private static readonly StatModifier[] EmptyModifiers = Array.Empty<StatModifier>();
+
     public event Action<StatType, float> OnStatChanged;
 
     // Initializes stat dictionary and synchronizes health-derived base values on startup.
@@ -70,6 +72,22 @@ public class PlayerStats : MonoBehaviour
     // Exposes all configured stat definitions for consumers like level-up logic.
     public IReadOnlyList<StatDefinition> GetAllDefinitions() => _statDefinitions;
 
+    /// <summary>
+    /// Modificadores aplicados a un stat, para diagnóstico y atribución.
+    /// A diferencia de GetStat no avisa cuando falta el stat: los consumidores recorren
+    /// los 30 StatType y llenarían la consola de warnings.
+    /// </summary>
+    public IReadOnlyList<StatModifier> GetModifiers(StatType statType)
+        => _stats.TryGetValue(statType, out RuntimeStat stat) ? stat.Modifiers : EmptyModifiers;
+
+    // Returns the base value of a stat before any modifier, or zero if missing.
+    public float GetBaseValue(StatType statType)
+        => _stats.TryGetValue(statType, out RuntimeStat stat) ? stat.BaseValue : 0f;
+
+    // Exposes runtime stat state for diagnostic consumers; null-safe via the bool result.
+    public bool TryGetRuntimeStat(StatType statType, out RuntimeStat stat)
+        => _stats.TryGetValue(statType, out stat);
+
     // Applies a modifier to one stat and notifies listeners.
     public void AddModifier(StatModifier modifier)
     {
@@ -129,7 +147,7 @@ public class PlayerStats : MonoBehaviour
     {
         float delta = Mathf.Max(0.01f, multiplier) - 1f;
         ClearModifiersFromSourceType(StatUpgradeSource.TemporaryEffect);
-        AddModifier(new StatModifier(StatType.AttackSpeedMultiplier, delta, StatUpgradeSource.TemporaryEffect, this));
+        AddModifier(new StatModifier(StatType.AttackSpeedMultiplier, delta, StatUpgradeSource.TemporaryEffect, this, label: "Runtime fire rate"));
     }
 
     // Applies upgrade asset directly using native stat type configuration.
@@ -137,7 +155,7 @@ public class PlayerStats : MonoBehaviour
     {
         if (upgrade == null) return;
 
-        AddModifier(new StatModifier(upgrade.TargetStat, upgrade.Value, StatUpgradeSource.LevelUp, upgrade));
+        AddModifier(new StatModifier(upgrade.TargetStat, upgrade.Value, StatUpgradeSource.LevelUp, upgrade, label: upgrade.name));
 
         if (upgrade.TargetStat == StatType.MaxHealth && TryGetComponent(out PlayerHealth health))
             health.ApplyMaxHealthIncrease(Mathf.RoundToInt(upgrade.Value));

@@ -78,16 +78,28 @@ public class BalanceTuningHub : MonoBehaviour
     public float EffectiveSpawnIntervalSeconds =>
         _orbitalSpawner != null ? _orbitalSpawner.CurrentSpawnInterval : 0f;
 
-    /// <summary>Multiplicador total sobre el BatchSize de la ruleta (tiempo x presión).</summary>
+    /// <summary>Multiplicador total sobre el BatchSize de la ruleta (tiempo x presión x ciclos terminados).</summary>
     public float EffectiveSpawnCountMultiplier
     {
         get
         {
             float diff = _difficultyManager != null ? _difficultyManager.GetSpawnCountMultiplier() : 1f;
             float heat = _heatManager != null ? _heatManager.GetSpawnCountMultiplier() : 1f;
-            return diff * Mathf.Max(heat, OverheatSwarmBoost.ExitPressureSpawnMultiplier);
+            float cycles = _heatManager != null ? _heatManager.GetCompletedCycleBatchScale() : 1f;
+            return diff * Mathf.Max(heat, OverheatSwarmBoost.ExitPressureSpawnMultiplier) * cycles;
         }
     }
+
+    public int CompletedOverheatCycles => _heatManager != null ? _heatManager.CompletedOverheatCycles : 0;
+
+    public float CompletedCycleIntervalScale =>
+        _heatManager != null ? _heatManager.GetCompletedCycleIntervalScale() : 1f;
+
+    public float CompletedCycleBatchScale =>
+        _heatManager != null ? _heatManager.GetCompletedCycleBatchScale() : 1f;
+
+    public float CompletedCycleHealthScale =>
+        _heatManager != null ? _heatManager.GetCompletedCycleHealthScale() : 1f;
 
     public int ActiveEnemies => EnemyRegistry.ActiveCount;
 

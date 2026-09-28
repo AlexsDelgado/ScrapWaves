@@ -241,7 +241,8 @@ public class PassiveItemManager : MonoBehaviour
                 value,
                 StatUpgradeSource.PassiveItem,
                 instance,
-                bonus.ModifierType));
+                bonus.ModifierType,
+                $"{instance.Data.DisplayName} Lv{instance.Level}"));
         }
     }
 

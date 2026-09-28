@@ -185,8 +185,9 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
         _age = 0f;
         _duration = profile.DeathDuration;
         _radius = pending.Radius;
-        _intensity = pending.Intensity * (pending.Critical ? 1.2f : 1f);
-        _color = ResolveDeathColor(pending.Color, pending.Statuses);
+        _intensity = pending.Intensity;
+        // Every kill uses the ordinary death palette, regardless of status or weapon.
+        _color = ResolveDeathColor(pending.Color);
         _direction = pending.Direction.sqrMagnitude > 0.0001f ? pending.Direction.normalized : Vector3.forward;
         BuildSnapshot(pending.Snapshot);
         for (int i = 0; i < ShardCount; i++)
@@ -286,9 +287,9 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
                     name = "[Enemy Death Pose] " + skinned.sharedMesh.name,
                     hideFlags = HideFlags.DontSave
                 };
-                // Bake with scale so vertices match world size; then keep transform scale at 1
-                // to avoid double-applying lossyScale (common with skinned FBX hierarchies).
-                skinned.BakeMesh(mesh, true);
+                // Do not compensate for renderer scale: the baked vertices already carry
+                // the current scaled pose. The detached transform stays at unit scale.
+                skinned.BakeMesh(mesh, false);
                 ownsMesh = true;
                 snapshot.Pieces.Add(new SnapshotPiece
                 {
@@ -331,9 +332,10 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
         return null;
     }
 
-    private static bool IsSnapshotSource(Renderer renderer)
+    internal static bool IsSnapshotSource(Renderer renderer)
     {
-        if (renderer == null || !renderer.enabled || renderer is LineRenderer ||
+        if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy ||
+            !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) ||
             renderer.GetComponentInParent<EnemyStatusVisual>() != null ||
             renderer.GetComponent<TMPro.TMP_Text>() != null)
             return false;
@@ -504,16 +506,8 @@ public sealed class EnemyDeathReactionVfx : MonoBehaviour
         return line;
     }
 
-    private static Color ResolveDeathColor(Color baseColor, WeaponStatusMask statuses)
-    {
-        Color ash = Color.Lerp(baseColor, new Color(0.72f, 0.58f, 0.42f, 1f), 0.62f);
-        if ((statuses & WeaponStatusMask.Freeze) != 0) return Color.Lerp(ash, new Color(0.34f, 0.82f, 1f, 1f), 0.52f);
-        if ((statuses & WeaponStatusMask.JellifiedBurn) != 0) return Color.Lerp(ash, new Color(0.48f, 0.94f, 0.08f, 1f), 0.48f);
-        if ((statuses & WeaponStatusMask.Burn) != 0) return Color.Lerp(ash, new Color(1f, 0.24f, 0.025f, 1f), 0.48f);
-        if ((statuses & WeaponStatusMask.Vulnerable) != 0) return Color.Lerp(ash, new Color(1f, 0.16f, 0.72f, 1f), 0.4f);
-        if ((statuses & WeaponStatusMask.Slow) != 0) return Color.Lerp(ash, new Color(0.28f, 0.66f, 1f, 1f), 0.42f);
-        return ash;
-    }
+    private static Color ResolveDeathColor(Color baseColor) =>
+        Color.Lerp(baseColor, new Color(0.72f, 0.58f, 0.42f, 1f), 0.62f);
 
     private static Material GetMaterial()
     {

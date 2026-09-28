@@ -406,6 +406,118 @@ public sealed class EnemyReactionTests
         }
     }
 
+    [TestCase(1f, 1f)]
+    [TestCase(2f, 1f)]
+    [TestCase(2f, 0.25f)]
+    [TestCase(4f, 2f)]
+    public void DeathSnapshot_PreservesSkinnedEnemyHierarchyScale(float rootScale, float meshScale)
+    {
+        GameObject source = new("Resized skinned enemy");
+        GameObject body = new("Body");
+        GameObject bone = new("Bone");
+        GameObject template = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject detached = new("Detached death");
+        Mesh mesh = Object.Instantiate(template.GetComponent<MeshFilter>().sharedMesh);
+        try
+        {
+            source.transform.position = new Vector3(5f, 3f, -2f);
+            source.transform.localScale = Vector3.one * rootScale;
+            body.transform.SetParent(source.transform, false);
+            body.transform.localScale = Vector3.one * meshScale;
+            body.transform.localPosition = Vector3.up;
+            bone.transform.SetParent(body.transform, false);
+            var weights = new BoneWeight[mesh.vertexCount];
+            for (int i = 0; i < weights.Length; i++) weights[i] = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+            mesh.boneWeights = weights;
+            mesh.bindposes = new[] { Matrix4x4.identity };
+            SkinnedMeshRenderer skin = body.AddComponent<SkinnedMeshRenderer>();
+            skin.sharedMesh = mesh;
+            skin.bones = new[] { bone.transform };
+            skin.rootBone = bone.transform;
+            skin.localBounds = mesh.bounds;
+            skin.sharedMaterials = template.GetComponent<Renderer>().sharedMaterials;
+            object captured = typeof(EnemyDeathReactionVfx).GetMethod("CaptureSnapshot", BindingFlags.Static | BindingFlags.NonPublic)
+                .Invoke(null, new object[] { source.transform });
+            EnemyDeathReactionVfx death = detached.AddComponent<EnemyDeathReactionVfx>();
+            typeof(EnemyDeathReactionVfx).GetMethod("BuildSnapshot", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(death, new[] { captured });
+            MeshRenderer corpse = detached.GetComponentInChildren<MeshRenderer>();
+            Assert.That(corpse, Is.Not.Null);
+            Bounds expected = new(body.transform.position, Vector3.one * rootScale * meshScale);
+            Assert.That(Vector3.Distance(corpse.bounds.size, expected.size), Is.LessThan(0.001f));
+            Assert.That(Vector3.Distance(corpse.bounds.center, expected.center), Is.LessThan(0.001f));
+            Object.DestroyImmediate(source);
+            Assert.That(Vector3.Distance(corpse.bounds.size, expected.size), Is.LessThan(0.001f),
+                "Despawning the enemy must not resize its detached death pose.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(detached);
+            Object.DestroyImmediate(source);
+            Object.DestroyImmediate(template);
+            Object.DestroyImmediate(mesh);
+        }
+    }
+
+    [TestCase(WeaponStatusMask.None)]
+    [TestCase(WeaponStatusMask.Burn)]
+    [TestCase(WeaponStatusMask.JellifiedBurn)]
+    [TestCase(WeaponStatusMask.Freeze)]
+    [TestCase(WeaponStatusMask.Slow)]
+    [TestCase(WeaponStatusMask.Vulnerable)]
+    [TestCase(WeaponStatusMask.Burn | WeaponStatusMask.Vulnerable)]
+    public void DeathEffect_AllStatusesAndCriticalKillsUseBaseAppearance(WeaponStatusMask status)
+    {
+        GameObject detached = new("Base death style");
+        try
+        {
+            System.Type pendingType = typeof(EnemyDeathReactionVfx).GetNestedType("PendingDeath", BindingFlags.NonPublic);
+            object pending = System.Activator.CreateInstance(pendingType);
+            Color bodyColor = new(0.2f, 0.6f, 0.9f, 1f);
+            pendingType.GetField("Color").SetValue(pending, bodyColor);
+            pendingType.GetField("Statuses").SetValue(pending, status);
+            pendingType.GetField("Critical").SetValue(pending, true);
+            pendingType.GetField("Intensity").SetValue(pending, 1f);
+            pendingType.GetField("Radius").SetValue(pending, 1f);
+            EnemyDeathReactionVfx death = detached.AddComponent<EnemyDeathReactionVfx>();
+            typeof(EnemyDeathReactionVfx).GetMethod("Configure", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(death, new[] { pending, EnemyReactionProfile.Resolve(null) });
+            Color actual = (Color)typeof(EnemyDeathReactionVfx).GetField("_color", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(death);
+            float intensity = (float)typeof(EnemyDeathReactionVfx).GetField("_intensity", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(death);
+            Assert.That(actual, Is.EqualTo(Color.Lerp(bodyColor, new Color(0.72f, 0.58f, 0.42f, 1f), 0.62f)));
+            Assert.That(intensity, Is.EqualTo(1f));
+        }
+        finally { Object.DestroyImmediate(detached); }
+    }
+
+    [TestCase(0.5f)]
+    [TestCase(2f)]
+    [TestCase(40f)]
+    public void DeathBounds_UseVisibleBodyAndScaleWithoutClipping(float scale)
+    {
+        GameObject source = new("Enemy with temporary visuals");
+        try
+        {
+            source.transform.localScale = Vector3.one * scale;
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            body.transform.SetParent(source.transform, false);
+            foreach (string name in new[] { "Inactive old mesh", "[Enemy Freeze Shell]", "[Enemy Hit Flash]" })
+            {
+                GameObject overlay = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                overlay.name = name;
+                overlay.transform.SetParent(source.transform, false);
+                overlay.transform.localScale = Vector3.one * 100f;
+                if (name.StartsWith("Inactive")) overlay.SetActive(false);
+            }
+            EnemyDeathFeedback feedback = source.AddComponent<EnemyDeathFeedback>();
+            object[] args = { Vector3.zero, 0f, Color.clear };
+            typeof(EnemyDeathFeedback).GetMethod("ResolveBounds", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(feedback, args);
+            Assert.That((Vector3)args[0], Is.EqualTo(body.GetComponent<Renderer>().bounds.center));
+            Assert.That((float)args[1], Is.EqualTo(body.GetComponent<Renderer>().bounds.extents.magnitude * 0.65f).Within(0.001f));
+        }
+        finally { Object.DestroyImmediate(source); }
+    }
+
     private static WeaponFeedbackContext Context(int damage, bool critical = false, bool weakPoint = false, bool kill = false)
     {
         return new WeaponFeedbackContext(

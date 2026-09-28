@@ -119,8 +119,9 @@ public class SwarmSpawner : MonoBehaviour
         if (_heatManager == null)
             _heatManager = HeatManager.GetInstance();
 
-        float scale = _heatManager != null ? _heatManager.GetSpawnIntervalScale() : 1f;
-        float interval = Mathf.Max(0.05f, _spawnInterval * scale);
+        float heatScale = _heatManager != null ? _heatManager.GetSpawnIntervalScale() : 1f;
+        float cycleScale = _heatManager != null ? _heatManager.GetCompletedCycleIntervalScale() : 1f;
+        float interval = Mathf.Max(0.05f, _spawnInterval * heatScale * cycleScale);
         if (ExitSpawnPressure.IsActive && ExitSpawnPressure.SpawnRateMultiplier > 1f)
             interval /= ExitSpawnPressure.SpawnRateMultiplier;
         return interval;
@@ -130,8 +131,9 @@ public class SwarmSpawner : MonoBehaviour
     {
         float diffCount = _difficultyManager != null ? _difficultyManager.GetSpawnCountMultiplier() : 1f;
         float heatCount = _heatManager != null ? _heatManager.GetSpawnCountMultiplier() : 1f;
+        float cycleBatch = _heatManager != null ? _heatManager.GetCompletedCycleBatchScale() : 1f;
         float pressure = Mathf.Max(heatCount, OverheatSwarmBoost.ExitPressureSpawnMultiplier);
-        int count = Mathf.Max(1, Mathf.RoundToInt(_spawnPerWave * diffCount * pressure));
+        int count = Mathf.Max(1, Mathf.RoundToInt(_spawnPerWave * diffCount * pressure * cycleBatch));
         for (int i = 0; i < count; i++)
         {
             if (EnemyRegistry.ActiveCount >= _maxActiveEnemies)

@@ -9,6 +9,7 @@ public sealed class BurnStatusCombatTextTests
     {
         public int Health = 100;
         public bool BlockStatus;
+        public bool DisableOnKill;
         public DamageChannel LastChannel;
         public WeaponStatusKind LastStatusKind;
 
@@ -27,6 +28,12 @@ public sealed class BurnStatusCombatTextTests
 
             int before = Health;
             Health = Mathf.Max(0, Health - request.ModifiedDamage);
+            if (Health == 0 && DisableOnKill)
+            {
+                gameObject.SetActive(false);
+                // Edit Mode does not dispatch this runtime callback reliably.
+                InvokeLifecycle(GetComponent<FlamethrowerBurnStatus>(), "OnDisable");
+            }
             return DamageApplicationResult.FromHealthDelta(in request, before, Health);
         }
     }
@@ -86,6 +93,18 @@ public sealed class BurnStatusCombatTextTests
     }
 
     private readonly List<GameObject> _objects = new();
+
+    [SetUp]
+    public void InitializeDamageTracking()
+    {
+        if (ChallengeProgressTracker.Instance != null)
+            return;
+        GameObject trackerObject = new("Test challenge tracker");
+        _objects.Add(trackerObject);
+        ChallengeProgressTracker tracker = trackerObject.AddComponent<ChallengeProgressTracker>();
+        typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance))
+            .SetValue(null, tracker);
+    }
 
     [TearDown]
     public void TearDown()
@@ -236,10 +255,12 @@ public sealed class BurnStatusCombatTextTests
         Assert.That(burn.TallySegmentIndex, Is.EqualTo(1));
     }
 
-    [Test]
-    public void KillingTickClosesTheCurrentStatusSegmentImmediately()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void KillingTickClosesTheCurrentStatusSegmentImmediately(bool disableOnKill)
     {
         AuthoritativeTarget target = CreateTarget(2, out FlamethrowerBurnStatus burn);
+        target.DisableOnKill = disableOnKill;
         RecordingFeedbackSink sink = new();
         StatusDamageSource source = CreateSource(sink, WeaponStatusKind.JellifiedBurn);
         burn.Refresh(target, 5, 10f, 0.5f, WeaponStatusKind.JellifiedBurn, in source);
@@ -248,6 +269,9 @@ public sealed class BurnStatusCombatTextTests
         burn.Tick(0.5f);
 
         Assert.That(sink.StatusClosures.Count, Is.EqualTo(1));
+        Assert.That(sink.DamageEvents.Count, Is.EqualTo(1));
+        Assert.That(sink.DamageEvents[0].DamageAmount, Is.EqualTo(2));
+        Assert.That(sink.DamageEvents[0].IsKill, Is.True);
         Assert.That(sink.StatusClosures[0].StatusKind, Is.EqualTo(WeaponStatusKind.JellifiedBurn));
         Assert.That(sink.StatusClosures[0].StatusInstanceId, Is.EqualTo(statusId));
         Assert.That(sink.StatusClosures[0].SegmentIndex, Is.Zero);

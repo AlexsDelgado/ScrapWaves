@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -81,10 +82,21 @@ public class PlayerStatsLevelUpHandler : MonoBehaviour
             return 0f;
 
         float amount = StatMath.CalculateStatUpgradeAmount(definition.LevelUpgradeBaseAmount, newLevel, _levelCap);
-        if (SaveManager.Instance != null)
-            amount *= SaveManager.Instance.GetMetaStatGrowthMultiplier(statType);
 
-        _playerStats.AddModifier(new StatModifier(statType, amount, StatUpgradeSource.LevelUp));
+        float metaGrowth = SaveManager.Instance != null
+            ? SaveManager.Instance.GetMetaStatGrowthMultiplier(statType)
+            : 1f;
+        amount *= metaGrowth;
+
+        // El label expone LevelUpgradeBaseAmount a propósito: es el valor de autoría que
+        // explica la magnitud del incremento cuando un stat escala de forma inesperada.
+        // InvariantCulture para que coincida con el resto de StatDisplayFormat.
+        string baseAmount = definition.LevelUpgradeBaseAmount.ToString("0.###", CultureInfo.InvariantCulture);
+        string label = Mathf.Approximately(metaGrowth, 1f)
+            ? $"Lv{newLevel} roll (base {baseAmount})"
+            : $"Lv{newLevel} roll (base {baseAmount} x{metaGrowth.ToString("0.##", CultureInfo.InvariantCulture)} meta)";
+
+        _playerStats.AddModifier(new StatModifier(statType, amount, StatUpgradeSource.LevelUp, label: label));
 
         if (statType == StatType.MaxHealth && TryGetComponent(out PlayerHealth health))
             health.ApplyMaxHealthIncrease(Mathf.RoundToInt(amount));

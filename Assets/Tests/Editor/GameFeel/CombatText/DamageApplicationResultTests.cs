@@ -7,6 +7,18 @@ public sealed class DamageApplicationResultTests
 {
     private readonly List<Object> _cleanup = new();
 
+    [SetUp]
+    public void InitializeDamageTracking()
+    {
+        if (ChallengeProgressTracker.Instance != null)
+            return;
+        GameObject trackerObject = new("Test challenge tracker");
+        _cleanup.Add(trackerObject);
+        ChallengeProgressTracker tracker = trackerObject.AddComponent<ChallengeProgressTracker>();
+        typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance))
+            .SetValue(null, tracker);
+    }
+
     [TearDown]
     public void TearDown()
     {

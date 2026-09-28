@@ -693,6 +693,51 @@ public class MetaUpgradeShopUI : MonoBehaviour
         };
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private const int MaxStatLevel = 10;
+    private const int MaxItemLevel = 3;
+
+    /// <summary>
+    /// DEV: raises every meta upgrade the shop offers to its cap, for free. Writes the levels
+    /// straight into the save data instead of going through TryPurchase, because each regular
+    /// purchase persists the file and a hundred of them stalls the main thread for seconds.
+    /// The caller commits once via <see cref="SaveManager.DevCommit"/>.
+    /// Returns how many levels were granted.
+    /// </summary>
+    public int DevMaxOutAllUpgrades()
+    {
+        SaveManager save = SaveManager.Instance;
+        if (save == null)
+            return 0;
+
+        EnsureCosts();
+        int granted = 0;
+
+        for (int i = 0; i < StatRows.Length; i++)
+        {
+            StatType type = StatRows[i];
+            granted += MaxStatLevel - save.GetMetaStatLevel(type);
+            save.DevSetMetaStatLevel(type, MaxStatLevel);
+        }
+
+        if (_catalog != null)
+        {
+            for (int i = 0; i < _catalog.PassiveItems.Count; i++)
+            {
+                PassiveItemData item = _catalog.PassiveItems[i];
+                // Item upgrades only exist for items that are already unlocked.
+                if (item == null || !IsMetaUpgradeable(item) || !save.IsUnlocked(item))
+                    continue;
+
+                granted += MaxItemLevel - save.GetMetaItemUpgradeLevel(item.UnlockId);
+                save.DevSetMetaItemUpgradeLevel(item.UnlockId, MaxItemLevel);
+            }
+        }
+
+        return granted;
+    }
+#endif
+
     private static bool IsMetaUpgradeable(PassiveItemData data)
     {
         if (data == null)

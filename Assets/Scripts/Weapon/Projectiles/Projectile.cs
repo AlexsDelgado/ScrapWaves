@@ -81,7 +81,7 @@ public class Projectile : MonoBehaviour
     private static readonly Color AmplifierVfxColor = new(1f, 0.1f, 0.72f, 0.95f);
     private static readonly Color FragmentVfxColor = new(0.55f, 0.02f, 0.02f, 0.95f);
     private static readonly Color ClusterVfxColor = new(0.7f, 0.03f, 0.02f, 0.95f);
-    private readonly RaycastHit[] _sweepHits = new RaycastHit[12];
+    private RaycastHit[] _sweepHits = new RaycastHit[12];
 
     public float ActiveSpeed => _activeSpeed;
     public bool HasPresentationContext => _presentationSink != null;
@@ -572,14 +572,18 @@ public class Projectile : MonoBehaviour
         Vector3 centerOffset = GetSphereCenterOffset();
         Vector3 sweepStart = currentPosition + centerOffset;
         float sweepRadius = GetScaledSphereRadius();
-        int hitCount = Physics.SphereCastNonAlloc(
-            sweepStart,
-            sweepRadius,
-            direction,
-            _sweepHits,
-            distance,
-            Physics.AllLayers,
-            QueryTriggerInteraction.Ignore);
+        // NonAlloc hits are unordered. Retry a full buffer so a nearer enemy or
+        // wall cannot be omitted in crowded scenes, and include damageable triggers.
+        int hitCount;
+        while (true)
+        {
+            hitCount = Physics.SphereCastNonAlloc(
+                sweepStart, sweepRadius, direction, _sweepHits, distance,
+                Physics.AllLayers, QueryTriggerInteraction.Collide);
+            if (hitCount < _sweepHits.Length)
+                break;
+            System.Array.Resize(ref _sweepHits, _sweepHits.Length * 2);
+        }
 
         if (hitCount <= 0)
             return false;

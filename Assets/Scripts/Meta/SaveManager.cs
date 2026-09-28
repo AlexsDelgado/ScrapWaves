@@ -419,6 +419,28 @@ public class SaveManager : MonoBehaviour
         return true;
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// DEV: sets a meta level without charging scrap and without writing the save file.
+    /// Every regular purchase persists immediately, which is far too slow when granting
+    /// a hundred levels at once — call <see cref="DevCommit"/> once when done.
+    /// The caps (10 stats, 3 items) are still enforced by SaveData.
+    /// </summary>
+    public void DevSetMetaStatLevel(StatType statType, int level) => _data.SetMetaStatLevel(statType, level);
+
+    public void DevSetMetaItemUpgradeLevel(string unlockId, int level) => _data.SetMetaItemUpgradeLevel(unlockId, level);
+
+    public void DevSetScrap(int amount) => _data.Scrap = Mathf.Max(0, amount);
+
+    /// <summary>DEV: notifies listeners and writes the save once after a batch of Dev setters.</summary>
+    public void DevCommit()
+    {
+        OnScrapChanged?.Invoke();
+        OnUnlocksChanged?.Invoke();
+        Save();
+    }
+#endif
+
     public bool IsPathUnlocked(WeaponData weapon, WeaponUpgradePath path)
     {
         if (weapon == null || path == WeaponUpgradePath.None || path == WeaponUpgradePath.PathA)
