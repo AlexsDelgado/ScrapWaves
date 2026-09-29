@@ -26,6 +26,12 @@ public class PassiveLoadoutHud : MonoBehaviour
     [SerializeField] private PassiveItemManager _passiveItemManager;
     [SerializeField, Min(8f)] private float _slotSpacing = 20f;
 
+    [Header("Slot vacío (vacío = cuadrado liso)")]
+    [SerializeField] private Sprite _emptyHead;
+    [SerializeField] private Sprite _emptyCore;
+    [SerializeField] private Sprite _emptyArm;
+    [SerializeField] private Sprite _emptyLeg;
+
     private PassiveSlotUi[] _passiveSlots;
     private Transform _passivesRoot;
 
@@ -112,20 +118,40 @@ public class PassiveLoadoutHud : MonoBehaviour
             PassiveItemInstance instance = _passiveItemManager.Inventory.Get(slotUi.Slot, slotUi.SlotIndex);
             if (instance?.Data == null)
             {
-                slotUi.Icon.sprite = HudUiFactory.WhiteSprite;
-                slotUi.Icon.color = HudUiFactory.EmptySlotColor;
-                if (slotUi.LevelBadge != null)
-                    slotUi.LevelBadge.text = string.Empty;
+                Sprite empty = EmptySprite(slotUi.Slot);
+                slotUi.Icon.sprite = empty != null ? empty : HudUiFactory.WhiteSprite;
+                slotUi.Icon.color = empty != null ? Color.white : HudUiFactory.EmptySlotColor;
+                SetBadge(slotUi.LevelBadge, string.Empty);
                 continue;
             }
 
             Sprite icon = instance.Data.Icon;
             slotUi.Icon.sprite = icon != null ? icon : HudUiFactory.WhiteSprite;
             slotUi.Icon.color = icon != null ? Color.white : HudUiFactory.GetPlaceholderColor(SlotToPlaceholder(slotUi.Slot));
-            if (slotUi.LevelBadge != null)
-                slotUi.LevelBadge.text = instance.Level > 0 ? instance.Level.ToString() : string.Empty;
+            SetBadge(slotUi.LevelBadge, instance.Level > 0 ? instance.Level.ToString() : string.Empty);
         }
     }
+
+    /// <summary>Si el texto vive dentro de una chapita (Badge), se oculta la chapita entera cuando no hay nivel.</summary>
+    private static void SetBadge(TextMeshProUGUI badge, string text)
+    {
+        if (badge == null)
+            return;
+
+        badge.text = text;
+        Transform plate = badge.transform.parent;
+        if (plate != null && plate.name == "Badge")
+            plate.gameObject.SetActive(!string.IsNullOrEmpty(text));
+    }
+
+    private Sprite EmptySprite(PassiveItemSlot slot) => slot switch
+    {
+        PassiveItemSlot.Head => _emptyHead,
+        PassiveItemSlot.Core => _emptyCore,
+        PassiveItemSlot.Arm => _emptyArm,
+        PassiveItemSlot.Leg => _emptyLeg,
+        _ => null
+    };
 
     private static HudPlaceholderKind SlotToPlaceholder(PassiveItemSlot slot) => slot switch
     {

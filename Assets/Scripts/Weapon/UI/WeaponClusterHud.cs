@@ -11,6 +11,10 @@ public class WeaponClusterHud : MonoBehaviour
     [SerializeField] private WeaponManager _weaponManager;
     [SerializeField] private PlayerStats _playerStats;
     [SerializeField] private PlayerMovement _playerMovement;
+    [Tooltip("Fila de cargas de dash fuera de la columna (p. ej. junto a la retícula). Vacío = busca DashCharges/Layout como hijo.")]
+    [SerializeField] private Transform _dashChargesLayout;
+    [Tooltip("Oculta el ícono de los slots sin arma (el socket del arte ya muestra el hueco).")]
+    [SerializeField] private bool _hideEmptyWeaponSlots;
 
     private struct WeaponSlotUi
     {
@@ -83,7 +87,9 @@ public class WeaponClusterHud : MonoBehaviour
         Transform root = cluster != null ? cluster : transform;
         Transform slotsRoot = root.Find("WeaponSlots");
         Transform panelRoot = root.Find("WeaponPanel");
-        _dashLayout = transform.Find("DashCharges/Layout") ?? root.Find("DashCharges/Layout");
+        _dashLayout = _dashChargesLayout != null
+            ? _dashChargesLayout
+            : transform.Find("DashCharges/Layout") ?? root.Find("DashCharges/Layout");
         if (slotsRoot == null || panelRoot == null)
             return false;
 
@@ -286,10 +292,12 @@ public class WeaponClusterHud : MonoBehaviour
                 if (slot.Frame != null) slot.Frame.color = HudUiFactory.EmptySlotColor;
                 slot.Icon.sprite = HudUiFactory.WhiteSprite;
                 slot.Icon.color = HudUiFactory.EmptySlotColor;
+                slot.Icon.enabled = !_hideEmptyWeaponSlots;
                 if (slot.LevelBadge != null) slot.LevelBadge.text = string.Empty;
                 continue;
             }
 
+            slot.Icon.enabled = true;
             WeaponInstance runtime = weapons[equippedIndex].Runtime;
             WeaponData data = runtime.Data;
             bool isActiveManual = rotationSlot == 0;
