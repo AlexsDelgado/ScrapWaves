@@ -70,6 +70,8 @@ public static class HudArtApplier
             BuildLeft(strip.Find(GameplayHudHierarchyBuilder.ColumnLeftName), left);
             BuildCenter(strip.Find(GameplayHudHierarchyBuilder.ColumnCenterName), center, badge);
             BuildRight(strip.Find(GameplayHudHierarchyBuilder.ColumnRightName), right);
+            BuildMaterialStrip(canvas, center.size[1] * Scale + ScreenMargin);
+            MoveExitObjectiveTopRight(canvas);
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             Debug.Log($"[{nameof(HudArtApplier)}] Arte del HUD ({(hasVariant ? variant : "base")}) aplicado en {PrefabPath}.");
@@ -83,7 +85,7 @@ public static class HudArtApplier
     private static void ConfigureImporters()
     {
         AssetDatabase.Refresh();
-        foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ArtFolder }))
+        foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ArtFolder, MaterialIconFolder }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             if (AssetImporter.GetAtPath(path) is not TextureImporter ti)
@@ -196,7 +198,7 @@ public static class HudArtApplier
     }
 
     private static TextMeshProUGUI AddText(RectTransform rt, float size, TextAlignmentOptions align, Color color,
-        FontStyles style = FontStyles.Normal, string text = "")
+        FontStyles style = FontStyles.Normal, string text = "", TextOverflowModes overflow = TextOverflowModes.Truncate)
     {
         var tmp = rt.gameObject.AddComponent<TextMeshProUGUI>();
         TmpUiHelper.ApplyDefaultFont(tmp);
@@ -207,7 +209,8 @@ public static class HudArtApplier
         tmp.text = text;
         tmp.textWrappingMode = TextWrappingModes.NoWrap;
         // LiberationSans SDF no trae el glifo de elipsis: Ellipsis spamea warnings en Play.
-        tmp.overflowMode = TextOverflowModes.Truncate;
+        // Ojo: Truncate también corta en vertical, así que en ventanas bajas (el badge) hay que usar Overflow.
+        tmp.overflowMode = overflow;
         tmp.raycastTarget = false;
         return tmp;
     }
@@ -265,8 +268,11 @@ public static class HudArtApplier
             plate.anchorMin = plate.anchorMax = plate.pivot = new Vector2(1f, 0f);
             plate.anchoredPosition = new Vector2(badgeSize.x * 0.28f, -badgeSize.y * 0.3f);
             plate.sizeDelta = badgeSize;
+            // A escala 1 la chapita queda en ~30x21 y el número no se lee; se agranda entera con su texto.
+            plate.localScale = Vector3.one * BadgeScale;
             AddImage(plate, badgeSprite);
-            AddText(Place(plate, "Level", levelRect), 13f, TextAlignmentOptions.Center, Mustard, FontStyles.Bold);
+            AddText(Place(plate, "Level", levelRect), 13f, TextAlignmentOptions.Center, Mustard, FontStyles.Bold,
+                overflow: TextOverflowModes.Overflow);
             plate.gameObject.SetActive(false);
         }
 
@@ -320,6 +326,51 @@ public static class HudArtApplier
         so.FindProperty("_dashChargesLayout").objectReferenceValue = dashLayout;
         so.FindProperty("_hideEmptyWeaponSlots").boolValue = true;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private const float BadgeScale = 1.4f;
+    private const string MaterialIconFolder = "Assets/Art/UI/Icons/Materials";
+    private const string MaterialStripName = "MaterialStrip";
+
+    /// <summary>
+    /// Materiales como fila de íconos + cantidad, apoyada sobre la placa central de pasivos. Reemplaza al panel
+    /// de materiales de arriba a la izquierda (MaterialInventoryHUD del player).
+    /// </summary>
+    private static void BuildMaterialStrip(Transform canvas, float bottom)
+    {
+        Transform old = canvas.Find(MaterialStripName);
+        if (old != null)
+            Object.DestroyImmediate(old.gameObject);
+
+        RectTransform rt = NewChild(canvas, MaterialStripName);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = new Vector2(0f, bottom + 6f);
+        var layout = rt.gameObject.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = layout.childControlHeight = false;
+        layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+        var fitter = rt.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        MaterialInventoryDisplayView view = MaterialInventoryDisplayView.Create(rt, MaterialDisplayLayout.Horizontal,
+            showEmpty: true, showNames: false, iconSize: 40f, fontSize: 22f, spacing: 22f,
+            iconLookup: t => AssetDatabase.LoadAssetAtPath<Sprite>($"{MaterialIconFolder}/Material_{t}.png"));
+        rt.gameObject.AddComponent<MaterialInventoryHUD>().UseDisplay(view);
+    }
+
+    /// <summary>"Batteries: x/y" arriba a la derecha, para dejarle el centro de arriba al diálogo.</summary>
+    private static void MoveExitObjectiveTopRight(Transform canvas)
+    {
+        Transform exit = HudUiWire.FindDeepChild(canvas, "LevelExitHud");
+        if (exit == null)
+            return;
+        var rt = (RectTransform)exit;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-28f, -24f);
+        rt.sizeDelta = new Vector2(360f, 44f);
+        TextMeshProUGUI text = HudUiWire.FindTmp(exit, "Text");
+        if (text != null)
+            text.alignment = TextAlignmentOptions.MidlineRight;
     }
 
     private const int DashPipCount = 3;

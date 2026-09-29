@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc0d7ef2bba16cc48951ff6061b949bb, type: 3}
+  m_Name: DialogueSet_GameplayScene
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueSet
+  _entries:
+  - {fileID: 11400000, guid: 0d5d1d2a04fea014f8566e95d4266a32, type: 2}
+  - {fileID: 11400000, guid: 70ba1cb1a95a0a045b961a07069a3fe0, type: 2}
+  - {fileID: 11400000, guid: e7ec9e4b3b759f5409455e22c70d58ed, type: 2}
+  - {fileID: 11400000, guid: 3e0516a98a46c8d43a91b79a9f768608, type: 2}
+  - {fileID: 11400000, guid: 942d53a2c202b1b4ca0f4e14afd34a3d, type: 2}

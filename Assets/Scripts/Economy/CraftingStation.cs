@@ -20,6 +20,10 @@ public class CraftingStation : MonoBehaviour
     /// <summary>Se dispara cada vez que el jugador abre esta estación (para la flecha guía, por ejemplo).</summary>
     public event System.Action OnInteracted;
 
+    public Vector3 InteractionPosition => _interactionPoint != null ? _interactionPoint.position : transform.position;
+    public float InteractionRadius => _interactionRadius;
+    public bool IsOpen => _isOpen;
+
     private void Awake()
     {
         if (_craftingUi == null)
@@ -46,8 +50,7 @@ public class CraftingStation : MonoBehaviour
         if (player == null || !WasInteractPressed())
             return;
 
-        Vector3 point = _interactionPoint != null ? _interactionPoint.position : transform.position;
-        if (Vector3.Distance(player.position, point) > _interactionRadius)
+        if (Vector3.Distance(player.position, InteractionPosition) > _interactionRadius)
             return;
 
         OpenCrafting();

@@ -11,6 +11,8 @@ public class MaterialInventory : MonoBehaviour
 
     public event Action<MaterialType, int> OnMaterialChanged;
     public event Action OnInventoryChanged;
+    /// <summary>Se dispara cuando se gastan materiales (crafteo, mejoras, tinkering).</summary>
+    public event Action OnMaterialsSpent;
 
     private void OnEnable() => Instance = this;
     private void OnDisable()
@@ -59,6 +61,8 @@ public class MaterialInventory : MonoBehaviour
         }
 
         OnInventoryChanged?.Invoke();
+        if (costs.Count > 0)
+            OnMaterialsSpent?.Invoke();
         return true;
     }
 }

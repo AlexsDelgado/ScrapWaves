@@ -123,13 +123,14 @@ public class LevelExitHud : MonoBehaviour
         _root = new GameObject("LevelExitHud", typeof(RectTransform));
         _root.transform.SetParent(parent, false);
         var rootRt = _root.GetComponent<RectTransform>();
-        rootRt.anchorMin = new Vector2(0.5f, 1f);
-        rootRt.anchorMax = new Vector2(0.5f, 1f);
-        rootRt.pivot = new Vector2(0.5f, 1f);
-        rootRt.anchoredPosition = new Vector2(0f, -156f);
-        rootRt.sizeDelta = new Vector2(820f, 44f);
+        // Arriba a la derecha: el centro de arriba es del panel de diálogo de jefes.
+        rootRt.anchorMin = new Vector2(1f, 1f);
+        rootRt.anchorMax = new Vector2(1f, 1f);
+        rootRt.pivot = new Vector2(1f, 1f);
+        rootRt.anchoredPosition = new Vector2(-28f, -24f);
+        rootRt.sizeDelta = new Vector2(360f, 44f);
 
-        _statusText = HudUiFactory.CreateLabel(_root.transform, "Text", string.Empty, 24f, TextAlignmentOptions.Center);
+        _statusText = HudUiFactory.CreateLabel(_root.transform, "Text", string.Empty, 24f, TextAlignmentOptions.MidlineRight);
         _statusText.fontStyle = FontStyles.Bold;
         _statusText.color = new Color(0.95f, 0.85f, 0.35f, 1f);
         UnityEditor.EditorUtility.SetDirty(this);

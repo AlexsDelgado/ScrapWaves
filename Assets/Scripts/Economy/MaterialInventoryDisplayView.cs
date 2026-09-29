@@ -36,6 +36,9 @@ public class MaterialInventoryDisplayView : MonoBehaviour
     [SerializeField] private RectTransform _contentRoot;
 
 #if UNITY_EDITOR
+    // Solo durante el armado: si devuelve un sprite, la fila usa ese ícono en vez del cuadrado de color.
+    private Func<MaterialType, Sprite> _iconLookup;
+
     public static MaterialInventoryDisplayView Create(
         Transform parent,
         MaterialDisplayLayout layout,
@@ -43,7 +46,8 @@ public class MaterialInventoryDisplayView : MonoBehaviour
         bool showNames = true,
         float iconSize = 22f,
         float fontSize = 16f,
-        float spacing = 6f)
+        float spacing = 6f,
+        Func<MaterialType, Sprite> iconLookup = null)
     {
         var go = new GameObject("MaterialInventoryDisplay", typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -55,7 +59,9 @@ public class MaterialInventoryDisplayView : MonoBehaviour
         view._iconSize = iconSize;
         view._fontSize = fontSize;
         view._spacing = spacing;
+        view._iconLookup = iconLookup;
         view.AuthorUi();
+        view._iconLookup = null;
         return view;
     }
 
@@ -126,13 +132,27 @@ public class MaterialInventoryDisplayView : MonoBehaviour
         fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        Image icon = HudUiFactory.CreateIconSlot(
-            rowGo.transform,
-            "Icon",
-            _iconSize,
-            null,
-            HudPlaceholderKind.None);
-        icon.color = MaterialCatalog.GetUiColor(type);
+        Sprite sprite = _iconLookup?.Invoke(type);
+        if (sprite != null)
+        {
+            var iconGo = new GameObject("Icon", typeof(RectTransform));
+            iconGo.transform.SetParent(rowGo.transform, false);
+            ((RectTransform)iconGo.transform).sizeDelta = Vector2.one * _iconSize;
+            var iconImage = iconGo.AddComponent<Image>();
+            iconImage.sprite = sprite;
+            iconImage.preserveAspect = true;
+            iconImage.raycastTarget = false;
+        }
+        else
+        {
+            Image icon = HudUiFactory.CreateIconSlot(
+                rowGo.transform,
+                "Icon",
+                _iconSize,
+                null,
+                HudPlaceholderKind.None);
+            icon.color = MaterialCatalog.GetUiColor(type);
+        }
 
         if (_showNames)
         {
@@ -153,6 +173,14 @@ public class MaterialInventoryDisplayView : MonoBehaviour
 
         var amountLayout = amountLabel.gameObject.AddComponent<LayoutElement>();
         amountLayout.minWidth = 32f;
+        if (!_showNames)
+        {
+            // Modo compacto (ícono + número): la fila no controla anchos, así que el label no puede quedar
+            // con los 200 px por defecto de TMP.
+            amountLabel.rectTransform.sizeDelta = new Vector2(Mathf.Max(32f, _fontSize * 1.9f), Mathf.Max(_iconSize, _fontSize * 1.3f));
+            amountLabel.textWrappingMode = TextWrappingModes.NoWrap;
+            amountLabel.overflowMode = TextOverflowModes.Overflow;
+        }
 
         return new Entry
         {

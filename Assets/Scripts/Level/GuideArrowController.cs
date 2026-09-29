@@ -3,7 +3,9 @@ using UnityEngine;
 
 /// <summary>
 /// Orquesta cuándo se muestra <see cref="GuideArrow"/>:
-/// 1) A los <see cref="_craftingStationDelaySeconds"/> de partida, apunta a la crafting station.
+/// 1) Cuando suena una entrada de diálogo con <see cref="DialogueEntry.ShowsCraftingGuide"/> (el jefe
+///    burlándose de que no mejoraste armas), apunta a la crafting station. Sin DialogueDirector en la escena,
+///    cae al temporizador de <see cref="_craftingStationDelaySeconds"/>, una sola vez.
 /// 2) Al juntar todas las llaves (<see cref="LevelExitObjective.OnAllKeysCollected"/>), apunta a la puerta de salida.
 /// Cada aparición dura <see cref="_guideDurationSeconds"/> o hasta que el jugador interactúe con el
 /// objetivo (lo que ocurra primero). Cada disparador ocurre una única vez por partida.
@@ -22,10 +24,14 @@ public class GuideArrowController : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Cuánto dura cada aparición de la flecha (o hasta interactuar con el objetivo, lo que pase antes).")]
     private float _guideDurationSeconds = 5f;
 
+    [SerializeField, Min(0f), Tooltip("Duración de la flecha cuando la dispara un diálogo del jefe.")]
+    private float _dialogueGuideDurationSeconds = 10f;
+
     private bool _craftingHintShown;
     private bool _doorHintShown;
     private float _hideAtTime = -1f;
     private Action _activeDismissUnsubscribe;
+    private bool _dialogueDriven;
 
     private void Awake()
     {
@@ -39,41 +45,57 @@ public class GuideArrowController : MonoBehaviour
             _exitObjective = LevelExitObjective.Instance != null
                 ? LevelExitObjective.Instance
                 : FindAnyObjectByType<LevelExitObjective>();
+        _dialogueDriven = FindAnyObjectByType<DialogueDirector>() != null;
     }
 
     private void OnEnable()
     {
         if (_exitObjective != null)
             _exitObjective.OnAllKeysCollected += HandleAllKeysCollected;
+        DialogueDirector.EntryStarted += HandleDialogueStarted;
     }
 
     private void OnDisable()
     {
         if (_exitObjective != null)
             _exitObjective.OnAllKeysCollected -= HandleAllKeysCollected;
+        DialogueDirector.EntryStarted -= HandleDialogueStarted;
 
         EndGuide();
     }
 
     private void Update()
     {
-        if (!_craftingHintShown
+        if (!_dialogueDriven
+            && !_craftingHintShown
             && _craftingStation != null
             && RunSessionStats.ElapsedSeconds >= _craftingStationDelaySeconds)
         {
             _craftingHintShown = true;
-            BeginGuide(
-                _craftingStation.transform,
-                dismiss =>
-                {
-                    void Handler() => dismiss();
-                    _craftingStation.OnInteracted += Handler;
-                    return () => _craftingStation.OnInteracted -= Handler;
-                });
+            ShowCraftingGuide(_guideDurationSeconds);
         }
 
         if (_hideAtTime >= 0f && Time.unscaledTime >= _hideAtTime)
             EndGuide();
+    }
+
+    private void HandleDialogueStarted(DialogueEntry entry)
+    {
+        if (entry != null && entry.ShowsCraftingGuide && _craftingStation != null)
+            ShowCraftingGuide(_dialogueGuideDurationSeconds);
+    }
+
+    private void ShowCraftingGuide(float duration)
+    {
+        BeginGuide(
+            _craftingStation.transform,
+            dismiss =>
+            {
+                void Handler() => dismiss();
+                _craftingStation.OnInteracted += Handler;
+                return () => _craftingStation.OnInteracted -= Handler;
+            },
+            duration);
     }
 
     private void HandleAllKeysCollected()
@@ -89,14 +111,15 @@ public class GuideArrowController : MonoBehaviour
                 void Handler() => dismiss();
                 _exitDoor.OnChargeStarted += Handler;
                 return () => _exitDoor.OnChargeStarted -= Handler;
-            });
+            },
+            _guideDurationSeconds);
     }
 
     /// <summary>
     /// Arranca una aparición de la flecha. <paramref name="subscribeDismiss"/> se suscribe al evento
     /// de interacción del objetivo y devuelve un Action para desuscribirse.
     /// </summary>
-    private void BeginGuide(Transform target, Func<Action, Action> subscribeDismiss)
+    private void BeginGuide(Transform target, Func<Action, Action> subscribeDismiss, float duration)
     {
         if (_guideArrow == null || target == null)
             return;
@@ -104,7 +127,7 @@ public class GuideArrowController : MonoBehaviour
         EndGuide();
 
         _guideArrow.Show(target);
-        _hideAtTime = Time.unscaledTime + _guideDurationSeconds;
+        _hideAtTime = Time.unscaledTime + duration;
 
         bool dismissed = false;
         Action dismiss = () =>

@@ -86,6 +86,15 @@ Variantes de arte nuevas, sin tocar la base:
 - Regenerar: `blender -b --factory-startup --python ArtSource/Tools/blender_build_hud.py -- --variant V2A [--only HudLeft]` y después `python ArtSource/Tools/finish_hud.py --variant V2A --outline 6 --grade 1.0 1.3` (V2B: `--outline 4 --grade 1.0 1.2`).
 - Aplicar en Unity: **ScrapWaves → UI → Apply HUD Art V2A (Player Bars)** o **V2B (Estilo armas)**. La base sigue en **Apply HUD Art To GameplayHud V2**.
 
+## Diálogo de jefes, materiales y prompt de interacción (29 sep)
+
+- **Diálogo:** datos en `Assets/ScriptableObjects/Dialogue/` (`DialogueSpeaker`, `DialogueEntry`, `DialogueSet`). Runtime en `Assets/Scripts/Dialogue/` (`DialogueDirector`, `DialogueBoxUI`). Se arma con **ScrapWaves → UI → Build Dialogue Box In GameplayHud V2**; los assets que ya existen no se pisan. Arte: `ArtSource/UI/V2B/scripts/dialog_panel.py` y `dialog_portraits.py`, más `ArtSource/Tools/finish_dialog.py`. Voz: `ArtSource/Tools/make_voice_blips.py` → `Assets/Audio/Dialogue/`.
+- **Flecha a la crafting station:** la dispara la entrada que tenga `ShowsCraftingGuide` (hoy `Dialogue_Stalker_Guide_Crafting`, disparador `NoCraftingFor` = sin gastar materiales durante 60 s). El timer de 20 s de `GuideArrowController` solo corre en escenas sin `DialogueDirector`.
+- **Materiales:** tira de íconos + cantidad sobre los pasivos (`MaterialStrip`, la arma `HudArtApplier`). Los íconos salen de **ScrapWaves → UI → Capture Material Pickup Icons** y `finish_material_icons.py`. En `GameplayScene` el panel viejo (`MaterialInventoryHUD` del player y `UI/MaterialInventoryHUDCanvas`) quedó desactivado, no borrado.
+- **Badge de nivel:** el texto usa `Overflow` (con `Truncate` desaparecía porque la ventana es más baja que la línea) y la chapita escala x1.4.
+- **Tecla E 3D:** `ArtSource/UI/V2B/scripts/interact_key.py` → `Assets/Art/Props/InteractKey/InteractKey_E.fbx`. **ScrapWaves → UI → Build Interact Prompt (E) And Place On Crafting Stations** arma el prefab `Assets/Prefabs/Props/InteractPrompt_E.prefab` y lo pone sobre las estaciones de las escenas abiertas; solo se corrió en `GameplayScene`, falta `test_balance`. Aparece dentro del radio de interacción de la estación, que en `GameplayScene` es de 20 m.
+- Probar en Play con el editor en segundo plano: Unity no renderiza ni avanza frames. Usar `EditorApplication.Step()` o `editor_focus`. Para objetos 3D sirve `capture_game_view --source camera --camera <nombre>`.
+
 ## Cómo retomar
 
 1. Pull de `Map_V2`. Si este MD y los PNG nuevos no están en el commit, copiar el working tree o commitear antes de irse.

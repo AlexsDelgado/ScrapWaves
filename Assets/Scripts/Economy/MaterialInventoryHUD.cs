@@ -53,6 +53,14 @@ public class MaterialInventoryHUD : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+    /// <summary>Usa una vista ya armada (p. ej. la tira de íconos del HUD de gameplay) en vez de su propio canvas.</summary>
+    public void UseDisplay(MaterialInventoryDisplayView display)
+    {
+        _display = display;
+        _canvas = null;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+
     public void AuthorUi(Transform uiRoot)
     {
         if (_display != null)

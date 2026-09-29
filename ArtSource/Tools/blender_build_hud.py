@@ -23,7 +23,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 TOOLS = os.path.join(REPO, "ArtSource", "Tools")
 UI_DIR = os.path.join(REPO, "ArtSource", "UI")
 PIECES = (("hud_left.py", "HudLeft"), ("hud_center.py", "HudCenter"), ("hud_right.py", "HudRight"),
-          ("hud_badge.py", "HudBadge"))
+          ("hud_badge.py", "HudBadge"), ("dialog_panel.py", "DialogPanel"))
 
 
 def _reset_scene():
@@ -61,8 +61,10 @@ def build_hud(pieces=PIECES, variant=None):
     old = json.load(open(layout_path, encoding="utf-8")) if os.path.exists(layout_path) else {"pieces": []}
     layout = {p["name"]: p for p in old["pieces"]}
     for script, root in pieces:
-        ns["reset_marks"]()
         path = os.path.join(root_dir, "scripts", script)
+        if not os.path.exists(path):
+            continue  # piezas opcionales (p. ej. el panel de diálogo) solo existen en algunas variantes
+        ns["reset_marks"]()
         ns["__file__"] = path
         exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
         info = ns["render_piece"](f"{root}_Root", os.path.join(root_dir, "renders", f"{root}.png"))
