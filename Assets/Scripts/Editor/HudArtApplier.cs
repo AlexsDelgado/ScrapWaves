@@ -10,12 +10,17 @@ using UnityEngine.UI;
 /// (ArtSource/UI, ver blender_build_hud.py y finish_hud.py). Las ventanas de cada panel salen de
 /// ArtSource/UI/HudLayout.json, así los fills y slots quedan alineados al píxel con el arte.
 /// Respeta los nombres que buscan PlayerBarsHud, PassiveLoadoutHud y WeaponClusterHud.
+/// Cada variante de arte vive en su carpeta (ArtSource/UI/&lt;variante&gt; y Assets/Art/UI/HUD/&lt;variante&gt;),
+/// así se puede alternar entre versiones sin perder ninguna.
 /// </summary>
 public static class HudArtApplier
 {
     private const string PrefabPath = "Assets/Prefabs/UI/GameplayHud V2.prefab";
-    private const string ArtFolder = "Assets/Art/UI/HUD";
-    private const string LayoutPath = "ArtSource/UI/HudLayout.json";
+    private const string BaseArtFolder = "Assets/Art/UI/HUD";
+    private const string BaseLayoutFolder = "ArtSource/UI";
+
+    private static string ArtFolder = BaseArtFolder;
+    private static string LayoutPath = BaseLayoutFolder + "/HudLayout.json";
 
     /// <summary>Canvas units por píxel de render (el render sale al doble de la resolución de uso).</summary>
     private const float Scale = 0.45f;
@@ -33,8 +38,20 @@ public static class HudArtApplier
     [System.Serializable] private class Layout { public Piece[] pieces; }
 
     [MenuItem("ScrapWaves/UI/Apply HUD Art To GameplayHud V2")]
-    public static void Apply()
+    public static void Apply() => Apply(null);
+
+    [MenuItem("ScrapWaves/UI/Apply HUD Art V2A (Player Bars)")]
+    public static void ApplyV2A() => Apply("V2A");
+
+    [MenuItem("ScrapWaves/UI/Apply HUD Art V2B (Estilo armas)")]
+    public static void ApplyV2B() => Apply("V2B");
+
+    /// <summary>Aplica una variante de arte; <c>null</c> es la versión base.</summary>
+    public static void Apply(string variant)
     {
+        bool hasVariant = !string.IsNullOrEmpty(variant);
+        ArtFolder = hasVariant ? $"{BaseArtFolder}/{variant}" : BaseArtFolder;
+        LayoutPath = hasVariant ? $"{BaseLayoutFolder}/{variant}/HudLayout.json" : $"{BaseLayoutFolder}/HudLayout.json";
         ConfigureImporters();
         Layout layout = LoadLayout();
 
@@ -47,13 +64,15 @@ public static class HudArtApplier
             Piece badge = Get(layout, "HudBadge");
 
             PrepareStrip(strip, Mathf.Max(left.size[1], center.size[1], right.size[1]) * Scale + ScreenMargin);
+            Transform strayDashes = canvas.Find("DashCharges");
+            if (strayDashes != null)
+                Object.DestroyImmediate(strayDashes.gameObject);
             BuildLeft(strip.Find(GameplayHudHierarchyBuilder.ColumnLeftName), left);
             BuildCenter(strip.Find(GameplayHudHierarchyBuilder.ColumnCenterName), center, badge);
-            Transform dash = BuildDashRow(canvas);
-            BuildRight(strip.Find(GameplayHudHierarchyBuilder.ColumnRightName), right, dash);
+            BuildRight(strip.Find(GameplayHudHierarchyBuilder.ColumnRightName), right);
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-            Debug.Log($"[{nameof(HudArtApplier)}] Arte del HUD aplicado en {PrefabPath}.");
+            Debug.Log($"[{nameof(HudArtApplier)}] Arte del HUD ({(hasVariant ? variant : "base")}) aplicado en {PrefabPath}.");
         }
         finally
         {
@@ -187,7 +206,8 @@ public static class HudArtApplier
         tmp.color = color;
         tmp.text = text;
         tmp.textWrappingMode = TextWrappingModes.NoWrap;
-        tmp.overflowMode = TextOverflowModes.Ellipsis;
+        // LiberationSans SDF no trae el glifo de elipsis: Ellipsis spamea warnings en Play.
+        tmp.overflowMode = TextOverflowModes.Truncate;
         tmp.raycastTarget = false;
         return tmp;
     }
@@ -258,7 +278,7 @@ public static class HudArtApplier
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void BuildRight(Transform column, Piece piece, Transform dashLayout)
+    private static void BuildRight(Transform column, Piece piece)
     {
         PrepareColumn(column, piece, new Vector2(1f, 0f), new Vector2(-ScreenMargin, ScreenMargin));
 
@@ -295,36 +315,43 @@ public static class HudArtApplier
         rotFill.fillAmount = 0f;
         AddText(Stretch(rotation, "RotLabel"), 11f, TextAlignmentOptions.Center, Color.white, FontStyles.Bold);
 
+        Transform dashLayout = BuildDashRow(column);
         var so = new SerializedObject(column.GetComponent<WeaponClusterHud>());
         so.FindProperty("_dashChargesLayout").objectReferenceValue = dashLayout;
         so.FindProperty("_hideEmptyWeaponSlots").boolValue = true;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    /// <summary>Cargas de dash bajo la retícula, en el centro de la pantalla.</summary>
-    private static Transform BuildDashRow(Transform canvas)
-    {
-        Transform old = canvas.Find("DashCharges");
-        if (old != null)
-            Object.DestroyImmediate(old.gameObject);
+    private const int DashPipCount = 3;
+    private const float DashPipSize = 20f;
+    private const float DashPipSpacing = 6f;
 
-        RectTransform dash = NewChild(canvas, "DashCharges");
-        dash.anchorMin = dash.anchorMax = dash.pivot = new Vector2(0.5f, 0.5f);
-        dash.anchoredPosition = new Vector2(0f, -64f);
-        dash.sizeDelta = new Vector2(120f, 18f);
+    /// <summary>
+    /// Cargas de dash en una fila compacta apoyada sobre el borde superior del panel derecho,
+    /// alineada a la derecha. La retícula queda sola en el centro de la pantalla.
+    /// </summary>
+    private static Transform BuildDashRow(Transform column)
+    {
+        RectTransform dash = NewChild(column, "DashCharges");
+        dash.anchorMin = dash.anchorMax = dash.pivot = new Vector2(1f, 1f);
+        dash.anchoredPosition = new Vector2(-14f, DashPipSize + 4f);
+        dash.sizeDelta = new Vector2(DashPipCount * DashPipSize + (DashPipCount - 1) * DashPipSpacing, DashPipSize);
 
         RectTransform layoutRt = Stretch(dash, "Layout");
         var row = layoutRt.gameObject.AddComponent<HorizontalLayoutGroup>();
-        row.spacing = 6f;
-        row.childAlignment = TextAnchor.MiddleCenter;
+        row.spacing = DashPipSpacing;
+        row.childAlignment = TextAnchor.MiddleRight;
         row.childControlWidth = row.childControlHeight = false;
         row.childForceExpandWidth = row.childForceExpandHeight = false;
+        row.reverseArrangement = true;
 
         Sprite pip = Art("HudDashPip");
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < DashPipCount; i++)
         {
             RectTransform charge = NewChild(layoutRt, $"Charge_{i}");
-            charge.sizeDelta = new Vector2(16f, 16f);
+            // Mismas anclas que impone el HorizontalLayoutGroup, así la instancia de escena no guarda overrides.
+            charge.anchorMin = charge.anchorMax = new Vector2(0f, 1f);
+            charge.sizeDelta = new Vector2(DashPipSize, DashPipSize);
             AddImage(charge, pip, new Color(0.3f, 0.85f, 1f, 1f));
         }
 

@@ -9,7 +9,11 @@ Escribe en Assets/Art/UI/HUD/:
 - HudBarFill.png: fill blanco con brillo de vidrio, se tiñe desde Unity.
 - HudDashPip.png: carga de dash para la fila junto a la retícula.
 - HudSlotEmpty_<Head|Core|Arm|Leg>.png: marco de slot vacío con la silueta del tipo de pasivo.
+
+Variantes: `python ArtSource/Tools/finish_hud.py --variant V2A [--outline 6] [--grade 1.0 1.3]` lee
+ArtSource/UI/<variante>/renders/ y escribe en Assets/Art/UI/HUD/<variante>/, sin tocar la versión base.
 """
+import argparse
 import os
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -21,7 +25,7 @@ RENDERS = os.path.join(REPO, "ArtSource", "UI", "renders")
 OUT = os.path.join(REPO, "Assets", "Art", "UI", "HUD")
 ICONS = os.path.join(REPO, "Assets", "Art", "UI", "Icons")
 PANELS = ("HudLeft", "HudCenter", "HudRight", "HudBadge")
-OUTLINE_PX = 6
+OUTLINE_PX = 3
 SILHOUETTES = {
     "Head": "Head/CQB module_render.png",
     "Core": "Chest/Plated Reactor_render.png",
@@ -39,9 +43,9 @@ def outline(img, px):
     return out
 
 
-def finish_panel(name):
+def finish_panel(name, outline_px=OUTLINE_PX, grading=(1.0, 1.22)):
     img = Image.open(os.path.join(RENDERS, f"{name}.png")).convert("RGBA")
-    outline(grade(img, 0.9, 1.12), OUTLINE_PX).save(os.path.join(OUT, f"{name}.png"))
+    outline(grade(img, *grading), outline_px).save(os.path.join(OUT, f"{name}.png"))
 
 
 def circle_mask(size=256):
@@ -89,9 +93,17 @@ def empty_slot(kind, rel_render, fill=0.72, opacity=0.28):
 
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--variant")
+    ap.add_argument("--outline", type=int, default=OUTLINE_PX)
+    ap.add_argument("--grade", type=float, nargs=2, default=(1.0, 1.22))
+    args = ap.parse_args()
+    if args.variant:
+        RENDERS = os.path.join(REPO, "ArtSource", "UI", args.variant, "renders")
+        OUT = os.path.join(OUT, args.variant)
     os.makedirs(OUT, exist_ok=True)
     for name in PANELS:
-        finish_panel(name)
+        finish_panel(name, args.outline, tuple(args.grade))
     circle_mask()
     dash_pip()
     bar_fill()

@@ -21,8 +21,8 @@ _marks = {}
 
 # Complementa la paleta SW_* con el hierro oscuro del marco de los íconos, para las placas del HUD.
 HUD_PALETTE = {
-    "hierro": ("SW_HierroOscuro", "#383838", 0.7, 0.65),
-    "hierroMed": ("SW_HierroMedio", "#555555", 0.9, 0.55),
+    "hierro": ("SW_HierroOscuro", "#3a3a3a", 0.85, 0.38),
+    "hierroMed": ("SW_HierroMedio", "#6a6a6a", 0.92, 0.32),
 }
 
 
@@ -85,22 +85,28 @@ def ensure_hud_rig(scene=None):
     cam.rotation_euler = (math.radians(90), 0, 0)
     scene.camera = cam
 
-    _light(col, "HudKey", 3.2, (0.45, 1.0, -0.7), (1.0, 0.96, 0.9))
-    _light(col, "HudTop", 1.6, (0.0, 0.35, -1.0), (0.9, 0.93, 1.0))
-    _light(col, "HudFill", 0.7, (-0.7, 1.0, 0.1))
+    # Luz rasante: el HUD es un relieve visto de frente, así que el contraste sale de arriba y de la oclusión.
+    _light(col, "HudKey", 6.5, (0.25, 0.35, -1.0), (1.0, 0.97, 0.9))
+    _light(col, "HudRim", 2.4, (-0.85, 0.25, 0.45), (0.72, 0.8, 1.0))
+    _light(col, "HudFill", 0.28, (0.1, 1.0, 0.05))
 
     world = scene.world or bpy.data.worlds.new("HudWorld")
     scene.world = world
     world.use_nodes = True
     bg = next(n for n in world.node_tree.nodes if n.type == "BACKGROUND")
     bg.inputs[0].default_value = (0.45, 0.45, 0.48, 1)
-    bg.inputs[1].default_value = 0.6
+    bg.inputs[1].default_value = 0.18
 
     try:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
     except TypeError:
         scene.render.engine = "BLENDER_EEVEE"
     scene.eevee.taa_render_samples = 64
+    scene.eevee.use_fast_gi = True
+    scene.eevee.fast_gi_method = "AMBIENT_OCCLUSION_ONLY"
+    scene.eevee.fast_gi_distance = 0.06
+    scene.eevee.fast_gi_quality = 1.0
+    scene.eevee.fast_gi_bias = 0.02
     scene.render.film_transparent = True
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"

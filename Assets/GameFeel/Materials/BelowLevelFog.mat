@@ -25,11 +25,11 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _EdgeFade: 0.15
+    - _EdgeFade: 0.2
     - _NoiseScale: 1.2
-    - _NoiseStrength: 0.2
-    - _Visibility: 1
+    - _NoiseStrength: 0.12
+    - _Visibility: 0.2
     m_Colors:
-    - _BaseColor: {r: 0.45, g: 0.52, b: 0.6, a: 0.92}
+    - _BaseColor: {r: 0.45, g: 0.52, b: 0.6, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

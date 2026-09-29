@@ -1,0 +1,193 @@
+{
+  "pieces": [
+    {
+      "name": "HudLeft",
+      "size": [
+        1075,
+        430
+      ],
+      "rects": [
+        {
+          "name": "HpFill",
+          "rect": [
+            515,
+            132,
+            430,
+            54
+          ]
+        },
+        {
+          "name": "XpFill",
+          "rect": [
+            515,
+            244,
+            430,
+            54
+          ]
+        },
+        {
+          "name": "OverheatFill",
+          "rect": [
+            97,
+            97,
+            236,
+            236
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HudCenter",
+      "size": [
+        1614,
+        376
+      ],
+      "rects": [
+        {
+          "name": "PassiveSlot_0",
+          "rect": [
+            90,
+            90,
+            184,
+            196
+          ]
+        },
+        {
+          "name": "PassiveSlot_1",
+          "rect": [
+            324,
+            90,
+            184,
+            196
+          ]
+        },
+        {
+          "name": "PassiveSlot_2",
+          "rect": [
+            598,
+            90,
+            184,
+            196
+          ]
+        },
+        {
+          "name": "PassiveSlot_3",
+          "rect": [
+            832,
+            90,
+            184,
+            196
+          ]
+        },
+        {
+          "name": "PassiveSlot_4",
+          "rect": [
+            1106,
+            90,
+            184,
+            196
+          ]
+        },
+        {
+          "name": "PassiveSlot_5",
+          "rect": [
+            1340,
+            90,
+            184,
+            196
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HudRight",
+      "size": [
+        1151,
+        342
+      ],
+      "rects": [
+        {
+          "name": "WeaponName",
+          "rect": [
+            331,
+            71,
+            360,
+            38
+          ]
+        },
+        {
+          "name": "AmmoFill",
+          "rect": [
+            401,
+            150,
+            220,
+            46
+          ]
+        },
+        {
+          "name": "AmmoLabel",
+          "rect": [
+            361,
+            237,
+            290,
+            34
+          ]
+        },
+        {
+          "name": "WeaponSlot_0",
+          "rect": [
+            736,
+            71,
+            200,
+            200
+          ]
+        },
+        {
+          "name": "WeaponSlot_1",
+          "rect": [
+            986,
+            61,
+            100,
+            104
+          ]
+        },
+        {
+          "name": "WeaponSlot_2",
+          "rect": [
+            986,
+            177,
+            100,
+            104
+          ]
+        },
+        {
+          "name": "AbilityCooldown",
+          "rect": [
+            89,
+            89,
+            164,
+            164
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HudBadge",
+      "size": [
+        94,
+        74
+      ],
+      "rects": [
+        {
+          "name": "Level",
+          "rect": [
+            23,
+            22,
+            48,
+            30
+          ]
+        }
+      ]
+    }
+  ]
+}

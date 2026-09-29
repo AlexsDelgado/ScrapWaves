@@ -11,7 +11,7 @@ public class WeaponClusterHud : MonoBehaviour
     [SerializeField] private WeaponManager _weaponManager;
     [SerializeField] private PlayerStats _playerStats;
     [SerializeField] private PlayerMovement _playerMovement;
-    [Tooltip("Fila de cargas de dash fuera de la columna (p. ej. junto a la retícula). Vacío = busca DashCharges/Layout como hijo.")]
+    [Tooltip("Fila de cargas de dash. Vacío = busca DashCharges/Layout como hijo de esta columna.")]
     [SerializeField] private Transform _dashChargesLayout;
     [Tooltip("Oculta el ícono de los slots sin arma (el socket del arte ya muestra el hueco).")]
     [SerializeField] private bool _hideEmptyWeaponSlots;

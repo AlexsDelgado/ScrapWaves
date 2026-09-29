@@ -7,9 +7,14 @@ o por MCP:  exec(open(r"<repo>/ArtSource/Tools/blender_build_hud.py", encoding="
 Los PNG crudos van a ArtSource/UI/renders/ y el layout (tamaños y ventanas en px desde arriba-izquierda) a
 ArtSource/UI/HudLayout.json, que lee el menú ScrapWaves → UI → Apply HUD Art de Unity.
 Después hay que correr `python ArtSource/Tools/finish_hud.py` para el contorno y los sprites finales.
+
+Variantes: `build_hud(variant="V2A")` (o `blender -b --python ... -- --variant V2A`) toma los scripts de
+ArtSource/UI/<variante>/scripts/ y escribe renders, layout y .blend dentro de ArtSource/UI/<variante>/, sin tocar
+la versión base. Si la variante trae `style.py`, se ejecuta después del rig para ajustar luces y materiales.
 """
 import json
 import os
+import sys
 
 import bpy
 
@@ -33,7 +38,12 @@ def _reset_scene():
                 store.remove(block)
 
 
-def build_hud(pieces=PIECES):
+def _variant_dir(variant):
+    return os.path.join(UI_DIR, variant) if variant else UI_DIR
+
+
+def build_hud(pieces=PIECES, variant=None):
+    root_dir = _variant_dir(variant)
     _reset_scene()
     ns = {"__name__": "__hud__"}
     for f in ("blender_icon_rig.py", "blender_model_kit.py", "blender_hud_rig.py"):
@@ -41,26 +51,37 @@ def build_hud(pieces=PIECES):
         exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
     ns["ensure_palette"]()
     ns["ensure_hud_rig"]()
+    style = os.path.join(root_dir, "scripts", "style.py")
+    if variant and os.path.exists(style):
+        exec(compile(open(style, encoding="utf-8").read(), style, "exec"), ns)
+        ns["apply_style"]()
 
-    os.makedirs(os.path.join(UI_DIR, "renders"), exist_ok=True)
-    layout_path = os.path.join(UI_DIR, "HudLayout.json")
+    os.makedirs(os.path.join(root_dir, "renders"), exist_ok=True)
+    layout_path = os.path.join(root_dir, "HudLayout.json")
     old = json.load(open(layout_path, encoding="utf-8")) if os.path.exists(layout_path) else {"pieces": []}
     layout = {p["name"]: p for p in old["pieces"]}
     for script, root in pieces:
         ns["reset_marks"]()
-        path = os.path.join(UI_DIR, "scripts", script)
+        path = os.path.join(root_dir, "scripts", script)
         ns["__file__"] = path
         exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
-        info = ns["render_piece"](f"{root}_Root", os.path.join(UI_DIR, "renders", f"{root}.png"))
+        info = ns["render_piece"](f"{root}_Root", os.path.join(root_dir, "renders", f"{root}.png"))
         layout[root] = {"name": root, "size": info["size"],
                         "rects": [{"name": k, "rect": v} for k, v in info["rects"].items()]}
 
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(UI_DIR, "HUD.blend"))
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(root_dir, "HUD.blend"))
     # Formato de listas para que Unity lo lea con JsonUtility (HudArtApplier).
     with open(layout_path, "w", encoding="utf-8") as fh:
         json.dump({"pieces": list(layout.values())}, fh, indent=2)
     return layout
 
 
+def _cli_arg(flag):
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    return argv[argv.index(flag) + 1] if flag in argv else None
+
+
 if __name__ in ("__main__", "<run_path>") or bpy.app.background:
-    print(json.dumps(build_hud()))
+    only = _cli_arg("--only")
+    chosen = tuple(p for p in PIECES if not only or p[1] in only.split(","))
+    print(json.dumps(build_hud(chosen, variant=_cli_arg("--variant"))))
