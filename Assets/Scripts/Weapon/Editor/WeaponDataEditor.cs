@@ -151,7 +151,13 @@ public sealed class WeaponDataEditor : Editor
     private void DrawRocketLauncherFields()
     {
         EditorGUILayout.LabelField("Rocket Launcher", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Automatic", EditorStyles.boldLabel);
+        DrawSpecificProperty(nameof(RocketLauncherTuning.RocketAutoBurstsPerSecond), "Auto Bursts Per Second");
+        DrawSpecificProperty(nameof(RocketLauncherTuning.RocketAutoVolleyShotInterval), "Auto Volley Shot Interval (s)");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketAutoBaseRocketCount), "Auto Base Rocket Count");
+        DrawSpecificProperty(nameof(RocketLauncherTuning.RocketAutoHeatBonuses), "Auto Heat Bonuses", includeChildren: true);
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Active Ability", EditorStyles.boldLabel);
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveBaseRocketCount), "Active Base Rocket Count");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveInitialTargetCount), "Active Initial Target Count");
         DrawSpecificProperty(nameof(RocketLauncherTuning.RocketActiveTargetLockInterval), "Active Target Lock Interval");
@@ -265,10 +271,10 @@ public sealed class WeaponDataEditor : Editor
             EditorGUILayout.PropertyField(property, includeChildren);
     }
 
-    private void DrawSpecificProperty(string propertyName, string label)
+    private void DrawSpecificProperty(string propertyName, string label, bool includeChildren = false)
     {
         SerializedProperty property = _specificTuning.FindPropertyRelative(propertyName);
         if (property != null)
-            EditorGUILayout.PropertyField(property, new GUIContent(label));
+            EditorGUILayout.PropertyField(property, new GUIContent(label, property.tooltip), includeChildren);
     }
 }

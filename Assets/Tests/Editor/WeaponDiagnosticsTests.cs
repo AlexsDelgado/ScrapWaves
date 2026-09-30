@@ -99,6 +99,7 @@ public class WeaponDiagnosticsTests
             string method = type switch
             {
                 WeaponType.AutomaticCannon => "GetAutomaticFireInterval",
+                WeaponType.RocketLauncher => "GetAutomaticFireInterval",
                 WeaponType.Flamethrower => "GetAutomaticTickInterval",
                 WeaponType.RotatingBlade => "GetAutoDamageInterval",
                 _ => "GetFireInterval"
@@ -107,6 +108,129 @@ public class WeaponDiagnosticsTests
             float expected = (float)getter.Invoke(weapon, tuning == null ? null : new[] { tuning });
             Assert.That(Number(snapshot, "Automatic", "Action / tick interval"), Is.EqualTo(expected).Within(0.00051f), $"{type}/{path}");
         }
+    }
+
+    [TestCase(0f, 0)]
+    [TestCase(24.99f, 0)]
+    [TestCase(25f, 1)]
+    [TestCase(49.99f, 1)]
+    [TestCase(50f, 2)]
+    [TestCase(74.99f, 2)]
+    [TestCase(75f, 3)]
+    [TestCase(100f, 3)]
+    public void RocketDefaultHeatBonuses_PreserveThresholds(float percent, int expected)
+    {
+        PlayerStats stats = CreateStats();
+        var heat = stats.gameObject.AddComponent<HeatManager>();
+        SetHeatPercent(heat, percent);
+        var weapon = CreateWeapon(WeaponType.RocketLauncher, stats, heat);
+        var snapshot = weapon.CaptureDiagnostics();
+        Assert.That(Number(snapshot, "Automatic", "Heat bonus rockets"), Is.EqualTo(expected));
+        Assert.That(Number(snapshot, "Automatic", "Hits / projectiles per action"), Is.EqualTo(1 + expected));
+    }
+
+    [Test]
+    public void RocketHeatTable_SelectsHighestThresholdAndLargestDuplicateBonus()
+    {
+        PlayerStats stats = CreateStats();
+        var heat = stats.gameObject.AddComponent<HeatManager>();
+        var weapon = CreateWeapon(WeaponType.RocketLauncher, stats, heat);
+        weapon.Runtime.Data.RocketLauncher.RocketAutoHeatBonuses = new()
+        {
+            new() { HeatThresholdPercent = 75f, AdditionalRockets = 2 },
+            new() { HeatThresholdPercent = 25f, AdditionalRockets = 9 },
+            new() { HeatThresholdPercent = 75f, AdditionalRockets = 4 },
+            new() { HeatThresholdPercent = 50f, AdditionalRockets = 6 },
+            new() { HeatThresholdPercent = 75f, AdditionalRockets = 1 }
+        };
+        SetHeatPercent(heat, 100f);
+        Assert.That(Number(weapon.CaptureDiagnostics(), "Automatic", "Heat bonus rockets"), Is.EqualTo(4));
+        weapon.Runtime.Level = 6;
+        weapon.Runtime.SelectedPath = WeaponUpgradePath.PathB;
+        Assert.That(Number(weapon.CaptureDiagnostics(), "Automatic", "Hits / projectiles per action"), Is.EqualTo(6));
+        weapon.Runtime.Data.RocketLauncher.RocketAutoHeatBonuses.Clear();
+        Assert.That(Number(weapon.CaptureDiagnostics(), "Automatic", "Heat bonus rockets"), Is.Zero);
+        weapon.Runtime.Data.RocketLauncher.RocketAutoHeatBonuses = null;
+        Assert.That(Number(weapon.CaptureDiagnostics(), "Automatic", "Heat bonus rockets"), Is.Zero);
+        Assert.That(Number(CreateWeapon(WeaponType.RocketLauncher, stats).CaptureDiagnostics(), "Automatic", "Heat bonus rockets"), Is.Zero);
+    }
+
+    [Test]
+    public void RocketAutomaticRate_IsIndependentAndPreservesAllModifiers()
+    {
+        PlayerStats stats = CreateStats();
+        stats.AddModifier(new StatModifier(StatType.AttackSpeedMultiplier, 1f, StatUpgradeSource.LevelUp));
+        var heat = stats.gameObject.AddComponent<HeatManager>();
+        SetHeatPercent(heat, 100f);
+        var weapon = CreateWeapon(WeaponType.RocketLauncher, stats, heat);
+        WeaponData data = weapon.Runtime.Data;
+        data.BaseAttackRate = 0.9f;
+        data.RocketLauncher.RocketAutoBurstsPerSecond = 0.9f;
+        data.LevelData.Add(new WeaponLevelData { Level = 6, AttackRateMultiplier = 1.5f });
+        data.PathA = new WeaponUpgradePathData { AttackRateMultiplier = 1.2f };
+        weapon.Runtime.Level = 6;
+        weapon.Runtime.SelectedPath = WeaponUpgradePath.PathA;
+        float originalInterval = 1f / (0.9f * 2f * 1.5f * 1.2f);
+        var before = weapon.CaptureDiagnostics();
+        Assert.That(Number(before, "Automatic", "Action / tick interval"), Is.EqualTo(originalInterval).Within(0.00051f));
+        data.RocketLauncher.RocketAutoBurstsPerSecond = 1.8f;
+        var after = weapon.CaptureDiagnostics();
+        Assert.That(Number(after, "Automatic", "Action / tick interval"), Is.EqualTo(originalInterval / 2f).Within(0.00051f));
+        Assert.That(Number(after, "Manual", "Action / tick interval"), Is.EqualTo(Number(before, "Manual", "Action / tick interval")));
+        Assert.That(Number(after, "Automatic", "Volley shot interval"), Is.EqualTo(0.11f));
+        SetHeatPercent(heat, 0f);
+        var cold = weapon.CaptureDiagnostics();
+        Assert.That(Number(cold, "Automatic", "Action / tick interval"), Is.EqualTo(Number(after, "Automatic", "Action / tick interval")));
+        Assert.That(Number(cold, "Manual", "Action / tick interval"), Is.EqualTo(originalInterval).Within(0.00051f));
+    }
+
+    [Test]
+    public void RocketInspectorFields_RoundTripAndClampWithoutRestoringClearedTable()
+    {
+        var weapon = CreateWeapon(WeaponType.RocketLauncher, null);
+        WeaponData data = weapon.Runtime.Data;
+        using (var serialized = new SerializedObject(data))
+        {
+            var tuning = serialized.FindProperty("_specificTuning");
+            tuning.FindPropertyRelative("RocketAutoBurstsPerSecond").floatValue = 2.5f;
+            tuning.FindPropertyRelative("RocketAutoVolleyShotInterval").floatValue = 0.3f;
+            var table = tuning.FindPropertyRelative("RocketAutoHeatBonuses");
+            table.arraySize = 1;
+            table.GetArrayElementAtIndex(0).FindPropertyRelative("HeatThresholdPercent").floatValue = 150f;
+            table.GetArrayElementAtIndex(0).FindPropertyRelative("AdditionalRockets").intValue = -2;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+        typeof(WeaponData).GetMethod("OnValidate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(data, null);
+        WeaponData copy = CreateWeapon(WeaponType.RocketLauncher, null).Runtime.Data;
+        EditorJsonUtility.FromJsonOverwrite(EditorJsonUtility.ToJson(data), copy);
+        Assert.That(copy.RocketLauncher.RocketAutoBurstsPerSecond, Is.EqualTo(2.5f));
+        Assert.That(copy.RocketLauncher.RocketAutoVolleyShotInterval, Is.EqualTo(0.3f));
+        Assert.That(copy.RocketLauncher.RocketAutoHeatBonuses[0].HeatThresholdPercent, Is.EqualTo(100f));
+        Assert.That(copy.RocketLauncher.RocketAutoHeatBonuses[0].AdditionalRockets, Is.Zero);
+        data.RocketLauncher.RocketAutoHeatBonuses.Clear();
+        EditorJsonUtility.FromJsonOverwrite(EditorJsonUtility.ToJson(data), copy);
+        Assert.That(copy.RocketLauncher.RocketAutoHeatBonuses, Is.Empty);
+    }
+
+    [TestCase("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset", 0.9f)]
+    [TestCase("Assets/ScriptableObjects/WeaponSO/Sandbox_RocketLauncher.asset", 1f)]
+    [TestCase("Assets/Scripts/Weapon/Testing/SO/Sandbox_RocketLauncher.asset", 1f)]
+    public void RocketAssets_PreserveInitialAutomaticBalance(string path, float rate)
+    {
+        var data = AssetDatabase.LoadAssetAtPath<WeaponData>(path);
+        Assert.That(data.RocketLauncher.RocketAutoBurstsPerSecond, Is.EqualTo(rate));
+        Assert.That(data.RocketLauncher.RocketAutoBurstsPerSecond, Is.EqualTo(data.BaseAttackRate));
+        Assert.That(data.RocketLauncher.RocketAutoHeatBonuses.Select(e => e.HeatThresholdPercent), Is.EqualTo(new[] { 25f, 50f, 75f }));
+        Assert.That(data.RocketLauncher.RocketAutoHeatBonuses.Select(e => e.AdditionalRockets), Is.EqualTo(new[] { 1, 2, 3 }));
+    }
+
+    private static void SetHeatPercent(HeatManager heat, float percent)
+    {
+        float normalized = percent / 100f;
+        float points = normalized <= 0.8f
+            ? normalized / 0.8f * heat.PointsFirstSegment
+            : heat.PointsFirstSegment + (normalized - 0.8f) / 0.2f * heat.PointsSecondSegment;
+        SetField(heat, "_currentHeat", points);
     }
 
     [Test]
