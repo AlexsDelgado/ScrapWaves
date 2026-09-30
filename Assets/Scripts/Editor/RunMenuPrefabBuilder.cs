@@ -318,27 +318,12 @@ public static class RunMenuPrefabBuilder
         view.TinkerPanel = panel.gameObject;
         TMP_Text heading = Label(panel, "Heading", "New weapon", 32f, FontStyles.Bold);
         AcrossTop(heading.rectTransform, 0f, 0f, 44f);
-        TMP_Text explanation = Label(panel, "Explanation", "One random weapon you do not own.", 27f);
-        AcrossTop(explanation.rectTransform, 0f, 50f, 46f);
+        TMP_Text explanation = Label(panel, "Explanation", "Choose one weapon. The other is excluded for this run.", 27f);
+        AcrossTop(explanation.rectTransform, 0f, 50f, 68f);
         RectTransform candidates = Rect(panel, "Candidates");
         Top(candidates, 0f, 1084f, 128f, 128f);
         ConfigureRow(candidates.gameObject.AddComponent<HorizontalLayoutGroup>(), 20f);
-        view.Candidates = new CraftingCandidateField[5];
-        for (int i = 0; i < view.Candidates.Length; i++)
-        {
-            RectTransform candidate = Rect(candidates, $"Candidate_{i + 1}");
-            candidate.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            RectTransform frame = Rect(candidate, "IconFrame");
-            Top(frame, 0f, 72f, 0f, 72f);
-            ImageGraphic(frame, MutedSteel);
-            RectTransform icon = Rect(frame, "Icon");
-            Stretch(icon, 2f, 2f, 2f, 2f);
-            Image iconImage = ImageGraphic(icon, Color.white);
-            iconImage.preserveAspect = true;
-            TMP_Text label = Label(candidate, "Name", "Weapon", 22f, FontStyles.Bold);
-            AcrossTop(label.rectTransform, 0f, 83f, 45f);
-            view.Candidates[i] = new CraftingCandidateField { Root = candidate.gameObject, Icon = iconImage, NameText = label };
-        }
+        CreateTinkerCandidates(candidates, view);
         Rule(panel, "CostRule", 0f, 1084f, 270f);
         view.TinkerCostLabel = Label(panel, "CostHeading", "COST", 19f, FontStyles.Bold);
         AcrossTop(view.TinkerCostLabel.rectTransform, 0f, 293f, 27f);
@@ -346,6 +331,67 @@ public static class RunMenuPrefabBuilder
         AcrossTop(view.TinkerCostText.rectTransform, 0f, 329f, 45f);
         view.TinkerButton = Button(panel, "TinkerButton", "TINKER", true, out _);
         AcrossBottom((RectTransform)view.TinkerButton.transform, 0f, 0f, 54f);
+    }
+
+    private static void CreateTinkerCandidates(RectTransform candidates, CraftingMenuView view)
+    {
+        view.Candidates = new CraftingCandidateField[2];
+        for (int i = 0; i < view.Candidates.Length; i++)
+        {
+            RectTransform candidate = Rect(candidates, $"Candidate_{i + 1}");
+            candidate.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            Image background = ImageGraphic(candidate, Plate, true);
+            RectTransform normalBorder = Rect(candidate, "Border");
+            Stretch(normalBorder);
+            AddFrameEdges(normalBorder, new Color(MutedSteel.r, MutedSteel.g, MutedSteel.b, 0.45f));
+            RectTransform selectedBorder = Rect(candidate, "SelectedBorder");
+            Stretch(selectedBorder);
+            Image border = ImageGraphic(selectedBorder, Color.clear);
+            AddFrameEdges(selectedBorder, MutedSteel);
+            selectedBorder.gameObject.SetActive(false);
+            Button button = candidate.gameObject.AddComponent<Button>();
+            ConfigureButton(button, background);
+            RectTransform frame = Rect(candidate, "IconFrame");
+            Top(frame, 22f, 72f, 28f, 72f);
+            ImageGraphic(frame, MutedSteel);
+            RectTransform icon = Rect(frame, "Icon");
+            Stretch(icon, 2f, 2f, 2f, 2f);
+            Image iconImage = ImageGraphic(icon, Color.white);
+            iconImage.preserveAspect = true;
+            TMP_Text label = Label(candidate, "Name", "Weapon", 25f, FontStyles.Bold);
+            Stretch(label.rectTransform, 116f, 22f, 16f, 16f);
+            view.Candidates[i] = new CraftingCandidateField
+            {
+                Root = candidate.gameObject, Button = button, Background = background, Border = border,
+                Icon = iconImage, NameText = label, NormalColor = Plate, SelectedColor = SelectedPlate
+            };
+        }
+    }
+
+    [MenuItem("ScrapWaves/UI/Update Basic Tinkering Choice Cards")]
+    public static void UpdateBasicTinkeringChoiceCards()
+    {
+        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        GameObject root = PrefabUtility.LoadPrefabContents(CraftingPrefabPath);
+        try
+        {
+            UpdateBasicTinkeringChoiceCards(root.GetComponent<CraftingMenuView>());
+            PrefabUtility.SaveAsPrefabAsset(root, CraftingPrefabPath);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+    }
+
+    // Also supports independently authored scene copies without replacing their shell or bindings.
+    public static void UpdateBasicTinkeringChoiceCards(CraftingMenuView view)
+    {
+        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        RectTransform candidates = (RectTransform)view.TinkerPanel.transform.Find("Candidates");
+        while (candidates.childCount > 0) Object.DestroyImmediate(candidates.GetChild(0).gameObject);
+        CreateTinkerCandidates(candidates, view);
+        TMP_Text explanation = view.TinkerPanel.transform.Find("Explanation").GetComponent<TMP_Text>();
+        explanation.text = "Choose one weapon. The other is excluded for this run.";
+        AcrossTop(explanation.rectTransform, 0f, 50f, 68f);
+        EditorUtility.SetDirty(view);
     }
 
     private static void CreateAdvancedPanel(RectTransform parent, CraftingMenuView view)

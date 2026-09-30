@@ -63,7 +63,7 @@ Hay dos fórmulas para el mismo stat:
 `WeaponCraftingService` vive en el prefab `player.prefab`. Serializa `_materialBalance = MaterialUsageBalance.asset` y un `_weaponPool` de 5 armas.
 
 - **Mejora** (`TryUpgradeWeapon`, `WeaponCraftingService.cs:68-90`): hasta nivel 10. El paso 5→6 se bloquea sin path (`:79-80`). El coste sale de `GetUpgradeCost(targetLevel)`. `CraftingUI` siempre pide `Level + 1` (`CraftingUI.cs:262`).
-- **Tinkering** (`:92-112`): se desbloquea un arma al azar del pool que no esté equipada y que esté desbloqueada en el save.
+- **Tinkering**: `GetTinkeringOffer()` conserva una pareja aleatoria de armas desbloqueadas y no equipadas. `TryTinkerWeapon(chosen)` valida la elección y los recursos, cobra el costo del slot y equipa el arma; excluye la otra opción durante esa run. Cerrar/reabrir no cambia la pareja. Con cinco armas y una inicial, las dos compras usan parejas disjuntas. La elección inicial no excluye armas. Sin dos opciones elegibles, la compra queda deshabilitada sin cobrar.
 - **Advanced Tinkering** (`:149-186`): solo en nivel 5. Ofrece PathA, o PathB si está desbloqueado (50/50). La oferta se guarda y reabrir la estación no la vuelve a tirar (`:122-130`). Rechazar la oferta cobra y garantiza el path alternativo. Aceptarla sube a 6 y aplica el path.
 
 Coste de mejora (`WeaponCraftingCostCalculator.cs:27-51`): para cada material con rol en la columna del arma (base o `FlameA…BladesB` desde nivel 6, `MaterialUsageBalanceSO.cs:61-82`), se toma el total del rol en ese nivel.
@@ -147,7 +147,7 @@ Entradas:
 - `BaseDamage` commiteado (Flamethrower 5, RocketLauncher 25, Mortar 40) no coincide ni con el CSV (25/70/…) ni con el snapshot del applier. Hay que decidir una sola fuente.
 - `ApplyDerivedBaseStats` asigna `ActiveAbilityAmmoCost` desde "Ability damage" (`WeaponStatsParser.cs:203`). Hoy está muerto, pero es un bug latente.
 - Las dos fórmulas de Scavenging y DoubleDrop (arriba) no coinciden. Con la del runtime, la `DropChance` de los assets de drop no tiene efecto.
-- `TryTinkerRandomWeapon` cobra antes de comprobar que haya candidatos (`WeaponCraftingService.cs:101-107`). Si no quedan armas desbloqueadas, se pierden los materiales.
+- Corregido en Tinkering básico: se valida que exista una pareja elegible y que el arma elegida pertenezca a ella antes de cobrar. Sin candidatos suficientes no se pierden materiales.
 - El mensaje de rechazo dice "+50 %", pero los costes reales son +60 % / +47 % / +50 % (`WeaponCraftingService.cs:185` vs `WeaponCraftingCostCalculator.cs:77-82`). El parámetro `advancedRejected` de `GetTinkeringSlotCost` no se usa.
 - `CreateDefaultDropConfigs` tiene valores viejos y pisa los drops si se regenera el asset de balance.
 - `MaterialCatalog` da 1/5 de XP, contra el 4/12 del DEV citado en el doc 05.

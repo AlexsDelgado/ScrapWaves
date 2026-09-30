@@ -31,6 +31,10 @@ public class WeaponCraftingService : MonoBehaviour
     private readonly Dictionary<string, bool> _advancedRejected = new();
     private readonly Dictionary<string, WeaponUpgradePath> _guaranteedPath = new();
     private readonly Dictionary<string, WeaponUpgradePath> _advancedOffers = new();
+    // Owned by the run's player, never written to the meta-progression save.
+    private readonly HashSet<string> _tinkerDiscards = new();
+    private readonly List<WeaponData> _tinkerOffer = new(2);
+    private bool _tinkering;
 
     private void Awake()
     {
@@ -89,26 +93,60 @@ public class WeaponCraftingService : MonoBehaviour
         return new CraftingActionResult(true, $"{weapon.DisplayName} nivel {instance.Level}.");
     }
 
-    public CraftingActionResult TryTinkerRandomWeapon()
+    public IReadOnlyList<WeaponData> GetTinkeringOffer()
     {
-        if (_weaponManager == null || _inventory == null)
+        if (_weaponManager == null || !_weaponManager.CanAddWeapon())
+            return System.Array.Empty<WeaponData>();
+
+        List<WeaponData> candidates = BuildUnequippedWeapons();
+        if (_tinkerOffer.Count == 2 && candidates.Contains(_tinkerOffer[0]) && candidates.Contains(_tinkerOffer[1]))
+            return _tinkerOffer.AsReadOnly();
+
+        _tinkerOffer.Clear();
+        if (candidates.Count < 2) return System.Array.Empty<WeaponData>();
+        while (_tinkerOffer.Count < 2)
+        {
+            int index = Random.Range(0, candidates.Count);
+            _tinkerOffer.Add(candidates[index]);
+            candidates.RemoveAt(index);
+        }
+        return _tinkerOffer.AsReadOnly();
+    }
+
+    public CraftingActionResult TryTinkerWeapon(WeaponData chosen)
+    {
+        if (_tinkering || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
         if (!_weaponManager.CanAddWeapon())
             return new CraftingActionResult(false, "Slots de arma llenos.");
 
+        List<WeaponData> candidates = BuildUnequippedWeapons();
+        if (chosen == null || _tinkerOffer.Count != 2 || !_tinkerOffer.Contains(chosen)
+            || !candidates.Contains(_tinkerOffer[0]) || !candidates.Contains(_tinkerOffer[1]))
+            return new CraftingActionResult(false, "El arma no coincide con la oferta disponible.");
+
         int nextSlot = _weaponManager.GetEquippedWeapons().Count + 1;
         List<MaterialCost> costs = new(GetTinkeringCost(nextSlot));
-        if (!_inventory.TrySpend(costs))
+        if (!_inventory.CanAfford(costs))
             return new CraftingActionResult(false, "Materiales insuficientes para Tinkering.");
 
-        List<WeaponData> candidates = BuildUnequippedWeapons();
-        if (candidates.Count == 0)
-            return new CraftingActionResult(false, "No quedan armas por craftear.");
-
-        WeaponData chosen = candidates[Random.Range(0, candidates.Count)];
-        _weaponManager.AddWeapon(chosen);
-        return new CraftingActionResult(true, $"Nueva arma: {chosen.DisplayName}.");
+        _tinkering = true;
+        try
+        {
+            WeaponData discarded = _tinkerOffer[0] == chosen ? _tinkerOffer[1] : _tinkerOffer[0];
+            if (!_inventory.TrySpend(costs))
+                return new CraftingActionResult(false, "Materiales insuficientes para Tinkering.");
+            if (!_weaponManager.AddWeapon(chosen))
+            {
+                foreach (MaterialCost cost in costs) _inventory.Add(cost.Material, cost.Amount);
+                return new CraftingActionResult(false, "No se pudo equipar el arma.");
+            }
+            _tinkerDiscards.Add(discarded.WeaponId);
+            _tinkerOffer.Clear();
+            return new CraftingActionResult(true, $"Nueva arma: {chosen.DisplayName}.");
+        }
+        finally { _tinkering = false; }
     }
 
     public bool TryGetAdvancedOffer(WeaponData weapon, out WeaponUpgradePath path)
@@ -188,6 +226,8 @@ public class WeaponCraftingService : MonoBehaviour
     public List<WeaponData> BuildUnequippedWeapons()
     {
         var list = new List<WeaponData>();
+        var seen = new HashSet<string>();
+        if (_weaponManager == null) return list;
         for (int i = 0; i < _weaponPool.Count; i++)
         {
             WeaponData data = _weaponPool[i];
@@ -196,6 +236,8 @@ public class WeaponCraftingService : MonoBehaviour
             if (_weaponManager.TryGetEquippedWeapon(data, out _))
                 continue;
             if (SaveManager.Instance != null && !SaveManager.Instance.IsUnlocked(data))
+                continue;
+            if (_tinkerDiscards.Contains(data.WeaponId) || !seen.Add(data.WeaponId))
                 continue;
             list.Add(data);
         }

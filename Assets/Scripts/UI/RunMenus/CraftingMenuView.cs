@@ -15,8 +15,13 @@ public sealed class CraftingMaterialField
 public sealed class CraftingCandidateField
 {
     public GameObject Root;
+    public Button Button;
+    public Image Background;
+    public Image Border;
     public Image Icon;
     public TMP_Text NameText;
+    public Color NormalColor = new(0.122f, 0.145f, 0.133f, 1f);
+    public Color SelectedColor = new(0.22f, 0.25f, 0.22f, 1f);
 }
 
 /// <summary>References to the hand-authored crafting hierarchy. Never constructs UI.</summary>
@@ -69,7 +74,7 @@ public sealed class CraftingMenuView : MonoBehaviour
                 || AdvancedLevelText == null || AdvancedPathText == null || AdvancedDescriptionText == null
                 || AdvancedNoticeText == null || AdvancedCostText == null || AcceptButton == null || DeclineButton == null
                 || Slots == null || Slots.Length != 3 || Materials == null || Materials.Length != 6
-                || Candidates == null || Candidates.Length < 5 || UpgradeStatLabels == null || UpgradeStatLabels.Length != 3
+                || Candidates == null || Candidates.Length != 2 || UpgradeStatLabels == null || UpgradeStatLabels.Length != 3
                 || UpgradeStatValues == null || UpgradeStatValues.Length != 3) return false;
             foreach (CraftingWeaponSlotView slot in Slots)
                 if (slot == null || slot.Button == null || slot.Background == null || slot.Border == null
@@ -77,7 +82,8 @@ public sealed class CraftingMenuView : MonoBehaviour
             foreach (CraftingMaterialField material in Materials)
                 if (material == null || material.NameText == null || material.AmountText == null) return false;
             foreach (CraftingCandidateField candidate in Candidates)
-                if (candidate == null || candidate.Root == null || candidate.Icon == null || candidate.NameText == null) return false;
+                if (candidate == null || candidate.Root == null || candidate.Button == null || candidate.Background == null
+                    || candidate.Border == null || candidate.Icon == null || candidate.NameText == null) return false;
             for (int i = 0; i < 3; i++)
                 if (UpgradeStatLabels[i] == null || UpgradeStatValues[i] == null) return false;
             return true;

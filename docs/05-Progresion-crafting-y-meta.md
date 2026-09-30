@@ -66,7 +66,7 @@ Hay una herramienta de sandbox: `PassiveItemTestingController`.
 `WeaponCraftingService` en `CraftingStation`, UI `CraftingUI` (pausa el gameplay):
 
 - Mejorar el nivel del arma con materiales.
-- Tinker: gasta materiales y otorga un arma que la run todavía no tiene, hasta el tope de 3 slots de `WeaponManager`.
+- Tinker: ofrece dos armas distintas, desbloqueadas y no equipadas. El jugador selecciona una y confirma la compra; la otra queda excluida del Tinkering durante esa run. La oferta se conserva al cerrar/reabrir. Con cinco armas y una inicial, la segunda compra ofrece las dos que no aparecieron en la primera. La elección inicial no descarta armas. Se mantienen costos y tope de 3 slots; sin dos opciones elegibles no se cobra ni se permite comprar.
 - En nivel 6, Advanced Tinkering: el jugador elige uno de dos paths. A partir de ahí las filas de path mandan daño, cadencia y, si viene, munición manual.
 
 Los costes salen de `MaterialUsageBalance` / CSV. Menú de editor: `ScrapWaves/Balance/Import All CSV`. Si el CSV y un markdown de diseño no coinciden, manda el CSV (`BALANCE_NOTES.md`).

@@ -15,7 +15,7 @@ Público y referencias de diseño (Vampire Survivors, Megabonk, Risk of Rain 2, 
 1. Elección de un arma al empezar (`RunStartWeaponChoice`). El jugador no arranca con las armas del inspector si esa elección está activa.
 2. Spawn orbital continuo. Matar enemigos suelta materiales. Recoger un material da el material y la XP. No hay orbes de XP separados.
 3. Cada level-up ofrece pasivos (2–3 opciones, slots de cuerpo) y después aplica mejoras de stats automáticas. Las armas no salen del level-up.
-4. En las estaciones de crafting el jugador mejora armas, hace Tinker (arma nueva aleatoria que no tenga) y, en nivel 6, Advanced Tinkering (un path de evolución).
+4. En las estaciones de crafting el jugador mejora armas, hace Tinker (elige entre dos armas nuevas; la no elegida queda fuera del pool de Tinkering durante la run) y, en nivel 6, Advanced Tinkering (un path de evolución).
 5. La barra de heat sube por kill. Al 80 % visual entra la fase intermedia (los enemigos del swarm van más rápido). Al 100 % empieza un Overheat sin temporizador.
 6. Overheat impar: oleada de elites. Overheat par: boss. Al cerrar el objetivo el swarm común sigue vivo, queda heat residual y decae. Mientras decae por encima del primer tramo, el spawn orbital se pausa. Cada Overheat cerrado deja la run más densa para los ciclos siguientes.
 7. Cada boss derrotado suelta una llave. A las 2 llaves: Overheat permanente, presión de salida en escalones, flecha a la puerta. Interactuar carga la puerta. Al terminar la carga, otra interacción dispara la victoria.

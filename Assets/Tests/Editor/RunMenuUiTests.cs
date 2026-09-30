@@ -71,7 +71,7 @@ public sealed class RunMenuUiTests
         Assert.That(view.Materials.Select(field => field.Type), Is.EquivalentTo(Enum.GetValues(typeof(MaterialType))));
         Assert.That(view.UpgradeStatLabels, Has.Length.EqualTo(3));
         Assert.That(view.UpgradeStatValues, Has.Length.EqualTo(3));
-        Assert.That(view.Candidates.Length, Is.GreaterThanOrEqualTo(5));
+        Assert.That(view.Candidates.Length, Is.EqualTo(2));
         foreach (CraftingWeaponSlotView slot in view.Slots) AssertObjectReferences(slot);
         foreach (CraftingMaterialField field in view.Materials) AssertObjectReferences(field);
         foreach (CraftingCandidateField field in view.Candidates) AssertObjectReferences(field);
@@ -251,21 +251,26 @@ public sealed class RunMenuUiTests
     {
         CraftingHarness harness = CreateCraftingHarness(4, 3);
         WeaponData available = CreateWeapon("Available weapon");
+        WeaponData alternative = CreateWeapon("Alternative weapon");
         SetField(harness.Service, "_weaponPool", new List<WeaponData>
         {
-            harness.Weapons[0].Data, available, harness.Weapons[1].Data
+            harness.Weapons[0].Data, available, harness.Weapons[1].Data, alternative
         });
         int[] hierarchy = Hierarchy(harness.View);
         Open(harness);
         harness.View.Slots[2].Button.onClick.Invoke();
-        List<WeaponData> candidates = harness.Service.BuildUnequippedWeapons();
-        Assert.That(candidates, Is.EqualTo(new[] { available }));
+        IReadOnlyList<WeaponData> candidates = harness.Service.GetTinkeringOffer();
+        Assert.That(candidates, Is.EquivalentTo(new[] { available, alternative }));
         Assert.That(harness.View.TinkerPanel.activeSelf, Is.True);
         Assert.That(harness.View.Candidates.Where(field => field.Root.activeSelf).Select(field => field.NameText.text),
             Is.EqualTo(candidates.Select(weapon => weapon.DisplayName)));
         Assert.That(harness.View.TinkerCostLabel.text, Is.EqualTo("COST · SLOT 3"));
         Assert.That(harness.View.TinkerCostText.text, Is.EqualTo(CostText(harness.Service.GetTinkeringCost(3))));
+        Assert.That(harness.View.TinkerButton.interactable, Is.False);
+        harness.View.Candidates[1].Button.onClick.Invoke();
         Assert.That(harness.View.TinkerButton.interactable, Is.True);
+        Assert.That(harness.View.Candidates[1].Border.gameObject.activeSelf, Is.True);
+        Assert.That(harness.View.Candidates[0].Border.gameObject.activeSelf, Is.False);
         Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy));
     }
 
@@ -277,8 +282,141 @@ public sealed class RunMenuUiTests
         Open(harness);
         harness.View.Slots[1].Button.onClick.Invoke();
         Assert.That(harness.View.TinkerButton.interactable, Is.False);
-        Assert.That(harness.View.TinkerCostText.text, Is.EqualTo("No new weapons available"));
+        Assert.That(harness.View.TinkerCostText.text, Is.EqualTo("Not enough eligible weapons for a choice"));
         Assert.That(harness.View.Candidates.Any(field => field.Root.activeSelf), Is.False);
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    public void Tinker_TwoPurchasesExcludeBothFirstOffersAndChargeSlotPrices(int selection)
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        var pool = new List<WeaponData> { harness.Weapons[0].Data };
+        for (int i = 0; i < 4; i++) pool.Add(CreateWeapon("Candidate " + i));
+        SetField(harness.Service, "_weaponPool", pool);
+        Open(harness);
+        harness.View.Slots[1].Button.onClick.Invoke();
+        WeaponData[] first = harness.Service.GetTinkeringOffer().ToArray();
+        int[] hierarchy = Hierarchy(harness.View);
+        Random.State afterOffer = Random.state;
+        harness.View.Candidates[selection].Button.onClick.Invoke();
+        harness.View.CloseButton.onClick.Invoke();
+        Assert.That(Time.timeScale, Is.EqualTo(1f));
+        Open(harness);
+        harness.Inventory.Add(MaterialType.Wiring, 1);
+        harness.View.Slots[0].Button.onClick.Invoke();
+        harness.View.Slots[1].Button.onClick.Invoke();
+        Assert.That(harness.Service.GetTinkeringOffer(), Is.EqualTo(first));
+        Assert.That(Random.state, Is.EqualTo(afterOffer));
+        Assert.That(harness.View.Candidates[selection].Border.gameObject.activeSelf, Is.True);
+        int transactions = 0;
+        harness.Inventory.OnMaterialsSpent += () => transactions++;
+        harness.View.TinkerButton.onClick.Invoke();
+        WeaponManager manager = harness.Service.GetComponent<WeaponManager>();
+        Assert.That(manager.GetEquippedWeapons()[1].Runtime.Data, Is.SameAs(first[selection]));
+        Assert.That(harness.Service.BuildUnequippedWeapons(), Has.No.Member(first[1 - selection]));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
+        harness.View.TinkerButton.onClick.Invoke(); // Hidden button cannot buy again.
+        Assert.That(transactions, Is.EqualTo(1));
+        harness.View.Slots[2].Button.onClick.Invoke();
+        WeaponData[] second = harness.Service.GetTinkeringOffer().ToArray();
+        Assert.That(second, Is.EquivalentTo(pool.Skip(1).Except(first)));
+        Assert.That(harness.View.TinkerButton.interactable, Is.False);
+        harness.View.Candidates[0].Button.onClick.Invoke();
+        harness.View.TinkerButton.onClick.Invoke();
+        Assert.That(manager.GetEquippedWeapons()[2].Runtime.Data, Is.SameAs(second[0]));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(80));
+        Assert.That(transactions, Is.EqualTo(2));
+        Assert.That(harness.Service.GetTinkeringOffer(), Is.Empty);
+        Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy));
+
+        // A new run has its own service, without inheriting the station's discards.
+        CraftingHarness nextRun = CreateCraftingHarness(1);
+        SetField(nextRun.Service, "_weaponPool", pool.Skip(1).ToList());
+        Assert.That(nextRun.Service.BuildUnequippedWeapons(), Is.EquivalentTo(pool.Skip(1)));
+    }
+
+    [Test]
+    public void Tinker_InvalidUnaffordableAndFullPurchasesPreserveOfferAndMaterials()
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        var pool = new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B"), CreateWeapon("C") };
+        SetField(harness.Service, "_weaponPool", pool);
+        WeaponData[] offer = harness.Service.GetTinkeringOffer().ToArray();
+        int transactions = 0;
+        harness.Inventory.OnMaterialsSpent += () => transactions++;
+        Assert.That(harness.Service.TryTinkerWeapon(null).Success, Is.False);
+        Assert.That(harness.Service.TryTinkerWeapon(pool.Except(offer).Single()).Success, Is.False);
+        Assert.That(harness.Service.TryTinkerWeapon(harness.Weapons[0].Data).Success, Is.False);
+        Assert.That(transactions, Is.Zero);
+        harness.Inventory.TrySpend(new[] { new MaterialCost(MaterialType.SheetMetal, 100) });
+        transactions = 0;
+        Assert.That(harness.Service.TryTinkerWeapon(offer[0]).Success, Is.False);
+        Assert.That(harness.Service.GetTinkeringOffer(), Is.EqualTo(offer));
+        Assert.That(harness.Service.BuildUnequippedWeapons(), Is.EquivalentTo(pool));
+        harness.Inventory.Add(MaterialType.SheetMetal, 100);
+        WeaponManager manager = harness.Service.GetComponent<WeaponManager>();
+        manager.AddWeapon(CreateWeapon("External weapon 1"));
+        manager.AddWeapon(CreateWeapon("External weapon 2"));
+        Assert.That(harness.Service.TryTinkerWeapon(offer[0]).Success, Is.False);
+        Assert.That(transactions, Is.Zero);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(100));
+    }
+
+    [Test]
+    public void Tinker_RequiresTwoDistinctEligibleWeaponsWithoutCharging()
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        WeaponData candidate = CreateWeapon("Candidate");
+        WeaponData duplicateId = CreateWeapon("Candidate");
+        SetField(harness.Service, "_weaponPool", new List<WeaponData>
+        {
+            null, harness.Weapons[0].Data, candidate, candidate, duplicateId
+        });
+        Random.State before = Random.state;
+        Assert.That(harness.Service.GetTinkeringOffer(), Is.Empty);
+        Assert.That(Random.state, Is.EqualTo(before));
+        Assert.That(harness.Service.TryTinkerWeapon(candidate).Success, Is.False);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(100));
+    }
+
+    [Test]
+    public void Tinker_FiltersLockedWeaponsAndRejectsAStaleOfferBeforeCharging()
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        WeaponData first = CreateWeapon("A");
+        WeaponData second = CreateWeapon("B");
+        WeaponData locked = CreateWeapon("Locked");
+        SetField(locked, "<UnlockedFromStart>k__BackingField", false);
+        GameObject owner = Track(new GameObject("In-memory save"));
+        owner.SetActive(false);
+        SaveManager save = owner.AddComponent<SaveManager>();
+        SetField(save, "_data", new SaveData());
+        SetSaveManager(save);
+        SetField(harness.Service, "_weaponPool", new List<WeaponData> { first, second, locked });
+        Assert.That(harness.Service.GetTinkeringOffer(), Is.EquivalentTo(new[] { first, second }));
+        Assert.That(harness.Service.TryTinkerWeapon(locked).Success, Is.False);
+        harness.Service.GetComponent<WeaponManager>().AddWeapon(second);
+        Assert.That(harness.Service.TryTinkerWeapon(first).Success, Is.False);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(100));
+    }
+
+    [Test]
+    public void Tinker_InventoryCallbacksCannotPurchaseTheSameOfferTwice()
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        SetField(harness.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") });
+        WeaponData chosen = harness.Service.GetTinkeringOffer()[0];
+        int attempts = 0;
+        harness.Inventory.OnInventoryChanged += () =>
+        {
+            attempts++;
+            Assert.That(harness.Service.TryTinkerWeapon(chosen).Success, Is.False);
+        };
+        Assert.That(harness.Service.TryTinkerWeapon(chosen).Success, Is.True);
+        Assert.That(attempts, Is.EqualTo(1));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
+        Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons().Count, Is.EqualTo(2));
     }
 
     [Test]
