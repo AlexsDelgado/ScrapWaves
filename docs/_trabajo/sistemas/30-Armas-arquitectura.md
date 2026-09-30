@@ -15,6 +15,7 @@ El jugador lleva hasta tres armas. En cada momento, una está en manual (la disp
 | `Managers/WeaponDamageResolver` | `WeaponDamageContext`: cadena de daño y crítico |
 | `Managers/PlayerWeaponMountController`, `AutomaticWeaponMount` | Montajes y firepoints (doc 32) |
 | `Projectiles/ProjectilePool` (+ `ProjectilePoolMember`, `Projectile`) | Pool de proyectiles |
+| `Projectiles/FlamethrowerManualAreas` | Pool de áreas manuales independientes; movimiento y crecimiento en LateUpdate, colisión central con sliding 3D y un reloj compartido de daño |
 | `Economy/WeaponCraftingService` | Subida de nivel y Advanced Tinkering (rutas A/B) |
 | `Economy/WeaponStatsParser`, `Weapon/Editor/WeaponBalanceSheetApplier` | Dos caminos para llevar el balance a los assets |
 | `Managers/WeaponLevelUpHandler` | Armas por level-up. Está en el prefab, pero `LevelUpOrchestrator` no lo llama (`LevelUpOrchestrator.cs:63-73`) |

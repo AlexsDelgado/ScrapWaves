@@ -120,11 +120,12 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameMaxTargetsPerTick), "Max Targets Per Tick");
 
         EditorGUILayout.Space();
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseRadius), "Hose Radius");
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseSegmentCount), "Hose Segment Count");
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseNearFollow), "Hose Near Follow");
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseFarFollow), "Hose Far Follow");
-        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameHoseTurbulence), "Hose Turbulence");
+        EditorGUILayout.LabelField("Manual Areas", EditorStyles.boldLabel);
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaEmissionInterval), "Emission Interval (s)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaLifetime), "Lifetime (s)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaTimeToStop), "Time to Stop (s)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaInitialRadius), "Initial Radius (m)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaFinalRadius), "Final Radius (m)");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoTickInterval), "Auto Tick Interval");
@@ -136,6 +137,7 @@ public sealed class WeaponDataEditor : Editor
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameBurnDuration), "Burn Duration");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameFuelPuddleRadius), "Fuel Contact Puddle Radius (m)");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameBurnTickInterval), "Burn Tick Interval");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameBurnDamageScale), "Burn Damage Scale");
 

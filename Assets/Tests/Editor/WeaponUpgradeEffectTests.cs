@@ -2261,13 +2261,14 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void FlamethrowerManualHose_DamagesVisibleEnemyBodyAboveRegisteredRoot()
+    public void FlamethrowerManualAreas_DamageVisibleEnemyBodyAboveRegisteredRoot()
     {
         GameObject owner = new("Flamethrower Owner");
         GameObject spawn = new("Flamethrower Spawn");
         GameObject target = new("Sandbox Dummy Shape");
         WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
         List<StatDefinition> statDefinitions = CreateDefaultStatDefinitions();
+        FlamethrowerWeapon weapon = null;
 
         try
         {
@@ -2293,9 +2294,7 @@ public class WeaponUpgradeEffectTests
             data.BaseRange = 7f;
             data.BaseManualAmmo = 100f;
             data.EnsureSpecificTuningForCurrentType();
-            data.Flamethrower.FlameHoseRadius = 0.75f;
-            data.Flamethrower.FlameHoseSegmentCount = 4;
-            data.Flamethrower.FlameHoseTurbulence = 0f;
+            data.Flamethrower.FlameAreaFinalRadius = 0.75f;
             data.Flamethrower.FlameManualAmmoPerSecond = 0f;
             data.Flamethrower.FlameManualTickInterval = 0.01f;
             data.LevelData = new List<WeaponLevelData>
@@ -2312,15 +2311,16 @@ public class WeaponUpgradeEffectTests
                 CurrentAmmo = 100f
             };
 
-            FlamethrowerWeapon weapon = new(null, null, spawn.transform, null);
+            weapon = new FlamethrowerWeapon(null, null, spawn.transform, null);
             weapon.Setup(instance, owner.transform, stats, null);
 
             weapon.TickManual(0.02f, Vector3.forward, isFiring: true);
-
+            weapon.ManualAreas.Simulate(0.2f);
             Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
         }
         finally
         {
+            weapon?.ClearManualAreas();
             EnemyRegistry.Unregister(target.transform);
             DestroyGeneratedVfx();
             Object.DestroyImmediate(owner);

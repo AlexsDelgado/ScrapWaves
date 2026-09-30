@@ -135,6 +135,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
             return;
 
         _mountController?.RemoveWeapon(_behaviours[slot]);
+        if (_behaviours[slot] is FlamethrowerWeapon oldFlamethrower) oldFlamethrower.ClearManualAreas();
 
         if (!weaponType.HasValue)
         {
@@ -289,6 +290,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
                 continue;
 
             instance.AbilityCooldownTimer = 0f;
+            if (_behaviours[i] is FlamethrowerWeapon flamethrower) flamethrower.ClearManualAreas();
             _behaviours[i] = CreateBehaviour(instance.Data);
             _behaviours[i].Setup(instance, PlayerTransform, _playerStats, _heatManager);
         }

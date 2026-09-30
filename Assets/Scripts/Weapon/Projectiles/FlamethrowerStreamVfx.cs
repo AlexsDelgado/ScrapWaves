@@ -61,13 +61,13 @@ public sealed class FlamethrowerStreamVfx : MonoBehaviour
     [SerializeField, Range(0.1f, 3f)] private float _automaticBillowTravelSpeed = 1.65f;
     [SerializeField, Min(0.1f)] private float _automaticReleaseDuration = 0.42f;
 
-    [Header("Manual rolling plume")]
-    [SerializeField, Range(3, 12)] private int _manualBillowCount = 12;
-    [SerializeField, Range(0.75f, 1.75f)] private float _manualBillowRadiusMultiplier = 1.32f;
-    [SerializeField, Range(0.1f, 3f)] private float _manualBillowTravelSpeed = 1.35f;
-    [SerializeField, Range(0.2f, 1f)] private float _manualTubeWidthMultiplier = 0.58f;
-    [SerializeField, Range(0.05f, 0.8f)] private float _manualBodyOpacity = 0.28f;
-    [SerializeField, Min(0.1f)] private float _manualReleaseDuration = 0.55f;
+    // Legacy hose preview settings remain serialized for old authored previews only.
+    [SerializeField, HideInInspector, Range(3, 12)] private int _manualBillowCount = 12;
+    [SerializeField, HideInInspector, Range(0.75f, 1.75f)] private float _manualBillowRadiusMultiplier = 1.32f;
+    [SerializeField, HideInInspector, Range(0.1f, 3f)] private float _manualBillowTravelSpeed = 1.35f;
+    [SerializeField, HideInInspector, Range(0.2f, 1f)] private float _manualTubeWidthMultiplier = 0.58f;
+    [SerializeField, HideInInspector, Range(0.05f, 0.8f)] private float _manualBodyOpacity = 0.28f;
+    [SerializeField, HideInInspector, Min(0.1f)] private float _manualReleaseDuration = 0.55f;
 
     [Header("Surface motion")]
     [SerializeField, Min(0.1f)] private float _noiseScale = 6.5f;

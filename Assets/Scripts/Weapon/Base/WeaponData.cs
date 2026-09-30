@@ -93,11 +93,19 @@ public sealed class FlamethrowerTuning : WeaponSpecificTuning
     [Range(1f, 180f)] public float FlameManualConeAngle = 38f;
     [Min(1)] public int FlameMaxTargetsPerTick = 64;
 
-    [Min(0.05f)] public float FlameHoseRadius = 0.75f;
-    [Min(2)] public int FlameHoseSegmentCount = 12;
-    [Min(0.01f)] public float FlameHoseNearFollow = 28f;
-    [Min(0.01f)] public float FlameHoseFarFollow = 2.25f;
-    [Min(0f)] public float FlameHoseTurbulence = 0.08f;
+    [FormerlySerializedAs("FlameHoseRadius"), Min(0.05f), Tooltip("Base Jellified Fuel contact-puddle radius in meters, before size and level scaling.")]
+    public float FlameFuelPuddleRadius = 0.75f;
+
+    [Min(0.01f), Tooltip("Seconds between emitted manual areas. Independent of damage ticks and attack speed.")]
+    public float FlameAreaEmissionInterval = 0.15f;
+    [Min(0.01f), Tooltip("Seconds each area survives, including after releasing fire or switching weapons.")]
+    public float FlameAreaLifetime = 1.5f;
+    [Min(0.01f), Tooltip("Seconds to decelerate to rest. Initial speed is derived from manual range; terrain contact projects the remaining velocity.")]
+    public float FlameAreaTimeToStop = 1f;
+    [Min(0.01f), Tooltip("Initial damage-trigger radius in meters, before area-size scaling. Terrain collision uses only the center.")]
+    public float FlameAreaInitialRadius = 0.35f;
+    [Min(0.01f), Tooltip("Radius at expiration in meters, before area-size scaling. Grows linearly; never smaller than the initial radius.")]
+    public float FlameAreaFinalRadius = 0.75f;
 
     [Min(0.01f)] public float FlameAutoTickInterval = 1f;
     [Min(0.01f)] public float FlameOverheatAutoTickInterval = 0.5f;

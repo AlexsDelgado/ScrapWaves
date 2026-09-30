@@ -97,11 +97,12 @@ MonoBehaviour:
         FlameAutoConeAngle: 45
         FlameManualConeAngle: 38
         FlameMaxTargetsPerTick: 64
-        FlameHoseRadius: 0.75
-        FlameHoseSegmentCount: 12
-        FlameHoseNearFollow: 28
-        FlameHoseFarFollow: 2.25
-        FlameHoseTurbulence: 0.08
+        FlameFuelPuddleRadius: 0.75
+        FlameAreaEmissionInterval: 0.15
+        FlameAreaLifetime: 1.5
+        FlameAreaTimeToStop: 1
+        FlameAreaInitialRadius: 0.35
+        FlameAreaFinalRadius: 0.75
         FlameAutoTickInterval: 1
         FlameOverheatAutoTickInterval: 0.5
         FlameOverheatTickThresholdPercent: 75

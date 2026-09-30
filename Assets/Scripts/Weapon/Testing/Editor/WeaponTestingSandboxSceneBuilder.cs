@@ -180,11 +180,12 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.RocketLauncher.RocketManualExplosionRadius = 2.4f;
                 break;
             case WeaponType.Flamethrower:
-                data.Flamethrower.FlameHoseRadius = 0.75f;
-                data.Flamethrower.FlameHoseSegmentCount = 12;
-                data.Flamethrower.FlameHoseNearFollow = 28f;
-                data.Flamethrower.FlameHoseFarFollow = 2.25f;
-                data.Flamethrower.FlameHoseTurbulence = 0.08f;
+                data.Flamethrower.FlameFuelPuddleRadius = 0.75f;
+                data.Flamethrower.FlameAreaEmissionInterval = 0.15f;
+                data.Flamethrower.FlameAreaLifetime = 1.5f;
+                data.Flamethrower.FlameAreaTimeToStop = 1f;
+                data.Flamethrower.FlameAreaInitialRadius = 0.35f;
+                data.Flamethrower.FlameAreaFinalRadius = 0.75f;
                 data.Flamethrower.FlameActiveRadius = 6f;
                 break;
             case WeaponType.Mortar:

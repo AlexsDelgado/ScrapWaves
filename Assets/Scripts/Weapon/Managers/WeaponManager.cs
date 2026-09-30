@@ -264,6 +264,8 @@ public class WeaponManager : MonoBehaviour
     // Removes every equipped weapon so a run can start from an empty loadout.
     public void ClearEquippedWeapons()
     {
+        foreach (IWeaponBehaviour weapon in _equipped)
+            if (weapon is FlamethrowerWeapon flame) flame.ClearManualAreas();
         _equipped.Clear();
         _currentManualIndex = 0;
         _manualCooldownTimer = 0f;

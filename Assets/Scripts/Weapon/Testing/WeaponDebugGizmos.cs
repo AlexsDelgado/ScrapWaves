@@ -86,7 +86,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
 
         Color color = new(0.1f, 0.65f, 1f, 0.9f);
         if (weapon.Data.WeaponType == WeaponType.Flamethrower)
-            DrawRuntimeHose(origin, forward, weapon.Data.BaseRange, weapon.Data.Flamethrower.FlameHoseRadius, color);
+            DrawRuntimeLine(origin, origin + forward * weapon.Data.BaseRange, color, RuntimeLineWidth);
         else
             DrawRuntimeCone(origin, forward, weapon.Data.BaseRange, 90f, color);
     }
@@ -119,7 +119,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         float size = GetAreaSize();
         Color guideColor = GetFlamethrowerGuideColor(weapon, 0.9f);
         if (ShowWeaponHitboxes)
-            DrawRuntimeHose(origin, forward, weapon.Data.BaseRange * size, tuning.FlameHoseRadius * size, guideColor);
+            DrawManualFlameAreas(true, guideColor);
 
         if (ShowExplosionRadius && !IsJellifiedFuelPath(weapon))
             DrawRuntimeSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius * size, GetFlamethrowerGuideColor(weapon, 0.75f));
@@ -225,7 +225,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         if (weapon.Data.WeaponType == WeaponType.RotatingBlade)
             return;
         if (weapon.Data.WeaponType == WeaponType.Flamethrower)
-            DrawHose(origin, forward, range, weapon.Data.Flamethrower.FlameHoseRadius);
+            Gizmos.DrawLine(origin, origin + forward * range);
         else
             DrawCone(origin, forward, range, 90f);
     }
@@ -258,13 +258,24 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         if (ShowWeaponHitboxes)
         {
             Gizmos.color = GetFlamethrowerGuideColor(weapon, 0.85f);
-            DrawHose(origin, forward, weapon.Data.BaseRange, tuning.FlameHoseRadius);
+            DrawManualFlameAreas(false, GetFlamethrowerGuideColor(weapon, 0.85f));
         }
 
         if (ShowExplosionRadius && !IsJellifiedFuelPath(weapon))
         {
             Gizmos.color = GetFlamethrowerGuideColor(weapon, 0.7f);
             Gizmos.DrawWireSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius);
+        }
+    }
+
+    private void DrawManualFlameAreas(bool runtime, Color color)
+    {
+        if (_sandbox.CurrentManualBehaviour is not FlamethrowerWeapon flame || flame.ManualAreas == null) return;
+        FlamethrowerManualAreas areas = flame.ManualAreas;
+        for (int i = 0; i < areas.ActiveCount; i++)
+        {
+            if (runtime) DrawRuntimeSphere(areas.GetCenter(i), areas.GetRadius(i), color);
+            else { Gizmos.color = color; Gizmos.DrawWireSphere(areas.GetCenter(i), areas.GetRadius(i)); }
         }
     }
 

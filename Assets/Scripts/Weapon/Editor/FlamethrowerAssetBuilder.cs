@@ -23,6 +23,7 @@ public static class FlamethrowerAssetBuilder
         public Material Flame;
         public Material FlameCore;
         public Material FlamePlume;
+        public Material ManualFlame;
         public Material Smoke;
         public Material Fuel;
         public Material FuelCore;
@@ -99,6 +100,7 @@ public static class FlamethrowerAssetBuilder
             Flame = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Flame.mat", shader, new Color(1f, 0.11f, 0.01f, 0.74f), new Color(1f, 0.2f, 0.015f), 2.7f, 7f, 4f),
             FlameCore = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Core.mat", shader, new Color(1f, 0.78f, 0.2f, 0.95f), new Color(1f, 0.92f, 0.5f), 4.2f, 5f, 3f),
             FlamePlume = flamePlume,
+            ManualFlame = BuildManualAreaMaterial(),
             Smoke = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Smoke.mat", shader, new Color(0.16f, 0.13f, 0.11f, 0.36f), new Color(0.2f, 0.13f, 0.08f), 0.4f, 3f, 0.8f),
             Fuel = CreateMaterial(MaterialRoot + "/GF_Flamethrower_Fuel.mat", shader, new Color(0.012f, 0.18f, 0.038f, 0.88f), new Color(0.04f, 0.3f, 0.055f), 1.8f, 8f, 1.5f),
             FuelCore = CreateMaterial(MaterialRoot + "/GF_Flamethrower_FuelCore.mat", shader, new Color(0.56f, 0.78f, 0.08f, 0.9f), new Color(0.72f, 0.94f, 0.12f), 3f, 6f, 2f),
@@ -106,6 +108,34 @@ public static class FlamethrowerAssetBuilder
             FrostCore = CreateMaterial(MaterialRoot + "/GF_Flamethrower_FrostCore.mat", shader, new Color(0.92f, 0.98f, 1f, 0.92f), Color.white, 3.8f, 12f, 1.7f),
             Quality = AssetDatabase.LoadAssetAtPath<GameFeelQualitySettings>(QualityPath)
         };
+    }
+
+    public static Material BuildManualAreaMaterial()
+    {
+        EnsureFolder("Assets", "Resources");
+        EnsureFolder("Assets/Resources", "GameFeel");
+        const string texturePath = "Assets/GameFeel/Textures/Flamethrower_ManualJet.png";
+        if (AssetImporter.GetAtPath(texturePath) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.mipmapEnabled = true;
+            importer.maxTextureSize = 2048;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+        const string path = "Assets/Resources/GameFeel/ManualFlame.mat";
+        Shader shader = Shader.Find("ScrapWaves/GameFeel/Manual Flame Sprite");
+        Texture texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+        if (shader == null || texture == null) throw new InvalidOperationException("Manual flame sprite assets are missing.");
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null) { material = new Material(shader); AssetDatabase.CreateAsset(material, path); }
+        material.shader = shader;
+        material.mainTexture = texture;
+        EditorUtility.SetDirty(material);
+        return material;
     }
 
     private static GameObject BuildStreamPrefab(BuildAssets assets)
@@ -385,6 +415,7 @@ public static class FlamethrowerAssetBuilder
         FlamethrowerPresentationSettings settings = new()
         {
             StreamPrefab = stream,
+            ManualAreaMaterial = assets.ManualFlame,
             FuelPuddlePrefab = puddle,
             MaximumStreamSegments = 48,
             FuelPuddlePrewarmCount = 8,

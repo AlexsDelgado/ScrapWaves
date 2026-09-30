@@ -319,13 +319,15 @@ public sealed class AutomaticCannonPresentationSettings
 public sealed class FlamethrowerPresentationSettings
 {
     [Header("Production prefabs")]
-    [Tooltip("Authored procedural ribbon used for both the automatic cone and the manual hose.")]
+    [Tooltip("Authored procedural ribbon used for the automatic cone.")]
     public GameObject StreamPrefab;
+    [Tooltip("Approved flame-sprite material for independent manual areas. Camera-facing patches follow each area trajectory; colors follow the weapon path.")]
+    public Material ManualAreaMaterial;
     [Tooltip("Authored, pooled Jellified Fuel puddle. Damage still uses the gameplay puddle radius.")]
     public GameObject FuelPuddlePrefab;
 
     [Header("Density")]
-    [Range(2, 48), Tooltip("Hard presentation cap; the authoritative hose simulation may provide fewer points.")]
+    [Range(2, 48), Tooltip("Presentation segment cap for the automatic cone.")]
     public int MaximumStreamSegments = 48;
     [Min(0)] public int FuelPuddlePrewarmCount = 8;
     [Min(1)] public int FuelPuddlePoolCapacity = 32;

@@ -149,7 +149,7 @@ public sealed class WeaponSandboxDebugUI : MonoBehaviour
         if (_sandbox.CurrentManualBehaviour is FlamethrowerWeapon flamethrower)
         {
             GUILayout.Label($"Flamethrower: {flamethrower.LastManualDebugSummary}");
-            GUILayout.Label($"Flame Ammo {flamethrower.LastManualAmmoBefore:0.#}->{flamethrower.LastManualAmmoAfter:0.#} | Radius {flamethrower.LastManualHoseRadius:0.##} | Range {flamethrower.LastManualRange:0.#}");
+            GUILayout.Label($"Flame Ammo {flamethrower.LastManualAmmoBefore:0.#}->{flamethrower.LastManualAmmoAfter:0.#} | Radius {flamethrower.LastManualAreaRadius:0.##} | Range {flamethrower.LastManualRange:0.#}");
         }
     }
 
