@@ -147,14 +147,32 @@ public static class OrbitalSpawnPlacement
 
         Transform root = instance.transform;
 
-        // Prefabs like Chaser keep a disabled CharacterController while moving with
-        // Rigidbody + BoxCollider. Using that CC for capsule depenetration (esp. with
-        // non-1 root scale and center at origin) fails spawn silently.
+        // El CharacterController de estos prefabs está apagado: se mueven con Rigidbody.
+        // Igual hay que apoyar el pie en el suelo. Sin ese raycast nacen a la altura del
+        // jugador y, si el anillo cae fuera del terrain, se van al vacío.
         CharacterController cc = instance.GetComponent<CharacterController>();
         if (cc == null || !cc.enabled)
         {
-            root.SetPositionAndRotation(desiredPosition, Quaternion.identity);
-            spawnPosition = desiredPosition;
+            if (!SpawnGroundUtility.TrySampleGround(
+                    new Vector3(desiredPosition.x, 0f, desiredPosition.z),
+                    desiredPosition.y,
+                    maxAbsSpawnSurfaceDeltaY,
+                    groundRaycastMask,
+                    fallbackGroundRaycastMask,
+                    raycastStartHeight,
+                    raycastMaxDistance,
+                    surfaceSeparation,
+                    out Vector3 surface))
+            {
+                ReleaseFailedSpawn(instance, fromPool);
+                instance = null;
+                return false;
+            }
+
+            root.SetPositionAndRotation(surface, Quaternion.identity);
+            SpawnGroundUtility.SeatAboveSurface(root, surface, surfaceSeparation);
+            SpawnGroundUtility.ClearRigidbodyVelocity(root);
+            spawnPosition = root.position;
             return true;
         }
 
@@ -175,14 +193,7 @@ public static class OrbitalSpawnPlacement
                 resolveStepOut,
                 out Vector3 foot))
         {
-            if (fromPool && EnemyPoolRegistry.Instance != null)
-                EnemyPoolRegistry.Instance.Release(instance);
-            else
-            {
-                Object.Destroy(instance);
-                EnemyPoolProfiler.RegisterDestroy();
-            }
-
+            ReleaseFailedSpawn(instance, fromPool);
             instance = null;
             return false;
         }
@@ -190,5 +201,16 @@ public static class OrbitalSpawnPlacement
         root.SetPositionAndRotation(foot, Quaternion.identity);
         spawnPosition = foot;
         return true;
+    }
+
+    private static void ReleaseFailedSpawn(GameObject instance, bool fromPool)
+    {
+        if (fromPool && EnemyPoolRegistry.Instance != null)
+            EnemyPoolRegistry.Instance.Release(instance);
+        else
+        {
+            Object.Destroy(instance);
+            EnemyPoolProfiler.RegisterDestroy();
+        }
     }
 }

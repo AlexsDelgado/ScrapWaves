@@ -39,7 +39,7 @@ public sealed class CompactorEscapeIntegrationTests
             Assert.That(GetField<Transform>(door, "_interactionPoint").IsChildOf(door.transform), Is.True);
             Assert.That(roots.SelectMany(r => r.GetComponentsInChildren<CompactorEscapeTestController>(true)), Is.Empty);
             var station = roots.SelectMany(r => r.GetComponentsInChildren<CraftingStation>(true)).Single();
-            Assert.That(GetField<float>(station, "_interactionRadius"), Is.EqualTo(10f));
+            Assert.That(GetField<float>(station, "_interactionRadius"), Is.EqualTo(2.5f));
             Assert.That(GetField<Transform>(station, "_interactionPoint"), Is.SameAs(station.transform));
             var model = station.transform.Find("Workbench");
             Assert.That(model, Is.Not.Null);
