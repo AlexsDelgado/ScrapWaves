@@ -167,8 +167,14 @@ public class CraftingUI : MonoBehaviour
         IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
         foreach (CraftingMaterialField field in _view.Materials)
             field.AmountText.text = _inventory.GetAmount(field.Type).ToString(CultureInfo.InvariantCulture);
+        _view.BalanceReadout?.Bind(_inventory, null);
         for (int i = 0; i < _view.Slots.Length; i++)
-            _view.Slots[i].Bind(i < equipped.Count ? equipped[i]?.Runtime : null, i == _selectedSlot, i <= equipped.Count);
+        {
+            WeaponInstance runtime = i < equipped.Count ? equipped[i]?.Runtime : null;
+            _view.Slots[i].Bind(runtime, i == _selectedSlot, i <= equipped.Count);
+            _view.Slots[i].Availability?.Bind(runtime != null ? _crafting.GetAvailableAction(runtime)
+                : i == equipped.Count && _crafting.CanTinkerNewWeapon() ? CraftingActionKind.TinkerNewWeapon : null);
+        }
         WeaponInstance weapon = SelectedWeapon();
         _offeredPath = WeaponUpgradePath.None;
         if (weapon?.Data == null) ShowTinker(equipped.Count + 1);
@@ -198,6 +204,7 @@ public class CraftingUI : MonoBehaviour
             _view.UpgradeStatValues[i].text = (maximum ? current : $"{current} → {future}") + (i == 1 ? " m" : string.Empty);
         }
         IReadOnlyList<MaterialCost> cost = _crafting.GetUpgradeCost(weapon.Data, weapon.SelectedPath, next);
+        _view.UpgradeReadout?.Bind(_inventory, cost, maximum ? "No further upgrades" : null);
         _view.UpgradeCostText.text = maximum ? "No further upgrades" : BuildCostText(cost);
         _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost);
         _view.UpgradeButtonText.text = maximum ? "MAX LEVEL" : "UPGRADE";
@@ -248,6 +255,7 @@ public class CraftingUI : MonoBehaviour
         }
         IReadOnlyList<MaterialCost> cost = _crafting.GetTinkeringCost(slot);
         _view.TinkerCostLabel.text = $"COST · SLOT {slot}";
+        _view.TinkerReadout?.Bind(_inventory, cost, candidates.Count == 0 ? "Not enough eligible weapons for a choice" : null);
         _view.TinkerCostText.text = candidates.Count == 0 ? "Not enough eligible weapons for a choice" : BuildCostText(cost);
         _view.TinkerButton.interactable = _selectedCandidate != null && _weaponManager.CanAddWeapon() && _inventory.CanAfford(cost);
     }
@@ -277,6 +285,7 @@ public class CraftingUI : MonoBehaviour
             : canDecline ? "Decline: pay this attempt's cost. Next try costs +50% with the other path guaranteed."
             : "Only one path is unlocked.";
         IReadOnlyList<MaterialCost> cost = _crafting.GetAdvancedTinkeringCost(weapon.Data);
+        _view.AdvancedReadout?.Bind(_inventory, cost, available ? null : "No upgrade available");
         _view.AdvancedCostText.text = "Tinker cost: " + BuildCostText(cost);
         _view.AcceptButton.interactable = available && _inventory.CanAfford(cost);
         _view.DeclineButton.interactable = canDecline && _inventory.CanAfford(cost);

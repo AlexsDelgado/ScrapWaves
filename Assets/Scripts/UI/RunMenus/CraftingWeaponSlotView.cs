@@ -4,6 +4,7 @@ using UnityEngine.UI;
 
 public sealed class CraftingWeaponSlotView : MonoBehaviour
 {
+    public CraftingAvailabilityView Availability;
     public Button Button;
     public Image Background;
     public Image Border;

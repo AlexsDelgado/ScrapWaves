@@ -9,6 +9,7 @@ public class WeaponClusterHud : MonoBehaviour
     private const int MaxWeaponSlots = WeaponManager.MaxWeaponSlots;
 
     [SerializeField] private WeaponManager _weaponManager;
+    [SerializeField] private WeaponCraftingService _crafting;
     [SerializeField] private PlayerStats _playerStats;
     [SerializeField] private PlayerMovement _playerMovement;
     [Tooltip("Fila de cargas de dash. Vacío = busca DashCharges/Layout como hijo de esta columna.")]
@@ -18,6 +19,7 @@ public class WeaponClusterHud : MonoBehaviour
 
     private struct WeaponSlotUi
     {
+        public CraftingAvailabilityView Availability;
         public Image Frame;
         public Image Icon;
         public TextMeshProUGUI LevelBadge;
@@ -75,6 +77,8 @@ public class WeaponClusterHud : MonoBehaviour
     {
         if (_weaponManager == null)
             _weaponManager = FindAnyObjectByType<WeaponManager>();
+        if (_crafting == null && _weaponManager != null)
+            _crafting = _weaponManager.GetComponent<WeaponCraftingService>();
         if (_playerStats == null)
             _playerStats = FindAnyObjectByType<PlayerStats>();
         if (_playerMovement == null)
@@ -109,6 +113,7 @@ public class WeaponClusterHud : MonoBehaviour
 
             _weaponSlots.Add(new WeaponSlotUi
             {
+                Availability = slotRoot.GetComponent<CraftingAvailabilityView>(),
                 Frame = frame,
                 Icon = icon,
                 LevelBadge = HudUiWire.FindTmp(slotRoot, "Level")
@@ -289,6 +294,8 @@ public class WeaponClusterHud : MonoBehaviour
             int equippedIndex = _weaponManager.GetEquippedIndexForRotationSlot(rotationSlot);
             if (equippedIndex < 0 || weapons[equippedIndex]?.Runtime?.Data == null)
             {
+                slot.Availability?.Bind(rotationSlot == weapons.Count && _crafting != null && _crafting.CanTinkerNewWeapon()
+                    ? CraftingActionKind.TinkerNewWeapon : null);
                 if (slot.Frame != null) slot.Frame.color = HudUiFactory.EmptySlotColor;
                 slot.Icon.sprite = HudUiFactory.WhiteSprite;
                 slot.Icon.color = HudUiFactory.EmptySlotColor;
@@ -299,6 +306,7 @@ public class WeaponClusterHud : MonoBehaviour
 
             slot.Icon.enabled = true;
             WeaponInstance runtime = weapons[equippedIndex].Runtime;
+            slot.Availability?.Bind(_crafting != null ? _crafting.GetAvailableAction(runtime) : null);
             WeaponData data = runtime.Data;
             bool isActiveManual = rotationSlot == 0;
             Sprite sprite = WeaponUiIcons.Resolve(data, selected: isActiveManual);

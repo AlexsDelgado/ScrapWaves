@@ -326,6 +326,7 @@ public static class HudArtApplier
         so.FindProperty("_dashChargesLayout").objectReferenceValue = dashLayout;
         so.FindProperty("_hideEmptyWeaponSlots").boolValue = true;
         so.ApplyModifiedPropertiesWithoutUndo();
+        CraftingReadoutAuthoring.AuthorHud(column.gameObject);
     }
 
     private const float BadgeScale = 1.4f;

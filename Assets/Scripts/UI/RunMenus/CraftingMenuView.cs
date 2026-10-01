@@ -33,6 +33,10 @@ public sealed class CraftingMenuView : MonoBehaviour
     public TMP_Text StatusText;
     public CraftingMaterialField[] Materials;
     public CraftingWeaponSlotView[] Slots;
+    public CraftingMaterialReadout BalanceReadout;
+    public CraftingMaterialReadout UpgradeReadout;
+    public CraftingMaterialReadout TinkerReadout;
+    public CraftingMaterialReadout AdvancedReadout;
 
     [Header("Upgrade")]
     public GameObject UpgradePanel;

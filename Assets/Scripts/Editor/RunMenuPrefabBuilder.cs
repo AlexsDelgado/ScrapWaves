@@ -224,6 +224,7 @@ public static class RunMenuPrefabBuilder
 
         view.StatusText = Label(window, "Status", string.Empty, 22f, FontStyles.Normal, TextAlignmentOptions.Center, Bone);
         Bottom(view.StatusText.rectTransform, 44f, 1652f, 19f, 32f);
+        CraftingReadoutAuthoring.AuthorMenu(view);
         return canvas.gameObject;
     }
 

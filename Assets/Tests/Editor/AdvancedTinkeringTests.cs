@@ -324,6 +324,142 @@ public sealed class AdvancedTinkeringTests
         AssertUnadvanced(weapon);
     }
 
+    [Test]
+    public void Availability_DoesNotRollOffersAndRefreshesAfterDecline()
+    {
+        Harness harness = CreateHarness(1, 5);
+        Random.State before = Random.state;
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
+        Assert.That(harness.Service.HasAnyAvailableCraftingAction(), Is.True);
+        Assert.That(Random.state, Is.EqualTo(before));
+        Assert.That(((Dictionary<string, WeaponUpgradePath>)typeof(WeaponCraftingService).GetField("_advancedOffers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(harness.Service)).Count, Is.Zero);
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out WeaponUpgradePath offered), Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(harness.Weapons[0].Data, offered, false).Success, Is.True);
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.Null);
+        foreach (MaterialType material in RareMaterials) harness.Inventory.Add(material, 8);
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
+        harness.Weapons[0].Level = 10;
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.Null);
+    }
+
+    [Test]
+    public void Availability_BasicRequiresTwoEligibleCandidatesAndEveryMaterial()
+    {
+        Harness harness = CreateHarness(1, 0);
+        var pool = new List<WeaponData> { CreateWeapon("Offer A"), CreateWeapon("Offer B") };
+        SetField(harness.Service, "_weaponPool", pool);
+        foreach (MaterialType material in new[] { MaterialType.SheetMetal, MaterialType.MetalPipe, MaterialType.Gears }) harness.Inventory.Add(material, 4);
+        Assert.That(harness.Service.CanTinkerNewWeapon(), Is.False);
+        foreach (MaterialType material in new[] { MaterialType.SheetMetal, MaterialType.MetalPipe, MaterialType.Gears }) harness.Inventory.Add(material, 1);
+        Random.State before = Random.state;
+        Assert.That(harness.Service.CanTinkerNewWeapon(), Is.True);
+        Assert.That(Random.state, Is.EqualTo(before));
+        Assert.That(((List<WeaponData>)typeof(WeaponCraftingService).GetField("_tinkerOffer", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(harness.Service)).Count, Is.Zero);
+        pool.RemoveAt(1);
+        Assert.That(harness.Service.CanTinkerNewWeapon(), Is.False);
+    }
+
+    [Test]
+    public void Availability_UpgradeUsesAllCostsAndAggregateIncludesNonManualWeapon()
+    {
+        Harness harness=CreateHarness(2, 0);
+        MaterialUsageBalanceSO balance=Track(ScriptableObject.CreateInstance<MaterialUsageBalanceSO>());
+        balance.SetData(new List<MaterialRoleAssignment> {
+            new MaterialRoleAssignment {Column=WeaponMaterialColumn.Flamethrower,Material=MaterialType.Gears,Role=MaterialRole.Principal},
+            new MaterialRoleAssignment {Column=WeaponMaterialColumn.Flamethrower,Material=MaterialType.MetalPipe,Role=MaterialRole.Secondary}
+        },new List<MaterialRoleTotalRow> {
+            new MaterialRoleTotalRow {Role=MaterialRole.Principal,Level=3,Total=5},
+            new MaterialRoleTotalRow {Role=MaterialRole.Secondary,Level=3,Total=5}
+        });
+        harness.Service.SetMaterialBalance(balance);harness.Weapons[1].Level=2;harness.Weapons[1].Data.WeaponType=WeaponType.Flamethrower;
+        harness.Inventory.Add(MaterialType.Gears,5);harness.Inventory.Add(MaterialType.MetalPipe,4);
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[1]),Is.Null);
+        Assert.That(harness.Service.HasAnyAvailableCraftingAction(),Is.False);
+        harness.Inventory.Add(MaterialType.MetalPipe,1);
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[1]),Is.EqualTo(CraftingActionKind.UpgradeLevel));
+        Assert.That(harness.Service.HasAnyAvailableCraftingAction(),Is.True);
+        harness.Inventory.TrySpend(new[]{new MaterialCost(MaterialType.Gears,1)});
+        Assert.That(harness.Service.HasAnyAvailableCraftingAction(),Is.False);
+    }
+
+    [Test]
+    public void AuthoredPrefabs_HaveSixCorrectMaterialSpritesAndIndependentGlows()
+    {
+        GameObject root=UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/RunMenus/CraftingMenu.prefab");
+        CraftingMenuView view=root.GetComponent<CraftingMenuView>();
+        Assert.That(view.IsConfigured,Is.True);
+        foreach(var readout in new[]{view.BalanceReadout,view.UpgradeReadout,view.TinkerReadout,view.AdvancedReadout})
+        {
+            Assert.That(readout,Is.Not.Null);Assert.That(readout.Entries.Length,Is.EqualTo(6));Assert.That(readout.Notice,Is.Not.Null);
+            var seen=new HashSet<MaterialType>();
+            foreach(var entry in readout.Entries){Assert.That(seen.Add(entry.Type),Is.True);Assert.That(entry.Root,Is.Not.Null);Assert.That(entry.Quantity,Is.Not.Null);Assert.That(entry.Icon.sprite,Is.EqualTo(UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Art/UI/Icons/Materials/Material_{entry.Type}.png")));}
+        }
+        foreach(var slot in view.Slots){Assert.That(slot.Availability,Is.Not.Null);Assert.That(slot.Availability.Glow,Is.Not.Null);Assert.That(slot.Availability.Marker,Is.Not.Null);}
+        root=UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/GameplayHud V2.prefab");
+        Assert.That(root.GetComponentsInChildren<CraftingAvailabilityView>(true).Length,Is.EqualTo(3));
+    }
+
+    [Test]
+    public void TableGuide_IsGatedAndLossOfAffordabilityDoesNotHideExitGuide()
+    {
+        Harness harness=CreateHarness(1,4);
+        GameObject owner=Track(new GameObject("Guide fixture"));owner.SetActive(false);
+        GuideArrow guide=owner.AddComponent<GuideArrow>();GuideArrowController controller=owner.AddComponent<GuideArrowController>();
+        GameObject tableOwner=Track(new GameObject("Table fixture"));tableOwner.SetActive(false);CraftingStation table=tableOwner.AddComponent<CraftingStation>();
+        SetField(controller,"_guideArrow",guide);SetField(controller,"_craftingStation",table);SetField(controller,"_crafting",harness.Service);
+        var show=typeof(GuideArrowController).GetMethod("ShowCraftingGuide",BindingFlags.Instance|BindingFlags.NonPublic);
+        var update=typeof(GuideArrowController).GetMethod("Update",BindingFlags.Instance|BindingFlags.NonPublic);
+        SetField(controller,"_craftingStationDelaySeconds",0f);
+        update.Invoke(controller,null);
+        Assert.That((bool)typeof(GuideArrowController).GetField("_craftingHintShown",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(controller),Is.False);
+        show.Invoke(controller,new object[]{10f});Assert.That(guide.Target,Is.Null);
+        foreach(var type in RareMaterials)harness.Inventory.Add(type,1);
+        update.Invoke(controller,null);Assert.That(guide.Target,Is.EqualTo(table.transform));
+        harness.Inventory.TrySpend(new[]{new MaterialCost(MaterialType.Wiring,1)});update.Invoke(controller,null);Assert.That(guide.Target,Is.Null);
+        GameObject exit=Track(new GameObject("Exit fixture"));guide.Show(exit.transform);update.Invoke(controller,null);Assert.That(guide.Target,Is.EqualTo(exit.transform));
+        Assert.That((bool)typeof(GuideArrowController).GetField("_craftingHintShown",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(controller),Is.True);
+    }
+
+    [Test]
+    public void MaterialReadout_ExactThresholdMixedCostsAndRebindDoNotCreateUi()
+    {
+        Harness harness=CreateHarness(1,5);
+        GameObject clone=Track(Object.Instantiate(UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/RunMenus/CraftingMenu.prefab")));
+        CraftingMenuView view=clone.GetComponent<CraftingMenuView>();var readout=view.AdvancedReadout;
+        int before=clone.GetComponentsInChildren<Transform>(true).Length;
+        readout.Bind(harness.Inventory,new[]{new MaterialCost(MaterialType.JellifiedFuel,6),new MaterialCost(MaterialType.PlasticExplosive,5),new MaterialCost(MaterialType.Wiring,4)});
+        Assert.That(readout.Entries[3].Quantity.text,Is.EqualTo("5/6"));Assert.That(readout.Entries[3].Quantity.color,Is.EqualTo(readout.InsufficientColor));
+        Assert.That(readout.Entries[4].Quantity.text,Is.EqualTo("5/5"));Assert.That(readout.Entries[4].Quantity.color,Is.EqualTo(readout.SufficientColor));
+        Assert.That(readout.Entries[5].Quantity.color,Is.EqualTo(readout.SufficientColor));Assert.That(readout.Entries[0].Root.activeSelf,Is.False);
+        readout.Bind(harness.Inventory,new[]{new MaterialCost(MaterialType.JellifiedFuel,5)});
+        Assert.That(readout.Entries[3].Quantity.color,Is.EqualTo(readout.SufficientColor));Assert.That(readout.Entries[4].Root.activeSelf,Is.False);
+        readout.Bind(harness.Inventory,new MaterialCost[0]);Assert.That(readout.Notice.text,Is.EqualTo("Free"));
+        readout.Bind(harness.Inventory,new MaterialCost[0],"No further upgrades");Assert.That(readout.Notice.text,Is.EqualTo("No further upgrades"));
+        Assert.That(clone.GetComponentsInChildren<Transform>(true).Length,Is.EqualTo(before));
+        foreach(var field in view.Materials)Assert.That(field.NameText.gameObject.activeSelf,Is.False);
+        Assert.That(view.AdvancedCostText.gameObject.activeSelf,Is.False);
+    }
+
+    [Test]
+    public void AvailabilityPulse_IsTranslucentAndKeepsSymbolsSteadyWhilePaused()
+    {
+        GameObject root=Track(Object.Instantiate(UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/RunMenus/CraftingMenu.prefab")));
+        CraftingAvailabilityView view=root.GetComponent<CraftingMenuView>().Slots[0].Availability;
+        Assert.That(view.OutlineEdges.Length,Is.EqualTo(4));
+        view.Bind(CraftingActionKind.UpgradeLevel);Color marker=view.Marker.color;float previous=Time.timeScale;
+        try
+        {
+            Time.timeScale=0f;view.RefreshPulse(0.5f*Mathf.PI/view.PulseSpeed);
+            float low=view.Glow.color.a;float lowEdge=view.OutlineEdges[0].color.a;
+            view.RefreshPulse(1.5f*Mathf.PI/view.PulseSpeed);
+            Assert.That(view.Glow.color.a,Is.GreaterThan(low));Assert.That(view.Glow.color.a,Is.LessThanOrEqualTo(0.05f));
+            Assert.That(view.OutlineEdges[0].color.a,Is.GreaterThan(lowEdge+0.3f));
+            Assert.That(view.Marker.color,Is.EqualTo(marker));Assert.That(view.Marker.gameObject.activeSelf,Is.True);
+            Assert.That(view.Marker.text,Is.EqualTo("↑"));view.Bind(CraftingActionKind.TinkerNewWeapon);Assert.That(view.Marker.text,Is.EqualTo("+"));
+        }
+        finally{Time.timeScale=previous;}
+    }
+
     private Harness CreateHarnessOffering(WeaponUpgradePath desired)
     {
         // Search a fixed seed set through the public API, without depending on its random-index mapping.

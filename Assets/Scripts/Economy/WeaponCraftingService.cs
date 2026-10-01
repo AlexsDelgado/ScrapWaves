@@ -93,6 +93,38 @@ public class WeaponCraftingService : MonoBehaviour
         return new CraftingActionResult(true, $"{weapon.DisplayName} nivel {instance.Level}.");
     }
 
+    // Availability queries never roll or cache offers, spend materials, or mutate progression.
+    public bool CanTinkerNewWeapon() => _weaponManager != null && _inventory != null
+        && _weaponManager.CanAddWeapon() && BuildUnequippedWeapons().Count >= 2
+        && _inventory.CanAfford(GetTinkeringCost(_weaponManager.GetEquippedWeapons().Count + 1));
+
+    public CraftingActionKind? GetAvailableAction(WeaponInstance weapon)
+    {
+        if (weapon?.Data == null || _weaponManager == null || _inventory == null
+            || !_weaponManager.TryGetEquippedWeapon(weapon.Data, out WeaponInstance equipped)
+            || equipped != weapon || weapon.Level >= 10) return null;
+        if (weapon.Level == 5 && weapon.SelectedPath == WeaponUpgradePath.None)
+        {
+            WeaponUpgradePath path;
+            bool eligible = TryGetGuaranteedPath(weapon.Data, out path)
+                || _advancedOffers.TryGetValue(weapon.Data.WeaponId, out path);
+            eligible = eligible ? IsAdvancedPathUnlocked(weapon.Data, path)
+                : IsAdvancedPathUnlocked(weapon.Data, WeaponUpgradePath.PathA);
+            return eligible && _inventory.CanAfford(GetAdvancedTinkeringCost(weapon.Data))
+                ? CraftingActionKind.AdvancedTinkering : null;
+        }
+        return _inventory.CanAfford(GetUpgradeCost(weapon.Data, weapon.SelectedPath, weapon.Level + 1))
+            ? CraftingActionKind.UpgradeLevel : null;
+    }
+
+    public bool HasAnyAvailableCraftingAction()
+    {
+        if (_weaponManager == null) return false;
+        foreach (IWeaponBehaviour weapon in _weaponManager.GetEquippedWeapons())
+            if (GetAvailableAction(weapon?.Runtime).HasValue) return true;
+        return CanTinkerNewWeapon();
+    }
+
     public IReadOnlyList<WeaponData> GetTinkeringOffer()
     {
         if (_weaponManager == null || !_weaponManager.CanAddWeapon())

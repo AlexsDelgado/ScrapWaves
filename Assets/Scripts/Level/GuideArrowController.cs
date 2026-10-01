@@ -27,6 +27,7 @@ public class GuideArrowController : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Duración de la flecha cuando la dispara un diálogo del jefe.")]
     private float _dialogueGuideDurationSeconds = 10f;
 
+    [SerializeField] private WeaponCraftingService _crafting;
     private bool _craftingHintShown;
     private bool _doorHintShown;
     private float _hideAtTime = -1f;
@@ -46,6 +47,7 @@ public class GuideArrowController : MonoBehaviour
                 ? LevelExitObjective.Instance
                 : FindAnyObjectByType<LevelExitObjective>();
         _dialogueDriven = FindAnyObjectByType<DialogueDirector>() != null;
+        if (_crafting == null) _crafting = FindAnyObjectByType<WeaponCraftingService>();
     }
 
     private void OnEnable()
@@ -69,12 +71,15 @@ public class GuideArrowController : MonoBehaviour
         if (!_dialogueDriven
             && !_craftingHintShown
             && _craftingStation != null
+            && CanGuideCrafting()
             && RunSessionStats.ElapsedSeconds >= _craftingStationDelaySeconds)
         {
             _craftingHintShown = true;
             ShowCraftingGuide(_guideDurationSeconds);
         }
 
+        if (_guideArrow != null && _craftingStation != null && _guideArrow.Target == _craftingStation.transform
+            && !CanGuideCrafting()) EndGuide();
         if (_hideAtTime >= 0f && Time.unscaledTime >= _hideAtTime)
             EndGuide();
     }
@@ -85,8 +90,11 @@ public class GuideArrowController : MonoBehaviour
             ShowCraftingGuide(_dialogueGuideDurationSeconds);
     }
 
+    private bool CanGuideCrafting() => _crafting != null && _crafting.HasAnyAvailableCraftingAction();
+
     private void ShowCraftingGuide(float duration)
     {
+        if (!CanGuideCrafting()) return;
         BeginGuide(
             _craftingStation.transform,
             dismiss =>
