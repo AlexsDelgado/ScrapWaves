@@ -21,7 +21,10 @@ public sealed class CombatTextView : MonoBehaviour
     private Vector3 _motionRight = Vector3.right;
     private Color _styleColor = Color.white;
     private float _renderAlpha;
+    private const float MinimumMergeReadTime = 0.20f;
     private float _age;
+    private float _displayAge;
+    private float _readableHoldRemaining;
     private float _releaseAge;
     private float _resolvedScale;
     private float _rePunchAmount;
@@ -42,8 +45,8 @@ public sealed class CombatTextView : MonoBehaviour
     {
         get
         {
-            if (!_active || _motion == null) return false;
-            float age = _burnTally ? _releaseAge : _age;
+            if (!_active || _motion == null || (!_burnTally && _readableHoldRemaining > 0f)) return false;
+            float age = _burnTally ? _releaseAge : _displayAge;
             return (!_burnTally || _burnReleased) && age / Mathf.Max(0.01f, _motion.Lifetime) >= _motion.FadeStartNormalized;
         }
     }
@@ -72,6 +75,8 @@ public sealed class CombatTextView : MonoBehaviour
         _active = true;
         _motion = presentation.Motion;
         _age = 0f;
+        _displayAge = 0f;
+        _readableHoldRemaining = 0f;
         _releaseAge = 0f;
         _burnTally = presentation.IsBurnTally;
         _burnReleased = false;
@@ -110,6 +115,13 @@ public sealed class CombatTextView : MonoBehaviour
     {
         if (!_active)
             return;
+        // Keep the accumulated total readable without rewinding movement or the intro.
+        if (!_burnTally && _displayAge + MinimumMergeReadTime > _motion.Lifetime * _motion.FadeStartNormalized)
+        {
+            _displayAge = Mathf.Min(_displayAge, _motion.Lifetime * _motion.FadeStartNormalized);
+            _readableHoldRemaining = MinimumMergeReadTime;
+            SetTextAlpha(1f);
+        }
         Priority = merge.Priority;
         _resolvedScale = merge.ResolvedScale;
         if (!_reducedMotion || !_burnTally)
@@ -153,6 +165,9 @@ public sealed class CombatTextView : MonoBehaviour
 
         float delta = Mathf.Max(0f, unscaledDeltaTime);
         _age += delta;
+        float heldDelta = Mathf.Min(delta, _readableHoldRemaining);
+        _readableHoldRemaining -= heldDelta;
+        _displayAge += delta - heldDelta;
         if (_rePunchRemaining > 0f)
             _rePunchRemaining = Mathf.Max(0f, _rePunchRemaining - delta);
 
@@ -179,7 +194,7 @@ public sealed class CombatTextView : MonoBehaviour
                     (_motion.DownwardAcceleration * _profile.WorldUnitsPerMotionUnit * delta);
             }
 
-            float lifeAge = _burnTally ? _releaseAge : _age;
+            float lifeAge = _burnTally ? _releaseAge : _displayAge;
             scaleOverLife = _burnTally
                 ? _motionEnvelope.EvaluateReleaseScale(lifeAge)
                 : _motionEnvelope.EvaluateScale(lifeAge);
@@ -195,7 +210,7 @@ public sealed class CombatTextView : MonoBehaviour
 
         return _burnTally
             ? _burnReleased && _releaseAge >= _motion.Lifetime
-            : _age >= _motion.Lifetime;
+            : _displayAge >= _motion.Lifetime;
     }
 
     public void ApplyRenderPose(Camera camera)

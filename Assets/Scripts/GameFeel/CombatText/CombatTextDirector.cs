@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -10,6 +11,8 @@ public sealed class CombatTextDirector
     {
         public bool Active;
         public bool WasHidden;
+        public bool PendingView;
+        public Vector3 DisplayPosition;
         public CombatTextAggregate Aggregate;
         public CombatTextView View;
         public CombatTextPriority Priority;
@@ -17,6 +20,10 @@ public sealed class CombatTextDirector
         public int Lane;
     }
 
+    private const float MaximumPendingDelay = 1.25f;
+    private readonly List<Collider> _targetColliders = new(8);
+    private readonly List<Renderer> _targetRenderers = new(8);
+    private int _retryCursor;
     private readonly CombatTextProfile _profile;
     private readonly GameFeelRuntimeOptions _options;
     private readonly AggregateSlot[] _slots;
@@ -150,6 +157,8 @@ public sealed class CombatTextDirector
 
         ref AggregateSlot slot = ref _slots[slotIndex];
         slot.Priority = CombatTextStyleResolver.ResolvePriority(in slot.Aggregate, _profile);
+        if (!slot.Aggregate.IsBurnFamily)
+            slot.DisplayPosition = ResolveDirectPosition(in slot.Aggregate);
         if (slot.Aggregate.IsKill)
             slot.Aggregate.MarkClosed(now);
 
@@ -233,10 +242,11 @@ public sealed class CombatTextDirector
                     ReleaseView(ref slot);
             }
 
-            if (slot.View == null && ShouldReleaseRecord(in slot, now))
+            if (slot.View == null && (!slot.PendingView || now - slot.Aggregate.FirstEventTime >= MaximumPendingDelay) && ShouldReleaseRecord(in slot, now))
                 ClearSlot(i);
         }
 
+        RetryPendingViews(now);
         _startsThisFrame = 0;
         UpdateLiveMetrics();
         long timestampAfter = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -264,6 +274,7 @@ public sealed class CombatTextDirector
         _activeAggregateCount = 0;
         _visibleBurnCount = 0;
         _startsThisFrame = 0;
+        _retryCursor = 0;
         Metrics.Reset();
         UpdateLiveMetrics();
     }
@@ -369,7 +380,7 @@ public sealed class CombatTextDirector
             return false;
         }
 
-        Vector3 worldPosition = ResolveWorldPosition(in slot.Aggregate);
+        Vector3 worldPosition = ResolveWorldPosition(in slot);
         if (!CombatTextVisibilityPolicy.TryEvaluateWorld(
                 _camera,
                 worldPosition,
@@ -465,6 +476,9 @@ public sealed class CombatTextDirector
         _startsThisFrame++;
         if (slot.Aggregate.IsBurnFamily)
             _visibleBurnCount++;
+        slot.PendingView = false;
+        if (slot.Aggregate.IsBurnFamily && slot.Aggregate.IsClosed)
+            view.BeginRelease();
         Metrics.ViewsSpawned++;
         return true;
     }
@@ -536,7 +550,7 @@ public sealed class CombatTextDirector
     {
         if (slot.View == null || !slot.View.IsAnchored)
             return;
-        Vector3 worldPosition = ResolveWorldPosition(in slot.Aggregate);
+        Vector3 worldPosition = ResolveWorldPosition(in slot);
         if (!CombatTextVisibilityPolicy.TryEvaluateWorld(
                 _camera,
                 worldPosition,
@@ -643,6 +657,7 @@ public sealed class CombatTextDirector
             _visibleBurnCount = Mathf.Max(0, _visibleBurnCount - 1);
         _pool.Release(slot.View);
         slot.View = null;
+        slot.PendingView = false;
         slot.Lane = -1;
     }
 
@@ -659,6 +674,10 @@ public sealed class CombatTextDirector
     private void RecordSuppression(CombatTextSuppressionReason reason, int slotIndex)
     {
         Metrics.LastSuppressionReason = reason;
+        if (slotIndex >= 0)
+            _slots[slotIndex].PendingView = reason == CombatTextSuppressionReason.FrameStartBudget ||
+                reason == CombatTextSuppressionReason.Density || reason == CombatTextSuppressionReason.BurnDensity ||
+                reason == CombatTextSuppressionReason.PoolExhausted;
         switch (reason)
         {
             case CombatTextSuppressionReason.Mode:
@@ -740,11 +759,83 @@ public sealed class CombatTextDirector
         ? _options.Quality
         : GameFeelQualityLevel.High;
 
-    private Vector3 ResolveWorldPosition(in CombatTextAggregate aggregate)
+    private void RetryPendingViews(float now)
     {
-        if (aggregate.IsBurnFamily && aggregate.Target != null)
-            return ResolveBurnAnchor(aggregate.Target);
-        return aggregate.WorldPosition;
+        // Fixed record capacity, bounded attempts, and round-robin fairness. Retry within
+        // this frame's remaining budget; never reset the budget before this pass.
+        int attempts = 0;
+        int limit = _profile.GetStartLimit(CurrentQuality);
+        for (int scanned = 0; scanned < _slots.Length && attempts < limit; scanned++)
+        {
+            int index = _retryCursor;
+            _retryCursor = (_retryCursor + 1) % _slots.Length;
+            ref AggregateSlot slot = ref _slots[index];
+            if (!slot.Active || !slot.PendingView || slot.View != null)
+                continue;
+            if (now - slot.Aggregate.FirstEventTime >= MaximumPendingDelay)
+            {
+                slot.PendingView = false;
+                continue;
+            }
+            attempts++;
+            TryStartView(index, now);
+        }
+    }
+
+    private Vector3 ResolveWorldPosition(in AggregateSlot slot)
+    {
+        if (slot.Aggregate.IsBurnFamily && slot.Aggregate.Target != null)
+            return ResolveBurnAnchor(slot.Aggregate.Target);
+        return slot.Aggregate.IsBurnFamily ? slot.Aggregate.WorldPosition : slot.DisplayPosition;
+    }
+
+    private Vector3 ResolveDirectPosition(in CombatTextAggregate aggregate)
+    {
+        Vector3 position = aggregate.WorldPosition;
+        if (aggregate.Target == null)
+            return position;
+
+        // Sample once per damage event, not per animated view per frame. Reuse lists
+        // and include child geometry so large bodies and hit-zone targets are covered.
+        EnemyHealth health = aggregate.Target.GetComponentInParent<EnemyHealth>(true);
+        Transform geometryRoot = health != null ? health.transform : aggregate.Target;
+        geometryRoot.GetComponentsInChildren(true, _targetColliders);
+        geometryRoot.GetComponentsInChildren(true, _targetRenderers);
+        Bounds bounds = default;
+        bool hasBounds = false;
+        for (int i = 0; i < _targetColliders.Count; i++)
+        {
+            Collider collider = _targetColliders[i];
+            if (!collider.enabled || !collider.gameObject.activeInHierarchy || collider.isTrigger)
+                continue;
+            Encapsulate(collider.bounds, ref bounds, ref hasBounds);
+        }
+        for (int i = 0; i < _targetRenderers.Count; i++)
+        {
+            Renderer renderer = _targetRenderers[i];
+            if (renderer.enabled && renderer is not ParticleSystemRenderer)
+                Encapsulate(renderer.bounds, ref bounds, ref hasBounds);
+        }
+        if (!hasBounds)
+            return position;
+
+        Bounds padded = bounds;
+        padded.Expand(_profile.WorldAnchorClearance * 2f);
+        if (padded.Contains(position))
+        {
+            // Allow for the downward lane and camera bias after anchor resolution.
+            position.y = bounds.max.y + _profile.WorldAnchorClearance +
+                _profile.LaneSpacing * _profile.WorldUnitsPerMotionUnit + _profile.CameraSurfaceBias;
+        }
+        return position;
+    }
+
+    private static void Encapsulate(Bounds next, ref Bounds bounds, ref bool hasBounds)
+    {
+        if (next.size.sqrMagnitude <= 0f)
+            return;
+        if (hasBounds) bounds.Encapsulate(next);
+        else { bounds = next; hasBounds = true; }
     }
 
     private Vector3 ResolveBurnAnchor(Transform target)

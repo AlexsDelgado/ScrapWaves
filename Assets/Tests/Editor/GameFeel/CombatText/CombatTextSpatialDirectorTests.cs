@@ -1,8 +1,11 @@
+using System.Collections.Generic;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
 
 public sealed class CombatTextSpatialDirectorTests
 {
+    private readonly List<GameObject> _extraTargets = new();
     private CombatTextProfile _profile;
     private GameObject _runtimeRoot;
     private GameObject _cameraObject;
@@ -40,6 +43,8 @@ public sealed class CombatTextSpatialDirectorTests
     public void TearDown()
     {
         _director?.Dispose();
+        foreach (GameObject target in _extraTargets) Object.DestroyImmediate(target);
+        _extraTargets.Clear();
         Object.DestroyImmediate(_target);
         Object.DestroyImmediate(_cameraObject);
         Object.DestroyImmediate(_runtimeRoot);
@@ -166,10 +171,204 @@ public sealed class CombatTextSpatialDirectorTests
         _director = null;
     }
 
+    [TestCase(0.4f)]
+    [TestCase(1.2f)]
+    [TestCase(2.4f)]
+    [TestCase(5f)]
+    public void InteriorDirectNumberClearsScaledBoundsEvenWithDownwardLaneAndCameraBias(float size)
+    {
+        _profile.LaneSpacing = 20f;
+        _profile.CameraSurfaceBias = 0.05f;
+        _target.transform.localScale = Vector3.one * size;
+        CapsuleCollider collider = _target.AddComponent<CapsuleCollider>();
+        collider.height = 1.2f;
+        Physics.SyncTransforms();
+        WeaponFeedbackContext context = CreateContext(_target.transform.position, DamageFeedbackKind.Explosion);
+        Assert.That(_director.TryEmit(in context, 0f), Is.True);
+        Assert.That(FindActiveView().transform.position.y,
+            Is.GreaterThanOrEqualTo(collider.bounds.max.y + _profile.WorldAnchorClearance - 0.0001f));
+        _target.transform.position += Vector3.right * 3f;
+        Vector3 snapshot = FindActiveView().transform.position;
+        _director.Tick(0.05f, 0.05f);
+        Assert.That(FindActiveView().transform.position, Is.EqualTo(snapshot));
+    }
+
+    [Test]
+    public void ChildRendererOutsideRootColliderIsIncludedWithoutMovingExternalImpacts()
+    {
+        _target.AddComponent<BoxCollider>();
+        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        _extraTargets.Add(body);
+        body.transform.SetParent(_target.transform, false);
+        body.transform.localScale = new Vector3(2f, 4f, 2f);
+        Object.DestroyImmediate(body.GetComponent<Collider>());
+        WeaponFeedbackContext context = CreateContext(new Vector3(0f, 1f, 0f), DamageFeedbackKind.Direct);
+        Assert.That(_director.TryEmit(in context, 0f), Is.True);
+        Assert.That(FindActiveView().transform.position.y, Is.GreaterThan(body.GetComponent<Renderer>().bounds.max.y));
+        _director.StopAll();
+        Vector3 outside = new(3f, 1f, 0f);
+        context = CreateContext(outside, DamageFeedbackKind.Direct);
+        Assert.That(_director.TryEmit(in context, 0f), Is.True);
+        Assert.That(FindActiveView().transform.position, Is.EqualTo(outside));
+    }
+
+    [Test]
+    public void BurstOverFrameBudgetAutomaticallyRecoversEveryDistinctTarget()
+    {
+        RebuildDirector(16, 16, 3);
+        for (int i = 0; i < 8; i++)
+        {
+            GameObject target = ExtraTarget(i);
+            WeaponFeedbackContext context = CreateContext(target.transform.position, DamageFeedbackKind.Direct, target: target.transform);
+            _director.TryEmit(in context, 0f);
+        }
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(2));
+        _director.Tick(0f, 0f); // Same frame remains capped.
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(2));
+        for (int i = 1; i <= 3; i++) _director.Tick(i * 0.016f, 0.016f);
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(8));
+        Assert.That(_director.Metrics.SumAppliedDamageReceived, Is.EqualTo(96));
+        Assert.That(_director.ActiveViewCount, Is.EqualTo(8));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void PendingTotalsSurviveActiveCapOrPoolExhaustionAndSequenceClosure(bool poolExhaustion)
+    {
+        RebuildDirector(1, 1, 7);
+        if (poolExhaustion) _profile.LowActiveViews = 2; // Raise limit after fixed pool creation.
+        WeaponFeedbackContext first = CreateContext(Vector3.zero, DamageFeedbackKind.Direct);
+        Assert.That(_director.TryEmit(in first, 0f), Is.True);
+        GameObject target = ExtraTarget(1);
+        WeaponFeedbackContext pending = CreateContext(target.transform.position, DamageFeedbackKind.Direct,
+            target: target.transform, damageAmount: 7, actionSequenceId: 456);
+        Assert.That(_director.TryEmit(in pending, 0f), Is.False);
+        Assert.That(_director.Metrics.LastSuppressionReason, Is.EqualTo(poolExhaustion
+            ? CombatTextSuppressionReason.PoolExhausted : CombatTextSuppressionReason.Density));
+        pending = CreateContext(target.transform.position, DamageFeedbackKind.Direct,
+            target: target.transform, damageAmount: 9, actionSequenceId: 456);
+        Assert.That(_director.TryEmit(in pending, 0.05f), Is.False);
+        _director.NotifySequenceCompleted(456, 0.06f);
+        _director.Tick(0.9f, 0.9f);
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(2));
+        Assert.That(FindActiveView().GetComponentInChildren<TextMeshPro>().text, Is.EqualTo("16"));
+        Assert.That(_director.Metrics.SumAppliedDamageReceived, Is.EqualTo(28));
+    }
+
+    [Test]
+    public void PendingBacklogExpiresAndNeverReplaysCompletedViews()
+    {
+        RebuildDirector(1, 1, 7);
+        _profile.NormalMotion.Lifetime = 2f;
+        WeaponFeedbackContext first = CreateContext(Vector3.zero, DamageFeedbackKind.Direct);
+        _director.TryEmit(in first, 0f);
+        GameObject target = ExtraTarget(1);
+        WeaponFeedbackContext pending = CreateContext(target.transform.position, DamageFeedbackKind.Direct, target: target.transform);
+        _director.TryEmit(in pending, 0f);
+        _director.Tick(1.3f, 1.3f);
+        _director.Tick(2.1f, 0.8f);
+        _director.Tick(2.2f, 0.1f);
+        Assert.That(_director.ActiveAggregateCount, Is.Zero);
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(1));
+        Assert.That(_director.Metrics.SumAppliedDamageReceived, Is.EqualTo(24));
+    }
+
+    [Test]
+    public void LateDirectMergeKeepsExactTotalReadableWithoutSpawningAgain()
+    {
+        WeaponFeedbackContext context = CreateContext(Vector3.zero, DamageFeedbackKind.Direct, actionSequenceId: 789);
+        _director.TryEmit(in context, 0f);
+        _director.Tick(0.75f, 0.75f);
+        Assert.That(FindActiveView().GetComponentInChildren<TextMeshPro>().alpha, Is.LessThan(0.2f));
+        _director.TryEmit(in context, 0.75f);
+        Assert.That(FindActiveView().IsFading, Is.False);
+        _director.Tick(0.9f, 0.15f);
+        TextMeshPro text = FindActiveView().GetComponentInChildren<TextMeshPro>();
+        Assert.That(text.text, Is.EqualTo("24"));
+        Assert.That(text.alpha, Is.EqualTo(1f).Within(0.001f));
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(1));
+        Assert.That(_director.Metrics.MergedEvents, Is.EqualTo(1));
+        _director.Tick(1.3f, 0.4f);
+        Assert.That(_director.ActiveViewCount, Is.Zero);
+    }
+
+    [Test]
+    public void HitZoneUsesParentEnemyGeometryAndInactiveRendererStillClearsKillingHit()
+    {
+        _target.AddComponent<EnemyHealth>();
+        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        _extraTargets.Add(body);
+        body.transform.SetParent(_target.transform, false);
+        body.transform.localScale = new Vector3(2f, 4f, 2f);
+        GameObject zone = ExtraTarget(0);
+        zone.transform.SetParent(_target.transform, false);
+        zone.AddComponent<EnemyDamageHitZone>();
+        Bounds bounds = body.GetComponent<Renderer>().bounds;
+        _target.SetActive(false); // Killing damage can despawn before emitting feedback.
+        WeaponFeedbackContext context = CreateContext(Vector3.zero, DamageFeedbackKind.Direct, target: zone.transform);
+        Assert.That(_director.TryEmit(in context, 0f), Is.True);
+        Assert.That(FindActiveView().transform.position.y, Is.GreaterThan(bounds.max.y));
+    }
+
+    [Test]
+    public void BurnDensityRecoversPendingClosedSegmentWithExactTotal()
+    {
+        RebuildDirector(4, 4, 7);
+        WeaponFeedbackContext first = CreateContext(Vector3.zero, DamageFeedbackKind.Burn, statusInstanceId: 11);
+        Assert.That(_director.TryEmit(in first, 0f), Is.True);
+        GameObject target = ExtraTarget(1);
+        WeaponFeedbackContext pending = CreateContext(target.transform.position, DamageFeedbackKind.Burn,
+            statusInstanceId: 22, target: target.transform);
+        Assert.That(_director.TryEmit(in pending, 0f), Is.False);
+        Assert.That(_director.Metrics.LastSuppressionReason, Is.EqualTo(CombatTextSuppressionReason.BurnDensity));
+        _director.NotifyStatusSegmentClosed(_target.transform, WeaponStatusKind.Burn, 11, 0, 0.01f);
+        _director.NotifyStatusSegmentClosed(target.transform, WeaponStatusKind.Burn, 22, 0, 0.01f);
+        _director.Tick(0.5f, 0.5f);
+        Assert.That(_director.Metrics.ViewsSpawned, Is.EqualTo(2));
+        Assert.That(FindActiveView().IsReleased, Is.True);
+        Assert.That(FindActiveView().GetComponentInChildren<TextMeshPro>().text, Is.EqualTo("12"));
+        _director.Tick(1f, 0.5f);
+        Assert.That(_director.ActiveViewCount, Is.Zero);
+    }
+
+    [Test]
+    public void WarmedPendingRetryTickDoesNotAllocateManagedMemory()
+    {
+        RebuildDirector(1, 1, 7);
+        WeaponFeedbackContext first = CreateContext(Vector3.zero, DamageFeedbackKind.Direct);
+        _director.TryEmit(in first, 0f);
+        GameObject target = ExtraTarget(1);
+        WeaponFeedbackContext pending = CreateContext(target.transform.position, DamageFeedbackKind.Direct, target: target.transform);
+        _director.TryEmit(in pending, 0f);
+        _director.Tick(0.01f, 0.01f);
+        _director.Tick(0.02f, 0.01f);
+        Assert.That(_director.Metrics.LastUpdateManagedAllocationBytes, Is.Zero);
+    }
+    private GameObject ExtraTarget(int index)
+    {
+        GameObject target = new("Pending target " + index);
+        target.transform.position = new Vector3(index * 0.2f, 0f, 0f);
+        _extraTargets.Add(target);
+        return target;
+    }
+
+    private void RebuildDirector(int active, int pool, int starts)
+    {
+        _director.Dispose();
+        _profile.LowActiveViews = active;
+        _profile.LowPrewarmViews = pool;
+        _profile.LowStartsPerFrame = starts;
+        _profile.Sanitize();
+        _director = new CombatTextDirector(_runtimeRoot.transform, _camera, _profile,
+            new GameFeelRuntimeOptions { Quality = GameFeelQualityLevel.Low });
+    }
     private WeaponFeedbackContext CreateContext(
         Vector3 impactPosition,
         DamageFeedbackKind damageKind,
-        int statusInstanceId = 0)
+        int statusInstanceId = 0,
+        Transform target = null,
+        int damageAmount = 12,
+        int actionSequenceId = 0)
     {
         return new WeaponFeedbackContext(
             weapon: null,
@@ -179,9 +378,10 @@ public sealed class CombatTextSpatialDirectorTests
             direction: Vector3.forward,
             impactPosition: impactPosition,
             impactNormal: Vector3.back,
-            damageAmount: 12,
-            target: _target.transform,
+            damageAmount: damageAmount,
+            target: target != null ? target : _target.transform,
             referenceDamage: 10f,
+            actionSequenceId: actionSequenceId,
             damageKind: damageKind,
             statusInstanceId: statusInstanceId,
             statusKind: WeaponStatusKind.Burn,
