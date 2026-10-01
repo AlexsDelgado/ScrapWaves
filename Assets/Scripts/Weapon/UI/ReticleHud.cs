@@ -61,6 +61,13 @@ public class ReticleHud : MonoBehaviour
     [SerializeField] private RectTransform _rocketFrame;
     [SerializeField] private Image[] _authoredTintImages = System.Array.Empty<Image>();
 
+    [Header("Manual Weapon Transition")]
+    [SerializeField, Range(0f, 1f)] private float _incomingReticleOpacity = 0.22f;
+    [SerializeField, Min(8f)] private float _manualCycleRingDiameter = 64f;
+    [SerializeField] private Image _manualCycleTrack;
+    [SerializeField] private Image _manualCycleProgress;
+    [SerializeField] private CanvasGroup[] _reticleGroups = System.Array.Empty<CanvasGroup>();
+
     private WeaponTestingSandboxManager _sandbox;
     [SerializeField] private GameObject _mortarMarkerRoot;
     [SerializeField] private LineRenderer _mortarLandingRing;
@@ -118,23 +125,26 @@ public class ReticleHud : MonoBehaviour
             return;
 
         ResolveDependencies();
-        WeaponInstance runtime = ResolveManualWeapon();
+        bool transitioning = !UsesSandbox() && _weaponManager != null && _weaponManager.IsManualCycleInProgress;
+        WeaponInstance runtime = transitioning ? _weaponManager.GetPendingManualWeapon() : ResolveManualWeapon();
         IWeaponBehaviour behaviour = ResolveManualBehaviour();
         if (runtime?.Data == null || behaviour == null)
         {
             ApplyMode(ReticleMode.Hidden);
+            ApplyManualCycle(false, 1f);
             SetMortarMarkerVisible(false);
             return;
         }
 
         // Weapon behavior stays authoritative; the HUD only reads presentation status.
-        bool rocketCharging = behaviour is IRocketReticleStatus rocketStatus
+        bool rocketCharging = !transitioning && behaviour is IRocketReticleStatus rocketStatus
             && rocketStatus.IsTargetingActive;
         ReticleMode mode = ReticlePresentationLogic.ResolveMode(
             runtime.Data.WeaponType,
             rocketCharging);
 
         ApplyMode(mode);
+        ApplyManualCycle(transitioning, transitioning ? _weaponManager.GetManualCooldownNormalized() : 1f);
         // Reticle roots stay at their centered canvas anchors. Assisted shot targets
         // affect combat and mortar prediction, never the screen-space crosshair.
         if (mode == ReticleMode.RocketLock && behaviour is IRocketReticleStatus rocket)
@@ -142,7 +152,7 @@ public class ReticleHud : MonoBehaviour
         else
             ResetRocketFrame();
 
-        if (mode == ReticleMode.Mortar && behaviour is IMortarReticleStatus mortar)
+        if (!transitioning && mode == ReticleMode.Mortar && behaviour is IMortarReticleStatus mortar)
             UpdateMortarMarker(runtime, mortar);
         else
         {
@@ -234,12 +244,37 @@ public class ReticleHud : MonoBehaviour
             BuildUi(uiRoot);
             _authoredTintImages = _reticleTintImages.ToArray();
         }
+        AuthorManualCycleUi();
         if (_mortarMarkerRoot == null) BuildMortarMarker(uiRoot);
         AuthorMortarProfileMarkers(uiRoot);
         CacheReticleTintColors();
         ApplyMode(ReticleMode.CircleDot);
         SetMortarMarkerVisible(false);
         SetVisible(_visibleOnStart);
+        EditorUtility.SetDirty(this);
+    }
+
+    public void AuthorManualCycleUi()
+    {
+        var groups = new List<CanvasGroup>();
+        foreach (RectTransform root in new[] { _wideBracketRoot, _circleDotRoot, _mortarVRoot, _rocketFrame })
+        {
+            CanvasGroup group = root.GetComponent<CanvasGroup>();
+            if (group == null) group = root.gameObject.AddComponent<CanvasGroup>();
+            groups.Add(group);
+        }
+        _reticleGroups = groups.ToArray();
+        if (_manualCycleProgress != null && _manualCycleTrack != null) return;
+        RectTransform ring = CreateCenteredRoot("ManualCycleReadiness", Vector2.one * _manualCycleRingDiameter);
+        Sprite sprite = CreateRingSprite();
+        _manualCycleTrack = CreateImage(ring, "Track", Vector2.zero, ring.sizeDelta,
+            new Color(1f, 1f, 1f, 0.12f), sprite);
+        _manualCycleProgress = CreateImage(ring, "Progress", Vector2.zero, ring.sizeDelta, _lineColor, sprite);
+        _manualCycleProgress.type = Image.Type.Filled;
+        _manualCycleProgress.fillMethod = Image.FillMethod.Radial360;
+        _manualCycleProgress.fillOrigin = 2;
+        _manualCycleProgress.fillClockwise = true;
+        ApplyManualCycle(false, 1f);
         EditorUtility.SetDirty(this);
     }
 
@@ -406,6 +441,18 @@ public class ReticleHud : MonoBehaviour
         SetRootActive(_circleDotRoot, mode == ReticleMode.CircleDot);
         SetRootActive(_mortarVRoot, mode == ReticleMode.Mortar);
         SetRootActive(_rocketFrame, mode == ReticleMode.RocketLock);
+    }
+
+    private void ApplyManualCycle(bool transitioning, float progress)
+    {
+        foreach (CanvasGroup group in _reticleGroups)
+            if (group != null) group.alpha = transitioning ? _incomingReticleOpacity : 1f;
+        if (_manualCycleTrack != null) _manualCycleTrack.gameObject.SetActive(transitioning);
+        if (_manualCycleProgress != null)
+        {
+            _manualCycleProgress.gameObject.SetActive(transitioning);
+            _manualCycleProgress.fillAmount = Mathf.Clamp01(progress);
+        }
     }
 
     private void UpdateRocketFrame(IRocketReticleStatus rocket)

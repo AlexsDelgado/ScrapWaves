@@ -18,12 +18,18 @@ public class WeaponManager : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("How long the body briefly faces reticle aim when manual fire starts.")]
     private float _aimFacingHoldTime = 0.08f;
 
-    [SerializeField] private float _manualCycleCooldown = 1.25f;
-    [SerializeField] private float _singleWeaponCycleCooldown = 2.5f;
+    [SerializeField, Min(0f), Tooltip("Manual fire lockout between equipped weapons, in gameplay seconds.")] private float _manualCycleCooldown = 3f;
+    [SerializeField, Min(0f), Tooltip("Manual fire lockout when reloading the only equipped weapon.")] private float _singleWeaponCycleCooldown = 6f;
 
     private readonly List<IWeaponBehaviour> _equipped = new();
     private int _currentManualIndex;
     private float _manualCooldownTimer;
+    private float _activeManualCycleDuration;
+    private int _pendingManualIndex = -1;
+
+    public bool IsManualCycleInProgress => _pendingManualIndex >= 0 && _manualCooldownTimer > 0f;
+    public WeaponInstance GetPendingManualWeapon() => _pendingManualIndex >= 0 && _pendingManualIndex < _equipped.Count
+        ? _equipped[_pendingManualIndex].Runtime : null;
 
     private PlayerStats _stats;
     private PlayerMovement _movement;
@@ -57,7 +63,7 @@ public class WeaponManager : MonoBehaviour
     private void Update()
     {
         Vector3 aimDirection = GetAimDirection();
-        if (Time.timeScale <= 0f)
+        if (Time.timeScale <= 0f || GameplayPause.IsUiPaused)
             return;
 
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
@@ -72,10 +78,10 @@ public class WeaponManager : MonoBehaviour
             _animationDriver.EvaluatePoseForWeapons(Time.deltaTime, CurrentAimSolution.TargetPoint);
             aimDirection = GetAimDirection();
         }
+        UpdateManualCycle(Time.deltaTime);
         _mountController?.RefreshWeaponModes();
         UpdateAutomaticWeapons(Time.deltaTime, aimDirection);
         UpdateManualWeapon(Time.deltaTime, aimDirection);
-        UpdateManualCycle(Time.deltaTime);
     }
 
     // Returns equipped weapon behaviors in immutable list form.
@@ -207,7 +213,7 @@ public class WeaponManager : MonoBehaviour
 
     public float GetManualCooldownNormalized()
     {
-        float duration = GetManualCycleCooldownDuration();
+        float duration = _activeManualCycleDuration;
         if (duration <= 0f || _manualCooldownTimer <= 0f)
             return 1f;
         return 1f - Mathf.Clamp01(_manualCooldownTimer / duration);
@@ -229,7 +235,7 @@ public class WeaponManager : MonoBehaviour
     public bool CanUseAbility()
     {
         WeaponInstance weapon = GetCurrentManualWeapon();
-        if (weapon?.Data == null || weapon.State != WeaponState.Manual)
+        if (IsManualCycleInProgress || weapon?.Data == null || weapon.State != WeaponState.Manual)
             return false;
         if (weapon.AbilityCooldownTimer > 0f)
             return false;
@@ -264,11 +270,14 @@ public class WeaponManager : MonoBehaviour
     // Removes every equipped weapon so a run can start from an empty loadout.
     public void ClearEquippedWeapons()
     {
+        CancelHeldAbilities();
         foreach (IWeaponBehaviour weapon in _equipped)
             if (weapon is FlamethrowerWeapon flame) flame.ClearManualAreas();
         _equipped.Clear();
         _currentManualIndex = 0;
         _manualCooldownTimer = 0f;
+        _activeManualCycleDuration = 0f;
+        _pendingManualIndex = -1;
         _mountController?.ClearWeapons();
     }
 
@@ -285,7 +294,8 @@ public class WeaponManager : MonoBehaviour
             runtime.AbilityCooldownTimer = 0f;
         }
 
-        _manualCooldownTimer = 0f;
+        if (_pendingManualIndex >= 0) StartManualMode(_pendingManualIndex);
+        else _manualCooldownTimer = 0f;
     }
 
     // Creates concrete behavior for each weapon type.
@@ -319,7 +329,7 @@ public class WeaponManager : MonoBehaviour
     // Routes input and active ability usage to manual weapon.
     private void UpdateManualWeapon(float deltaTime, Vector3 aimDirection)
     {
-        if (_equipped.Count == 0)
+        if (_equipped.Count == 0 || IsManualCycleInProgress)
             return;
 
         bool fireHeld = IsFireHeld();
@@ -418,12 +428,12 @@ public class WeaponManager : MonoBehaviour
         if (_manualCooldownTimer <= 0f)
             return;
 
-        _manualCooldownTimer -= deltaTime;
+        _manualCooldownTimer = Mathf.Max(0f, _manualCooldownTimer - Mathf.Max(0f, deltaTime));
         if (_manualCooldownTimer > 0f)
             return;
 
-        int next = _equipped.Count == 0 ? 0 : (_currentManualIndex + 1) % _equipped.Count;
-        StartManualMode(next);
+        int next = _pendingManualIndex;
+        if (next >= 0 && next < _equipped.Count) StartManualMode(next);
     }
 
     // Activates manual state and refills ammo from runtime formulas.
@@ -435,6 +445,8 @@ public class WeaponManager : MonoBehaviour
         CancelHeldAbilities();
         _currentManualIndex = Mathf.Clamp(index, 0, _equipped.Count - 1);
         _manualCooldownTimer = 0f;
+        _activeManualCycleDuration = 0f;
+        _pendingManualIndex = -1;
 
         for (int i = 0; i < _equipped.Count; i++)
         {
@@ -451,7 +463,7 @@ public class WeaponManager : MonoBehaviour
         GetAimDirection();
     }
 
-    // Returns current manual weapon to automatic and immediately selects the next slot.
+    // Returns the outgoing weapon to automatic while manual input waits for the incoming weapon.
     private void EndManualMode()
     {
         if (_equipped.Count == 0)
@@ -461,9 +473,13 @@ public class WeaponManager : MonoBehaviour
         if (runtime == null || runtime.State != WeaponState.Manual)
             return;
 
+        CancelHeldAbilities();
         runtime.State = WeaponState.Automatic;
-        int next = (_currentManualIndex + 1) % _equipped.Count;
-        StartManualMode(next);
+        _pendingManualIndex = (_currentManualIndex + 1) % _equipped.Count;
+        _activeManualCycleDuration = Mathf.Max(0f, GetManualCycleCooldownDuration());
+        _manualCooldownTimer = _activeManualCycleDuration;
+        _mountController?.RefreshWeaponModes();
+        if (_manualCooldownTimer <= 0f) StartManualMode(_pendingManualIndex);
     }
 
     private void CancelHeldAbilities()

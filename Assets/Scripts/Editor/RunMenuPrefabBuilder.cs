@@ -288,7 +288,8 @@ public static class RunMenuPrefabBuilder
         AcrossTop(view.UpgradeLevelText.rectTransform, 0f, 48f, 40f);
         TMP_Text configuredHeading = Label(panel, "ConfiguredStatsHeading", "Configured weapon stats", 18f,
             FontStyles.Normal, TextAlignmentOptions.Left, MutedSteel);
-        AcrossTop(configuredHeading.rectTransform, 0f, 99f, 27f);
+        AcrossTop(configuredHeading.rectTransform, 0f, 88f, 40f);
+        view.UpgradePreviewNotice = configuredHeading;
         string[] labels = { "Damage", "Auto range", "Manual ammo" };
         view.UpgradeStatLabels = new TMP_Text[3];
         view.UpgradeStatValues = new TMP_Text[3];

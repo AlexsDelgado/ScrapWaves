@@ -20,7 +20,7 @@ public sealed class WeaponManagerSandboxParityTests
     }
 
     [Test]
-    public void EmptyManualAmmo_CyclesImmediatelyAndRestoresAutomaticState()
+    public void EmptyManualAmmo_WaitsThreeSecondsThenRestoresManualState()
     {
         WeaponManager manager = CreateWeaponManager(CreateWeapon("Cannon"), CreateWeapon("Rocket"));
         IReadOnlyList<IWeaponBehaviour> equipped = manager.GetEquippedWeapons();
@@ -31,6 +31,13 @@ public sealed class WeaponManagerSandboxParityTests
 
         InvokePrivate(manager, "UpdateManualWeapon", 0f, Vector3.forward);
 
+        Assert.That(manager.GetCurrentManualWeaponIndex(), Is.Zero);
+        Assert.That(manager.GetPendingManualWeapon(), Is.SameAs(second));
+        Assert.That(manager.GetManualCooldownRemaining(), Is.EqualTo(3f));
+        Assert.That(manager.CanUseAbility(), Is.False);
+        InvokePrivate(manager, "UpdateManualCycle", 2.99f);
+        Assert.That(second.State, Is.EqualTo(WeaponState.Automatic));
+        InvokePrivate(manager, "UpdateManualCycle", 0.01f);
         Assert.That(manager.GetCurrentManualWeaponIndex(), Is.EqualTo(1));
         Assert.That(first.State, Is.EqualTo(WeaponState.Automatic));
         Assert.That(second.State, Is.EqualTo(WeaponState.Manual));

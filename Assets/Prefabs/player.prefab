@@ -799,8 +799,8 @@ MonoBehaviour:
   _presentationController: {fileID: 901000008}
   _mountController: {fileID: 901000009}
   _aimFacingHoldTime: 0.08
-  _manualCycleCooldown: 1.25
-  _singleWeaponCycleCooldown: 2.5
+  _manualCycleCooldown: 3
+  _singleWeaponCycleCooldown: 6
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0

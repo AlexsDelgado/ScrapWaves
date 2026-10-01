@@ -341,6 +341,11 @@ public sealed class AutomaticWeaponMountTests
         InvokePrivate(manager, "UpdateManualWeapon", 0f, Vector3.forward);
 
         Assert.That(weapons[0].Runtime.State, Is.EqualTo(WeaponState.Automatic));
+        Assert.That(weapons[1].Runtime.State, Is.EqualTo(WeaponState.Automatic));
+        Assert.That(manager.GetManualCooldownRemaining(), Is.EqualTo(3f));
+        AssertNativeIndicatorState(cannonMount, true);
+        AssertNativeIndicatorState(rocketMount, true);
+        InvokePrivate(manager, "UpdateManualCycle", 3f);
         Assert.That(weapons[1].Runtime.State, Is.EqualTo(WeaponState.Manual));
         Assert.That(((IWeaponFireOriginReceiver)weapons[0]).FireOrigin.Muzzle, Is.SameAs(cannonMount.Muzzle));
         Assert.That(((IWeaponFireOriginReceiver)weapons[1]).FireOrigin.Muzzle, Is.SameAs(main));

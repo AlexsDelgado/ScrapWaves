@@ -42,6 +42,7 @@ public sealed class CraftingMenuView : MonoBehaviour
     public GameObject UpgradePanel;
     public TMP_Text UpgradeNameText;
     public TMP_Text UpgradeLevelText;
+    public TMP_Text UpgradePreviewNotice;
     public TMP_Text[] UpgradeStatLabels;
     public TMP_Text[] UpgradeStatValues;
     public TMP_Text UpgradeCostText;

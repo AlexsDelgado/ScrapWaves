@@ -188,49 +188,37 @@ public class CraftingUI : MonoBehaviour
         int next = Mathf.Min(10, weapon.Level + 1);
         _view.UpgradeNameText.text = weapon.Data.DisplayName;
         _view.UpgradeLevelText.text = maximum ? $"LV {weapon.Level} · Maximum level" : $"LV {weapon.Level} → {next}";
-        string[] ids = { "Damage", weapon.Data.WeaponType == WeaponType.RotatingBlade ? "Auto blade length (m)" : "Auto mode range (m)", "Manual ammo" };
-        string[] labels = { "Damage", weapon.Data.WeaponType == WeaponType.RotatingBlade ? "Auto blade length" : "Auto range", "Manual ammo" };
-        if (weapon.Data.WeaponType == WeaponType.RotatingBlade
-            && float.IsNaN(weapon.Data.TryGetBalanceStat(ids[1], weapon.Level, weapon.SelectedPath, float.NaN)))
-        {
-            ids[1] = "Configured orbit radius";
-            labels[1] = "Auto orbit radius";
-        }
-        for (int i = 0; i < 3; i++)
-        {
-            _view.UpgradeStatLabels[i].text = labels[i];
-            string current = FormatTuning(weapon.Data, ids[i], weapon.Level, weapon.SelectedPath);
-            string future = FormatTuning(weapon.Data, ids[i], next, weapon.SelectedPath);
-            _view.UpgradeStatValues[i].text = (maximum ? current : $"{current} → {future}") + (i == 1 ? " m" : string.Empty);
-        }
+        IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
+        IWeaponBehaviour behaviour = _selectedSlot < equipped.Count ? equipped[_selectedSlot] : null;
+        BindUpgradePreview(_view, behaviour, maximum);
         IReadOnlyList<MaterialCost> cost = _crafting.GetUpgradeCost(weapon.Data, weapon.SelectedPath, next);
         _view.UpgradeReadout?.Bind(_inventory, cost, maximum ? "No further upgrades" : null);
         _view.UpgradeCostText.text = maximum ? "No further upgrades" : BuildCostText(cost);
         _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost);
         _view.UpgradeButtonText.text = maximum ? "MAX LEVEL" : "UPGRADE";
     }
-    // Configured weapon tuning only: no player modifiers, heat or combat rolls.
+    public static void BindUpgradePreview(CraftingMenuView view, IWeaponBehaviour behaviour, bool maximum = false)
+    {
+        CraftingUpgradePreview preview = CraftingUpgradePreview.Build(behaviour, maximum);
+        for (int i = 0; i < 3; i++)
+        {
+            view.UpgradeStatLabels[i].text = preview.Rows[i].Label;
+            view.UpgradeStatValues[i].text = preview.Rows[i].Value;
+        }
+        if (view.UpgradePreviewNotice != null) view.UpgradePreviewNotice.text = preview.Notice;
+    }
+
+    // Neutral configured tuning, shared with gameplay; CSV metadata is never the authority here.
     public static string FormatTuning(WeaponData data, string statId, int level, WeaponUpgradePath path)
     {
-        float value = data.TryGetBalanceStat(statId, level, path, float.NaN);
-        if (float.IsNaN(value))
-        {
-            // Legacy assets can have level/path tuning without imported balance rows.
-            var preview = new WeaponInstance { Data = data, Level = level, SelectedPath = path };
-            if (statId == "Damage")
-                value = Mathf.Max(0f, data.BaseDamage) * WeaponDamageResolver.GetLevelDamageMultiplier(preview)
-                    * WeaponDamageResolver.GetPathDamageMultiplier(preview);
-            else if (statId == "Auto mode range (m)") value = data.BaseRange;
-            else if (statId == "Configured orbit radius") value = data.RotatingBlade.BladeOrbitRadius;
-            else if (statId == "Manual ammo")
-            {
-                WeaponLevelData tuning = WeaponMath.GetLevelData(preview);
-                WeaponUpgradePathData pathTuning = WeaponMath.GetPathData(preview);
-                value = Mathf.Max(0f, data.BaseManualAmmo) * (tuning != null ? Mathf.Max(0.01f, tuning.ManualAmmoMultiplier) : 1f);
-                if (pathTuning != null && pathTuning.ManualAmmoOverride >= 0f) value = pathTuning.ManualAmmoOverride;
-            }
-        }
-        return float.IsNaN(value) ? "—" : value.ToString("0.##", CultureInfo.InvariantCulture);
+        var preview = new WeaponInstance { Data = data, Level = level, SelectedPath = path };
+        float value = float.NaN;
+        if (statId == "Damage") value = Mathf.Max(0f, data.BaseDamage)
+            * WeaponDamageResolver.GetLevelDamageMultiplier(preview) * WeaponDamageResolver.GetPathDamageMultiplier(preview);
+        else if (statId == "Auto mode range (m)") value = data.BaseRange;
+        else if (statId == "Configured orbit radius") value = data.RotatingBlade.BladeOrbitRadius;
+        else if (statId == "Manual ammo") value = WeaponMath.GetManualAmmoCapacity(preview);
+        return float.IsNaN(value) ? "-" : value.ToString("0.##", CultureInfo.InvariantCulture);
     }
     private void ShowTinker(int slot)
     {

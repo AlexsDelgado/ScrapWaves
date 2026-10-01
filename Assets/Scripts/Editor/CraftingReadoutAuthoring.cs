@@ -42,8 +42,25 @@ public static class CraftingReadoutAuthoring
         try { author(root); PrefabUtility.SaveAsPrefabAsset(root, path); }
         finally { PrefabUtility.UnloadPrefabContents(root); }
     }
+    [MenuItem("ScrapWaves/UI/Author Gameplay Upgrade Preview Notice")]
+    public static void AuthorUpgradeNotice()
+    {
+        Modify(RunMenuPrefabBuilder.CraftingPrefabPath, root => AuthorNotice(root.GetComponent<CraftingMenuView>()));
+    }
+    private static void AuthorNotice(CraftingMenuView view)
+    {
+        view.UpgradePreviewNotice = view.UpgradePanel.transform.Find("ConfiguredStatsHeading").GetComponent<TMP_Text>();
+        view.UpgradePreviewNotice.text = "Current gameplay stats; unchanged values are marked.";
+        view.UpgradePreviewNotice.fontSize = 16;
+        view.UpgradePreviewNotice.textWrappingMode = TextWrappingModes.Normal;
+        view.UpgradePreviewNotice.overflowMode = TextOverflowModes.Overflow;
+        view.UpgradePreviewNotice.alignment = TextAlignmentOptions.TopLeft;
+        view.UpgradePreviewNotice.rectTransform.sizeDelta = new Vector2(view.UpgradePreviewNotice.rectTransform.sizeDelta.x, 40);
+        view.UpgradePreviewNotice.rectTransform.anchoredPosition = new Vector2(view.UpgradePreviewNotice.rectTransform.anchoredPosition.x, -88);
+    }
     public static void AuthorMenu(CraftingMenuView view)
     {
+        AuthorNotice(view);
         if (view.BalanceReadout == null)
         {
             Transform parent = view.Materials[0].NameText.transform.parent.parent;

@@ -51,8 +51,14 @@ public static class WeaponMath
         if (instance == null || instance.Data == null || stats == null)
             return 0f;
 
-        float ammo = Mathf.Max(0f, instance.Data.BaseManualAmmo);
-        ammo *= GetStatScale(stats, StatType.AmmoMultiplier);
+        return GetManualAmmoCapacity(instance, GetStatScale(stats, StatType.AmmoMultiplier));
+    }
+
+    // The same configured capacity calculation supports neutral presentation previews.
+    public static float GetManualAmmoCapacity(WeaponInstance instance, float ammoScale = 1f)
+    {
+        if (instance?.Data == null) return 0f;
+        float ammo = Mathf.Max(0f, instance.Data.BaseManualAmmo) * ammoScale;
 
         WeaponLevelData levelData = GetLevelData(instance);
         WeaponUpgradePathData pathData = GetPathData(instance);

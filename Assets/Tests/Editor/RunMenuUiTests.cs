@@ -213,7 +213,7 @@ public sealed class RunMenuUiTests
 
     [TestCase(WeaponType.Flamethrower, "Auto mode range (m)", "Auto range")]
     [TestCase(WeaponType.RotatingBlade, "Auto blade length (m)", "Auto blade length")]
-    public void UpgradePreview_UsesConfiguredRowsAndActualServiceCost(WeaponType type, string rangeId, string rangeLabel)
+    public void UpgradePreview_WithoutGameplayBehaviourDoesNotPresentCsvMetadataAsLiveStats(WeaponType type, string rangeId, string rangeLabel)
     {
         CraftingHarness harness = CreateCraftingHarness(4);
         WeaponData weapon = harness.Weapons[0].Data;
@@ -226,8 +226,8 @@ public sealed class RunMenuUiTests
         weapon.BaseManualAmmo = 999f;
         Open(harness);
         Assert.That(harness.View.UpgradeStatValues.Select(label => label.text),
-            Is.EqualTo(new[] { "55 → 65", "3.5 → 4 m", "160 → 180" }));
-        Assert.That(harness.View.UpgradeStatLabels[1].text, Is.EqualTo(rangeLabel));
+            Is.EqualTo(new[] { "Unavailable", "Unavailable", "Unavailable" }));
+        Assert.That(harness.View.UpgradeStatLabels[1].text, Is.EqualTo("Range"));
         Assert.That(harness.View.UpgradeCostText.text, Is.EqualTo(CostText(harness.Service.GetUpgradeCost(weapon, WeaponUpgradePath.None, 5))));
     }
 
@@ -577,9 +577,9 @@ public sealed class RunMenuUiTests
         weapon.Data.PathB.LevelData.Add(new WeaponLevelData { Level = 6, ManualAmmoMultiplier = 2f });
         weapon.Data.PathB.LevelData.Add(new WeaponLevelData { Level = 7, ManualAmmoMultiplier = 3f });
         Open(harness);
-        Assert.That(harness.View.UpgradeStatLabels[1].text, Is.EqualTo("Auto orbit radius"));
-        Assert.That(harness.View.UpgradeStatValues[1].text, Is.EqualTo("2.2 → 2.2 m"));
-        Assert.That(harness.View.UpgradeStatValues[2].text, Is.EqualTo("40 → 40"));
+        Assert.That(CraftingUI.FormatTuning(weapon.Data, "Configured orbit radius", 6, weapon.SelectedPath), Is.EqualTo("2.2"));
+        Assert.That(CraftingUI.FormatTuning(weapon.Data, "Manual ammo", 6, weapon.SelectedPath), Is.EqualTo("40"));
+        Assert.That(CraftingUI.FormatTuning(weapon.Data, "Manual ammo", 7, weapon.SelectedPath), Is.EqualTo("40"));
     }
 
     private LevelUpChoiceUI CreateChoiceController(ChoiceMenuView level, ChoiceMenuView weapons)

@@ -3,6 +3,22 @@ using UnityEngine;
 
 public partial class BasicProjectileWeapon
 {
+    // A detached shallow copy shares read-only tuning/dependencies, but owns its
+    // hypothetical runtime. Existing mode getters therefore stay authoritative.
+    public WeaponDiagnosticsSnapshot CaptureUpgradeDiagnostics(int targetLevel)
+    {
+        if (Runtime?.Data == null) return CaptureDiagnostics();
+        var preview = (BasicProjectileWeapon)MemberwiseClone();
+        preview.Runtime = new WeaponInstance
+        {
+            Data = Runtime.Data, Level = Mathf.Clamp(targetLevel, 1, 10),
+            SelectedPath = Runtime.SelectedPath, State = Runtime.State,
+            CurrentAmmo = Runtime.CurrentAmmo, ManualCooldownTimer = Runtime.ManualCooldownTimer,
+            AbilityCooldownTimer = Runtime.AbilityCooldownTimer
+        };
+        return preview.CaptureDiagnostics();
+    }
+
     public WeaponDiagnosticsSnapshot CaptureDiagnostics()
     {
         var sections = new List<WeaponDiagnosticSection>();
