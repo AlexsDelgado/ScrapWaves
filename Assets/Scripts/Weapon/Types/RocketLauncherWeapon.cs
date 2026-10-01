@@ -6,7 +6,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
     {
         RocketLauncherTuning t = Runtime.Data.RocketLauncher;
-        var automatic = DiagnosticMode("Automatic", 1f, GetFireInterval(), Runtime.Data.BaseRange,
+        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticFireInterval(), Runtime.Data.BaseRange,
             Mathf.Max(1, t.RocketAutoBaseRocketCount + GetThresholdRocketBonus() + GetFragmentationRocketBonus()), 0f,
             knockbackScale: GetPathAdjustedKnockbackScale(false));
         var manual = DiagnosticMode("Manual", 1f, GetManualFireInterval(), Runtime.Data.BaseRange, 1, 1f,
@@ -14,7 +14,9 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         var active = DiagnosticMode("Active Ability", t.RocketActiveDamageScale, 0f, Runtime.Data.BaseRange,
             IsFragmentationCapPath() ? 1 : GetMaximumActiveRocketCount(t), Runtime.Data.ActiveAbilityAmmoCost, true,
             t.RocketActiveDamageScale * GetPathAdjustedKnockbackScale(true));
-        automatic.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketAutoExplosionRadius) * GetAreaSizeMultiplier(), " m")
+        automatic.Add("Volley shot interval", GetAutomaticVolleyShotInterval(), " s")
+            .Add("Heat bonus rockets", GetThresholdRocketBonus())
+            .Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketAutoExplosionRadius) * GetAreaSizeMultiplier(), " m")
             .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketAutoExplosionFalloff));
         manual.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketManualExplosionRadius) * GetAreaSizeMultiplier(), " m")
             .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketManualExplosionFalloff));
@@ -118,7 +120,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
-        FireTimer = GetFireInterval();
+        FireTimer = GetAutomaticFireInterval();
         int extra = GetThresholdRocketBonus() + GetFragmentationRocketBonus();
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
         AimFireOriginAlong(Vector3.up);
@@ -334,17 +336,39 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         return baseInterval / Mathf.Max(0.2f, heatFactor);
     }
 
-    // Converts 25/50/75 heat thresholds into bonus automatic rockets.
+    private float GetAutomaticFireInterval()
+    {
+        float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float weaponRate = Mathf.Max(0.01f,
+            Mathf.Max(0.01f, Runtime.Data.RocketLauncher.RocketAutoBurstsPerSecond) * WeaponMath.GetAttackRateMultiplier(Runtime));
+        return 1f / Mathf.Max(0.05f, weaponRate * attackSpeed) / Mathf.Max(0.01f, GetHeatFireRateMultiplier());
+    }
+
+    private float GetAutomaticVolleyShotInterval() =>
+        Mathf.Max(0.01f, Runtime.Data.RocketLauncher.RocketAutoVolleyShotInterval);
+
+    // Selects a total bonus, without accumulating earlier heat tiers.
     private int GetThresholdRocketBonus()
     {
         if (Heat == null)
             return 0;
 
-        float percent = Heat.NormalizedHeat * 100f;
+        List<RocketAutoHeatBonus> entries = Runtime.Data.RocketLauncher.RocketAutoHeatBonuses;
+        if (entries == null)
+            return 0;
+
+        float percent = Mathf.Clamp01(Heat.NormalizedHeat) * 100f;
+        float highestThreshold = -1f;
         int bonus = 0;
-        if (percent >= 25f) bonus++;
-        if (percent >= 50f) bonus++;
-        if (percent >= 75f) bonus++;
+        foreach (RocketAutoHeatBonus entry in entries)
+        {
+            float threshold = Mathf.Clamp(entry.HeatThresholdPercent, 0f, 100f);
+            if (percent < threshold || threshold < highestThreshold)
+                continue;
+            int additional = Mathf.Max(0, entry.AdditionalRockets);
+            bonus = threshold == highestThreshold ? Mathf.Max(bonus, additional) : additional;
+            highestThreshold = threshold;
+        }
         return bonus;
     }
 
@@ -418,7 +442,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         _automaticVolley = new AutomaticVolley
         {
             Remaining = Mathf.Max(0, count),
-            ShotInterval = Mathf.Max(0.01f, Runtime.Data.RocketLauncher.RocketAutoVolleyShotInterval),
+            ShotInterval = GetAutomaticVolleyShotInterval(),
             TargetPosition = targetPosition,
             DamageScale = damageScale,
             ExplosionRadius = explosionRadius,

@@ -38,12 +38,32 @@ public sealed class AutomaticCannonTuning : WeaponSpecificTuning
 }
 
 [Serializable]
+public struct RocketAutoHeatBonus
+{
+    [Range(0f, 100f), InspectorName("Heat Threshold (%)"), Tooltip("Minimum heat percentage required for this bonus.")]
+    public float HeatThresholdPercent;
+    [Min(0), Tooltip("Total additional rockets at this threshold, not added to earlier thresholds.")]
+    public int AdditionalRockets;
+}
+
+[Serializable]
 public sealed class RocketLauncherTuning : WeaponSpecificTuning
 {
     public static readonly RocketLauncherTuning Defaults = new();
 
-    [Min(1)] public int RocketAutoBaseRocketCount = 1;
-    [Min(0.01f)] public float RocketAutoVolleyShotInterval = 0.11f;
+    [Min(1), Tooltip("Rockets per automatic volley before heat and upgrade bonuses.")]
+    public int RocketAutoBaseRocketCount = 1;
+    [Min(0.01f), Tooltip("Automatic volleys per second before attack speed and level/path modifiers. Heat adds rockets, not automatic fire rate. Does not affect manual fire.")]
+    public float RocketAutoBurstsPerSecond = 1f;
+    [Min(0.01f), Tooltip("Seconds between rockets within a volley. Independent of attack speed; the first rocket launches immediately.")]
+    public float RocketAutoVolleyShotInterval = 0.11f;
+    [Tooltip("Uses the total bonus of the highest reached heat threshold. Order does not matter; duplicate thresholds use the largest bonus. An empty list gives no heat bonus.")]
+    public List<RocketAutoHeatBonus> RocketAutoHeatBonuses = new()
+    {
+        new() { HeatThresholdPercent = 25f, AdditionalRockets = 1 },
+        new() { HeatThresholdPercent = 50f, AdditionalRockets = 2 },
+        new() { HeatThresholdPercent = 75f, AdditionalRockets = 3 }
+    };
     [Min(1)] public int RocketActiveBaseRocketCount = 10;
     [Min(1)] public int RocketActiveInitialTargetCount = 5;
     [Min(0.01f)] public float RocketActiveTargetLockInterval = 0.15f;
@@ -253,5 +273,21 @@ public class WeaponData : ScriptableObject, IUnlockable
     private void OnValidate()
     {
         EnsureSpecificTuningForCurrentType();
+        if (_specificTuning is RocketLauncherTuning rocket)
+        {
+            rocket.RocketAutoBurstsPerSecond = Mathf.Max(0.01f, rocket.RocketAutoBurstsPerSecond);
+            rocket.RocketAutoVolleyShotInterval = Mathf.Max(0.01f, rocket.RocketAutoVolleyShotInterval);
+            rocket.RocketAutoBaseRocketCount = Mathf.Max(1, rocket.RocketAutoBaseRocketCount);
+            if (rocket.RocketAutoHeatBonuses != null)
+            {
+                for (int i = 0; i < rocket.RocketAutoHeatBonuses.Count; i++)
+                {
+                    RocketAutoHeatBonus entry = rocket.RocketAutoHeatBonuses[i];
+                    entry.HeatThresholdPercent = Mathf.Clamp(entry.HeatThresholdPercent, 0f, 100f);
+                    entry.AdditionalRockets = Mathf.Max(0, entry.AdditionalRockets);
+                    rocket.RocketAutoHeatBonuses[i] = entry;
+                }
+            }
+        }
     }
 }

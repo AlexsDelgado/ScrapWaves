@@ -136,6 +136,14 @@ MonoBehaviour:
       data:
         RocketAutoBaseRocketCount: 1
         RocketAutoVolleyShotInterval: 0.11
+        RocketAutoBurstsPerSecond: 0.9
+        RocketAutoHeatBonuses:
+        - HeatThresholdPercent: 25
+          AdditionalRockets: 1
+        - HeatThresholdPercent: 50
+          AdditionalRockets: 2
+        - HeatThresholdPercent: 75
+          AdditionalRockets: 3
         RocketActiveBaseRocketCount: 10
         RocketActiveInitialTargetCount: 5
         RocketActiveTargetLockInterval: 0.15

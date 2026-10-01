@@ -171,6 +171,7 @@ public static class WeaponTestingSandboxSceneBuilder
                 data.AutomaticCannon.CannonManualBurstsPerSecond = 3f;
                 break;
             case WeaponType.RocketLauncher:
+                data.RocketLauncher.RocketAutoBurstsPerSecond = data.BaseAttackRate;
                 data.RocketLauncher.RocketActiveConeAngle = 90f;
                 data.RocketLauncher.RocketActiveInitialTargetCount = 5;
                 data.RocketLauncher.RocketActiveTargetLockInterval = 0.15f;

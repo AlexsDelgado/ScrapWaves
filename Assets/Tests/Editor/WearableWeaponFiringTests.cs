@@ -223,6 +223,38 @@ public sealed class WearableWeaponFiringTests
         Assert.That(ReadPrivate<AutomaticRocketTrajectory>(projectiles[1], "_automaticRocketTrajectory").Target, Is.EqualTo(originalAimPoint));
     }
 
+    [Test]
+    public void AutomaticRocketVolley_SnapshotsHeatCountAndSpacingAndDoesNotOverlap()
+    {
+        Transform owner = CreateObject("Owner").transform;
+        var heat = owner.gameObject.AddComponent<HeatManager>();
+        SetPrivate(heat, "_currentHeat", heat.TotalHeatCapacity);
+        Transform target = RegisterEnemy(Vector3.forward * 8f);
+        ProjectilePool pool = CreatePool(out Transform container);
+        WeaponInstance runtime = CreateRuntime(WeaponType.RocketLauncher, WeaponState.Automatic);
+        runtime.Data.RocketLauncher.RocketAutoBurstsPerSecond = 100f;
+        runtime.Data.RocketLauncher.RocketAutoVolleyShotInterval = 0.2f;
+        runtime.Data.RocketLauncher.RocketAutoHeatBonuses = new()
+        {
+            new() { HeatThresholdPercent = 60f, AdditionalRockets = 2 }
+        };
+        RocketLauncherWeapon weapon = new(new FixedTargeting(target), pool, owner);
+        weapon.Setup(runtime, owner, null, heat);
+        weapon.TickAutomatic(0.01f, Vector3.forward);
+        Assert.That(container.GetComponentsInChildren<Projectile>(), Has.Length.EqualTo(1));
+        SetPrivate(heat, "_currentHeat", 0f);
+        runtime.Data.RocketLauncher.RocketAutoHeatBonuses.Clear();
+        runtime.Data.RocketLauncher.RocketAutoVolleyShotInterval = 0.01f;
+        weapon.TickAutomatic(0.1f, Vector3.forward);
+        Assert.That(container.GetComponentsInChildren<Projectile>(), Has.Length.EqualTo(1));
+        weapon.TickAutomatic(0.1f, Vector3.forward);
+        Assert.That(container.GetComponentsInChildren<Projectile>(), Has.Length.EqualTo(2));
+        weapon.TickAutomatic(0.2f, Vector3.forward);
+        Assert.That(container.GetComponentsInChildren<Projectile>(), Has.Length.EqualTo(3));
+        weapon.TickAutomatic(0.01f, Vector3.forward);
+        Assert.That(container.GetComponentsInChildren<Projectile>(), Has.Length.EqualTo(4));
+    }
+
     [TestCase(true)]
     [TestCase(false)]
     public void AutomaticRocketVolley_CancelsOnOriginOrManualRoleChange(bool changeOrigin)
