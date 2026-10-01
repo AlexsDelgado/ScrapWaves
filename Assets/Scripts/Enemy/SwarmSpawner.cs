@@ -166,34 +166,56 @@ public class SwarmSpawner : MonoBehaviour
             _difficultyManager?.ApplySpawnModifiers(enemy);
 
             CharacterController cc = enemy.GetComponent<CharacterController>();
-            if (cc == null || !cc.enabled)
+            bool placed;
+            Vector3 foot = ringPos;
+            if (cc != null && cc.enabled)
             {
-                enemy.transform.SetPositionAndRotation(ringPos, Quaternion.identity);
+                placed = SpawnGroundUtility.TryResolveFootPosition(
+                    new Vector3(ringPos.x, 0f, ringPos.z),
+                    enemy.transform,
+                    cc,
+                    ringPos.y,
+                    _maxAbsSpawnSurfaceDeltaY,
+                    _groundRaycastMask,
+                    _fallbackGroundRaycastMask,
+                    _overlapSolidMask,
+                    _raycastStartHeight,
+                    _raycastMaxDistance,
+                    _surfaceSeparation,
+                    _maxProjectionIterations,
+                    _resolveStepUp,
+                    _resolveStepOut,
+                    out foot);
             }
-            else if (!SpawnGroundUtility.TryResolveFootPosition(
-                         new Vector3(ringPos.x, 0f, ringPos.z),
-                         enemy.transform,
-                         cc,
-                         ringPos.y,
-                         _maxAbsSpawnSurfaceDeltaY,
-                         _groundRaycastMask,
-                         _fallbackGroundRaycastMask,
-                         _overlapSolidMask,
-                         _raycastStartHeight,
-                         _raycastMaxDistance,
-                         _surfaceSeparation,
-                         _maxProjectionIterations,
-                         _resolveStepUp,
-                         _resolveStepOut,
-                         out Vector3 foot))
+            else
+            {
+                placed = SpawnGroundUtility.TrySampleGround(
+                    new Vector3(ringPos.x, 0f, ringPos.z),
+                    ringPos.y,
+                    _maxAbsSpawnSurfaceDeltaY,
+                    _groundRaycastMask,
+                    _fallbackGroundRaycastMask,
+                    _raycastStartHeight,
+                    _raycastMaxDistance,
+                    _surfaceSeparation,
+                    out foot);
+                if (placed)
+                {
+                    enemy.transform.SetPositionAndRotation(foot, Quaternion.identity);
+                    SpawnGroundUtility.SeatAboveSurface(enemy.transform, foot, _surfaceSeparation);
+                    SpawnGroundUtility.ClearRigidbodyVelocity(enemy.transform);
+                    foot = enemy.transform.position;
+                }
+            }
+
+            if (!placed)
             {
                 _pool.Release(enemy);
                 continue;
             }
-            else
-            {
+
+            if (cc != null && cc.enabled)
                 enemy.transform.SetPositionAndRotation(foot, Quaternion.identity);
-            }
 
             Vector3 toPlayer = _player.position - enemy.transform.position;
             toPlayer.y = 0f;

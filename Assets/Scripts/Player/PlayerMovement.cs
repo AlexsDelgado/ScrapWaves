@@ -466,12 +466,12 @@ public class PlayerMovement : MonoBehaviour
 
         if (_isSliding) return;
 
-        float acceleration = _baseMoveAcceleration;
+        float acceleration = _baseMoveAcceleration * DebugSpeedTool.LocomotionScale;
         if (_isCrouching) acceleration *= _crouchAccelerationMultiplier;
 
         if (_moveDirectionWorld.sqrMagnitude > 0.0001f)
         {
-            float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * GetSlowMultiplier());
+            float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale * GetSlowMultiplier());
             float speedRatio = Mathf.Clamp01(CurrentPlanarSpeed() / maxSpeed);
             float speedScaledAcceleration = acceleration * Mathf.Lerp(1f, 0.35f, speedRatio);
             _rb.AddForce(_moveDirectionWorld * speedScaledAcceleration, ForceMode.Acceleration);
@@ -484,7 +484,7 @@ public class PlayerMovement : MonoBehaviour
         Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         if (planarV.sqrMagnitude <= 0.0001f) return;
 
-        float friction = _baseFriction;
+        float friction = _baseFriction * DebugSpeedTool.LocomotionScale;
         if (!_isGrounded) friction *= _airFrictionMultiplier;
         if (_isSliding && _isGrounded) friction *= _slideFrictionMultiplier;
         if (_postDashFrictionTimer > 0f) friction *= _postDashFrictionMultiplier;
@@ -500,7 +500,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_isSliding || _postDashFrictionTimer > 0f || _knockbackTimer > 0f) return;
 
-        float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * GetSlowMultiplier());
+        float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale * GetSlowMultiplier());
         Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float planarSpeed = planarV.magnitude;
         if (planarSpeed <= maxSpeed || planarSpeed <= 0.0001f) return;
@@ -708,7 +708,7 @@ public class PlayerMovement : MonoBehaviour
     // Calculate slide entry speed from current movement speed stat.
     private float GetSlideStartSpeed()
     {
-        return Mathf.Max(0.1f, _stats.GetMoveSpeed()) * _slideStartSpeedMultiplier;
+        return Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale) * _slideStartSpeedMultiplier;
     }
 
     // Validate dash requirements and apply a sudden additive dash velocity boost.
@@ -727,7 +727,7 @@ public class PlayerMovement : MonoBehaviour
         _isDashing = true;
         _dashTimer = _dashDuration;
 
-        float dashBoost = Mathf.Max(0.1f, _stats.GetStat(StatType.DashSpeed));
+        float dashBoost = Mathf.Max(0.1f, _stats.GetStat(StatType.DashSpeed) * DebugSpeedTool.LocomotionScale);
         Vector3 currentPlanar = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         Vector3 desiredVelocity = currentPlanar + (dashDirection * dashBoost);
         _dashLaunchDirectionWorld = desiredVelocity.sqrMagnitude > .0001f ? desiredVelocity.normalized : dashDirection.normalized;
@@ -841,7 +841,13 @@ public class PlayerMovement : MonoBehaviour
         OnDashChargesChanged?.Invoke(_currentDashCharges, maxCharges);
     }
 
+    public float AuthoredMoveAcceleration => _baseMoveAcceleration;
+    public float AuthoredFriction => _baseFriction;
+    public float AuthoredDashDuration => _dashDuration;
+
     // Return current horizontal speed ignoring vertical velocity.
+    public float PlanarSpeed => _rb == null ? 0f : CurrentPlanarSpeed();
+
     private float CurrentPlanarSpeed()
     {
         Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);

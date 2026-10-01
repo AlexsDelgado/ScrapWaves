@@ -162,6 +162,16 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         return result;
     }
 
+    /// <summary>Muerte forzada (caída al vacío). Ignora invencibilidad para no dejar el objetivo colgado.</summary>
+    public void ForceKill()
+    {
+        if (_currentHealth <= 0)
+            return;
+
+        _currentHealth = 0;
+        CompleteDeath();
+    }
+
     private void CompleteDeath()
     {
         AudioManager.TryPlayEnemyDeath();

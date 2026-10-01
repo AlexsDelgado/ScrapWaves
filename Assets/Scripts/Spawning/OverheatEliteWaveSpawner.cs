@@ -45,7 +45,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     [SerializeField, Min(1), Tooltip("Intentos de colocación con snap a suelo por elite antes del fallback.")]
     private int _placementAttemptsPerElite = 8;
 
-    [SerializeField, Tooltip("Si todos los intentos con snap fallan, instanciar igual sin snap (garantiza la oleada).")]
+    [SerializeField, Tooltip("Si todos los intentos con suelo fallan, no se instancia en el vacío.")]
     private bool _guaranteeSpawn = true;
 
     [Header("Spawn en suelo")]
@@ -132,6 +132,61 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         }
 
         ClearSpawned();
+    }
+
+    private const float VoidCheckInterval = 0.5f;
+    private const float VoidProbeUp = 2f;
+    private const float VoidProbeDistance = 160f;
+    private float _voidCheckTimer;
+    private readonly List<Transform> _voidKillBuffer = new(16);
+
+    private void Update()
+    {
+        if (!_waveActive || _aliveEliteCount <= 0)
+            return;
+
+        _voidCheckTimer -= Time.deltaTime;
+        if (_voidCheckTimer > 0f)
+            return;
+
+        _voidCheckTimer = VoidCheckInterval;
+        KillElitesWithoutGround();
+    }
+
+    /// <summary>
+    /// Si un elite se cae del terrain, no hay piso debajo y el objetivo no lo suelta.
+    /// Matarlo acá cierra la oleada en vez de dejar el Overheat trabado.
+    /// </summary>
+    private void KillElitesWithoutGround()
+    {
+        int mask = _groundRaycastMask.value != 0
+            ? _groundRaycastMask.value
+            : LayerMask.GetMask("Terrain");
+
+        _voidKillBuffer.Clear();
+        foreach (KeyValuePair<Transform, TrackedElite> pair in _tracked)
+        {
+            Transform elite = pair.Key;
+            if (elite == null || !elite.gameObject.activeInHierarchy)
+                continue;
+
+            Vector3 origin = elite.position + Vector3.up * VoidProbeUp;
+            if (Physics.Raycast(origin, Vector3.down, VoidProbeDistance, mask, QueryTriggerInteraction.Ignore))
+                continue;
+
+            _voidKillBuffer.Add(elite);
+        }
+
+        for (int i = 0; i < _voidKillBuffer.Count; i++)
+        {
+            Transform elite = _voidKillBuffer[i];
+            if (elite == null || !elite.TryGetComponent(out EnemyHealth health))
+                continue;
+
+            if (_logState)
+                Debug.LogWarning("[EliteWave] Elite sin suelo; se lo elimina para no trabar la oleada.", elite);
+            health.ForceKill();
+        }
     }
 
     private void OnOverheatStarted()
@@ -236,13 +291,15 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     }
 
     /// <summary>
-    /// Spawnea un elite garantizado: reintenta varias direcciones con snap a suelo y,
-    /// si todas fallan, lo instancia igual sin snap (como hace <see cref="BossManager"/>)
-    /// para que la oleada nunca quede vacía.
+    /// Spawnea un elite solo si hay suelo bajo el punto. Sin piso no se instancia:
+    /// un elite en el vacío no muere y deja el Overheat trabado.
     /// </summary>
     private bool SpawnOneElite(Transform player, GameObject prefab)
     {
         int attempts = Mathf.Max(1, _placementAttemptsPerElite);
+        if (_guaranteeSpawn)
+            attempts = Mathf.Max(attempts, 16);
+
         for (int a = 0; a < attempts; a++)
         {
             int dir = OrbitalSpawnPlacement.PickRandomDirectionIndex();
@@ -272,40 +329,9 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
             }
         }
 
-        if (!_guaranteeSpawn)
-            return false;
-
-        // Fallback sin snap a suelo: instanciar en un punto del anillo a la altura del jugador.
-        float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
-        float radius = UnityEngine.Random.Range(_minSpawnRadius, _maxSpawnRadius);
-        Vector3 pos = player.position + new Vector3(
-            Mathf.Cos(angle) * radius,
-            _spawnHeightOffset,
-            Mathf.Sin(angle) * radius);
-
-        GameObject fallback;
-        if (EnemyPoolRegistry.UseEnemyPool
-            && EnemyPoolRegistry.Instance != null
-            && EnemyPoolRegistry.Instance.TryGet(prefab, out fallback))
-        {
-            fallback.transform.SetPositionAndRotation(pos, Quaternion.identity);
-        }
-        else
-        {
-            fallback = Instantiate(prefab, pos, Quaternion.identity);
-            EnemyPoolProfiler.RegisterInstantiate();
-        }
-
-        Vector3 toPlayer = player.position - fallback.transform.position;
-        toPlayer.y = 0f;
-        if (toPlayer.sqrMagnitude > 0.0001f)
-            fallback.transform.rotation = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
-
-        if (!fallback.activeSelf)
-            fallback.SetActive(true);
-
-        RegisterSpawned(fallback);
-        return true;
+        if (_logState)
+            Debug.LogWarning("[EliteWave] Sin suelo en el anillo; ese elite no se spawnea.", this);
+        return false;
     }
 
     private void RegisterSpawned(GameObject instance)

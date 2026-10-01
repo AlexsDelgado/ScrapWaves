@@ -51,11 +51,16 @@ public static class SpawnGroundUtility
 
         footWorldPosition = groundHit.point + groundHit.normal * surfaceSeparation;
         spawnRoot.position = footWorldPosition;
+        SeatAboveSurface(spawnRoot, footWorldPosition, surfaceSeparation);
+        ClearRigidbodyVelocity(spawnRoot);
 
         for (int i = 0; i < maxProjectionIterations; i++)
         {
             if (!TryGetDepenetrationDelta(spawnRoot, characterController, overlapSolidMask, out Vector3 delta))
+            {
+                footWorldPosition = spawnRoot.position;
                 return true;
+            }
 
             Vector3 dir = delta;
             if (dir.sqrMagnitude > 0.0001f)
@@ -67,7 +72,10 @@ public static class SpawnGroundUtility
             spawnRoot.position = footWorldPosition;
         }
 
-        return !TryGetDepenetrationDelta(spawnRoot, characterController, overlapSolidMask, out _);
+        bool clear = !TryGetDepenetrationDelta(spawnRoot, characterController, overlapSolidMask, out _);
+        if (clear)
+            footWorldPosition = spawnRoot.position;
+        return clear;
     }
 
     private static bool TryRaycastGroundPreferHeight(
@@ -128,6 +136,81 @@ public static class SpawnGroundUtility
 
         hit = RaycastBuffer[bestIndex];
         return true;
+    }
+
+    /// <summary>
+    /// Busca suelo bajo un XZ sin necesitar CharacterController. Sirve para enemigos
+    /// que se mueven con Rigidbody y tienen el controller apagado.
+    /// </summary>
+    public static bool TrySampleGround(
+        Vector3 candidateXZ,
+        float referenceY,
+        float maxAbsDeltaYFromReference,
+        LayerMask primaryGroundRaycastMask,
+        LayerMask fallbackGroundRaycastMask,
+        float raycastStartHeight,
+        float raycastMaxDistance,
+        float surfaceSeparation,
+        out Vector3 surfacePoint)
+    {
+        surfacePoint = candidateXZ;
+        Vector3 xz = new Vector3(candidateXZ.x, 0f, candidateXZ.z);
+        Vector3 rayOrigin = new Vector3(xz.x, referenceY + raycastStartHeight, xz.z);
+
+        if (!TryRaycastGroundPreferHeight(rayOrigin, raycastMaxDistance, primaryGroundRaycastMask, referenceY, maxAbsDeltaYFromReference, out RaycastHit groundHit))
+        {
+            if (fallbackGroundRaycastMask.value == 0)
+                return false;
+
+            if (!TryRaycastGroundPreferHeight(rayOrigin, raycastMaxDistance, fallbackGroundRaycastMask, referenceY, maxAbsDeltaYFromReference, out groundHit))
+                return false;
+        }
+
+        surfacePoint = groundHit.point + groundHit.normal * surfaceSeparation;
+        return true;
+    }
+
+    /// <summary>
+    /// Sube el root para que los colliders sólidos queden sobre el punto de apoyo.
+    /// Un pivot en el suelo con un box escalado nace adentro del terrain y lo atraviesa.
+    /// </summary>
+    public static void SeatAboveSurface(Transform root, Vector3 surfacePoint, float separation)
+    {
+        if (root == null)
+            return;
+
+        root.position = surfacePoint;
+        Physics.SyncTransforms();
+
+        float bottom = surfacePoint.y;
+        bool found = false;
+        Collider[] colliders = root.GetComponentsInChildren<Collider>();
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider col = colliders[i];
+            if (col == null || !col.enabled || col.isTrigger)
+                continue;
+
+            if (col.bounds.min.y < bottom)
+                bottom = col.bounds.min.y;
+            found = true;
+        }
+
+        if (!found)
+            return;
+
+        float lift = surfacePoint.y + separation - bottom;
+        if (lift > 0.001f)
+            root.position += Vector3.up * lift;
+    }
+
+    public static void ClearRigidbodyVelocity(Transform root)
+    {
+        if (root == null || !root.TryGetComponent(out Rigidbody body) || body.isKinematic)
+            return;
+
+        body.linearVelocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
     }
 
     private static bool TryGetDepenetrationDelta(
