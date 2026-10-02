@@ -36,15 +36,23 @@ public sealed class ManualWeaponTransitionTests
         Call(manager,"UpdateManualWeapon",0f,Vector3.forward);
         Assert.That(manager.IsManualCycleInProgress,Is.True);Assert.That(manager.GetManualCooldownRemaining(),Is.EqualTo(seconds));
         Assert.That(manager.GetManualCooldownNormalized(),Is.Zero);
+        Assert.That(equipped[0].Runtime.State,Is.EqualTo(WeaponState.Cooldown));
+        Call(manager,"UpdateAutomaticWeapons",0.5f,Vector3.forward);
+        Assert.That(((Probe)equipped[0]).AutomaticTicks,Is.Zero,"Outgoing weapon must not auto-fire during reload/switch.");
+        for(int i=1;i<count;i++)Assert.That(((Probe)equipped[i]).AutomaticTicks,Is.EqualTo(1),"Existing automatic weapons keep firing.");
         int ticks=((Probe)equipped[0]).ManualTicks;
         Call(manager,"UpdateManualWeapon",0.5f,Vector3.forward);
         Assert.That(((Probe)equipped[0]).ManualTicks,Is.EqualTo(ticks));Assert.That(manager.CanUseAbility(),Is.False);
         Call(manager,"UpdateManualCycle",seconds/2);Assert.That(manager.GetManualCooldownNormalized(),Is.EqualTo(0.5f).Within(0.0001f));
         Call(manager,"UpdateManualCycle",seconds/2-0.01f);Assert.That(manager.IsManualCycleInProgress,Is.True);
+        Call(manager,"UpdateAutomaticWeapons",0.01f,Vector3.forward);Assert.That(((Probe)equipped[0]).AutomaticTicks,Is.Zero);
         Call(manager,"UpdateManualCycle",0.011f);Assert.That(manager.IsManualCycleInProgress,Is.False);
         var ready=manager.GetCurrentManualWeapon();Assert.That(ready,Is.SameAs(equipped[count==1?0:1].Runtime));
         Assert.That(ready.State,Is.EqualTo(WeaponState.Manual));Assert.That(ready.CurrentAmmo,Is.EqualTo(10));Assert.That(manager.CanUseAbility(),Is.True);
         Call(manager,"UpdateManualWeapon",0f,Vector3.forward);Assert.That(((Probe)equipped[count==1?0:1]).ManualTicks,Is.GreaterThan(0));
+        Call(manager,"UpdateAutomaticWeapons",0f,Vector3.forward);
+        Assert.That(((Probe)equipped[0]).AutomaticTicks,Is.EqualTo(count==1?0:1));
+        if(count>1)Assert.That(equipped[0].Runtime.State,Is.EqualTo(WeaponState.Automatic));
     }
     [TestCase(false)] [TestCase(true)] public void Pause_FreezesTransition(bool uiLock)
     {
@@ -88,11 +96,53 @@ public sealed class ManualWeaponTransitionTests
         try{ReticleHud hud=null;foreach(var root in scene.GetRootGameObjects()){hud=root.GetComponentInChildren<ReticleHud>(true);if(hud!=null)break;}Assert.That(hud,Is.Not.Null);Assert.That(Get<Image>(hud,"_manualCycleProgress"),Is.Not.Null);Assert.That(Get<CanvasGroup[]>(hud,"_reticleGroups").Length,Is.EqualTo(4));}
         finally{EditorSceneManager.CloseScene(scene,true);}
     }
+    [Test] public void RepeatedDepletion_DoesNotRestartCountdown_AndNextTransitionBlocksNewOutgoing()
+    {
+        var manager=Create(2);Call(manager,"EndManualMode");Call(manager,"UpdateManualCycle",1f);
+        var pending=manager.GetPendingManualWeapon();Call(manager,"EndManualMode");
+        Assert.That(manager.GetManualCooldownRemaining(),Is.EqualTo(2f));Assert.That(manager.GetPendingManualWeapon(),Is.SameAs(pending));
+        Call(manager,"UpdateManualCycle",2f);manager.GetCurrentManualWeapon().CurrentAmmo=0;
+        Call(manager,"UpdateManualWeapon",0f,Vector3.forward);Call(manager,"UpdateAutomaticWeapons",0f,Vector3.forward);
+        Assert.That(manager.GetCurrentManualWeapon().State,Is.EqualTo(WeaponState.Cooldown));
+        Assert.That(((Probe)manager.GetEquippedWeapons()[1]).AutomaticTicks,Is.Zero);
+        Assert.That(((Probe)manager.GetEquippedWeapons()[0]).AutomaticTicks,Is.EqualTo(1));
+    }
+    [TestCase("Assets/Scenes/GameplayScene.unity")]
+    [TestCase("Assets/Scenes/SampleScene.unity")]
+    [TestCase("Assets/Scenes/Testing/enemiesTesting.unity")]
+    [TestCase("Assets/Scenes/Testing/test_balance.unity")]
+    public void ActualScene_ReadinessBindingsRenderDuringTransitionAndHideOnCompletion(string path)
+    {
+        var scene=EditorSceneManager.OpenScene(path,OpenSceneMode.Additive);
+        try
+        {
+            ReticleHud hud=null;
+            foreach(var root in scene.GetRootGameObjects()){hud=root.GetComponentInChildren<ReticleHud>(true);if(hud!=null)break;}
+            Assert.That(hud,Is.Not.Null);Assert.That(hud.HasAuthoredUi,Is.True);
+            var manager=hud.GetComponent<WeaponManager>();Assert.That(manager,Is.Not.Null);
+            var equipped=Get<List<IWeaponBehaviour>>(manager,"_equipped");equipped.Clear();
+            foreach(string weapon in new[]{"Mortar","Flamethrower"})
+                equipped.Add(new Probe(new WeaponInstance{Data=AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/"+weapon+".asset"),State=equipped.Count==0?WeaponState.Manual:WeaponState.Automatic}));
+            Call(hud,"Awake");Call(manager,"EndManualMode");Call(manager,"UpdateManualCycle",1.5f);Call(hud,"LateUpdate");
+            var progress=Get<Image>(hud,"_manualCycleProgress");var track=Get<Image>(hud,"_manualCycleTrack");
+            Assert.That(progress,Is.Not.Null);Assert.That(track,Is.Not.Null);
+            Assert.That(progress.gameObject.activeInHierarchy,Is.True);Assert.That(progress.enabled,Is.True);
+            Assert.That(progress.sprite,Is.Not.Null);Assert.That(progress.color.a,Is.GreaterThan(0.8f));
+            Assert.That(progress.type,Is.EqualTo(Image.Type.Filled));Assert.That(progress.fillAmount,Is.EqualTo(0.5f));
+            Assert.That(track.gameObject.activeInHierarchy,Is.True);Assert.That(progress.rectTransform.rect.width,Is.GreaterThanOrEqualTo(64));
+            Assert.That(progress.GetComponentInParent<Canvas>().enabled,Is.True);
+            Assert.That(progress.GetComponentInParent<Canvas>().renderMode,Is.EqualTo(RenderMode.ScreenSpaceOverlay));
+            Assert.That(progress.GetComponentInParent<Canvas>().sortingOrder,Is.EqualTo(650));
+            foreach(var group in progress.GetComponentsInParent<CanvasGroup>())Assert.That(group.alpha,Is.GreaterThan(0));
+            Call(manager,"UpdateManualCycle",1.5f);Call(hud,"LateUpdate");Assert.That(progress.gameObject.activeSelf,Is.False);
+        }
+        finally{EditorSceneManager.CloseScene(scene,true);}
+    }
     private sealed class Probe:IWeaponBehaviour,IHoldActiveAbilityBehaviour
     {
-        public WeaponInstance Runtime{get;} public int ManualTicks;public int Cancels;public bool IsActiveAbilityCharging=>false;
+        public WeaponInstance Runtime{get;} public int ManualTicks;public int AutomaticTicks;public int Cancels;public bool IsActiveAbilityCharging=>false;
         public Probe(WeaponInstance runtime){Runtime=runtime;}
-        public void Setup(WeaponInstance i,Transform o,PlayerStats s,HeatManager h){} public void TickAutomatic(float d,Vector3 v){}public void TickManual(float d,Vector3 v,bool f){ManualTicks++;}public void UseActiveAbility(Vector3 v){}public bool CanCrit()=>false;
+        public void Setup(WeaponInstance i,Transform o,PlayerStats s,HeatManager h){} public void TickAutomatic(float d,Vector3 v){AutomaticTicks++;}public void TickManual(float d,Vector3 v,bool f){ManualTicks++;}public void UseActiveAbility(Vector3 v){}public bool CanCrit()=>false;
         public void BeginActiveAbility(Vector3 v){}public void TickActiveAbility(float d,Vector3 v){}public void ReleaseActiveAbility(Vector3 v){}public void CancelActiveAbility(){Cancels++;}
     }
 }

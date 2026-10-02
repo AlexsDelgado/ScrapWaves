@@ -2,13 +2,9 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Orquesta cuándo se muestra <see cref="GuideArrow"/>:
-/// 1) Cuando suena una entrada de diálogo con <see cref="DialogueEntry.ShowsCraftingGuide"/> (el jefe
-///    burlándose de que no mejoraste armas), apunta a la crafting station. Sin DialogueDirector en la escena,
-///    cae al temporizador de <see cref="_craftingStationDelaySeconds"/>, una sola vez.
-/// 2) Al juntar todas las llaves (<see cref="LevelExitObjective.OnAllKeysCollected"/>), apunta a la puerta de salida.
-/// Cada aparición dura <see cref="_guideDurationSeconds"/> o hasta que el jugador interactúe con el
-/// objetivo (lo que ocurra primero). Cada disparador ocurre una única vez por partida.
+/// Guides newly affordable crafting independently of dialogue, and prioritizes the exit guide.
+/// Each hint lasts until interaction or its configured timeout. Losing and regaining
+/// crafting availability rearms the hint; continuous availability does not repeat it.
 /// </summary>
 [DisallowMultipleComponent]
 public class GuideArrowController : MonoBehaviour
@@ -33,6 +29,8 @@ public class GuideArrowController : MonoBehaviour
     private float _hideAtTime = -1f;
     private Action _activeDismissUnsubscribe;
     private bool _dialogueDriven;
+    private bool _craftingAvailableLastFrame;
+    private bool _craftingGuidePending;
 
     private void Awake()
     {
@@ -66,22 +64,36 @@ public class GuideArrowController : MonoBehaviour
         EndGuide();
     }
 
+    private void ResolveCraftingReferences()
+    {
+        if (_guideArrow == null)
+            _guideArrow = GetComponent<GuideArrow>() ?? FindAnyObjectByType<GuideArrow>();
+        if (_craftingStation == null)
+            _craftingStation = FindAnyObjectByType<CraftingStation>();
+        if (_crafting == null)
+            _crafting = FindAnyObjectByType<WeaponCraftingService>();
+    }
+
+    private bool ExitGuideActive => _guideArrow != null && _exitDoor != null
+        && _guideArrow.Target == _exitDoor.transform;
+
     private void Update()
     {
-        if (!_dialogueDriven
-            && !_craftingHintShown
-            && _craftingStation != null
-            && CanGuideCrafting()
-            && RunSessionStats.ElapsedSeconds >= _craftingStationDelaySeconds)
-        {
-            _craftingHintShown = true;
-            ShowCraftingGuide(_guideDurationSeconds);
-        }
+        ResolveCraftingReferences();
+        bool available = CanGuideCrafting();
+        if (available && !_craftingAvailableLastFrame) _craftingGuidePending = true;
+        if (!available) _craftingGuidePending = false;
+        _craftingAvailableLastFrame = available;
 
-        if (_guideArrow != null && _craftingStation != null && _guideArrow.Target == _craftingStation.transform
-            && !CanGuideCrafting()) EndGuide();
-        if (_hideAtTime >= 0f && Time.unscaledTime >= _hideAtTime)
-            EndGuide();
+        if (_guideArrow != null && _craftingStation != null
+            && _guideArrow.Target == _craftingStation.transform && !available) EndGuide();
+        if (_hideAtTime >= 0f && Time.unscaledTime >= _hideAtTime) EndGuide();
+
+        if (_craftingGuidePending && available
+            && (_dialogueDriven || RunSessionStats.ElapsedSeconds >= _craftingStationDelaySeconds)
+            && Time.timeScale > 0f && !GameplayPause.IsUiPaused
+            && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
+            ShowCraftingGuide(_guideDurationSeconds);
     }
 
     private void HandleDialogueStarted(DialogueEntry entry)
@@ -94,7 +106,12 @@ public class GuideArrowController : MonoBehaviour
 
     private void ShowCraftingGuide(float duration)
     {
-        if (!CanGuideCrafting()) return;
+        ResolveCraftingReferences();
+        if (!CanGuideCrafting() || _craftingStation == null || _guideArrow == null
+            || _craftingStation.IsOpen || ExitGuideActive) return;
+        _craftingHintShown = true;
+        _craftingGuidePending = false;
+        _craftingAvailableLastFrame = true;
         BeginGuide(
             _craftingStation.transform,
             dismiss =>

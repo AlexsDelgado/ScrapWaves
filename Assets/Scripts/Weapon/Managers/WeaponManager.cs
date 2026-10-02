@@ -463,10 +463,10 @@ public class WeaponManager : MonoBehaviour
         GetAimDirection();
     }
 
-    // Returns the outgoing weapon to automatic while manual input waits for the incoming weapon.
+    // Holds the outgoing weapon in cooldown until the incoming manual weapon is ready.
     private void EndManualMode()
     {
-        if (_equipped.Count == 0)
+        if (_equipped.Count == 0 || IsManualCycleInProgress)
             return;
 
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
@@ -474,7 +474,7 @@ public class WeaponManager : MonoBehaviour
             return;
 
         CancelHeldAbilities();
-        runtime.State = WeaponState.Automatic;
+        runtime.State = WeaponState.Cooldown;
         _pendingManualIndex = (_currentManualIndex + 1) % _equipped.Count;
         _activeManualCycleDuration = Mathf.Max(0f, GetManualCycleCooldownDuration());
         _manualCooldownTimer = _activeManualCycleDuration;
