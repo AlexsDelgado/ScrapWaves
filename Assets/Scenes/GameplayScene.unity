@@ -33577,6 +33577,7 @@ MonoBehaviour:
   _sfx: {fileID: 415765203}
   _musicNormal: {fileID: 1294498921}
   _musicOverheatLayer: {fileID: 879344417}
+  _library: {fileID: 11400000, guid: b7d91e4c2a6f48e0b5c3d8a1f0e64c27, type: 2}
   _shoot: {fileID: 8300000, guid: 0c7fc10ae82ea0f4585733cd24bbfde8, type: 3}
   _enemyHit: {fileID: 0}
   _enemyDeath: {fileID: 0}

@@ -305,6 +305,10 @@ public class CraftingUI : MonoBehaviour
         try
         {
             CraftingActionResult result = action();
+            if (result.Success)
+                AudioManager.TryPlayCraft();
+            else
+                AudioManager.TryPlayUiError();
             SetStatus(result.Success ? successMessage : "Crafting unavailable. Check your materials and the selected offer.");
         }
         finally { _applyingAction = false; }

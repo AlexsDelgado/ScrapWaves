@@ -190,6 +190,7 @@ public class BossManager : MonoBehaviour
 
         int count = GetBossSpawnCountForCurrentCycle();
         float ringOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+        bool playedSpawn = false;
 
         for (int i = 0; i < count; i++)
         {
@@ -246,6 +247,11 @@ public class BossManager : MonoBehaviour
             }
 
             health.ApplyConfiguredMaxHealth(_bossMaxHealth);
+            if (!playedSpawn)
+            {
+                AudioManager.TryPlayBossSpawn();
+                playedSpawn = true;
+            }
 
             if (go.GetComponent<EnemyScrapDrop>() == null)
                 go.AddComponent<EnemyScrapDrop>();

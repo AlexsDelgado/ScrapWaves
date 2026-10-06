@@ -40,7 +40,10 @@ public class MaterialPickupReceiver : MonoBehaviour
             ? _xpPerDropOverride
             : MaterialCatalog.GetPickupXpValue(type) * Mathf.Max(1, amount);
         if (xp > 0)
+        {
             _playerXp?.AddExperience(xp);
+            AudioManager.TryPlayXp();
+        }
 
         ChallengeProgressTracker.NotifyDropLooted(Mathf.Max(1, amount));
     }
