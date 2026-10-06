@@ -107,6 +107,14 @@ public class DestroyerBehavior : EnemyBehaviorBase
         }
     }
 
+    private void FixedUpdate()
+    {
+        if (_state != State.Suction || Player == null || _health == null || _suctionTimer >= _maxSuctionDuration)
+            return;
+        Vector3 mouthPos = _mouth != null ? _mouth.position : transform.position;
+        PlayerCombatHooks.TryPull(mouthPos, _playerPullAcceleration);
+    }
+
     private void TickHunt()
     {
         _missileTimer -= Time.deltaTime;
@@ -170,7 +178,6 @@ public class DestroyerBehavior : EnemyBehaviorBase
 
         Vector3 mouthPos = _mouth != null ? _mouth.position : transform.position;
 
-        PlayerCombatHooks.TryPull(mouthPos, _playerPullAcceleration);
         PullAndEatSwarm(mouthPos);
         CheckPlayerSwallowed(mouthPos);
     }

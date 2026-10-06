@@ -5865,10 +5865,11 @@ MonoBehaviour:
   _avoidCameraClipping: 1
   _cameraCollisionMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 129
   _cameraCollisionRadius: 0.25
   _cameraCollisionPadding: 0.12
   _minimumDistanceFromLookPoint: 0.65
+  _obstructionReturnSpeed: 8
   _lockCursorOnPlay: 1
   _cameraFeedbackScale: 1
   _screenShakeEnabled: 1

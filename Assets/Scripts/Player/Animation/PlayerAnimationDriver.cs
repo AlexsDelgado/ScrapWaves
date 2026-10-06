@@ -39,6 +39,8 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
     [SerializeField, Min(0f)] private float _stateBlendTime = 0.09f;
     [SerializeField, Min(0f)] private float _jumpPoseTime = 0.2f;
     [SerializeField, Min(0f)] private float _landingPoseTime = 0.22f;
+    [SerializeField, Range(0f, 10f), Tooltip("Small upper-body settling cue for a moving landing; leaves feet and motor untouched.")]
+    private float _movingLandingBend = 4f;
 
     [Header("Upper body")]
     [SerializeField, Range(0f, 1f)] private float _upperBodyWeight = 1f;
@@ -343,6 +345,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
         {
             ApplyDirectionalDashPose(dt);
             ApplyArmedRunFollowThrough(dt);
+            ApplyMovingLandingFeedback();
             ApplyAim(aimWorldPoint, dt);
             _recoil = Mathf.MoveTowards(_recoil, 0f, _recoilRecovery * dt);
             CacheAimedPose();
@@ -381,6 +384,8 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
         float directionalWeight = (Mathf.Abs(localVelocity.x) + Mathf.Max(0f, -localVelocity.z)) /
             Mathf.Max(0.001f, Mathf.Abs(localVelocity.x) + Mathf.Abs(localVelocity.z));
         float strideSpeed = Mathf.Lerp(_referenceMoveSpeed, _referenceSideAndBackwardSpeed, directionalWeight);
+        Vector3 rootScale = transform.lossyScale;
+        strideSpeed *= Mathf.Max(0.01f, (Mathf.Abs(rootScale.x) + Mathf.Abs(rootScale.z)) * 0.5f);
         float movingRate = Mathf.Clamp(planarSpeed / Mathf.Max(0.1f, strideSpeed), 0.35f, 2.5f);
         float movementWeight = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(_moveBlend.magnitude / 0.5f));
         _controller.SetFloat(LocomotionRate, _locomotionPlayback * Mathf.Lerp(1f, movingRate, movementWeight));
@@ -391,7 +396,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
             if (_movement.IsStunned) state = Stun;
             else if (_movement.IsDashing) state = _backwardDash ? DashBackward : Dash;
             else if (_movement.IsSliding) state = Slide;
-            else if (_jumpRemaining > 0f) state = _jumpState;
+            else if (_jumpRemaining > 0f || (!_movement.IsGroundedOnSurface && velocity.y > 0.1f && (_jumpState == Jump || _jumpState == AirJump))) state = _jumpState;
             else if (!_movement.IsGroundedOnSurface) state = Fall;
             else if (_landRemaining > 0f && planarSpeed < 0.5f) state = Land;
             else if (_movement.IsCrouching) state = Crouch;
@@ -399,6 +404,16 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
         SelectState(state, BaseLayer, ref _baseState, _stateBlendTime);
         _jumpRemaining = Mathf.Max(0f, _jumpRemaining - dt);
         _landRemaining = Mathf.Max(0f, _landRemaining - dt);
+    }
+
+    private void ApplyMovingLandingFeedback()
+    {
+        if (_baseState != Locomotion || _movement == null || !_movement.IsGroundedOnSurface ||
+            _movement.PlanarSpeed < 0.5f || _landRemaining <= 0f || _landingPoseTime <= 0f || _chest == null) return;
+        float phase = Mathf.Clamp01(1f - _landRemaining / _landingPoseTime);
+        float bend = _movingLandingBend * Mathf.Sin(phase * Mathf.PI);
+        _chest.rotation = Quaternion.AngleAxis(bend, transform.right) * _chest.rotation;
+        if (_neck != null) _neck.rotation = Quaternion.AngleAxis(-bend * 0.5f, transform.right) * _neck.rotation;
     }
 
     private void UpdateUpperBody(float dt)

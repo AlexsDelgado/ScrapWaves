@@ -587,15 +587,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   _cameraTransform: {fileID: 0}
-  _facingSmoothTime: 0.12
-  _strafeTurnAngle: 25
+  _facingSmoothTime: 0.08
+  _strafeTurnAngle: 10
   _aimFacingRotationSpeed: 720
   _baseMoveAcceleration: 75
   _baseFriction: 10
+  _stoppingDeceleration: 35
+  _reversalAcceleration: 90
+  _overspeedDeceleration: 35
+  _crouchSpeedMultiplier: 0.5
+  _maximumGroundAngle: 50
+  _jumpBufferTime: 0.12
+  _dashBufferTime: 0.12
+  _coyoteTime: 0.1
   _groundCheckExtraDistance: 0.08
   _groundMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 129
   _airFrictionMultiplier: 0.4
   _crouchAccelerationMultiplier: 0.2
   _slideFrictionMultiplier: 0.4
@@ -604,7 +612,7 @@ MonoBehaviour:
   _airborneDashRegenTime: 4
   _slideStartSpeedMultiplier: 1.5
   _minSlideSpeed: 2
-  _postDashFrictionMultiplier: 0.3
+  _postDashFrictionMultiplier: 3.5
   _postDashFrictionDuration: 0.18
   _knockbackWindow: 0.3
   _knockbackFrictionMultiplier: 0.1

@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-[DefaultExecutionOrder(-100)]
+[DefaultExecutionOrder(-150)]
 public class ThirdPersonCamera : MonoBehaviour
 {
     public static event Action<ThirdPersonCamera> BecameAvailable;
@@ -42,10 +42,13 @@ public class ThirdPersonCamera : MonoBehaviour
     [SerializeField, Tooltip("Pull the camera closer when terrain or level geometry blocks the desired orbit position.")]
     private bool _avoidCameraClipping = true;
 
-    [SerializeField] private LayerMask _cameraCollisionMask = ~0;
+    [SerializeField] private LayerMask _cameraCollisionMask = (1 << 0) | (1 << 7);
     [SerializeField, Min(0f)] private float _cameraCollisionRadius = 0.25f;
     [SerializeField, Min(0f)] private float _cameraCollisionPadding = 0.12f;
-    [SerializeField, Min(0f)] private float _minimumDistanceFromLookPoint = 0.65f;
+    [SerializeField, Min(0f), Tooltip("Preferred starting distance when recovering an anchor inside geometry; closer walls still take priority.")]
+    private float _minimumDistanceFromLookPoint = 0.65f;
+    [SerializeField, Min(0.1f), Tooltip("Outward obstruction recovery in metres/second. Inward correction remains immediate.")]
+    private float _obstructionReturnSpeed = 8f;
 
     [SerializeField] private bool _lockCursorOnPlay = true;
 
@@ -64,6 +67,8 @@ public class ThirdPersonCamera : MonoBehaviour
     private float _reducedMotionFovScale;
 
     private readonly RaycastHit[] _cameraHitBuffer = new RaycastHit[12];
+    private readonly Collider[] _cameraOverlapBuffer = new Collider[16];
+    private float _resolvedOrbitDistance = -1f;
     private float _yaw;
     private float _pitch;
     private Vector3 _presentationPositionImpulse;
@@ -130,6 +135,7 @@ public class ThirdPersonCamera : MonoBehaviour
     public void SetFollowTarget(Transform followTarget)
     {
         _followTarget = followTarget;
+        _resolvedOrbitDistance = -1f;
     }
 
     public float HorizontalSensitivity
@@ -233,19 +239,21 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public void ApplyMainGameOrbitDefaults()
     {
-        _pivotHeight = 1.6f;
-        _shoulderOffset = 0.6f;
+        _pivotHeight = 1.5f;
+        _shoulderOffset = 1f;
         _cameraHeightOffset = 0f;
         _cameraDistance = 3.5f;
         _horizontalSensitivity = 0.12f;
         _verticalSensitivity = 0.12f;
         _invertVertical = false;
-        _minPitch = -55f;
-        _maxPitch = 65f;
+        _minPitch = -70f;
+        _maxPitch = 70f;
         _avoidCameraClipping = true;
         _cameraCollisionRadius = 0.25f;
         _cameraCollisionPadding = 0.12f;
         _minimumDistanceFromLookPoint = 0.65f;
+        _cameraCollisionMask = (1 << 0) | (1 << 7);
+        _obstructionReturnSpeed = 8f;
         _lockCursorOnPlay = true;
         _reducedMotionPositionScale = 0.2f;
         _reducedMotionRotationScale = 0.35f;
@@ -292,8 +300,9 @@ public class ThirdPersonCamera : MonoBehaviour
             return;
         // Presentation feedback is added after gameplay orbit and collision are resolved.
         // It never feeds back into yaw, pitch, follow placement, or gameplay aim.
-        transform.position = _gameplayPosition +
+        Vector3 presentationPosition = _gameplayPosition +
             _gameplayRotation * (_presentationPositionImpulse * _cameraFeedbackScale);
+        transform.position = SafePresentationPosition(presentationPosition);
         transform.rotation = _gameplayRotation *
             Quaternion.Euler(_presentationRotationImpulse * _cameraFeedbackScale);
         if (_camera != null)
@@ -311,7 +320,10 @@ public class ThirdPersonCamera : MonoBehaviour
     private Vector3 ResolveCameraPosition(Vector3 anchor, Vector3 desiredPosition)
     {
         if (!_avoidCameraClipping)
+        {
+            _resolvedOrbitDistance = -1f;
             return desiredPosition;
+        }
 
         Vector3 toDesired = desiredPosition - anchor;
         float desiredDistance = toDesired.magnitude;
@@ -319,13 +331,69 @@ public class ThirdPersonCamera : MonoBehaviour
             return desiredPosition;
 
         Vector3 direction = toDesired / desiredDistance;
-        if (!TryGetCameraCollision(anchor, direction, desiredDistance, out RaycastHit closestHit))
-            return desiredPosition;
+        // Casts do not reliably report an origin already overlapping geometry.
+        if (HasCameraOverlap(anchor))
+        {
+            Vector3 clearPosition = FindClearOrbitPosition(anchor, direction, desiredDistance);
+            _resolvedOrbitDistance = Vector3.Distance(anchor, clearPosition);
+            return clearPosition;
+        }
+        float safeDistance = desiredDistance;
+        if (TryGetCameraCollision(anchor, direction, desiredDistance, out RaycastHit closestHit))
+            safeDistance = Mathf.Clamp(closestHit.distance - _cameraCollisionPadding, 0f, desiredDistance);
+        SmoothObstructionDistance(safeDistance, Time.unscaledDeltaTime);
+        Vector3 resolved = anchor + direction * _resolvedOrbitDistance;
+        if (HasCameraOverlap(resolved))
+        {
+            resolved = FindClearOrbitPosition(anchor, direction, desiredDistance);
+            _resolvedOrbitDistance = Vector3.Distance(anchor, resolved);
+        }
+        return resolved;
+    }
 
-        float resolvedDistance = closestHit.distance - _cameraCollisionPadding;
-        resolvedDistance = Mathf.Max(0.05f, resolvedDistance);
-        resolvedDistance = Mathf.Min(resolvedDistance, desiredDistance);
-        return anchor + direction * resolvedDistance;
+    private float SmoothObstructionDistance(float safeDistance, float deltaTime)
+    {
+        if (_resolvedOrbitDistance < 0f || safeDistance < _resolvedOrbitDistance)
+            _resolvedOrbitDistance = safeDistance;
+        else
+            _resolvedOrbitDistance = Mathf.MoveTowards(_resolvedOrbitDistance, safeDistance, _obstructionReturnSpeed * Mathf.Max(0f, deltaTime));
+        return _resolvedOrbitDistance;
+    }
+
+    private Vector3 FindClearOrbitPosition(Vector3 anchor, Vector3 direction, float distance)
+    {
+        float step = Mathf.Max(0.1f, _cameraCollisionRadius);
+        for (float candidate = Mathf.Min(_minimumDistanceFromLookPoint, distance); candidate < distance; candidate += step)
+        {
+            Vector3 position = anchor + direction * candidate;
+            if (!HasCameraOverlap(position)) return position;
+        }
+        Vector3 desired = anchor + direction * distance;
+        if (!HasCameraOverlap(desired)) return desired;
+        return !HasCameraOverlap(_gameplayPosition) ? _gameplayPosition : anchor;
+    }
+
+    private bool HasCameraOverlap(Vector3 position)
+    {
+        if (_cameraCollisionRadius <= 0f) return false;
+        int count = Physics.OverlapSphereNonAlloc(position, _cameraCollisionRadius, _cameraOverlapBuffer, _cameraCollisionMask, QueryTriggerInteraction.Ignore);
+        Collider[] overlaps = count == _cameraOverlapBuffer.Length
+            ? Physics.OverlapSphere(position, _cameraCollisionRadius, _cameraCollisionMask, QueryTriggerInteraction.Ignore)
+            : _cameraOverlapBuffer;
+        if (overlaps != _cameraOverlapBuffer) count = overlaps.Length;
+        for (int i = 0; i < count; i++)
+            if (!IsIgnoredCameraCollider(overlaps[i])) return true;
+        return false;
+    }
+
+    private Vector3 SafePresentationPosition(Vector3 desired)
+    {
+        if (!_avoidCameraClipping) return desired;
+        Vector3 offset = desired - _gameplayPosition;
+        float distance = offset.magnitude;
+        if (distance > 0.0001f && TryGetCameraCollision(_gameplayPosition, offset / distance, distance, out RaycastHit hit))
+            desired = _gameplayPosition + offset / distance * Mathf.Max(0f, hit.distance - _cameraCollisionPadding);
+        return HasCameraOverlap(desired) ? _gameplayPosition : desired;
     }
 
     private bool TryGetCameraCollision(Vector3 origin, Vector3 direction, float distance, out RaycastHit closestHit)
@@ -337,10 +405,19 @@ public class ThirdPersonCamera : MonoBehaviour
             ? Physics.SphereCastNonAlloc(origin, _cameraCollisionRadius, direction, _cameraHitBuffer, distance, _cameraCollisionMask.value, QueryTriggerInteraction.Ignore)
             : Physics.RaycastNonAlloc(origin, direction, _cameraHitBuffer, distance, _cameraCollisionMask.value, QueryTriggerInteraction.Ignore);
 
+        RaycastHit[] hits = _cameraHitBuffer;
+        if (hitCount == _cameraHitBuffer.Length)
+        {
+            hits = _cameraCollisionRadius > 0f
+                ? Physics.SphereCastAll(origin, _cameraCollisionRadius, direction, distance, _cameraCollisionMask, QueryTriggerInteraction.Ignore)
+                : Physics.RaycastAll(origin, direction, distance, _cameraCollisionMask, QueryTriggerInteraction.Ignore);
+            hitCount = hits.Length;
+        }
+
         for (int i = 0; i < hitCount; i++)
         {
-            RaycastHit hit = _cameraHitBuffer[i];
-            if (hit.distance <= 0f || hit.distance >= closestDistance || IsFollowTargetHit(hit))
+            RaycastHit hit = hits[i];
+            if (hit.distance < 0f || hit.distance >= closestDistance || IsIgnoredCameraCollider(hit.collider))
                 continue;
 
             closestDistance = hit.distance;
@@ -350,15 +427,14 @@ public class ThirdPersonCamera : MonoBehaviour
         return closestDistance < float.PositiveInfinity;
     }
 
-    private bool IsFollowTargetHit(RaycastHit hit)
+    private bool IsIgnoredCameraCollider(Collider collider)
     {
-        if (_followTarget == null || hit.transform == null)
-            return false;
-
-        if (hit.transform == _followTarget || hit.transform.IsChildOf(_followTarget))
-            return true;
-
-        Rigidbody body = hit.rigidbody;
+        if (collider == null) return true;
+        if (collider.GetComponentInParent<EnemyHealth>() != null) return true;
+        if (_followTarget == null) return false;
+        Transform hit = collider.transform;
+        if (hit == _followTarget || hit.IsChildOf(_followTarget)) return true;
+        Rigidbody body = collider.attachedRigidbody;
         return body != null && (body.transform == _followTarget || body.transform.IsChildOf(_followTarget));
     }
 

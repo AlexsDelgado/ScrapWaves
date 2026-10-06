@@ -265,8 +265,10 @@ public sealed class PlayerDirectionalDashTests
         float boost = Mathf.Max(.1f, stats.GetStat(StatType.DashSpeed));
         typeof(PlayerMovement).GetMethod("TryDash", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(movement, null);
         Assert.That(movement.IsDashing, Is.True);
-        Assert.That(Vector3.Distance(movement.CurrentDashDirectionWorld, (Vector3.right * 9f + Vector3.forward * boost).normalized),
-            Is.LessThan(.00001f), "An additive input dash follows the resulting momentum instead of only the input direction.");
+        Assert.That(Vector3.Distance(movement.CurrentDashDirectionWorld, Vector3.forward),
+            Is.LessThan(.00001f), "An input dash follows requested direction regardless of old lateral momentum.");
+        Assert.That(body.linearVelocity.z, Is.EqualTo(stats.GetMoveSpeed() + boost).Within(.0001f));
+        Assert.That(body.linearVelocity.x, Is.EqualTo(0f).Within(.0001f));
     }
 
     private static IEnumerator CheckBackstepRecovery(GameObject actor, PlayerAnimationDriver driver, DashPosePump pump)

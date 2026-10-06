@@ -25,16 +25,26 @@ public class PlayerMovement : MonoBehaviour
 
     [SerializeField] private Transform _cameraTransform;
     [SerializeField, Min(0.01f), Tooltip("Tiempo de suavizado (segundos) para girar hacia la cámara/strafe. Más alto = giro más lento y suave.")]
-    private float _facingSmoothTime = 0.12f;
+    private float _facingSmoothTime = 0.08f;
     [SerializeField, Min(0f), Tooltip("Grados adicionales de giro hacia el costado al strafear con A/D, para que no se vea tan estático mirando siempre a cámara.")]
-    private float _strafeTurnAngle = 25f;
+    private float _strafeTurnAngle = 10f;
     [SerializeField, Min(0f), Tooltip("Degrees per second while the body is aligning to reticle aim. Zero uses movement rotation speed.")]
     private float _aimFacingRotationSpeed = 720f;
 
-    [SerializeField, Min(0.1f)] private float _baseMoveAcceleration = 38f;
-    [SerializeField, Min(0.1f)] private float _baseFriction = 9f;
+    [SerializeField, Min(0.1f)] private float _baseMoveAcceleration = 75f;
+    [SerializeField, Min(0.1f)] private float _baseFriction = 10f;
+    [SerializeField, Min(0.1f), Tooltip("Ground release braking in metres/second squared; bounded so velocity never reverses at rest.")]
+    private float _stoppingDeceleration = 35f;
+    [SerializeField, Min(0.1f)] private float _reversalAcceleration = 90f;
+    [SerializeField, Min(0.1f), Tooltip("Recovery rate for speed above the normal cap, including expired knockback and dash windows.")]
+    private float _overspeedDeceleration = 35f;
+    [SerializeField, Range(0.05f, 1f)] private float _crouchSpeedMultiplier = 0.5f;
+    [SerializeField, Range(0f, 89f)] private float _maximumGroundAngle = 50f;
+    [SerializeField, Min(0f)] private float _jumpBufferTime = 0.12f;
+    [SerializeField, Min(0f)] private float _dashBufferTime = 0.12f;
+    [SerializeField, Min(0f)] private float _coyoteTime = 0.1f;
     [SerializeField, Min(0f)] private float _groundCheckExtraDistance = 0.08f;
-    [SerializeField] private LayerMask _groundMask = ~0;
+    [SerializeField] private LayerMask _groundMask = (1 << 0) | (1 << 7);
     [SerializeField, Min(0f)] private float _airFrictionMultiplier = 0.2f;
     [SerializeField, Min(0f)] private float _crouchAccelerationMultiplier = 0.2f;
     [SerializeField, Min(0f)] private float _slideFrictionMultiplier = 0.1f;
@@ -43,7 +53,8 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField, Min(0.01f)] private float _airborneDashRegenTime = 4f;
     [SerializeField, Min(1f)] private float _slideStartSpeedMultiplier = 1.5f;
     [SerializeField, Min(0f)] private float _minSlideSpeed = 2f;
-    [SerializeField, Min(0f)] private float _postDashFrictionMultiplier = 0.15f;
+    [SerializeField, Min(0f), Tooltip("Ground dash recovery braking relative to base friction. 3.5 gives 35 m/s squared at base friction 10.")]
+    private float _postDashFrictionMultiplier = 3.5f;
     [SerializeField, Min(0f)] private float _postDashFrictionDuration = 0.18f;
 
     [Header("External effects (enemy hooks)")]
@@ -59,6 +70,14 @@ public class PlayerMovement : MonoBehaviour
     private PlayerStats _stats;
     private Collider _ownCollider;
     private PhysicsMaterial _runtimeFrictionlessMaterial;
+    private ThirdPersonCamera _movementCamera;
+    private readonly RaycastHit[] _groundHits = new RaycastHit[32];
+    private Vector3 _groundNormal = Vector3.up;
+    private float _lastGroundedTime = float.NegativeInfinity;
+    private float _jumpRequestTime = float.NegativeInfinity;
+    private float _dashRequestTime = float.NegativeInfinity;
+    private Vector3 _bufferedDashDirection;
+    private bool _groundJumpConsumed;
 
     private Vector2 _moveInput;
     private Vector3 _moveDirectionWorld;
@@ -103,6 +122,7 @@ public class PlayerMovement : MonoBehaviour
 
     /// <summary>El jugador está en contacto con el suelo (para detección de vibraciones enemigas).</summary>
     public bool IsGroundedOnSurface => _isGrounded;
+    public Vector3 GroundNormal => _groundNormal;
 
     // Read-only presentation state; gameplay remains the owner of all action timing.
     public bool IsCrouching => _isCrouching;
@@ -116,8 +136,8 @@ public class PlayerMovement : MonoBehaviour
         get
         {
             if (!_isDashing) return Vector3.zero;
-            // AddForce is consumed by the next physics simulation. Present the
-            // requested resulting velocity during that first render frame.
+            // Present launch intent during its first render frame; later physics
+            // contacts may deflect the actual travel used by presentation.
             if (_dashLaunchFrame == Time.frameCount) return _dashLaunchDirectionWorld;
             Vector3 velocity = CurrentVelocity;
             velocity.y = 0f;
@@ -168,7 +188,7 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>
     /// Tira al jugador hacia <paramref name="towardPoint"/> con aceleración continua (Destroyer, succión).
     /// Reutiliza la ventana de knockback para que la fuerza no sea recortada por el speed-cap normal.
-    /// Se espera que el caller la invoque cada frame mientras dure la succión.
+    /// Call once per physics tick while suction is active.
     /// </summary>
     public void ApplyPull(Vector3 towardPoint, float acceleration)
     {
@@ -195,8 +215,10 @@ public class PlayerMovement : MonoBehaviour
             return;
 
         StopSlide(false);
-        _isDashing = false;
-        _dashTimer = 0f;
+        CancelDash();
+        ClearBufferedActions();
+        _groundJumpConsumed = true;
+        _isGrounded = false;
         _rb.linearVelocity = velocity;
         _launchTimer = duration;
         _launchGroundGrace = 0.45f;
@@ -230,8 +252,7 @@ public class PlayerMovement : MonoBehaviour
         if (freezePlanarVelocity && !_hasMomentumPreservingStunVelocity)
             _momentumPreservingStunVelocity = _rb.linearVelocity;
 
-        _isDashing = false;
-        _dashTimer = 0f;
+        CancelDash();
         StopSlide(false);
 
         if (!freezePlanarVelocity)
@@ -275,12 +296,10 @@ public class PlayerMovement : MonoBehaviour
         _isDashing = true;
         _dashTimer = Mathf.Max(_dashTimer, seconds);
 
-        Vector3 currentPlanar = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         Vector3 desiredVelocity = direction * speed;
         _dashLaunchDirectionWorld = direction;
         _dashLaunchFrame = Time.frameCount;
-        Vector3 velocityChange = desiredVelocity - currentPlanar;
-        _rb.AddForce(velocityChange * _rb.mass, ForceMode.Impulse);
+        SetPlanarVelocity(desiredVelocity);
         OnDashStarted?.Invoke();
     }
 
@@ -317,6 +336,11 @@ public class PlayerMovement : MonoBehaviour
     private void OnDestroy()
     {
         if (s_Instance == this) s_Instance = null;
+        if (_runtimeFrictionlessMaterial != null)
+        {
+            if (Application.isPlaying) Destroy(_runtimeFrictionlessMaterial);
+            else DestroyImmediate(_runtimeFrictionlessMaterial);
+        }
     }
 
     // Resolve camera reference and initialize jump and dash counters.
@@ -332,19 +356,33 @@ public class PlayerMovement : MonoBehaviour
     // Read buffered player inputs and trigger stateful actions.
     private void Update()
     {
-        if (GameplayPause.IsUiPaused || Time.timeScale <= 0f)
+        if (GameplayPause.IsUiPaused)
+        {
+            ClearBufferedActions();
+            _moveInput = Vector2.zero;
+            _moveDirectionWorld = Vector3.zero;
+            Keyboard pausedKeyboard = Keyboard.current;
+            _crouchHeld = pausedKeyboard != null && (pausedKeyboard.leftCtrlKey.isPressed || pausedKeyboard.rightCtrlKey.isPressed);
+            if (!_crouchHeld) StopCrouchOrSlide();
             return;
+        }
 
         if (_cameraTransform == null) return;
 
         ReadInput();
-
-        if (!IsMovementInputLocked && !IsLaunching)
+        // Release is cleanup, even during hit-stop, stun or ballistic transport.
+        if (!_crouchHeld) StopCrouchOrSlide();
+        if (IsMovementInputLocked || IsLaunching)
+            ClearBufferedActions();
+        else
         {
-            if (_jumpPressed) TryJump();
-            if (_crouchPressed) TryStartCrouchOrSlide();
-            if (_crouchReleased) StopCrouchOrSlide();
-            if (_dashPressed) TryDash();
+            if (_jumpPressed) _jumpRequestTime = Time.unscaledTime;
+            if (_dashPressed)
+            {
+                _dashRequestTime = Time.unscaledTime;
+                _bufferedDashDirection = _moveDirectionWorld;
+            }
+            if (_crouchPressed && Time.timeScale > 0f) TryStartCrouchOrSlide();
         }
 
         _jumpPressed = false;
@@ -356,9 +394,11 @@ public class PlayerMovement : MonoBehaviour
     // Run physics movement, friction, dash timer, and grounded transitions.
     private void FixedUpdate()
     {
-        if (_rb == null || _cameraTransform == null) return;
+        if (_rb == null || _cameraTransform == null || GameplayPause.IsUiPaused || Time.timeScale <= 0f) return;
 
         UpdateGroundedState();
+        if (!_crouchHeld) StopCrouchOrSlide();
+        ConsumeBufferedActions();
         if (!IsLaunching)
             HoldMomentumPreservingStun();
 
@@ -380,8 +420,6 @@ public class PlayerMovement : MonoBehaviour
         else
         {
             HandleMovement();
-            ApplyPlanarSpeedCap();
-            HandleFriction();
         }
 
         TickPostDashFrictionWindow();
@@ -410,14 +448,17 @@ public class PlayerMovement : MonoBehaviour
         if (keyboard == null)
         {
             _moveInput = Vector2.zero;
+            _moveDirectionWorld = Vector3.zero;
+            _crouchHeld = false;
+            _jumpPressed = _dashPressed = _crouchPressed = _crouchReleased = false;
             return;
         }
 
         _moveInput = ReadWasd();
         if (_moveInput.sqrMagnitude > 1f) _moveInput.Normalize();
 
-        Vector3 flatForward = FlattenOnXZ(_cameraTransform.forward);
-        Vector3 flatRight = FlattenOnXZ(_cameraTransform.right);
+        Vector3 flatForward = CameraPlanarForward();
+        Vector3 flatRight = Vector3.Cross(Vector3.up, flatForward);
         _moveDirectionWorld = flatForward * _moveInput.y + flatRight * _moveInput.x;
         if (_moveDirectionWorld.sqrMagnitude > 0.0001f) _moveDirectionWorld.Normalize();
 
@@ -430,12 +471,15 @@ public class PlayerMovement : MonoBehaviour
         _crouchHeld = crouchNowHeld;
     }
 
-    // Apply acceleration force and rotate player while respecting movement state priorities.
+    // Rotate through Rigidbody ownership and integrate the bounded planar motor.
     private void HandleMovement()
     {
         // Aturdido: sin rotación ni aceleración por input (la fricción sigue para frenar).
         if (IsMovementInputLocked)
+        {
+            HandlePlanarMotor(false);
             return;
+        }
 
         // Over-the-shoulder: el personaje siempre mira hacia donde mira la cámara (salvo
         // slide, que conserva el rumbo del deslizamiento, o un aim-facing forzado), con un
@@ -444,7 +488,7 @@ public class PlayerMovement : MonoBehaviour
         // apunta según cámara/reticle) siempre coincide con hacia dónde mira el personaje.
         Vector3 aimFacingDirection = Vector3.zero;
         bool useAimFacing = !_isSliding && TryGetAimFacingDirection(out aimFacingDirection);
-        Vector3 cameraFacing = FlattenOnXZ(_cameraTransform.forward);
+        Vector3 cameraFacing = CameraPlanarForward();
         Vector3 strafedFacing = Quaternion.AngleAxis(_moveInput.x * _strafeTurnAngle, Vector3.up) * cameraFacing;
         Vector3 facingDirection = _isSliding ? _slideDirectionWorld : useAimFacing ? aimFacingDirection : strafedFacing;
         if (facingDirection.sqrMagnitude > 0.0001f)
@@ -453,60 +497,67 @@ public class PlayerMovement : MonoBehaviour
             if (useAimFacing && _aimFacingRotationSpeed > 0f)
             {
                 // Lock de aim: giro a velocidad constante, más brusco a propósito.
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, _aimFacingRotationSpeed * Time.fixedDeltaTime);
+                _rb.MoveRotation(Quaternion.RotateTowards(_rb.rotation, targetRotation, _aimFacingRotationSpeed * Time.fixedDeltaTime));
             }
             else
             {
                 // Movimiento normal: suavizado exponencial (independiente del framerate),
                 // se siente mucho más orgánico que un giro a velocidad constante.
                 float t = 1f - Mathf.Exp(-Time.fixedDeltaTime / _facingSmoothTime);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, t);
+                _rb.MoveRotation(Quaternion.Slerp(_rb.rotation, targetRotation, t));
             }
         }
 
-        if (_isSliding) return;
+        HandlePlanarMotor(true);
+    }
 
-        float acceleration = _baseMoveAcceleration * DebugSpeedTool.LocomotionScale;
-        if (_isCrouching) acceleration *= _crouchAccelerationMultiplier;
+    private Vector3 CameraPlanarForward()
+    {
+        if (_movementCamera == null || _movementCamera.transform != _cameraTransform)
+            _movementCamera = _cameraTransform != null ? _cameraTransform.GetComponent<ThirdPersonCamera>() : null;
+        return FlattenOnXZ(_movementCamera != null && _movementCamera.isActiveAndEnabled ? _movementCamera.GameplayForward : _cameraTransform.forward);
+    }
 
-        if (_moveDirectionWorld.sqrMagnitude > 0.0001f)
+    private void SetPlanarVelocity(Vector3 planar)
+    {
+        _rb.linearVelocity = new Vector3(planar.x, _rb.linearVelocity.y, planar.z);
+    }
+
+    // One bounded integration owns motor velocity. External impulses remain physics-owned.
+    private void HandlePlanarMotor(bool allowInput)
+    {
+        Vector3 planar = Vector3.ProjectOnPlane(_rb.linearVelocity, Vector3.up);
+        float scale = DebugSpeedTool.LocomotionScale;
+        float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * scale * GetSlowMultiplier());
+        if (_isCrouching) maxSpeed *= _crouchSpeedMultiplier;
+        bool hasInput = allowInput && !_isSliding && _moveDirectionWorld.sqrMagnitude > 0.0001f;
+        Vector3 target = hasInput ? _moveDirectionWorld * maxSpeed : Vector3.zero;
+
+        bool coastingCharge = _momentumPreservingStunTimer > 0f && !_hasMomentumPreservingStunVelocity;
+        if (_isSliding || _postDashFrictionTimer > 0f || _knockbackTimer > 0f || coastingCharge)
         {
-            float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale * GetSlowMultiplier());
-            float speedRatio = Mathf.Clamp01(CurrentPlanarSpeed() / maxSpeed);
-            float speedScaledAcceleration = acceleration * Mathf.Lerp(1f, 0.35f, speedRatio);
-            _rb.AddForce(_moveDirectionWorld * speedScaledAcceleration, ForceMode.Acceleration);
+            // Preserve authored slide/impulse grace, but steering cannot add overspeed energy.
+            if (hasInput)
+            {
+                float acceleration = _baseMoveAcceleration * scale * 0.35f;
+                if (_isCrouching) acceleration *= _crouchAccelerationMultiplier;
+                float inheritedLimit = Mathf.Max(planar.magnitude, maxSpeed);
+                planar = Vector3.ClampMagnitude(planar + _moveDirectionWorld * acceleration * Time.fixedDeltaTime, inheritedLimit);
+            }
+            float friction = _baseFriction * scale;
+            if (!_isGrounded) friction *= _airFrictionMultiplier;
+            if (_isSliding && _isGrounded) friction *= _slideFrictionMultiplier;
+            if (_postDashFrictionTimer > 0f) friction *= _postDashFrictionMultiplier;
+            if (_knockbackTimer > 0f) friction *= _knockbackFrictionMultiplier;
+            SetPlanarVelocity(Vector3.MoveTowards(planar, Vector3.zero, friction * Time.fixedDeltaTime));
+            return;
         }
-    }
 
-    // Apply velocity-opposing friction adjusted by grounded, slide, and dash states.
-    private void HandleFriction()
-    {
-        Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
-        if (planarV.sqrMagnitude <= 0.0001f) return;
-
-        float friction = _baseFriction * DebugSpeedTool.LocomotionScale;
-        if (!_isGrounded) friction *= _airFrictionMultiplier;
-        if (_isSliding && _isGrounded) friction *= _slideFrictionMultiplier;
-        if (_postDashFrictionTimer > 0f) friction *= _postDashFrictionMultiplier;
-        if (_knockbackTimer > 0f) friction *= _knockbackFrictionMultiplier;
-
-        Vector3 frictionDir = -planarV.normalized;
-        _rb.AddForce(frictionDir * friction, ForceMode.Acceleration);
-    }
-
-
-    // Clamp normal horizontal velocity without crushing slide or dash momentum.
-    private void ApplyPlanarSpeedCap()
-    {
-        if (_isSliding || _postDashFrictionTimer > 0f || _knockbackTimer > 0f) return;
-
-        float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale * GetSlowMultiplier());
-        Vector3 planarV = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
-        float planarSpeed = planarV.magnitude;
-        if (planarSpeed <= maxSpeed || planarSpeed <= 0.0001f) return;
-
-        Vector3 cappedPlanar = planarV * (maxSpeed / planarSpeed);
-        _rb.linearVelocity = new Vector3(cappedPlanar.x, _rb.linearVelocity.y, cappedPlanar.z);
+        float rate = hasInput ? _baseMoveAcceleration : (_isGrounded ? _stoppingDeceleration : _baseFriction * _airFrictionMultiplier);
+        if (hasInput && Vector3.Dot(planar, target) < 0f) rate = _reversalAcceleration;
+        if (_isCrouching && hasInput) rate *= _crouchAccelerationMultiplier;
+        if (planar.magnitude > maxSpeed + 0.001f) rate = _overspeedDeceleration;
+        SetPlanarVelocity(Vector3.MoveTowards(planar, target, rate * scale * Time.fixedDeltaTime));
     }
 
     // Decrease post-dash friction grace timer used to preserve dash momentum.
@@ -590,22 +641,24 @@ public class PlayerMovement : MonoBehaviour
         return true;
     }
     // Attempt jump using ground status and remaining air jumps.
-    private void TryJump()
+    private bool TryJump()
     {
-        if (_isGrounded)
+        if (!_groundJumpConsumed && (_isGrounded || Time.time - _lastGroundedTime <= _coyoteTime))
         {
             PerformJump(false);
-            return;
+            return true;
         }
 
         if (_remainingAirJumps > 0)
         {
             _remainingAirJumps--;
             PerformJump(true);
+            return true;
         }
+        return false;
     }
 
-    // Execute jump impulse from jump height stat and clear descending velocity.
+    // Set a repeatable vertical launch speed from the jump-height stat.
     private void PerformJump(bool isAirJump)
     {
         float jumpHeight = Mathf.Max(0.01f, _stats.GetStat(StatType.JumpHeight));
@@ -613,9 +666,11 @@ public class PlayerMovement : MonoBehaviour
         float jumpSpeed = Mathf.Sqrt(2f * g * jumpHeight);
 
         Vector3 lv = _rb.linearVelocity;
-        if (lv.y < 0f) lv.y = 0f;
+        lv.y = jumpSpeed;
         _rb.linearVelocity = lv;
-        _rb.AddForce(Vector3.up * (jumpSpeed * _rb.mass), ForceMode.Impulse);
+        _groundJumpConsumed = true;
+        _isGrounded = false;
+        _lastGroundedTime = float.NegativeInfinity;
 
         if (_isSliding) StopSlide(false);
 
@@ -623,16 +678,40 @@ public class PlayerMovement : MonoBehaviour
         else OnJump?.Invoke();
     }
 
+    private void ClearBufferedActions()
+    {
+        _jumpRequestTime = _dashRequestTime = float.NegativeInfinity;
+    }
+
+    private void ConsumeBufferedActions()
+    {
+        if (IsMovementInputLocked || IsLaunching)
+        {
+            ClearBufferedActions();
+            return;
+        }
+        float now = Time.unscaledTime;
+        if (now - _jumpRequestTime > _jumpBufferTime) _jumpRequestTime = float.NegativeInfinity;
+        else if (TryJump()) _jumpRequestTime = float.NegativeInfinity;
+
+        if (now - _dashRequestTime > _dashBufferTime) _dashRequestTime = float.NegativeInfinity;
+        else if (!_isDashing && _currentDashCharges > 0)
+        {
+            Vector3 currentIntent = _moveDirectionWorld;
+            _moveDirectionWorld = _bufferedDashDirection;
+            TryDash();
+            _moveDirectionWorld = currentIntent;
+            _dashRequestTime = float.NegativeInfinity;
+        }
+    }
+
     // Enter crouch, or slide when grounded speed is high enough.
     private void TryStartCrouchOrSlide()
     {
         if (_isDashing)
         {
-            Debug.Log("Tried slide/crouch but currently dashing.", this);
             return;
         }
-
-        Debug.Log($"TRY SLIDE | Grounded: {_isGrounded} | Speed: {CurrentPlanarSpeed():0.00} | Required: {GetSlideStartSpeed():0.00}", this);
 
         if (_isGrounded && CanStartSlide())
         {
@@ -681,8 +760,6 @@ public class PlayerMovement : MonoBehaviour
         StopCrouch();
         _isSliding = true;
 
-        Debug.Log($"ENTERED SLIDE | Speed: {CurrentPlanarSpeed():0.00} | Grounded: {_isGrounded} | Threshold: {GetSlideStartSpeed():0.00}", this);
-
         OnSlideStarted?.Invoke();
     }
 
@@ -690,8 +767,6 @@ public class PlayerMovement : MonoBehaviour
     private void StopSlide(bool crouchIfHeld)
     {
         if (!_isSliding) return;
-
-        Debug.Log($"EXITED SLIDE | Speed: {CurrentPlanarSpeed():0.00} | Grounded: {_isGrounded} | CrouchHeld: {_crouchHeld} | CrouchIfHeld: {crouchIfHeld}", this);
 
         _isSliding = false;
         OnSlideEnded?.Invoke();
@@ -711,7 +786,7 @@ public class PlayerMovement : MonoBehaviour
         return Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale) * _slideStartSpeedMultiplier;
     }
 
-    // Validate dash requirements and apply a sudden additive dash velocity boost.
+    // DashSpeed remains a boost above the movement stat, but not above arbitrary old momentum.
     private void TryDash()
     {
         if (_isDashing) return;
@@ -728,12 +803,11 @@ public class PlayerMovement : MonoBehaviour
         _dashTimer = _dashDuration;
 
         float dashBoost = Mathf.Max(0.1f, _stats.GetStat(StatType.DashSpeed) * DebugSpeedTool.LocomotionScale);
-        Vector3 currentPlanar = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
-        Vector3 desiredVelocity = currentPlanar + (dashDirection * dashBoost);
-        _dashLaunchDirectionWorld = desiredVelocity.sqrMagnitude > .0001f ? desiredVelocity.normalized : dashDirection.normalized;
+        float dashSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale) + dashBoost;
+        Vector3 desiredVelocity = dashDirection.normalized * dashSpeed;
+        _dashLaunchDirectionWorld = dashDirection.normalized;
         _dashLaunchFrame = Time.frameCount;
-        Vector3 velocityChange = desiredVelocity - currentPlanar;
-        _rb.AddForce(velocityChange * _rb.mass, ForceMode.Impulse);
+        SetPlanarVelocity(desiredVelocity);
 
         _currentDashCharges = Mathf.Max(0, _currentDashCharges - 1);
         _dashRegenTimer = 0f;
@@ -747,11 +821,18 @@ public class PlayerMovement : MonoBehaviour
         _dashTimer -= Time.fixedDeltaTime;
         if (_dashTimer > 0f) return;
 
-        _isDashing = false;
+        CancelDash();
         _postDashFrictionTimer = _postDashFrictionDuration;
-        OnDashEnded?.Invoke();
 
-        if (_crouchHeld) TryStartCrouchOrSlide();
+        if (_crouchHeld && !IsMovementInputLocked) TryStartCrouchOrSlide();
+    }
+
+    private void CancelDash()
+    {
+        bool wasDashing = _isDashing;
+        _isDashing = false;
+        _dashTimer = 0f;
+        if (wasDashing) OnDashEnded?.Invoke();
     }
 
     // Regenerate dash charges using grounded or airborne recharge rates.
@@ -790,13 +871,18 @@ public class PlayerMovement : MonoBehaviour
     {
         _wasGrounded = _isGrounded;
         _isGrounded = IsGrounded();
+        if (_isGrounded)
+        {
+            _lastGroundedTime = Time.time;
+            _groundJumpConsumed = false;
+        }
 
         if (_isGrounded && !_wasGrounded)
         {
             _remainingAirJumps = Mathf.Max(0, _stats.GetStatInt(StatType.AirJumps));
             OnLanded?.Invoke();
 
-            if (_crouchHeld && !_isDashing)
+            if (_crouchHeld && !_isDashing && !IsLaunching && !IsMovementInputLocked && CanStartSlide())
             {
                 StartSlide();
                 return;
@@ -815,22 +901,44 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        if (!_isSliding && _crouchHeld && CanStartSlide()) StartSlide();
+        if (!_isSliding && _crouchHeld && !_isDashing && !IsLaunching && !IsMovementInputLocked && CanStartSlide()) StartSlide();
     }
 
-    // Check for floor contact using collider-aware downward raycast.
+    // Probe the lower capsule sphere, qualifying support rather than treating any ray hit as ground.
     private bool IsGrounded()
     {
-        Vector3 origin = transform.position + Vector3.up * 0.02f;
-        float distance = 0.2f + _groundCheckExtraDistance;
-
-        if (_ownCollider != null)
+        _groundNormal = Vector3.up;
+        // Uphill contact naturally has positive Y velocity. Suppress re-grounding only after a jump/launch.
+        if (_ownCollider == null || (_groundJumpConsumed && _rb != null && _rb.linearVelocity.y > 0.1f)) return false;
+        Bounds bounds = _ownCollider.bounds;
+        float radius = Mathf.Min(bounds.extents.x, bounds.extents.z);
+        if (_ownCollider is CapsuleCollider capsule && capsule.direction == 1)
         {
-            distance = Mathf.Max(distance, _ownCollider.bounds.extents.y + _groundCheckExtraDistance);
-            origin = new Vector3(transform.position.x, _ownCollider.bounds.center.y, transform.position.z);
+            Vector3 scale = transform.lossyScale;
+            radius = capsule.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
         }
-
-        return Physics.Raycast(origin, Vector3.down, distance, _groundMask, QueryTriggerInteraction.Ignore);
+        float skin = Mathf.Min(0.02f, radius * 0.1f);
+        float probeRadius = Mathf.Max(0.01f, radius - skin);
+        Vector3 lowerSphere = bounds.center - Vector3.up * Mathf.Max(0f, bounds.extents.y - radius);
+        Vector3 origin = lowerSphere + Vector3.up * 0.05f;
+        float distance = 0.05f + skin + _groundCheckExtraDistance;
+        int count = Physics.SphereCastNonAlloc(origin, probeRadius, Vector3.down, _groundHits, distance, _groundMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = count == _groundHits.Length
+            ? Physics.SphereCastAll(origin, probeRadius, Vector3.down, distance, _groundMask, QueryTriggerInteraction.Ignore)
+            : _groundHits;
+        if (hits != _groundHits) count = hits.Length;
+        float closest = float.PositiveInfinity;
+        float minimumUp = Mathf.Cos(_maximumGroundAngle * Mathf.Deg2Rad);
+        for (int i = 0; i < count; i++)
+        {
+            Collider surface = hits[i].collider;
+            if (surface == null || surface.transform == transform || surface.transform.IsChildOf(transform) ||
+                surface.GetComponentInParent<EnemyHealth>() != null || Vector3.Dot(hits[i].normal, Vector3.up) < minimumUp ||
+                hits[i].distance >= closest) continue;
+            closest = hits[i].distance;
+            _groundNormal = hits[i].normal;
+        }
+        return closest < float.PositiveInfinity;
     }
 
     // Initialize current dash charges to stat-provided maximum.
