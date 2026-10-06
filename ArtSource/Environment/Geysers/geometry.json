@@ -1,0 +1,42 @@
+{
+  "TrashGeyser": {
+    "vertices": 736,
+    "triangles": 1284,
+    "material_slots": 6,
+    "dimensions_m": [
+      9.8833,
+      9.9282,
+      2.0692
+    ]
+  },
+  "TrashGeyserCollision": {
+    "vertices": 168,
+    "triangles": 310,
+    "material_slots": 3,
+    "dimensions_m": [
+      9.8833,
+      9.9282,
+      2.0
+    ]
+  },
+  "HotAirGeyser": {
+    "vertices": 736,
+    "triangles": 1294,
+    "material_slots": 5,
+    "dimensions_m": [
+      9.8643,
+      9.9189,
+      2.0539
+    ]
+  },
+  "HotAirGeyserCollision": {
+    "vertices": 168,
+    "triangles": 310,
+    "material_slots": 3,
+    "dimensions_m": [
+      9.8643,
+      9.9189,
+      1.9998
+    ]
+  }
+}

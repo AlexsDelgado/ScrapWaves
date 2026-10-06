@@ -32,17 +32,27 @@ public sealed class PadModelIntegrationTests
             var roots=scene.GetRootGameObjects();var pads=roots.Where(g=>g.name.StartsWith("Jump ")||g.name.StartsWith("Land ")).ToArray();Assert.That(pads.Length,Is.EqualTo(4));
             foreach(var pad in pads)
             {
-                Assert.That(pad.GetComponent<MeshRenderer>().enabled,Is.False);var visual=pad.transform.Find("PadVisual");Assert.That(visual,Is.Not.Null);
-                Assert.That(pad.GetComponentsInChildren<Collider>().Length,Is.EqualTo(1));var collider=pad.GetComponent<BoxCollider>();Assert.That(collider.enabled,Is.True);Assert.That(collider.isTrigger,Is.False);Assert.That(collider.size,Is.EqualTo(Vector3.one));Assert.That(collider.center,Is.EqualTo(Vector3.zero));Assert.That(pad.transform.localScale,Is.EqualTo(new Vector3(10,2,10)));
-                Assert.That(visual.GetComponentsInChildren<Renderer>().All(r=>r.enabled&&r.gameObject.activeInHierarchy),Is.True);
-                if(!pad.name.StartsWith("Jump ")){Assert.That(pad.GetComponent<MapLaunchPad>(),Is.Null);continue;}
+                bool isLaunch=pad.name.StartsWith("Jump ");
+                Assert.That(pad.GetComponent<MeshRenderer>().enabled,Is.False);var visual=pad.transform.Find(isLaunch?"GeyserVisual":"PadVisual");Assert.That(visual,Is.Not.Null);
+                var collider=pad.GetComponent<BoxCollider>();Assert.That(collider.enabled,Is.True);Assert.That(pad.transform.localScale,Is.EqualTo(new Vector3(10,2,10)));
+                Assert.That(visual.GetComponentsInChildren<Renderer>().Any(r=>r.enabled&&r.gameObject.activeInHierarchy),Is.True);
+                if(!isLaunch)
+                {
+                    Assert.That(pad.GetComponentsInChildren<Collider>().Length,Is.EqualTo(1));Assert.That(collider.isTrigger,Is.False);
+                    Assert.That(collider.size,Is.EqualTo(Vector3.one));Assert.That(collider.center,Is.EqualTo(Vector3.zero));
+                    Assert.That(pad.GetComponent<MapLaunchPad>(),Is.Null);Assert.That(pad.GetComponentInChildren<GeyserVfx>(),Is.Null);continue;
+                }
+                Assert.That(pad.GetComponentsInChildren<Collider>().Length,Is.EqualTo(2));Assert.That(collider.isTrigger,Is.True);
+                Assert.That(visual.GetComponentInChildren<MeshCollider>().isTrigger,Is.False);
+                Assert.That(visual.GetComponent<GeyserVfx>().GeyserKind,Is.EqualTo(pad.name=="Jump floor"?GeyserVfx.Kind.Trash:GeyserVfx.Kind.HotAir));
                 var launcher=pad.GetComponent<MapLaunchPad>();Assert.That(launcher,Is.Not.Null);
                 var serialized=new SerializedObject(launcher);var landing=(Transform)serialized.FindProperty("_landing").objectReferenceValue;
                 Assert.That(landing.name,Is.EqualTo(pad.name.Replace("Jump ","Land ")));Assert.That(serialized.FindProperty("_apexClearance").floatValue,Is.EqualTo(12));
+                Assert.That(serialized.FindProperty("_launchFromTrigger").boolValue,Is.True);
                 var direction=landing.GetComponent<Collider>().bounds.center-collider.bounds.center;direction.y=0;
-                var markings=visual.Find("LaunchMarkings");Assert.That(markings,Is.Not.Null);
-                Assert.That(Vector3.Dot(markings.forward,direction.normalized),Is.GreaterThan(.9999f),"Chevrons must point along this pad's horizontal trajectory.");
-                Assert.That(visual.localRotation,Is.EqualTo(Quaternion.identity),"Keep the square deck aligned with the collision footprint.");
+                var flow=visual.Find("UpdraftDirection");Assert.That(flow,Is.Not.Null);
+                Assert.That(Vector3.Dot(flow.forward,direction.normalized),Is.GreaterThan(.9999f),"Updraft lean must reinforce this geyser's horizontal trajectory.");
+                Assert.That(visual.localRotation,Is.EqualTo(Quaternion.identity));
                 Vector3 start=collider.bounds.center+Vector3.up*2;Vector3 target=landing.GetComponent<Collider>().bounds.center+Vector3.up*2;
                 Assert.That(MapLaunchPad.TryComputeLaunchVelocity(start,target,12,out var velocity,out float time),Is.True);
                 Assert.That(Vector3.Distance(start+velocity*time+.5f*Physics.gravity*time*time,target),Is.LessThan(.01));

@@ -1,4 +1,6 @@
+using System;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 /// <summary>
 /// Al pararse arriba de este bloque, empuja al jugador en arco hasta el Land del mismo sufijo
@@ -14,6 +16,11 @@ public sealed class MapLaunchPad : MonoBehaviour
     [SerializeField, Min(0.5f), Tooltip("Metros que el arco sube por encima del punto más alto, para no rozar el borde.")]
     private float _apexClearance = 12f;
 
+    [SerializeField, Tooltip("Geysers launch immediately while the player occupies the opening trigger. Legacy pads retain top-surface contact activation.")]
+    private bool _launchFromTrigger;
+
+    public event Action<PlayerMovement> OnLaunched;
+
     private Collider _collider;
     private bool _busy;
 
@@ -26,10 +33,26 @@ public sealed class MapLaunchPad : MonoBehaviour
 
     private void OnCollisionStay(Collision collision)
     {
+        if (_launchFromTrigger) return;
+        TryLaunch(collision.collider, true);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (_launchFromTrigger) TryLaunch(other, false);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (_launchFromTrigger) TryLaunch(other, false);
+    }
+
+    private void TryLaunch(Collider contactingBody, bool requireTopContact)
+    {
         if (_busy || _landing == null)
             return;
 
-        PlayerMovement movement = collision.collider.GetComponentInParent<PlayerMovement>();
+        PlayerMovement movement = contactingBody.GetComponentInParent<PlayerMovement>();
         if (movement == null || movement.IsLaunching)
             return;
 
@@ -43,7 +66,7 @@ public sealed class MapLaunchPad : MonoBehaviour
             halfHeight = body.bounds.extents.y;
 
         float feet = movement.transform.position.y - halfHeight;
-        if (feet < _collider.bounds.max.y - 0.35f)
+        if (requireTopContact && feet < _collider.bounds.max.y - 0.35f)
             return;
 
         Vector3 start = movement.transform.position;
@@ -55,6 +78,7 @@ public sealed class MapLaunchPad : MonoBehaviour
 
         _busy = true;
         movement.LaunchWithVelocity(velocity, flightTime + 0.75f);
+        OnLaunched?.Invoke(movement);
     }
 
     private void OnCollisionExit(Collision collision)
@@ -62,6 +86,14 @@ public sealed class MapLaunchPad : MonoBehaviour
         if (collision.collider.GetComponentInParent<PlayerMovement>() != null)
             _busy = false;
     }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (_launchFromTrigger && other.GetComponentInParent<PlayerMovement>() != null)
+            _busy = false;
+    }
+
+    private void OnDisable() => _busy = false;
 
     private void OnDrawGizmos()
     {

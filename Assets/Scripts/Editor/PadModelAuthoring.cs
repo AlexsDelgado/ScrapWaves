@@ -54,6 +54,8 @@ public static class PadModelAuthoring
         var scene=EditorSceneManager.OpenScene("Assets/Scenes/GameplayScene.unity");
         foreach(var pad in scene.GetRootGameObjects().Where(g=>g.name.StartsWith("Jump ")||g.name.StartsWith("Land ")))
         {
+            // Approved geysers own their launch visuals and walkable collision.
+            if(pad.GetComponentInChildren<GeyserVfx>(true)!=null)continue;
             string name=pad.name.StartsWith("Jump ")?"JumpPlatform":"LandingPlatform";
             var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(Folder+"/Prefabs/"+name+"_Visual.prefab");
             var existing=pad.transform.Find("PadVisual");
