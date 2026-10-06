@@ -215,49 +215,27 @@ public sealed class FlamethrowerPresentationTests
     }
 
     [Test]
-    public void ActiveRadialPlume_IsHorizontalAndMatchesGameplayScaleForEveryPath()
+    public void ActiveIgnition_UsesThreeBoundedMeshesAndNoSphereParticlesForEveryPath()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
-        WeaponPresentationCue[] activeCues =
+        foreach (var activeCue in new[] { WeaponPresentationCue.FlamethrowerActiveBurst,
+            WeaponPresentationCue.FlamethrowerJellifiedActive, WeaponPresentationCue.FlamethrowerNitrogenActive })
         {
-            WeaponPresentationCue.FlamethrowerActiveBurst,
-            WeaponPresentationCue.FlamethrowerJellifiedActive,
-            WeaponPresentationCue.FlamethrowerNitrogenActive
-        };
-
-        for (int cueIndex = 0; cueIndex < activeCues.Length; cueIndex++)
-        {
-            Assert.That(profile.TryGetCueData(activeCues[cueIndex], out WeaponPresentationCueData cue), Is.True);
+            Assert.That(profile.TryGetCueData(activeCue, out var cue), Is.True);
             GameObject instance = Object.Instantiate(cue.VfxPrefab);
             try
             {
-                FlamethrowerCueVfx vfx = instance.GetComponent<FlamethrowerCueVfx>();
-                vfx.Prewarm();
-                Transform visual = instance.transform.Find("Animated Visual");
-                Assert.That(visual, Is.Not.Null);
-                Transform radius = visual.Find("Damage Radius");
-                Assert.That(radius, Is.Not.Null);
-                Assert.That(Mathf.Abs(Mathf.DeltaAngle(radius.localEulerAngles.x, 90f)), Is.LessThan(0.01f));
-                Assert.That(radius.localScale, Is.EqualTo(Vector3.one * 2f));
-                Assert.That(radius.GetComponent<MeshRenderer>().enabled, Is.False,
-                    "The old solid radius ring should only act as a horizontal scaling carrier.");
+                var vfx = instance.GetComponent<FlamethrowerCueVfx>(); vfx.Prewarm();
                 Assert.That(vfx.UsesActiveRadialPlume, Is.True);
-                Assert.That(radius.childCount, Is.GreaterThanOrEqualTo(20),
-                    "The ability should cover its radial footprint with overlapping turbulent billows.");
-                for (int child = 0; child < radius.childCount; child++)
-                {
-                    MeshRenderer renderer = radius.GetChild(child).GetComponent<MeshRenderer>();
-                    Assert.That(renderer, Is.Not.Null);
-                    Assert.That(renderer.sharedMaterial.shader.name, Is.EqualTo("ScrapWaves/GameFeel/Flamethrower Plume"));
-                }
+                Assert.That(vfx.RuntimeMeshLayerCount, Is.EqualTo(3));
+                Assert.That(instance.GetComponentsInChildren<ParticleSystem>(), Is.Empty);
+                Assert.That(vfx.ActiveBoundaryMesh, Is.Not.Null);
+                Assert.That(new SerializedObject(vfx).FindProperty("_activeBurstShader").objectReferenceValue, Is.Not.Null,
+                    "The dedicated Q shader must be referenced by the prefab so it survives player-build stripping.");
             }
-            finally
-            {
-                Object.DestroyImmediate(instance);
-            }
+            finally { Object.DestroyImmediate(instance); }
         }
     }
-
     [Test]
     public void Profile_RestoresPreOverhaulSilenceAndPreservesStatusVfx()
     {

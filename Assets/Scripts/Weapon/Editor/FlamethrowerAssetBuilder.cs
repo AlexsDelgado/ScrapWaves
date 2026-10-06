@@ -287,18 +287,8 @@ public static class FlamethrowerAssetBuilder
 
         if (active)
         {
-            GameObject radius = CreateMeshLayer("Damage Radius", visual.transform, assets.Ring, primary);
-            radius.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            radius.transform.localScale = Vector3.one * 2f;
-            GameObject pressure = CreateMeshLayer("Pressure Front", visual.transform, assets.Ring, core);
-            pressure.transform.localScale = Vector3.one * 1.72f;
-            GameObject center = CreateMeshLayer("Burst Core", visual.transform, assets.Sphere, core);
-            center.transform.localScale = Vector3.one * 0.24f;
-            renderers.Add(radius.GetComponent<MeshRenderer>());
-            renderers.Add(pressure.GetComponent<MeshRenderer>());
-            renderers.Add(center.GetComponent<MeshRenderer>());
-            particles.Add(CreateParticles(nitrogen ? "Cold Vapor" : fuel ? "Outward Fuel Throw" : "Flame Licks", visual.transform, assets.Shard, primary, 44, false, ParticleSystemShapeType.Sphere, 0.18f, 5f, 0.7f, 0f, primaryColor, coreColor));
-            particles.Add(CreateParticles(nitrogen ? "Ice Shards" : "Embers and Smoke", visual.transform, nitrogen ? assets.Shard : assets.Sphere, nitrogen ? core : assets.Smoke, 28, false, ParticleSystemShapeType.Sphere, 0.25f, 2.8f, 0.9f, 0f, coreColor, primaryColor));
+            // The Q component builds one instantaneous disc and bounded combined flame/ember meshes.
+            // Serialized shader reference also keeps it in player builds.
         }
         else if (style == FlamethrowerCueStyle.NitrogenFreeze)
         {
@@ -351,6 +341,9 @@ public static class FlamethrowerAssetBuilder
 
         SerializedObject serialized = new(vfx);
         serialized.FindProperty("_style").enumValueIndex = (int)style;
+        if (active)
+            serialized.FindProperty("_activeBurstShader").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<Shader>(GameFeelRoot + "/Shaders/FlamethrowerRadialIgnition.shader");
         serialized.FindProperty("_primaryColor").colorValue = primaryColor;
         serialized.FindProperty("_coreColor").colorValue = coreColor;
         SetObjectArray(serialized.FindProperty("_meshLayers"), renderers.ToArray());
