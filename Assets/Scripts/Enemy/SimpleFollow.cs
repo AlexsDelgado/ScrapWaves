@@ -15,6 +15,8 @@ public class SimpleFollow : MonoBehaviour
     [SerializeField, Min(0.05f)] private float _separationRadius = 1.25f;
     [SerializeField, Min(1)] private int _maxSeparationSamples = 8;
 
+    public float AuthoredMoveSpeed => _speed;
+
     private float _baseSpeed;
     private float _difficultySpeedMultiplier = 1f;
     private Rigidbody _rb;
@@ -134,7 +136,8 @@ public class SimpleFollow : MonoBehaviour
 
         float speed = _baseSpeed
             * _difficultySpeedMultiplier
-            * WeaponMovementSlowStatus.GetSpeedMultiplier(transform);
+            * WeaponMovementSlowStatus.GetSpeedMultiplier(transform)
+            * DebugSpeedTool.EnemyScale;
         Vector3 nextPos = transform.position + dir * speed * fixedDeltaTime + knockbackDisplacement;
         _rb.MovePosition(nextPos);
 

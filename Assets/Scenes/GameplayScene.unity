@@ -40168,7 +40168,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DebugSpeedTool
   _scale: 1.5
-  _showPanel: 1
+        _showPanel: 0
 --- !u!4 &910000003
 Transform:
   m_ObjectHideFlags: 0

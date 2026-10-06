@@ -67,7 +67,7 @@ public class EnemyProjectile : MonoBehaviour
         if (_consumed)
             return;
 
-        _rigidbody.MovePosition(_rigidbody.position + _direction * (_speed * Time.fixedDeltaTime));
+        _rigidbody.MovePosition(_rigidbody.position + _direction * (_speed * DebugSpeedTool.ProjectileScale * Time.fixedDeltaTime));
     }
 
     private void Update()
@@ -76,7 +76,7 @@ public class EnemyProjectile : MonoBehaviour
             return;
 
         _elapsed += Time.deltaTime;
-        if (_elapsed >= _maxLifetime)
+        if (_elapsed * Mathf.Max(0.05f, DebugSpeedTool.ProjectileScale) >= _maxLifetime)
             Consume();
     }
 

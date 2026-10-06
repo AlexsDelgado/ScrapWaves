@@ -148,7 +148,7 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
 
     private void TickDashing()
     {
-        float step = _dashSpeed * Time.deltaTime;
+        float step = _dashSpeed * DebugSpeedTool.EnemyScale * Time.deltaTime;
         transform.position += _dashDir * step;
         _dashTravelled += step;
 
@@ -214,7 +214,7 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
         Vector3 dir = PlanarDirectionToPlayer();
         FacePlanar(dir, _rotationSpeed * 0.4f);
         if (dir.sqrMagnitude > 0.0001f)
-            transform.position += dir * (_overheatSpeed * Time.deltaTime);
+            transform.position += dir * (_overheatSpeed * DebugSpeedTool.EnemyScale * Time.deltaTime);
 
         _stateTimer -= Time.deltaTime;
         if (_stateTimer <= 0f)

@@ -52,6 +52,35 @@ public class PauseMenuUITests
     }
 
     [Test]
+    public void Awake_DevSpeedButtonTogglesHiddenSpeedPanel()
+    {
+        GameObject root = new("PauseMenuRoot");
+
+        CreatePauseMenu(root);
+
+        Transform mainActions = root.transform.Find("PauseRoot/MainActionPanel");
+        Assert.That(
+            mainActions.GetComponentsInChildren<Button>(true).Any(button => GetButtonLabel(button) == "MODIFICAR VELOCIDADES"),
+            Is.False);
+
+        Button speed = root.GetComponentsInChildren<Button>(true)
+            .Single(button => GetButtonLabel(button) == "MODIFICAR VELOCIDADES");
+        Assert.That(DebugSpeedTool.Active, Is.Null);
+
+        speed.onClick.Invoke();
+        Assert.That(DebugSpeedTool.Active, Is.Not.Null);
+        Assert.That(DebugSpeedTool.Active.IsPanelOpen, Is.True);
+        Assert.That(DebugSpeedTool.Active.IsApplying, Is.False);
+        Assert.That(root.transform.Find("PauseRoot/SpeedPanel").gameObject.activeSelf, Is.True);
+        Assert.That(root.transform.Find("PauseRoot/MainActionPanel").gameObject.activeSelf, Is.False);
+
+        speed.onClick.Invoke();
+        Assert.That(DebugSpeedTool.Active.IsPanelOpen, Is.False);
+        Assert.That(root.transform.Find("PauseRoot/SpeedPanel").gameObject.activeSelf, Is.False);
+        Assert.That(root.transform.Find("PauseRoot/MainActionPanel").gameObject.activeSelf, Is.True);
+    }
+
+    [Test]
     public void Awake_WiresPauseButtonsToExpectedHandlers()
     {
         GameObject root = new("PauseMenuRoot");

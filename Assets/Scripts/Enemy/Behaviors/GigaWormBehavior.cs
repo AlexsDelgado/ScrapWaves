@@ -20,6 +20,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
     [Header("Burrow")]
     [SerializeField, Min(0.5f)] private float _buryDepth = 2.5f;
     [SerializeField, Min(0.5f)] private float _undergroundMoveSpeed = 8f;
+    public float AuthoredMoveSpeed => _undergroundMoveSpeed;
     [SerializeField, Min(0.5f)] private float _groundBurstIntervalMeters = 1.5f;
     [SerializeField] private LayerMask _groundMask;
 
@@ -415,7 +416,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
     private void AdvanceBodyTowardTarget(Vector3 worldTarget, float speed)
     {
         AlignBodyAxisToward(worldTarget);
-        transform.position += transform.up * (speed * Time.deltaTime);
+        transform.position += transform.up * (speed * DebugSpeedTool.EnemyScale * Time.deltaTime);
     }
 
     private void AlignBodyAxisToward(Vector3 worldTarget)
@@ -465,7 +466,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
         Vector3 target = Player.position;
         Vector3 pos = transform.position;
         Vector3 planarDelta = new Vector3(target.x - pos.x, 0f, target.z - pos.z);
-        float step = _undergroundMoveSpeed * Time.deltaTime;
+        float step = _undergroundMoveSpeed * DebugSpeedTool.EnemyScale * Time.deltaTime;
 
         if (planarDelta.sqrMagnitude > step * step)
             pos += planarDelta.normalized * step;
