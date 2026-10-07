@@ -799,8 +799,8 @@ MonoBehaviour:
   _presentationController: {fileID: 901000008}
   _mountController: {fileID: 901000009}
   _aimFacingHoldTime: 0.08
-  _manualCycleCooldown: 3
-  _singleWeaponCycleCooldown: 6
+  _manualCycleCooldown: 2
+  _singleWeaponCycleCooldown: 2.5
 --- !u!114 &766184711586426333
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -881,6 +881,11 @@ MonoBehaviour:
   _mortarVRoot: {fileID: 0}
   _rocketFrame: {fileID: 0}
   _authoredTintImages: []
+  _incomingReticleOpacity: 0.22
+  _manualCycleRingDiameter: 64
+  _manualCycleTrack: {fileID: 0}
+  _manualCycleProgress: {fileID: 0}
+  _reticleGroups: []
   _mortarMarkerRoot: {fileID: 0}
   _mortarLandingRing: {fileID: 0}
   _mortarBlastRing: {fileID: 0}

@@ -135,19 +135,19 @@ MonoBehaviour:
       type: {class: RocketLauncherTuning, ns: , asm: Assembly-CSharp}
       data:
         RocketAutoBaseRocketCount: 1
-        RocketAutoVolleyShotInterval: 0.11
-        RocketAutoBurstsPerSecond: 0.9
+        RocketAutoBurstsPerSecond: 0.5
+        RocketAutoVolleyShotInterval: 0.15
         RocketAutoHeatBonuses:
-        - HeatThresholdPercent: 25
+        - HeatThresholdPercent: 60
           AdditionalRockets: 1
-        - HeatThresholdPercent: 50
+        - HeatThresholdPercent: 80
           AdditionalRockets: 2
-        - HeatThresholdPercent: 75
+        - HeatThresholdPercent: 90
           AdditionalRockets: 3
         RocketActiveBaseRocketCount: 10
         RocketActiveInitialTargetCount: 5
         RocketActiveTargetLockInterval: 0.15
-        RocketActiveConeAngle: 90
+        RocketActiveConeAngle: 120
         RocketActiveTargetMarkerRadius: 0.7
         RocketAutoExplosionRadius: 2.5
         RocketManualExplosionRadius: 4
