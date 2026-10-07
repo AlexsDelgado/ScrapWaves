@@ -292,12 +292,12 @@ public sealed class PlayerAnimationIntegrationTests
     }
 
     [Test]
-    public void Controller_UsesEveryImportedPlayerClip()
+    public void Controller_UsesEveryAuthoredPlayerClip()
     {
         AnimatorController controller = Controller();
         Assert.That(controller, Is.Not.Null);
-        Assert.That(controller.animationClips.Distinct(), Is.EquivalentTo(ImportedClips()),
-            "Keep the imported player animation set limited to clips used by the controller.");
+        Assert.That(controller.animationClips.Distinct(), Is.EquivalentTo(PlaceholderPlayerAnimationBuilder.Clips()),
+            "Use the original clips with the presentation-only Slide tackle override.");
     }
 
     [Test]
@@ -509,9 +509,15 @@ public sealed class PlayerAnimationIntegrationTests
             Assert.That(standingHeight - hips.position.y, Is.GreaterThan(.25f), "The slide must visibly lower the pelvis.");
             Assert.That(Quaternion.Angle(standingSpine, lowerSpine.localRotation), Is.GreaterThan(5f),
                 "The test must exercise an authored torso lean that a weapon layer could otherwise erase.");
-            for (int i = 0; i < knees.Length; i++)
-                Assert.That(Quaternion.Angle(standingKnees[i], knees[i].localRotation), Is.GreaterThan(35f),
-                    "Both knees must remain folded for a crouch slide: " + knees[i].name);
+            float KneeAngle(string side)
+            {
+                Transform thigh = FindBone(model.transform, "thigh." + side);
+                Transform shin = FindBone(model.transform, "shin." + side);
+                Transform foot = FindBone(model.transform, "foot." + side);
+                return Vector3.Angle(thigh.position - shin.position, foot.position - shin.position);
+            }
+            Assert.That(KneeAngle("R"), Is.GreaterThan(150f), "A soccer tackle extends its leading leg.");
+            Assert.That(KneeAngle("L"), Is.LessThan(95f), "The other leg remains visibly tucked.");
             Transform[] protectedBones = new[] { "spine", "spine.001", "spine.002", "thigh.L", "thigh.R", "shin.L", "shin.R", "foot.L", "foot.R" }
                 .Select(name => FindBone(model.transform, name)).ToArray();
             Vector3[] slidePositions = protectedBones.Select(bone => bone.localPosition).ToArray();
@@ -533,7 +539,7 @@ public sealed class PlayerAnimationIntegrationTests
                     Assert.That(Quaternion.Angle(unaimedChest, chest.localRotation), Is.GreaterThan(1f),
                         "The chest action must still play above the protected crouch-slide torso.");
             }
-            Assert.That(model.transform.position, Is.EqualTo(Vector3.zero), "The crouch slide is cosmetic and in place.");
+            Assert.That(model.transform.position, Is.EqualTo(Vector3.zero), "The tackle is cosmetic and in place.");
         }
         finally
         {

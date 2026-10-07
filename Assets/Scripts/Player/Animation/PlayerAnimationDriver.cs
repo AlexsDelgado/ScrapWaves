@@ -37,6 +37,8 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
     [SerializeField, Min(0.01f)] private float _locomotionPlayback = 1f;
     [SerializeField, Min(0f)] private float _velocityBlendTime = 0.08f;
     [SerializeField, Min(0f)] private float _stateBlendTime = 0.09f;
+    [SerializeField, Min(0f), Tooltip("Cosmetic planted-foot recovery after a tackle; never locks movement.")]
+    private float _slideRecoveryTime = .18f;
     [SerializeField, Min(0f)] private float _jumpPoseTime = 0.2f;
     [SerializeField, Min(0f)] private float _landingPoseTime = 0.22f;
     [SerializeField, Range(0f, 10f), Tooltip("Small upper-body settling cue for a moving landing; leaves feet and motor untouched.")]
@@ -129,6 +131,10 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
     private static readonly int Fall = Animator.StringToHash("Base Layer.Fall");
     private static readonly int Land = Animator.StringToHash("Base Layer.Land");
     private static readonly int Slide = Animator.StringToHash("Base Layer.Slide");
+    private static readonly int SlideToLocomotion = Animator.StringToHash("Base Layer.SlideToLocomotion");
+    private static readonly int SlideToCrouch = Animator.StringToHash("Base Layer.SlideToCrouch");
+    private float _slideRecoveryRemaining;
+    private int _slideRecoveryState;
     private static readonly int Dash = Animator.StringToHash("Base Layer.Dash");
     private static readonly int DashBackward = Animator.StringToHash("Base Layer.DashBackward");
     private static readonly int Stun = Animator.StringToHash("Base Layer.Stun");
@@ -312,6 +318,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
         _dead = _health != null && !_health.IsAlive;
         _lastHealth = _health != null ? _health.CurrentHealth : 0;
         _jumpRemaining = _landRemaining = _actionRemaining = _hitRemaining = 0f;
+        _slideRecoveryRemaining = 0f;
         _aimYaw = _aimPitch = _recoil = _layerWeight = 0f;
         _runFollowThroughBlend = _armedRunPoseWeight = 0f;
         _hasDashDirection = false;
@@ -401,7 +408,23 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
             else if (_landRemaining > 0f && planarSpeed < 0.5f) state = Land;
             else if (_movement.IsCrouching) state = Crouch;
         }
-        SelectState(state, BaseLayer, ref _baseState, _stateBlendTime);
+        bool wasRecovering = _baseState == SlideToLocomotion || _baseState == SlideToCrouch;
+        if (state == Locomotion || state == Crouch)
+        {
+            if (_baseState == Slide)
+            {
+                _slideRecoveryState = state == Crouch ? SlideToCrouch : SlideToLocomotion;
+                _slideRecoveryRemaining = _controller.HasState(BaseLayer, _slideRecoveryState) ? _slideRecoveryTime : 0f;
+            }
+            if (_slideRecoveryRemaining > 0f)
+            {
+                state = _slideRecoveryState;
+                _slideRecoveryRemaining = Mathf.Max(0f, _slideRecoveryRemaining - dt);
+            }
+        }
+        else _slideRecoveryRemaining = 0f; // Air, dash and combat interruptions keep their existing priority.
+        bool recovering = state == SlideToLocomotion || state == SlideToCrouch;
+        SelectState(state, BaseLayer, ref _baseState, recovering ? .015f : wasRecovering ? .035f : _stateBlendTime);
         _jumpRemaining = Mathf.Max(0f, _jumpRemaining - dt);
         _landRemaining = Mathf.Max(0f, _landRemaining - dt);
     }

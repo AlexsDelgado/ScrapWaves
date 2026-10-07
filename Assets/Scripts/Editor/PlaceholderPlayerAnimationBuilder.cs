@@ -208,7 +208,19 @@ public static class PlaceholderPlayerAnimationBuilder
         return mask;
     }
 
-    public static AnimationClip[] Clips() => AssetDatabase.LoadAllAssetsAtPath(ModelPath).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToArray();
+    public static AnimationClip[] Clips()
+    {
+        var tackle = AssetDatabase.LoadAssetAtPath<AnimationClip>(SlideTackleAnimationAuthoring.ClipPath);
+        var clips = AssetDatabase.LoadAllAssetsAtPath(ModelPath).OfType<AnimationClip>()
+            .Where(c => !c.name.StartsWith("__preview__"))
+            .Select(c => c.name == "Slide" && tackle != null ? tackle : c).ToList();
+        foreach (string path in new[] { SlideTackleAnimationAuthoring.RunRecoveryPath, SlideTackleAnimationAuthoring.CrouchRecoveryPath })
+        {
+            var recovery = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+            if (recovery != null) clips.Add(recovery);
+        }
+        return clips.ToArray();
+    }
 
     private static void MigrateDefaultPoseTimes(PlayerAnimationDriver driver)
     {
@@ -285,6 +297,8 @@ public static class PlaceholderPlayerAnimationBuilder
         var crouchState = State(baseLayer, "Crouch", crouch);
         crouchState.speedParameter = "LocomotionRate"; crouchState.speedParameterActive = true;
         foreach (string n in new[] { "Jump", "AirJump", "Fall", "Land", "Slide", "Dash", "DashBackward", "Stun" }) State(baseLayer,n,clips[n]);
+        foreach (string n in new[] { "SlideToLocomotion", "SlideToCrouch" })
+            if (clips.TryGetValue(n, out var recovery)) State(baseLayer, n, recovery);
         var upper = Layer("Upper Body", mask, 1);
         foreach (string n in new[] { "Aim", "Fire", "Slash", "Flame", "Hit" }) State(upper,n,clips[n]);
         upper.defaultState = upper.states[0].state;
