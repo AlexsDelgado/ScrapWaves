@@ -70,6 +70,7 @@ public class PauseMenuUI : MonoBehaviour
         BindControlListeners();
         BindSettingsService(_settingsService != null ? _settingsService : UserSettingsService.Instance);
         SetUpStatAttributionTabs();
+        EnsureDevSpeedButton();
         _root.SetActive(false);
     }
 
@@ -91,6 +92,164 @@ public class PauseMenuUI : MonoBehaviour
         _statAttributionPanel.Initialize(_statsText.gameObject);
 #endif
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private Button _speedButton;
+    private DebugSpeedPausePanel _speedPanel;
+    private bool _speedViewOpen;
+
+    private void EnsureDevSpeedButton()
+    {
+        if (_root == null)
+            return;
+
+        Transform existing = _root.transform.Find("SpeedButton");
+        if (existing == null)
+            _speedButton = CreateDevSpeedButton(_root.transform);
+        else
+            _speedButton = existing.GetComponent<Button>();
+
+        if (_speedButton != null)
+        {
+            _speedButton.onClick.RemoveListener(OpenSpeedMenu);
+            _speedButton.onClick.AddListener(OpenSpeedMenu);
+        }
+
+        Transform panelTransform = _root.transform.Find("SpeedPanel");
+        if (panelTransform == null)
+        {
+            var panelGo = new GameObject("SpeedPanel", typeof(RectTransform));
+            panelGo.transform.SetParent(_root.transform, false);
+            RectTransform panelRt = panelGo.GetComponent<RectTransform>();
+            panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRt.pivot = new Vector2(0.5f, 0.5f);
+            panelRt.anchoredPosition = new Vector2(0f, -24f);
+            _speedPanel = panelGo.AddComponent<DebugSpeedPausePanel>();
+            _speedPanel.Build(() => SetSpeedView(false));
+            panelGo.SetActive(false);
+        }
+        else
+        {
+            _speedPanel = panelTransform.GetComponent<DebugSpeedPausePanel>();
+        }
+    }
+
+    private static Button CreateDevSpeedButton(Transform parent)
+    {
+        var go = new GameObject("SpeedButton", typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(330f, 52f);
+        rt.anchoredPosition = new Vector2(0f, -250f);
+
+        Image plate = go.AddComponent<Image>();
+        plate.sprite = HudUiFactory.WhiteSprite;
+        plate.color = Plate;
+
+        Button button = go.AddComponent<Button>();
+        button.targetGraphic = plate;
+        button.transition = Selectable.Transition.ColorTint;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Plate;
+        colors.highlightedColor = ScrapGreen;
+        colors.selectedColor = ScrapGreen;
+        colors.pressedColor = WarningRust;
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        var labelGo = new GameObject("Label", typeof(RectTransform));
+        labelGo.transform.SetParent(go.transform, false);
+        RectTransform labelRt = labelGo.GetComponent<RectTransform>();
+        labelRt.anchorMin = Vector2.zero;
+        labelRt.anchorMax = Vector2.one;
+        labelRt.offsetMin = new Vector2(12f, 4f);
+        labelRt.offsetMax = new Vector2(-12f, -4f);
+
+        TextMeshProUGUI label = labelGo.AddComponent<TextMeshProUGUI>();
+        TmpUiHelper.ApplyDefaultFont(label);
+        label.text = "MODIFICAR VELOCIDADES";
+        label.fontSize = 16f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = Bone;
+        label.raycastTarget = false;
+        return button;
+    }
+
+    private void OpenSpeedMenu() => SetSpeedView(!_speedViewOpen);
+
+    private void SetSpeedView(bool show)
+    {
+        _speedViewOpen = show;
+        if (_speedPanel != null)
+            _speedPanel.gameObject.SetActive(show);
+
+        if (show)
+        {
+            DebugSpeedTool tool = ResolveSpeedTool();
+            _speedPanel?.Bind(tool);
+            tool.SetPanelOpen(true);
+            if (_settingsPanel != null)
+                _settingsPanel.SetActive(false);
+            if (_mainActionPanel != null)
+                _mainActionPanel.SetActive(false);
+            if (_speedButton != null)
+                _speedButton.gameObject.SetActive(false);
+            SetPauseColumnsActive(false);
+            if (_speedPanel != null && _speedPanel.BackButton != null && _root != null && _root.activeInHierarchy)
+                FocusSelectable(_speedPanel.BackButton);
+            return;
+        }
+
+        if (DebugSpeedTool.Active != null)
+            DebugSpeedTool.Active.SetPanelOpen(false);
+
+        bool settingsOpen = _settingsPanel != null && _settingsPanel.activeSelf;
+        if (_mainActionPanel != null)
+            _mainActionPanel.SetActive(!settingsOpen);
+        if (_speedButton != null)
+            _speedButton.gameObject.SetActive(!settingsOpen);
+        SetPauseColumnsActive(true);
+    }
+
+    private void SetPauseColumnsActive(bool active)
+    {
+        if (_root == null)
+            return;
+
+        Transform run = _root.transform.Find("RunStatsPanel");
+        Transform player = _root.transform.Find("PlayerStatsPanel");
+        if (run != null)
+            run.gameObject.SetActive(active);
+        if (player != null)
+            player.gameObject.SetActive(active);
+    }
+
+    private static DebugSpeedTool ResolveSpeedTool()
+    {
+        if (DebugSpeedTool.Active != null)
+            return DebugSpeedTool.Active;
+
+        DebugSpeedTool tool = FindAnyObjectByType<DebugSpeedTool>(FindObjectsInactive.Include);
+        if (tool != null)
+        {
+            tool.gameObject.SetActive(true);
+            tool.enabled = true;
+            return DebugSpeedTool.Active != null ? DebugSpeedTool.Active : tool;
+        }
+
+        return new GameObject("DEBUG_SPEED").AddComponent<DebugSpeedTool>();
+    }
+#else
+    private void EnsureDevSpeedButton()
+    {
+    }
+#endif
 
     private void OnEnable()
     {
@@ -187,6 +346,9 @@ public class PauseMenuUI : MonoBehaviour
             return;
         ResolveRefs();
         _savedTimeScale = Time.timeScale > 0.001f ? Time.timeScale : 1f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        SetSpeedView(false);
+#endif
         SetSettingsView(false, false);
         SetPauseState(true, 0f);
         SyncSettingsFromSources();
@@ -196,6 +358,9 @@ public class PauseMenuUI : MonoBehaviour
 
     private void Resume()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        SetSpeedView(false);
+#endif
         SetSettingsView(false, false);
         SetPauseState(false, _savedTimeScale > 0.001f ? _savedTimeScale : 1f);
     }
@@ -216,6 +381,12 @@ public class PauseMenuUI : MonoBehaviour
     private void HandlePauseCancel()
     {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (_speedViewOpen)
+        {
+            SetSpeedView(false);
+            return;
+        }
+
         if (_statAttributionPanel != null && _statAttributionPanel.TryCloseDevTab())
             return;
 #endif
@@ -231,6 +402,9 @@ public class PauseMenuUI : MonoBehaviour
 
     private void ReturnToTitle()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        SetSpeedView(false);
+#endif
         SetSettingsView(false, false);
         SetPauseState(false, 1f);
         Cursor.lockState = CursorLockMode.None;
@@ -756,6 +930,12 @@ public class PauseMenuUI : MonoBehaviour
             _mainActionPanel.SetActive(!showSettings);
         if (_settingsPanel != null)
             _settingsPanel.SetActive(showSettings);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (showSettings && _speedViewOpen)
+            SetSpeedView(false);
+        if (_speedButton != null)
+            _speedButton.gameObject.SetActive(!showSettings && !_speedViewOpen);
+#endif
 
         if (!updateFocus || _root == null || !_root.activeInHierarchy)
             return;

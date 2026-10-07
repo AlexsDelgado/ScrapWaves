@@ -10,6 +10,8 @@ public class Projectile : MonoBehaviour
     [SerializeField, Tooltip("Unidades por segundo (movimiento en FixedUpdate con Rigidbody kinematic).")]
     private float _speed = 18f;
 
+    public float AuthoredSpeed => _speed;
+
     [SerializeField, Tooltip("Segundos de vida por defecto (el pool puede sobrescribir en ConfigurePooled).")]
     private float _maxLifetime = 4f;
 
@@ -84,7 +86,7 @@ public class Projectile : MonoBehaviour
     private static readonly Color ClusterVfxColor = new(0.7f, 0.03f, 0.02f, 0.95f);
     private RaycastHit[] _sweepHits = new RaycastHit[12];
 
-    public float ActiveSpeed => _activeSpeed;
+    public float ActiveSpeed => _activeSpeed * DebugSpeedTool.ProjectileScale;
     public bool HasPresentationContext => _presentationSink != null;
     public bool UsesAutomaticRocketTrajectory => _usesAutomaticRocketTrajectory;
 
@@ -409,7 +411,7 @@ public class Projectile : MonoBehaviour
         Vector3 delta;
         if (_usesAutomaticRocketTrajectory)
         {
-            _automaticRocketDistance += _activeSpeed * Time.fixedDeltaTime;
+            _automaticRocketDistance += ActiveSpeed * Time.fixedDeltaTime;
             if (_maxTravelDistance > 0f)
                 _automaticRocketDistance = Mathf.Min(_automaticRocketDistance, _maxTravelDistance);
             Vector3 nextPosition = _automaticRocketTrajectory.EvaluatePosition(_automaticRocketDistance);
@@ -420,7 +422,7 @@ public class Projectile : MonoBehaviour
         }
         else
         {
-            delta = _direction * (_activeSpeed * Time.fixedDeltaTime);
+            delta = _direction * (ActiveSpeed * Time.fixedDeltaTime);
         }
         if (TryConsumeSweptWorldCollision(currentPosition, delta))
             return;
@@ -449,7 +451,7 @@ public class Projectile : MonoBehaviour
             return;
 
         _elapsed += Time.deltaTime;
-        if (_elapsed >= _activeMaxLifetime)
+        if (_elapsed * Mathf.Max(0.05f, DebugSpeedTool.ProjectileScale) >= _activeMaxLifetime)
             ConsumeAtCurrentPosition(_explodeOnMaxTravel);
     }
 

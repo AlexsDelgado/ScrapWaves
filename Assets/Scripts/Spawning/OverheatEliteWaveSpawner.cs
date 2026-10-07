@@ -93,6 +93,19 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     public int ElitesRemaining => _aliveEliteCount;
     public bool IsEliteWaveActive => _waveActive;
 
+    public void CollectElitePrefabs(System.Collections.Generic.List<GameObject> destination)
+    {
+        if (destination == null || _elites == null)
+            return;
+
+        for (int i = 0; i < _elites.Length; i++)
+        {
+            EliteEntry entry = _elites[i];
+            if (entry != null && entry.Prefab != null)
+                destination.Add(entry.Prefab);
+        }
+    }
+
     public event Action OnEliteWaveProgressChanged;
 
     public void SetExitPhaseDisabled(bool disabled) => _exitPhaseDisabled = disabled;

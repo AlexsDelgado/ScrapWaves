@@ -18,6 +18,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     [SerializeField, Min(0f), Tooltip("Offset sobre la Y del jugador al perseguir en pisos altos.")]
     private float _playerHoverOffset = 1.25f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5f;
+    public float AuthoredMoveSpeed => _moveSpeed;
     [SerializeField, Min(0f)] private float _rotationSpeed = 360f;
     [SerializeField, Tooltip("Capas de suelo para mantener la altura de vuelo.")]
     private LayerMask _groundMask;
@@ -228,7 +229,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         planarDir.y = 0f;
         if (planarDir.sqrMagnitude < 0.0001f || speedScale <= 0f)
             return;
-        transform.position += planarDir.normalized * (_moveSpeed * speedScale * Time.deltaTime);
+        transform.position += planarDir.normalized * (_moveSpeed * speedScale * DebugSpeedTool.EnemyScale * Time.deltaTime);
     }
 
     private void Fire()

@@ -10,6 +10,7 @@ public class EnemyFollow : MonoBehaviour
     private float _moveSpeed = 3.5f;
 
     private float _baseMoveSpeed;
+    public float AuthoredMoveSpeed => _moveSpeed;
     private float _difficultySpeedMultiplier = 1f;
     private SwarmPooledEnemy _pooled;
 
@@ -179,7 +180,8 @@ public class EnemyFollow : MonoBehaviour
 
         float speed = _baseMoveSpeed
             * _difficultySpeedMultiplier
-            * WeaponMovementSlowStatus.GetSpeedMultiplier(transform);
+            * WeaponMovementSlowStatus.GetSpeedMultiplier(transform)
+            * DebugSpeedTool.EnemyScale;
         if (OverheatSwarmBoost.SpeedMultiplier > 1f)
             speed *= OverheatSwarmBoost.SpeedMultiplier;
 

@@ -106,6 +106,17 @@ public class BossManager : MonoBehaviour
 
     public void SetExitPhaseActive(bool active) => _exitPhaseActive = active;
 
+    public void CollectBossPrefabs(List<GameObject> destination)
+    {
+        if (destination == null)
+            return;
+
+        if (_bossPrefab != null)
+            destination.Add(_bossPrefab);
+        if (_secondBossPrefab != null)
+            destination.Add(_secondBossPrefab);
+    }
+
     private void Awake()
     {
         if (_overheatManager == null)

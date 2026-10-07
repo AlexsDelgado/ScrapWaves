@@ -11,7 +11,7 @@ public class DebugSpeedToolEditor : Editor
         DebugSpeedTool tool = (DebugSpeedTool)target;
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox(
-            "Calibra el ritmo del jugador en Play. La escala no se escribe en los stats: al salir de Play queda apagada y los valores de autoría siguen iguales.",
+            "Calibra el ritmo desde el submenú de pausa. Muestra el valor base y el propuesto. No se escribe en los stats: si el número cierra, hay que copiarlo a mano.",
             MessageType.Info);
 
         if (!Application.isPlaying)
@@ -26,6 +26,8 @@ public class DebugSpeedToolEditor : Editor
         if (applying != tool.IsApplying)
             tool.SetApplying(applying);
 
-        EditorGUILayout.LabelField("Factor en uso", DebugSpeedTool.LocomotionScale.ToString("0.00"));
+        EditorGUILayout.LabelField("Jugador en uso", DebugSpeedTool.LocomotionScale.ToString("0.00"));
+        EditorGUILayout.LabelField("Proyectiles en uso", DebugSpeedTool.ProjectileScale.ToString("0.00"));
+        EditorGUILayout.LabelField("Enemigos en uso", DebugSpeedTool.EnemyScale.ToString("0.00"));
     }
 }

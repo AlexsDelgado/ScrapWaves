@@ -17,6 +17,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     [SerializeField, Min(0f), Tooltip("Offset sobre la Y del jugador al perseguir en pisos altos.")]
     private float _playerHoverOffset = 1.25f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5.5f;
+    public float AuthoredMoveSpeed => _moveSpeed;
     [SerializeField, Min(60f)] private float _rotationSpeed = 360f;
     [SerializeField] private LayerMask _groundMask;
     [SerializeField, Min(1f)] private float _hoverRaycastUp = 40f;
@@ -256,7 +257,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         planarDir.y = 0f;
         if (planarDir.sqrMagnitude < 0.0001f)
             return;
-        transform.position += planarDir.normalized * (_moveSpeed * Time.deltaTime);
+        transform.position += planarDir.normalized * (_moveSpeed * DebugSpeedTool.EnemyScale * Time.deltaTime);
     }
 
     private void DropBomb()
