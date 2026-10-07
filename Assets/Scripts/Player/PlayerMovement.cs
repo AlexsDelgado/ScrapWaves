@@ -104,6 +104,13 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>El jugador está en contacto con el suelo (para detección de vibraciones enemigas).</summary>
     public bool IsGroundedOnSurface => _isGrounded;
 
+    /// <summary>Synchronize an authored grounded placement without emitting a second landing event.</summary>
+    public void SynchronizeGroundedPlacement()
+    {
+        _isGrounded = IsGrounded();
+        _wasGrounded = _isGrounded;
+    }
+
     // Read-only presentation state; gameplay remains the owner of all action timing.
     public bool IsCrouching => _isCrouching;
     public bool IsSliding => _isSliding;

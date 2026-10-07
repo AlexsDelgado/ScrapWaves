@@ -219,6 +219,7 @@ public class PlayerHealth : MonoBehaviour
     /// </summary>
     public void ApplyBurn(float seconds, int dps)
     {
+        if (EntranceCinematic.StartupHeld) return;
         if (seconds <= 0f || dps <= 0 || _isDead || _currentHealth <= 0)
             return;
 
@@ -281,6 +282,7 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(int amount)
     {
+        if (EntranceCinematic.StartupHeld) return;
         if (amount <= 0 || _currentHealth <= 0 || _isDead)
             return;
 

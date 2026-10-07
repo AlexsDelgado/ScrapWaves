@@ -38,9 +38,19 @@ public class RunStartWeaponChoice : MonoBehaviour
         // UI lo liberó y el mouse queda oculto durante la selección.
         yield return null;
 
+        var entrance = FindAnyObjectByType<EntranceCinematic>();
+        if (entrance != null)
+        {
+            yield return entrance.PlayEntrance();
+            entrance.ReleaseForSelection();
+        }
+
         List<WeaponData> offer = PickTwoRandomWeapons();
         if (offer.Count == 0)
+        {
+            entrance?.CompleteStartup();
             yield break;
+        }
 
         var options = new List<LevelUpChoiceOption>(offer.Count);
         for (int i = 0; i < offer.Count; i++)
@@ -57,6 +67,7 @@ public class RunStartWeaponChoice : MonoBehaviour
         // Solo el arma elegida: limpia cualquier starter residual y equipa una.
         _weaponManager.ClearEquippedWeapons();
         _weaponManager.AddWeapon(offer[selected]);
+        entrance?.CompleteStartup();
     }
 
     private List<WeaponData> PickTwoRandomWeapons()
