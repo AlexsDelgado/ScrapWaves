@@ -436,7 +436,7 @@ public class WeaponManager : MonoBehaviour
         if (next >= 0 && next < _equipped.Count) StartManualMode(next);
     }
 
-    // Activates manual state and refills ammo from runtime formulas.
+    // Completes reload/switch: restore manual ammo and make the selected weapon's Q ready.
     private void StartManualMode(int index)
     {
         if (_equipped.Count == 0)
@@ -459,7 +459,10 @@ public class WeaponManager : MonoBehaviour
 
         WeaponInstance runtime = _equipped[_currentManualIndex].Runtime;
         if (runtime != null)
+        {
             runtime.CurrentAmmo = WeaponMath.GetMaxManualAmmo(runtime, _stats);
+            runtime.AbilityCooldownTimer = 0f;
+        }
         GetAimDirection();
     }
 
