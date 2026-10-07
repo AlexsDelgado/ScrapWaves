@@ -157,6 +157,25 @@ public static class GeyserModelAuthoring
         Debug.Log("GEYSER_VISUALS_REFRESHED: bent scrap geometry and materials only; no scene, collider or VFX regeneration.");
     }
 
+    [MenuItem("ScrapWaves/Level/Refresh Trash Geyser Debris Only")]
+    public static void RefreshTrashDebris()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Refresh outside Play Mode.");
+        string path = Folder + "/Prefabs/TrashGeyser_Visual.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            var presentation = root.GetComponent<GeyserVfx>();
+            if (presentation == null || presentation.GeyserKind != GeyserVfx.Kind.Trash)
+                throw new InvalidOperationException("Expected the existing trash geyser presentation.");
+            presentation.ApplyTuning();
+            EditorUtility.SetDirty(presentation);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+        Debug.Log("TRASH_DEBRIS_REFRESHED: .27-.45m scraps, three-axis tumble, original 4/s and 20-particle cap; no scene or hot-air edits.");
+    }
+
     private static void ConfigureVisualMaterials(Shader lit)
     {
         if (lit == null) throw new InvalidOperationException("URP Lit unavailable.");

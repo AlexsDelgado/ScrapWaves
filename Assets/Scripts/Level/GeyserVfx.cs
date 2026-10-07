@@ -22,6 +22,10 @@ public sealed class GeyserVfx : MonoBehaviour
     [Header("Trash only")]
     [SerializeField, Range(0f, 8f)] private float _debrisPerSecond = 4f;
     [SerializeField, Range(4, 24)] private int _debrisBudget = 20;
+    [SerializeField, Range(.1f, .7f), Tooltip("Width in metres of the existing one-metre scrap mesh, before particle size variation.")]
+    private float _debrisSize = .36f;
+    [SerializeField, Range(.25f, 2f), Tooltip("Multiplier for bounded, nonzero tumbling on all three axes.")]
+    private float _debrisTumbleRate = 1f;
     [Header("Entry feedback")]
     [SerializeField, Range(4, 40)] private int _entryParticleCount = 28;
     [SerializeField, Range(.1f, 1f)] private float _entryAccentSeconds = .45f;
@@ -114,6 +118,15 @@ public sealed class GeyserVfx : MonoBehaviour
             var main = _debris.main; main.maxParticles = _debrisBudget;
             main.loop = true; main.playOnAwake = _kind == Kind.Trash; main.startDelay = 0f;
             var emission = _debris.emission; emission.rateOverTime = _kind == Kind.Trash ? _debrisPerSecond : 0f;
+            if (_kind == Kind.Trash)
+            {
+                main.startSize = new ParticleSystem.MinMaxCurve(_debrisSize * .75f, _debrisSize * 1.25f);
+                main.startRotation3D = true;
+                var rotation = _debris.rotationOverLifetime; rotation.enabled = true; rotation.separateAxes = true;
+                rotation.x = new ParticleSystem.MinMaxCurve(1.8f * _debrisTumbleRate, 3.2f * _debrisTumbleRate);
+                rotation.y = new ParticleSystem.MinMaxCurve(-4f * _debrisTumbleRate, -2.2f * _debrisTumbleRate);
+                rotation.z = new ParticleSystem.MinMaxCurve(.9f * _debrisTumbleRate, 2.5f * _debrisTumbleRate);
+            }
             if (_kind != Kind.Trash) _debris.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
         if (_entryBurst != null)
