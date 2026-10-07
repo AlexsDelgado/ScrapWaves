@@ -60,6 +60,7 @@ public class Projectile : MonoBehaviour
     private Collider _detonationCollider;
     private IWeaponPresentationSink _presentationSink;
     private WeaponInstance _presentationWeapon;
+    private WeaponFeedbackMode _presentationMode;
     private WeaponPresentationCue _impactCue;
     private WeaponPresentationCue _criticalImpactCue;
     private WeaponPresentationCue _weakPointImpactCue;
@@ -193,10 +194,13 @@ public class Projectile : MonoBehaviour
         WeaponPresentationCue criticalImpactCue,
         WeaponPresentationCue weakPointImpactCue,
         bool isAbility,
-        bool allowWeakPoint)
+        bool allowWeakPoint,
+        WeaponFeedbackMode? mode = null)
     {
         _presentationSink = presentationSink ?? NullWeaponPresentationSink.Instance;
         _presentationWeapon = weapon;
+        _presentationMode = mode ?? (isAbility ? WeaponFeedbackMode.Active
+            : weapon?.State == WeaponState.Manual ? WeaponFeedbackMode.Manual : WeaponFeedbackMode.Automatic);
         _impactCue = impactCue;
         _criticalImpactCue = criticalImpactCue;
         _weakPointImpactCue = weakPointImpactCue;
@@ -225,6 +229,7 @@ public class Projectile : MonoBehaviour
     {
         _presentationSink = null;
         _presentationWeapon = null;
+        _presentationMode = WeaponFeedbackMode.Automatic;
         _impactCue = WeaponPresentationCue.None;
         _criticalImpactCue = WeaponPresentationCue.None;
         _weakPointImpactCue = WeaponPresentationCue.None;
@@ -1029,7 +1034,8 @@ public class Projectile : MonoBehaviour
             target: target,
             isAbility: _presentationIsAbility,
             isCritical: critical,
-            isWeakPoint: weakPoint);
+            isWeakPoint: weakPoint,
+            mode: _presentationMode);
         _presentationSink.Emit(in context);
         _presentationImpactEmitted = true;
     }

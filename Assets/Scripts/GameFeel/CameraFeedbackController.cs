@@ -46,6 +46,11 @@ public sealed class CameraFeedbackController
         bool reducedMotion,
         float now)
     {
+        // Firing mode belongs to the event, so delayed automatic impacts stay quiet after a switch.
+        // Non-weapon feedback keeps its existing camera/accessibility behavior.
+        if (context.Weapon != null && context.Mode == WeaponFeedbackMode.Automatic)
+            return false;
+
         if (!enabled || _camera == null || cueData == null || now < _nextImpulseTime)
             return false;
 

@@ -73,6 +73,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private bool _lineBurstEliteOrBoss;
     private WeaponPresentationCue _lineBurstShotCue;
     private WeaponPresentationCue _lineBurstEventCue;
+    private WeaponFeedbackMode _lineBurstFeedbackMode;
     private bool _lineBurstEventEmitted;
     private int _lineBurstSequenceId;
     private DamageFeedbackKind _lineBurstDamageKind = DamageFeedbackKind.Direct;
@@ -994,6 +995,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             WeakPointHit = weakPointHit,
             CriticalHit = criticalHit,
             IsAbility = isAbility,
+            Mode = GetFeedbackMode(isAbility),
             ImpactOrigin = impactOrigin,
             ImpactPosition = impactPosition,
             Direction = direction,
@@ -1050,6 +1052,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             Direction = direction,
             SurfaceType = ImpactSurfaceResolver.Resolve(hit.collider),
             IsAbility = isAbility,
+            Mode = GetFeedbackMode(isAbility),
             RemainingDelay = Mathf.Max(0f, delay)
         });
     }
@@ -1059,7 +1062,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (Presentation is IWeaponFeedbackSink semantic)
         {
             WeaponFeedbackContext baseFeedback = CreateFeedbackContext(
-                GetFeedbackMode(impact.IsAbility),
+                impact.Mode,
                 impact.ImpactPosition,
                 impact.Direction,
                 impact.IsAbility,
@@ -1083,7 +1086,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             impact.ImpactPosition,
             impact.Direction,
             impact.IsAbility,
-            impact.Target);
+            impact.Target,
+            mode: impact.Mode);
     }
 
     private void ApplyHeadHunterImpact(PendingHeadHunterImpact impact)
@@ -1116,7 +1120,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             {
                 Collider surfaceCollider = impact.Target.GetComponentInChildren<Collider>();
                 WeaponFeedbackContext baseFeedback = CreateFeedbackContext(
-                    GetFeedbackMode(impact.IsAbility),
+                    impact.Mode,
                     impact.ImpactOrigin,
                     impact.Direction,
                     impact.IsAbility,
@@ -1154,7 +1158,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                     impact.IsAbility,
                     impact.Target,
                     impact.CriticalHit,
-                    impact.WeakPointHit);
+                    impact.WeakPointHit,
+                    mode: impact.Mode);
             }
         }
         DamageFeedbackSequenceRuntime.CompleteContributor(impact.ActionSequenceId);
@@ -1206,6 +1211,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public bool WeakPointHit;
         public bool CriticalHit;
         public bool IsAbility;
+        public WeaponFeedbackMode Mode;
         public Vector3 ImpactOrigin;
         public Vector3 ImpactPosition;
         public Vector3 Direction;
@@ -1223,6 +1229,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public Vector3 Direction;
         public ImpactSurfaceType SurfaceType;
         public bool IsAbility;
+        public WeaponFeedbackMode Mode;
         public float RemainingDelay;
     }
 
@@ -1294,6 +1301,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _lineBurstEliteOrBoss = eliteOrBoss;
         _lineBurstShotCue = shotCue;
         _lineBurstEventCue = eventCue;
+        _lineBurstFeedbackMode = GetFeedbackMode(isAbility: false);
         _lineBurstEventEmitted = false;
         _lineBurstDamageKind = IsContinuousFirePath()
             ? DamageFeedbackKind.SustainedContact
@@ -1308,7 +1316,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (shotCue == WeaponPresentationCue.AutomaticCannonContinuousShot)
         {
             _continuousBurstFeedbackActive = true;
-            BeginSustainedFeedback(baseDirection, isAbility: false);
+            BeginSustainedFeedback(baseDirection, isAbility: false, mode: _lineBurstFeedbackMode);
         }
         FireNextLineBurstShot();
         if (_lineBurstActive)
@@ -1383,14 +1391,16 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             isAbilityDamage: false,
             projectileArchetype: projectileArchetype,
             actionSequenceId: _lineBurstSequenceId,
-            damageKind: _lineBurstDamageKind);
+            damageKind: _lineBurstDamageKind,
+            feedbackMode: _lineBurstFeedbackMode);
         if (spawned && !_lineBurstEventEmitted && _lineBurstEventCue != WeaponPresentationCue.None)
         {
             EmitPresentationCue(
                 _lineBurstEventCue,
                 position,
                 shotDirection,
-                isAbility: false);
+                isAbility: false,
+                mode: _lineBurstFeedbackMode);
             _lineBurstEventEmitted = true;
         }
 
@@ -1449,7 +1459,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         }
         if (_continuousBurstFeedbackActive)
         {
-            EndSustainedFeedback(_lineBurstDirection, isAbility: false);
+            EndSustainedFeedback(_lineBurstDirection, isAbility: false, mode: _lineBurstFeedbackMode);
             _continuousBurstFeedbackActive = false;
         }
         _lineBurstActive = false;
@@ -1539,7 +1549,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         bool emitSemanticShotFeedback = true,
         ProjectilePresentationArchetypeId projectileArchetype = ProjectilePresentationArchetypeId.Default,
         int actionSequenceId = 0,
-        DamageFeedbackKind damageKind = DamageFeedbackKind.Direct)
+        DamageFeedbackKind damageKind = DamageFeedbackKind.Direct,
+        WeaponFeedbackMode? feedbackMode = null)
     {
         bool spawned = FireFromPositionInDirection(
             position,
@@ -1564,7 +1575,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (Presentation is IWeaponFeedbackSink semantic)
         {
             WeaponFeedbackContext feedback = CreateFeedbackContext(
-                GetFeedbackMode(isAbilityDamage),
+                feedbackMode ?? GetFeedbackMode(isAbilityDamage),
                 origin,
                 direction,
                 isAbilityDamage,
@@ -1589,14 +1600,16 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 WeaponPresentationCue.AutomaticCannonCriticalImpact,
                 WeaponPresentationCue.AutomaticCannonWeakPointImpact,
                 isAbilityDamage,
-                allowWeakPoint: false);
+                allowWeakPoint: false,
+                mode: feedbackMode ?? GetFeedbackMode(isAbilityDamage));
 
             EmitPresentationCue(
                 shotCue,
                 origin,
                 direction,
                 isAbilityDamage,
-                anchor: Spawn);
+                anchor: Spawn,
+                mode: feedbackMode ?? GetFeedbackMode(isAbilityDamage));
         }
         return true;
     }
@@ -1715,13 +1728,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             EmitPresentationCue(legacyCue, position, direction, isAbility, target, anchor: anchor);
     }
 
-    private void BeginSustainedFeedback(Vector3 direction, bool isAbility)
+    private void BeginSustainedFeedback(Vector3 direction, bool isAbility, WeaponFeedbackMode? mode = null)
     {
         if (Spawn == null)
             return;
 
         WeaponFeedbackContext feedback = CreateFeedbackContext(
-            GetFeedbackMode(isAbility),
+            mode ?? GetFeedbackMode(isAbility),
             Spawn.position,
             direction,
             isAbility,
@@ -1740,13 +1753,13 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         _legacyContinuousLoopHandle = Presentation.BeginLoop(in legacy);
     }
 
-    private void EndSustainedFeedback(Vector3 direction, bool isAbility)
+    private void EndSustainedFeedback(Vector3 direction, bool isAbility, WeaponFeedbackMode? mode = null)
     {
         if (Spawn == null)
             return;
 
         WeaponFeedbackContext feedback = CreateFeedbackContext(
-            GetFeedbackMode(isAbility),
+            mode ?? GetFeedbackMode(isAbility),
             Spawn.position,
             direction,
             isAbility,
@@ -1824,7 +1837,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         Transform target = null,
         bool isCritical = false,
         bool isWeakPoint = false,
-        Transform anchor = null)
+        Transform anchor = null,
+        WeaponFeedbackMode? mode = null)
     {
         if (cue == WeaponPresentationCue.None)
             return;
@@ -1838,7 +1852,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             isAbility: isAbility,
             isCritical: isCritical,
             isWeakPoint: isWeakPoint,
-            anchor: anchor);
+            anchor: anchor,
+            mode: mode ?? GetFeedbackMode(isAbility));
         Presentation.Emit(in context);
     }
 
