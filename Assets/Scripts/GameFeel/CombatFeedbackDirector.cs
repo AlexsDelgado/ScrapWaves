@@ -38,6 +38,7 @@ public sealed class CombatFeedbackDirector
     private readonly WeaponRecoilFeedback _recoil;
     private readonly CombatTextDirector _combatText;
     private readonly Dictionary<WeaponPresentationCue, float> _nextCueTimes = new();
+    private readonly Dictionary<WeaponPresentationCue, float> _nextDamageCueTimes = new();
     private readonly Dictionary<LoopKey, ActiveLoop> _activeSemanticLoops = new();
     private readonly Dictionary<int, ActiveLoop> _activeLegacyLoops = new();
     private int _nextLegacyLoopId = 1;
@@ -168,8 +169,9 @@ public sealed class CombatFeedbackDirector
                 _options.ReducedMotion);
         }
 
+        bool playWeaponVfx = feedbackEvent != WeaponFeedbackEvent.DamageConfirmed;
         if (!_profile.TryResolveCue(feedbackEvent, in routedContext, out WeaponPresentationCueData cueData) ||
-            cueData.Loop || IsRateLimited(cueData.Cue, now))
+            cueData.Loop || IsRateLimited(cueData.Cue, now, playWeaponVfx))
         {
             return;
         }
@@ -177,7 +179,13 @@ public sealed class CombatFeedbackDirector
         bool playPresentation = feedbackEvent != WeaponFeedbackEvent.DamageConfirmed || context.IsKill;
         bool played = false;
         if (playPresentation)
-            played = PlayCue(cueData, in routedContext, globalVolume, now, playHitStop: false, playEnemyReaction: false);
+        {
+            // A confirmation is per target, so replaying weapon VFX here duplicates an impact
+            // (and multiplies explosions for AOE kills). Enemy death visuals have their own path.
+            played = PlayCue(cueData, in routedContext, globalVolume, now,
+                playHitStop: false, playEnemyReaction: false,
+                playWeaponVfx: playWeaponVfx);
+        }
 
         if (feedbackEvent == WeaponFeedbackEvent.DamageConfirmed && !routedContext.DamageKind.IsBurnFamily())
         {
@@ -192,7 +200,7 @@ public sealed class CombatFeedbackDirector
         }
 
         if (played)
-            _nextCueTimes[cueData.Cue] = now + cueData.MinReplayInterval;
+            RecordCueTime(cueData, now, playWeaponVfx);
     }
 
     public void BeginSemanticLoop(
@@ -284,6 +292,7 @@ public sealed class CombatFeedbackDirector
         _camera.Clear();
         _hitStop.Restore();
         _nextCueTimes.Clear();
+        _nextDamageCueTimes.Clear();
     }
 
     private bool PlayCue(
@@ -292,7 +301,8 @@ public sealed class CombatFeedbackDirector
         float globalVolume,
         float now,
         bool playHitStop,
-        bool playEnemyReaction)
+        bool playEnemyReaction,
+        bool playWeaponVfx = true)
     {
         WeaponPresentationContext presentation = WeaponPresentationContext.FromFeedback(
             cueData.Cue,
@@ -303,7 +313,7 @@ public sealed class CombatFeedbackDirector
             ShouldReduceFlash(),
             _options.ScreenFlashEnabled);
 
-        bool played = _fx.TryPlay(cueData, in presentation, now, loop: false, out _);
+        bool played = playWeaponVfx && _fx.TryPlay(cueData, in presentation, now, loop: false, out _);
         played |= _audio.TryPlayOneShot(cueData, in context, globalVolume, now, out _);
         played |= _camera.Request(
             cueData,
@@ -332,7 +342,7 @@ public sealed class CombatFeedbackDirector
         }
 
         if (played)
-            _nextCueTimes[cueData.Cue] = now + cueData.MinReplayInterval;
+            RecordCueTime(cueData, now, playWeaponVfx);
         return played;
     }
 
@@ -403,10 +413,17 @@ public sealed class CombatFeedbackDirector
             _audio.Release(loop.Audio);
     }
 
-    private bool IsRateLimited(WeaponPresentationCue cue, float now)
+    private bool IsRateLimited(WeaponPresentationCue cue, float now, bool playWeaponVfx = true)
     {
-        return _nextCueTimes.TryGetValue(cue, out float nextTime) && now < nextTime;
+        return CueTimes(playWeaponVfx).TryGetValue(cue, out float nextTime) && now < nextTime;
     }
+
+    private void RecordCueTime(WeaponPresentationCueData cueData, float now, bool playWeaponVfx) =>
+        CueTimes(playWeaponVfx)[cueData.Cue] = now + cueData.MinReplayInterval;
+
+    // Profiles may share a cue between impact and damage; confirming a kill must not throttle its impact.
+    private Dictionary<WeaponPresentationCue, float> CueTimes(bool playWeaponVfx) =>
+        playWeaponVfx ? _nextCueTimes : _nextDamageCueTimes;
 
     private bool ShouldReduceFlash()
     {
