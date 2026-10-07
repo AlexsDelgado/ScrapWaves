@@ -2,7 +2,9 @@
 using System;
 using TMPro;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -225,6 +227,7 @@ public static class RunMenuPrefabBuilder
         view.StatusText = Label(window, "Status", string.Empty, 22f, FontStyles.Normal, TextAlignmentOptions.Center, Bone);
         Bottom(view.StatusText.rectTransform, 44f, 1652f, 19f, 32f);
         CraftingReadoutAuthoring.AuthorMenu(view);
+        AuthorTinkeringPopup(view);
         return canvas.gameObject;
     }
 
@@ -387,6 +390,7 @@ public static class RunMenuPrefabBuilder
     public static void UpdateBasicTinkeringChoiceCards(CraftingMenuView view)
     {
         s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        if (view.TinkerChoicePanel != null) return;
         RectTransform candidates = (RectTransform)view.TinkerPanel.transform.Find("Candidates");
         while (candidates.childCount > 0) Object.DestroyImmediate(candidates.GetChild(0).gameObject);
         CreateTinkerCandidates(candidates, view);
@@ -394,6 +398,71 @@ public static class RunMenuPrefabBuilder
         explanation.text = "Choose one weapon. The other is excluded for this run.";
         AcrossTop(explanation.rectTransform, 0f, 50f, 68f);
         EditorUtility.SetDirty(view);
+    }
+
+    [MenuItem("ScrapWaves/UI/Author Mandatory Tinkering Popup")]
+    public static void AuthorTinkeringPopup()
+    {
+        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        GameObject root = PrefabUtility.LoadPrefabContents(CraftingPrefabPath);
+        try
+        {
+            AuthorTinkeringPopup(root.GetComponent<CraftingMenuView>());
+            PrefabUtility.SaveAsPrefabAsset(root, CraftingPrefabPath);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+    }
+
+    // Explicit authoring migration; runtime binding does not build or move UI objects.
+    public static void AuthorTinkeringPopup(CraftingMenuView view)
+    {
+        if (view.TinkerChoicePanel != null) return;
+        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        view.TinkerPanel.transform.Find("Explanation").GetComponent<TMP_Text>().text =
+            "Press TINKER to create a weapon, then choose one of two offers.";
+        RectTransform overlay = Rect(view.Canvas.transform, "TinkeringChoice");
+        Stretch(overlay);
+        ImageGraphic(overlay, new Color(0.018f, 0.026f, 0.022f, 0.88f), true);
+        view.TinkerChoicePanel = overlay.gameObject;
+        RectTransform window = CreateWindow(overlay, new Vector2(1400f, 480f));
+        TMP_Text title = Label(window, "Title", "CHOOSE YOUR NEW WEAPON", 38f, FontStyles.Bold, TextAlignmentOptions.Center);
+        Top(title.rectTransform, 44f, 1312f, 34f, 54f);
+        TMP_Text subtitle = Label(window, "Subtitle", "Choose 1 of 2 weapons", 27f, FontStyles.Normal, TextAlignmentOptions.Center, MutedSteel);
+        Top(subtitle.rectTransform, 44f, 1312f, 94f, 40f);
+        RectTransform candidates = Rect(window, "Candidates");
+        Top(candidates, 44f, 1312f, 168f, 180f);
+        ConfigureRow(candidates.gameObject.AddComponent<HorizontalLayoutGroup>(), 24f);
+        foreach (CraftingCandidateField candidate in view.Candidates)
+            candidate.Root.transform.SetParent(candidates, false);
+        view.TinkerPanel.transform.Find("Candidates").gameObject.SetActive(false);
+        view.TinkerChoiceNotice = Label(window, "Notice",
+            "Cost paid. Choose a weapon to continue. The other is excluded for this run.",
+            24f, FontStyles.Normal, TextAlignmentOptions.Center, MutedSteel);
+        Bottom(view.TinkerChoiceNotice.rectTransform, 44f, 1312f, 28f, 64f);
+        overlay.gameObject.SetActive(false);
+        EditorUtility.SetDirty(view);
+    }
+
+    [MenuItem("ScrapWaves/UI/Author Mandatory Tinkering Popup In Scene Menus")]
+    public static void AuthorTinkeringPopupInScenes()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Author outside Play Mode.");
+        // These older scene-owned menus are independent copies of the crafting prefab.
+        foreach (string path in new[] { "Assets/Scenes/SampleScene.unity", "Assets/Scenes/Testing/WeaponTestingSandbox.unity",
+            "Assets/Scenes/Testing/WeaponTestingSandbox_GameFeel.unity", "Assets/Scenes/Testing/test_balance.unity",
+            "Assets/Scenes/Testing/enemiesTesting.unity" })
+        {
+            Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+            try
+            {
+                bool changed = false;
+                foreach (GameObject root in scene.GetRootGameObjects())
+                foreach (CraftingMenuView view in root.GetComponentsInChildren<CraftingMenuView>(true))
+                    if (view.TinkerChoicePanel == null) { AuthorTinkeringPopup(view); changed = true; }
+                if (changed) EditorSceneManager.SaveScene(scene);
+            }
+            finally { EditorSceneManager.CloseScene(scene, true); }
+        }
     }
 
     private static void CreateAdvancedPanel(RectTransform parent, CraftingMenuView view)

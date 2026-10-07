@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 
 /// <summary>Presentation controller for the authored crafting menu on the player prefab.</summary>
 [DisallowMultipleComponent]
@@ -19,7 +20,6 @@ public class CraftingUI : MonoBehaviour
     private Action _onClosed;
     private UnityAction[] _slotActions;
     private UnityAction[] _candidateActions;
-    private WeaponData _selectedCandidate;
     private float _previousTimeScale = 1f;
     private int _selectedSlot;
     private WeaponUpgradePath _offeredPath;
@@ -28,6 +28,7 @@ public class CraftingUI : MonoBehaviour
     private bool _buttonsBound;
     private bool _applyingAction;
     public bool IsVisible => _isVisible;
+    public bool IsChoosingWeapon => _crafting != null && _crafting.HasPendingTinkeringChoice;
 
     private void Awake()
     {
@@ -64,11 +65,17 @@ public class CraftingUI : MonoBehaviour
 
     private void OnDisable()
     {
-        if (_isVisible) Hide();
+        // Forced lifecycle interruption releases presentation, but the service retains the paid choice.
+        ClosePresentation();
         GameplayPause.SetHeld(ref _holdsUiPause, false);
+    }
+    private void OnEnable()
+    {
+        if (!_isVisible && IsChoosingWeapon && _inventory != null) Show(_crafting, _inventory);
     }
     private void OnDestroy()
     {
+        ClosePresentation();
         if (_inventory != null) _inventory.OnInventoryChanged -= OnInventoryChanged;
         if (!_buttonsBound || _view == null) return;
         if (_view.CloseButton != null) _view.CloseButton.onClick.RemoveListener(Hide);
@@ -120,6 +127,7 @@ public class CraftingUI : MonoBehaviour
         GameplayPause.SetHeld(ref _holdsUiPause, true);
         SetCameraBlocked(true);
         _selectedSlot = Mathf.Clamp(_selectedSlot, 0, Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count));
+        if (IsChoosingWeapon) _selectedSlot = Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count);
         SetStatus(string.Empty);
         _view.gameObject.SetActive(true);
         Refresh();
@@ -128,12 +136,17 @@ public class CraftingUI : MonoBehaviour
 
     private void Hide()
     {
+        if (IsChoosingWeapon || _applyingAction) return;
+        ClosePresentation();
+    }
+    private void ClosePresentation()
+    {
         if (!_isVisible) return;
         _isVisible = false;
         if (_inventory != null) _inventory.OnInventoryChanged -= OnInventoryChanged;
         if (_view != null) _view.gameObject.SetActive(false);
-        Time.timeScale = _previousTimeScale > 0f ? _previousTimeScale : 1f;
         GameplayPause.SetHeld(ref _holdsUiPause, false);
+        Time.timeScale = GameplayPause.IsUiPaused ? 0f : _previousTimeScale > 0f ? _previousTimeScale : 1f;
         SetCameraBlocked(false);
         Action closed = _onClosed;
         _onClosed = null;
@@ -150,7 +163,7 @@ public class CraftingUI : MonoBehaviour
     }
     private void SelectSlot(int slot)
     {
-        if (!_isVisible) return;
+        if (!_isVisible || IsChoosingWeapon || _applyingAction) return;
         // Crafting fills the next free equipment slot; later empty slots are not actionable yet.
         _selectedSlot = Mathf.Clamp(slot, 0, Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count));
         SetStatus(string.Empty);
@@ -164,6 +177,7 @@ public class CraftingUI : MonoBehaviour
     }
     private void Refresh()
     {
+        if (!_isVisible) return;
         IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
         foreach (CraftingMaterialField field in _view.Materials)
             field.AmountText.text = _inventory.GetAmount(field.Type).ToString(CultureInfo.InvariantCulture);
@@ -174,7 +188,18 @@ public class CraftingUI : MonoBehaviour
             _view.Slots[i].Bind(runtime, i == _selectedSlot, i <= equipped.Count);
             _view.Slots[i].Availability?.Bind(runtime != null ? _crafting.GetAvailableAction(runtime)
                 : i == equipped.Count && _crafting.CanTinkerNewWeapon() ? CraftingActionKind.TinkerNewWeapon : null);
+            if (IsChoosingWeapon) _view.Slots[i].Button.interactable = false;
         }
+        _view.CloseButton.interactable = !IsChoosingWeapon;
+        _view.TinkerChoicePanel.SetActive(IsChoosingWeapon);
+        if (IsChoosingWeapon)
+        {
+            _view.UpgradeButton.interactable = _view.TinkerButton.interactable = false;
+            _view.AcceptButton.interactable = _view.DeclineButton.interactable = false;
+            ShowTinkerChoice();
+            return;
+        }
+        foreach (CraftingCandidateField candidate in _view.Candidates) candidate.Root.SetActive(false);
         WeaponInstance weapon = SelectedWeapon();
         _offeredPath = WeaponUpgradePath.None;
         if (weapon?.Data == null) ShowTinker(equipped.Count + 1);
@@ -223,9 +248,16 @@ public class CraftingUI : MonoBehaviour
     private void ShowTinker(int slot)
     {
         _view.ShowPanel(_view.TinkerPanel);
+        bool eligible = _weaponManager.CanAddWeapon() && _crafting.BuildUnequippedWeapons().Count >= 2;
+        IReadOnlyList<MaterialCost> cost = _crafting.GetTinkeringCost(slot);
+        _view.TinkerCostLabel.text = $"COST · SLOT {slot}";
+        _view.TinkerReadout?.Bind(_inventory, cost, eligible ? null : "Not enough eligible weapons for a choice");
+        _view.TinkerCostText.text = eligible ? BuildCostText(cost) : "Not enough eligible weapons for a choice";
+        _view.TinkerButton.interactable = _crafting.CanTinkerNewWeapon();
+    }
+    private void ShowTinkerChoice()
+    {
         IReadOnlyList<WeaponData> candidates = _crafting.GetTinkeringOffer();
-        if (candidates.Count != 2 || (_selectedCandidate != candidates[0] && _selectedCandidate != candidates[1]))
-            _selectedCandidate = null;
         for (int i = 0; i < _view.Candidates.Length; i++)
         {
             CraftingCandidateField field = _view.Candidates[i];
@@ -233,28 +265,23 @@ public class CraftingUI : MonoBehaviour
             field.Root.SetActive(visible);
             if (!visible) continue;
             field.NameText.text = candidates[i].DisplayName;
-            bool selected = candidates[i] == _selectedCandidate;
-            field.Background.color = selected ? field.SelectedColor : field.NormalColor;
-            field.Border.gameObject.SetActive(selected);
+            field.Background.color = field.NormalColor;
+            field.Border.gameObject.SetActive(false);
             field.Button.interactable = true;
-            field.Icon.sprite = WeaponUiIcons.Resolve(candidates[i], selected);
+            field.Icon.sprite = WeaponUiIcons.Resolve(candidates[i], false);
             field.Icon.gameObject.SetActive(field.Icon.sprite != null);
             field.Icon.color = Color.white;
         }
-        IReadOnlyList<MaterialCost> cost = _crafting.GetTinkeringCost(slot);
-        _view.TinkerCostLabel.text = $"COST · SLOT {slot}";
-        _view.TinkerReadout?.Bind(_inventory, cost, candidates.Count == 0 ? "Not enough eligible weapons for a choice" : null);
-        _view.TinkerCostText.text = candidates.Count == 0 ? "Not enough eligible weapons for a choice" : BuildCostText(cost);
-        _view.TinkerButton.interactable = _selectedCandidate != null && _weaponManager.CanAddWeapon() && _inventory.CanAfford(cost);
+        _view.TinkerChoiceNotice.text = "Cost paid. Choose a weapon to continue. The other is excluded for this run.";
     }
     private void SelectCandidate(int index)
     {
-        if (!_isVisible || !_view.TinkerPanel.activeSelf || _applyingAction) return;
+        if (!_isVisible || !IsChoosingWeapon || !_view.TinkerChoicePanel.activeSelf || _applyingAction) return;
         IReadOnlyList<WeaponData> offer = _crafting.GetTinkeringOffer();
         if (index < 0 || index >= offer.Count) return;
-        _selectedCandidate = offer[index];
-        SetStatus(string.Empty);
-        Refresh();
+        ApplyAction(() => _crafting.TryTinkerWeapon(offer[index]), "New weapon crafted. The other offer is excluded for this run.");
+        if (_isVisible && !IsChoosingWeapon && EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(_view.Slots[_selectedSlot].Button.gameObject);
     }
     private void ShowAdvanced(WeaponInstance weapon)
     {
@@ -281,20 +308,22 @@ public class CraftingUI : MonoBehaviour
     private void UpgradeSelected()
     {
         WeaponInstance weapon = SelectedWeapon();
-        if (!_isVisible || weapon?.Data == null || weapon.Level >= 10) return;
+        if (!_isVisible || IsChoosingWeapon || weapon?.Data == null || weapon.Level >= 10) return;
         ApplyAction(() => _crafting.TryUpgradeWeapon(weapon.Data, weapon.Level + 1), "Weapon upgraded.");
     }
     private void Tinker()
     {
-        if (!_isVisible || !_view.TinkerPanel.activeSelf || _selectedCandidate == null) return;
-        ApplyAction(() => _crafting.TryTinkerWeapon(_selectedCandidate), "New weapon crafted. The other offer is excluded for this run.");
+        if (!_isVisible || IsChoosingWeapon || !_view.TinkerPanel.activeSelf || SelectedWeapon() != null) return;
+        ApplyAction(() => _crafting.TryBeginTinkering(), string.Empty);
+        if (_isVisible && IsChoosingWeapon && EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(_view.Candidates[0].Button.gameObject);
     }
     private void AcceptAdvanced() => ResolveAdvanced(true);
     private void DeclineAdvanced() => ResolveAdvanced(false);
     private void ResolveAdvanced(bool accept)
     {
         WeaponInstance weapon = SelectedWeapon();
-        if (!_isVisible || weapon?.Data == null || _offeredPath == WeaponUpgradePath.None) return;
+        if (!_isVisible || IsChoosingWeapon || weapon?.Data == null || _offeredPath == WeaponUpgradePath.None) return;
         ApplyAction(() => _crafting.TryAdvancedTinkering(weapon.Data, _offeredPath, accept),
             accept ? "Advanced path applied." : "Offer declined. The other path is guaranteed next time.");
     }

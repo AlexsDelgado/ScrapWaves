@@ -24,7 +24,7 @@ public sealed class RunMenuUiTests
     [SetUp]
     public void SetUp()
     {
-        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        if (!Application.isPlaying) EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         _randomState = Random.state;
         _previousSaveManager = SaveManager.Instance;
         SetSaveManager(null);
@@ -247,7 +247,7 @@ public sealed class RunMenuUiTests
     }
 
     [Test]
-    public void Tinker_ShowsServiceCandidatesAndCurrentSlotCostWithoutCreatingUi()
+    public void Tinker_ShowsCandidatesOnlyAfterPressAndChargesBeforeMandatoryChoiceWithoutCreatingUi()
     {
         CraftingHarness harness = CreateCraftingHarness(4, 3);
         WeaponData available = CreateWeapon("Available weapon");
@@ -259,18 +259,32 @@ public sealed class RunMenuUiTests
         int[] hierarchy = Hierarchy(harness.View);
         Open(harness);
         harness.View.Slots[2].Button.onClick.Invoke();
+        Random.State beforeTinker = Random.state;
+        Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.View.Candidates.Any(field => field.Root.activeSelf), Is.False);
+        Assert.That(GetField<List<WeaponData>>(harness.Service, "_tinkerOffer"), Is.Empty);
+        Assert.That(harness.View.TinkerButton.interactable, Is.True);
+        harness.View.Candidates[1].Button.onClick.Invoke(); // A hidden card cannot start a purchase.
+        Assert.That(Random.state, Is.EqualTo(beforeTinker));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(100));
+        Assert.That(harness.View.TinkerCostLabel.text, Is.EqualTo("COST · SLOT 3"));
+        Assert.That(harness.View.TinkerCostText.text, Is.EqualTo(CostText(harness.Service.GetTinkeringCost(3))));
+        harness.View.TinkerButton.onClick.Invoke();
         IReadOnlyList<WeaponData> candidates = harness.Service.GetTinkeringOffer();
         Assert.That(candidates, Is.EquivalentTo(new[] { available, alternative }));
         Assert.That(harness.View.TinkerPanel.activeSelf, Is.True);
         Assert.That(harness.View.Candidates.Where(field => field.Root.activeSelf).Select(field => field.NameText.text),
             Is.EqualTo(candidates.Select(weapon => weapon.DisplayName)));
-        Assert.That(harness.View.TinkerCostLabel.text, Is.EqualTo("COST · SLOT 3"));
-        Assert.That(harness.View.TinkerCostText.text, Is.EqualTo(CostText(harness.Service.GetTinkeringCost(3))));
+        Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.True);
+        Assert.That(harness.View.CloseButton.interactable, Is.False);
         Assert.That(harness.View.TinkerButton.interactable, Is.False);
+        Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons().Count, Is.EqualTo(2));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(85));
+        WeaponData chosen = candidates[1];
         harness.View.Candidates[1].Button.onClick.Invoke();
-        Assert.That(harness.View.TinkerButton.interactable, Is.True);
-        Assert.That(harness.View.Candidates[1].Border.gameObject.activeSelf, Is.True);
-        Assert.That(harness.View.Candidates[0].Border.gameObject.activeSelf, Is.False);
+        Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons()[2].Runtime.Data, Is.SameAs(chosen));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(85));
         Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy));
     }
 
@@ -286,6 +300,23 @@ public sealed class RunMenuUiTests
         Assert.That(harness.View.Candidates.Any(field => field.Root.activeSelf), Is.False);
     }
 
+    [Test]
+    public void Tinker_UnaffordablePressDoesNotRollSpendOrOpenPopup()
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        SetField(harness.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") });
+        harness.Inventory.TrySpend(new[] { new MaterialCost(MaterialType.Gears, 96) });
+        Open(harness); harness.View.Slots[1].Button.onClick.Invoke(); Random.State before = Random.state;
+        harness.View.TinkerButton.onClick.Invoke(); harness.View.TinkerButton.onClick.Invoke();
+        Assert.That(harness.View.TinkerButton.interactable, Is.False);
+        Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.Service.HasPendingTinkeringChoice, Is.False);
+        Assert.That(GetField<List<WeaponData>>(harness.Service, "_tinkerOffer"), Is.Empty);
+        Assert.That(Random.state, Is.EqualTo(before));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(100));
+        harness.View.CloseButton.onClick.Invoke(); Assert.That(harness.Controller.IsVisible, Is.False);
+    }
+
     [TestCase(0)]
     [TestCase(1)]
     public void Tinker_TwoPurchasesExcludeBothFirstOffersAndChargeSlotPrices(int selection)
@@ -296,37 +327,41 @@ public sealed class RunMenuUiTests
         SetField(harness.Service, "_weaponPool", pool);
         Open(harness);
         harness.View.Slots[1].Button.onClick.Invoke();
+        harness.View.TinkerButton.onClick.Invoke();
         WeaponData[] first = harness.Service.GetTinkeringOffer().ToArray();
         int[] hierarchy = Hierarchy(harness.View);
         Random.State afterOffer = Random.state;
-        harness.View.Candidates[selection].Button.onClick.Invoke();
         harness.View.CloseButton.onClick.Invoke();
-        Assert.That(Time.timeScale, Is.EqualTo(1f));
-        Open(harness);
+        Assert.That(Time.timeScale, Is.Zero);
+        Assert.That(harness.Controller.IsVisible, Is.True);
         harness.Inventory.Add(MaterialType.Wiring, 1);
         harness.View.Slots[0].Button.onClick.Invoke();
         harness.View.Slots[1].Button.onClick.Invoke();
         Assert.That(harness.Service.GetTinkeringOffer(), Is.EqualTo(first));
         Assert.That(Random.state, Is.EqualTo(afterOffer));
-        Assert.That(harness.View.Candidates[selection].Border.gameObject.activeSelf, Is.True);
+        Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.True);
         int transactions = 0;
         harness.Inventory.OnMaterialsSpent += () => transactions++;
-        harness.View.TinkerButton.onClick.Invoke();
+        harness.View.TinkerButton.onClick.Invoke(); // A repeated press cannot charge or reroll.
+        Assert.That(transactions, Is.Zero);
+        harness.View.Candidates[selection].Button.onClick.Invoke();
         WeaponManager manager = harness.Service.GetComponent<WeaponManager>();
         Assert.That(manager.GetEquippedWeapons()[1].Runtime.Data, Is.SameAs(first[selection]));
         Assert.That(harness.Service.BuildUnequippedWeapons(), Has.No.Member(first[1 - selection]));
         Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
         harness.View.TinkerButton.onClick.Invoke(); // Hidden button cannot buy again.
-        Assert.That(transactions, Is.EqualTo(1));
+        harness.View.Candidates[selection].Button.onClick.Invoke();
+        Assert.That(transactions, Is.Zero);
         harness.View.Slots[2].Button.onClick.Invoke();
+        Assert.That(harness.View.TinkerButton.interactable, Is.True);
+        harness.View.TinkerButton.onClick.Invoke();
         WeaponData[] second = harness.Service.GetTinkeringOffer().ToArray();
         Assert.That(second, Is.EquivalentTo(pool.Skip(1).Except(first)));
         Assert.That(harness.View.TinkerButton.interactable, Is.False);
         harness.View.Candidates[0].Button.onClick.Invoke();
-        harness.View.TinkerButton.onClick.Invoke();
         Assert.That(manager.GetEquippedWeapons()[2].Runtime.Data, Is.SameAs(second[0]));
         Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(80));
-        Assert.That(transactions, Is.EqualTo(2));
+        Assert.That(transactions, Is.EqualTo(1));
         Assert.That(harness.Service.GetTinkeringOffer(), Is.Empty);
         Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy));
 
@@ -417,6 +452,141 @@ public sealed class RunMenuUiTests
         Assert.That(attempts, Is.EqualTo(1));
         Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
         Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons().Count, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Tinker_PendingChoiceBlocksCloseCancelPauseAndOtherActions()
+    {
+        CraftingHarness harness = CreateCraftingHarness(4);
+        SetField(harness.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") });
+        Open(harness);
+        harness.View.Slots[1].Button.onClick.Invoke();
+        harness.View.TinkerButton.onClick.Invoke();
+        Random.State rolled = Random.state;
+        harness.View.CloseButton.onClick.Invoke();
+        harness.View.Slots[0].Button.onClick.Invoke();
+        harness.View.UpgradeButton.onClick.Invoke();
+        harness.View.AcceptButton.onClick.Invoke();
+        harness.View.DeclineButton.onClick.Invoke();
+        harness.View.TinkerButton.onClick.Invoke();
+        var eventSystem = Track(new GameObject("Event system", typeof(UnityEngine.EventSystems.EventSystem)))
+            .GetComponent<UnityEngine.EventSystems.EventSystem>();
+        UnityEngine.EventSystems.ExecuteEvents.Execute(harness.View.TinkerChoicePanel,
+            new UnityEngine.EventSystems.BaseEventData(eventSystem), UnityEngine.EventSystems.ExecuteEvents.cancelHandler);
+        var pauseOwner = Track(new GameObject("Pause fixture")); pauseOwner.SetActive(false);
+        var pause = pauseOwner.AddComponent<PauseMenuUI>(); SetField(pause, "_craftingUi", harness.Controller);
+        Assert.That(typeof(PauseMenuUI).GetMethod("CanPause", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(pause, null), Is.False);
+        Assert.That(harness.Controller.IsVisible, Is.True);
+        Assert.That(harness.Controller.IsChoosingWeapon, Is.True);
+        Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.True);
+        Assert.That(harness.Weapons[0].Level, Is.EqualTo(4));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
+        Assert.That(Time.timeScale, Is.Zero);
+        Assert.That(GameplayPause.LockCount, Is.EqualTo(1));
+        Assert.That(Random.state, Is.EqualTo(rolled));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Tinker_InterruptedPresentationResumesSamePaidOffer(bool replaceController)
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        SetField(harness.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B"), CreateWeapon("C") });
+        Open(harness); harness.View.Slots[1].Button.onClick.Invoke(); harness.View.TinkerButton.onClick.Invoke();
+        WeaponData[] offer = harness.Service.GetTinkeringOffer().ToArray(); Random.State rolled = Random.state;
+        typeof(CraftingUI).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(harness.Controller, null);
+        Assert.That(harness.Controller.IsVisible, Is.False);
+        Assert.That(GameplayPause.LockCount, Is.Zero); Assert.That(Time.timeScale, Is.EqualTo(1f));
+        CraftingUI controller = harness.Controller; CraftingMenuView view = harness.View;
+        if (replaceController)
+        {
+            Object.DestroyImmediate(controller);
+            GameObject replacement = Track(new GameObject("Replacement crafting presenter")); replacement.SetActive(false);
+            controller = replacement.AddComponent<CraftingUI>();
+            view = InstantiateView<CraftingMenuView>("CraftingMenu"); SetField(controller, "_view", view);
+        }
+        Assert.That(controller.PresentCoroutine(harness.Service, harness.Inventory, () => { }).MoveNext(), Is.True);
+        Assert.That(view.TinkerChoicePanel.activeSelf, Is.True);
+        Assert.That(harness.Service.GetTinkeringOffer(), Is.EqualTo(offer));
+        Assert.That(Random.state, Is.EqualTo(rolled));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
+        // An unrelated material loss after paying cannot strand the mandatory selection.
+        harness.Inventory.TrySpend(new[] { new MaterialCost(MaterialType.SheetMetal, 95) });
+        view.Candidates[0].Button.onClick.Invoke();
+        Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons()[1].Runtime.Data, Is.SameAs(offer[0]));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.Zero);
+        Assert.That(controller.IsChoosingWeapon, Is.False);
+        view.CloseButton.onClick.Invoke(); Assert.That(GameplayPause.LockCount, Is.Zero);
+    }
+
+    [Test]
+    public void Tinker_ReservationIsIdempotentAndInvalidatedSlotRefundsOnceWithoutDiscard()
+    {
+        CraftingHarness harness = CreateCraftingHarness(1);
+        var pool = new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") };
+        SetField(harness.Service, "_weaponPool", pool);
+        int transactions = 0; harness.Inventory.OnMaterialsSpent += () => transactions++;
+        Assert.That(harness.Service.TryBeginTinkering().Success, Is.True);
+        WeaponData chosen = harness.Service.GetTinkeringOffer()[0]; Random.State rolled = Random.state;
+        Assert.That(harness.Service.TryBeginTinkering().Success, Is.True);
+        Assert.That(harness.Service.TryTinkerWeapon(null).Success, Is.False);
+        Assert.That(transactions, Is.EqualTo(1)); Assert.That(Random.state, Is.EqualTo(rolled));
+        harness.Service.GetComponent<WeaponManager>().AddWeapon(CreateWeapon("External weapon"));
+        Assert.That(harness.Service.TryTinkerWeapon(chosen).Success, Is.False);
+        Assert.That(harness.Service.HasPendingTinkeringChoice, Is.False);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(100));
+        Assert.That(harness.Service.BuildUnequippedWeapons(), Is.EquivalentTo(pool));
+        Assert.That(harness.Service.TryTinkerWeapon(chosen).Success, Is.True);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(85));
+        Assert.That(harness.Service.TryTinkerWeapon(chosen).Success, Is.False);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(85));
+    }
+
+    [UnityTest]
+    public IEnumerator Tinker_PlayModePresenterDisableResumesMandatoryChoiceAndPointerAward()
+    {
+        yield return new EnterPlayMode();
+        CraftingHarness harness = CreateCraftingHarness(1);
+        SetField(harness.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") });
+        GameObject liveOwner = Track(new GameObject("Live crafting presenter")); liveOwner.SetActive(false);
+        CraftingUI controller = liveOwner.AddComponent<CraftingUI>(); SetField(controller, "_view", harness.View);
+        liveOwner.SetActive(true);
+        Assert.That(controller.PresentCoroutine(harness.Service, harness.Inventory, () => { }).MoveNext(), Is.True);
+        var events = Track(new GameObject("Live event system", typeof(UnityEngine.EventSystems.EventSystem)))
+            .GetComponent<UnityEngine.EventSystems.EventSystem>();
+        var pointer = new UnityEngine.EventSystems.PointerEventData(events) { button = UnityEngine.EventSystems.PointerEventData.InputButton.Left };
+        UnityEngine.EventSystems.ExecuteEvents.Execute(harness.View.Slots[1].gameObject, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
+        UnityEngine.EventSystems.ExecuteEvents.Execute(harness.View.TinkerButton.gameObject, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
+        WeaponData chosen = harness.Service.GetTinkeringOffer()[1];
+        yield return null;
+        GameObject pauseOwner = Track(new GameObject("Escape pause fixture")); pauseOwner.SetActive(false);
+        PauseMenuUI pause = pauseOwner.AddComponent<PauseMenuUI>();
+        SetField(pause, "_root", Track(new GameObject("Pause root"))); SetField(pause, "_craftingUi", controller);
+        var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
+        try
+        {
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.Escape));
+            UnityEngine.InputSystem.InputSystem.Update();
+            typeof(PauseMenuUI).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(pause, null);
+            Assert.That(GetField<bool>(pause, "_isPaused"), Is.False);
+            Assert.That(controller.IsChoosingWeapon, Is.True); Assert.That(harness.View.TinkerChoicePanel.activeSelf, Is.True);
+        }
+        finally { UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard); }
+        controller.enabled = false;
+        Assert.That(controller.IsVisible, Is.False); Assert.That(GameplayPause.LockCount, Is.Zero);
+        controller.enabled = true;
+        yield return null;
+        Assert.That(controller.IsVisible, Is.True); Assert.That(controller.IsChoosingWeapon, Is.True);
+        Assert.That(Time.timeScale, Is.Zero); Assert.That(GameplayPause.LockCount, Is.EqualTo(1));
+        UnityEngine.EventSystems.ExecuteEvents.Execute(harness.View.Candidates[1].Button.gameObject, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
+        UnityEngine.EventSystems.ExecuteEvents.Execute(harness.View.Candidates[1].Button.gameObject, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
+        Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons().Count, Is.EqualTo(2));
+        Assert.That(harness.Service.GetComponent<WeaponManager>().GetEquippedWeapons()[1].Runtime.Data, Is.SameAs(chosen));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.SheetMetal), Is.EqualTo(95));
+        harness.View.CloseButton.onClick.Invoke();
+        Assert.That(GameplayPause.LockCount, Is.Zero); Assert.That(Time.timeScale, Is.EqualTo(1f));
+        TearDown();
+        yield return new ExitPlayMode();
     }
 
     [Test]

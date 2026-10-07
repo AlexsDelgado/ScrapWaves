@@ -54,6 +54,8 @@ public sealed class CraftingMenuView : MonoBehaviour
     public TMP_Text TinkerCostLabel;
     public TMP_Text TinkerCostText;
     public Button TinkerButton;
+    public GameObject TinkerChoicePanel;
+    public TMP_Text TinkerChoiceNotice;
     public CraftingCandidateField[] Candidates;
 
     [Header("Advanced Tinkering")]
@@ -75,7 +77,8 @@ public sealed class CraftingMenuView : MonoBehaviour
                 || UpgradePanel == null || TinkerPanel == null || AdvancedPanel == null
                 || UpgradeNameText == null || UpgradeLevelText == null || UpgradeCostText == null
                 || UpgradeButton == null || UpgradeButtonText == null || TinkerCostLabel == null
-                || TinkerCostText == null || TinkerButton == null || AdvancedNameText == null
+                || TinkerCostText == null || TinkerButton == null || TinkerChoicePanel == null
+                || TinkerChoiceNotice == null || AdvancedNameText == null
                 || AdvancedLevelText == null || AdvancedPathText == null || AdvancedDescriptionText == null
                 || AdvancedNoticeText == null || AdvancedCostText == null || AcceptButton == null || DeclineButton == null
                 || Slots == null || Slots.Length != 3 || Materials == null || Materials.Length != 6

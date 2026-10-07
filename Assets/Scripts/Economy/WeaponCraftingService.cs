@@ -34,7 +34,10 @@ public class WeaponCraftingService : MonoBehaviour
     // Owned by the run's player, never written to the meta-progression save.
     private readonly HashSet<string> _tinkerDiscards = new();
     private readonly List<WeaponData> _tinkerOffer = new(2);
+    private List<MaterialCost> _reservedTinkerCost;
+    private int _reservedTinkerSlot;
     private bool _tinkering;
+    public bool HasPendingTinkeringChoice => _reservedTinkerCost != null;
 
     private void Awake()
     {
@@ -94,7 +97,8 @@ public class WeaponCraftingService : MonoBehaviour
     }
 
     // Availability queries never roll or cache offers, spend materials, or mutate progression.
-    public bool CanTinkerNewWeapon() => _weaponManager != null && _inventory != null
+    public bool CanTinkerNewWeapon() => !HasPendingTinkeringChoice && !_tinkering
+        && _weaponManager != null && _inventory != null
         && _weaponManager.CanAddWeapon() && BuildUnequippedWeapons().Count >= 2
         && _inventory.CanAfford(GetTinkeringCost(_weaponManager.GetEquippedWeapons().Count + 1));
 
@@ -127,6 +131,8 @@ public class WeaponCraftingService : MonoBehaviour
 
     public IReadOnlyList<WeaponData> GetTinkeringOffer()
     {
+        // A paid offer survives UI disable/recreation. Never replace it while awaiting a choice.
+        if (HasPendingTinkeringChoice || _tinkering) return _tinkerOffer.AsReadOnly();
         if (_weaponManager == null || !_weaponManager.CanAddWeapon())
             return System.Array.Empty<WeaponData>();
 
@@ -145,35 +151,65 @@ public class WeaponCraftingService : MonoBehaviour
         return _tinkerOffer.AsReadOnly();
     }
 
+    public CraftingActionResult TryBeginTinkering()
+    {
+        if (_tinkering) return new CraftingActionResult(false, "Tinkering en curso.");
+        if (HasPendingTinkeringChoice) return new CraftingActionResult(true, "Elegí una de las dos armas.");
+        if (!CanTinkerNewWeapon()) return new CraftingActionResult(false, "Tinkering no disponible.");
+        if (GetTinkeringOffer().Count != 2) return new CraftingActionResult(false, "No hay dos armas disponibles.");
+        _tinkering = true;
+        try
+        {
+            _reservedTinkerSlot = _weaponManager.GetEquippedWeapons().Count + 1;
+            var cost = new List<MaterialCost>(GetTinkeringCost(_reservedTinkerSlot));
+            _reservedTinkerCost = cost;
+            if (!_inventory.TrySpend(cost))
+            {
+                _reservedTinkerCost = null;
+                return new CraftingActionResult(false, "Materiales insuficientes.");
+            }
+            return new CraftingActionResult(true, "Elegí una de las dos armas.");
+        }
+        finally { _tinkering = false; }
+    }
+
     public CraftingActionResult TryTinkerWeapon(WeaponData chosen)
     {
         if (_tinkering || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
-        if (!_weaponManager.CanAddWeapon())
+        if (!_weaponManager.CanAddWeapon() && !HasPendingTinkeringChoice)
             return new CraftingActionResult(false, "Slots de arma llenos.");
 
         List<WeaponData> candidates = BuildUnequippedWeapons();
-        if (chosen == null || _tinkerOffer.Count != 2 || !_tinkerOffer.Contains(chosen)
-            || !candidates.Contains(_tinkerOffer[0]) || !candidates.Contains(_tinkerOffer[1]))
+        if (chosen == null || _tinkerOffer.Count != 2 || !_tinkerOffer.Contains(chosen))
             return new CraftingActionResult(false, "El arma no coincide con la oferta disponible.");
 
-        int nextSlot = _weaponManager.GetEquippedWeapons().Count + 1;
-        List<MaterialCost> costs = new(GetTinkeringCost(nextSlot));
-        if (!_inventory.CanAfford(costs))
-            return new CraftingActionResult(false, "Materiales insuficientes para Tinkering.");
+        // Keep the atomic entry point for non-UI callers, with the same cached-offer validation.
+        if (!HasPendingTinkeringChoice)
+        {
+            if (!candidates.Contains(_tinkerOffer[0]) || !candidates.Contains(_tinkerOffer[1]))
+                return new CraftingActionResult(false, "La oferta ya no está disponible.");
+            CraftingActionResult begin = TryBeginTinkering();
+            if (!begin.Success) return begin;
+            candidates = BuildUnequippedWeapons();
+        }
 
         _tinkering = true;
         try
         {
             WeaponData discarded = _tinkerOffer[0] == chosen ? _tinkerOffer[1] : _tinkerOffer[0];
-            if (!_inventory.TrySpend(costs))
-                return new CraftingActionResult(false, "Materiales insuficientes para Tinkering.");
-            if (!_weaponManager.AddWeapon(chosen))
+            // External equipment/unlock changes can invalidate an interrupted transaction.
+            // Refund exactly once and leave the cached offer intact; no discard without an award.
+            if (!_weaponManager.CanAddWeapon() || _weaponManager.GetEquippedWeapons().Count + 1 != _reservedTinkerSlot
+                || !candidates.Contains(chosen) || !candidates.Contains(discarded) || !_weaponManager.AddWeapon(chosen))
             {
+                List<MaterialCost> costs = _reservedTinkerCost;
+                _reservedTinkerCost = null;
                 foreach (MaterialCost cost in costs) _inventory.Add(cost.Material, cost.Amount);
                 return new CraftingActionResult(false, "No se pudo equipar el arma.");
             }
+            _reservedTinkerCost = null;
             _tinkerDiscards.Add(discarded.WeaponId);
             _tinkerOffer.Clear();
             return new CraftingActionResult(true, $"Nueva arma: {chosen.DisplayName}.");
