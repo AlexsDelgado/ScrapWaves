@@ -57,6 +57,7 @@ public static class SceneNavigation
 
     public static bool LoadPlay()
     {
+        EntranceCinematic.PrepareNewRun();
         return Load(SceneDestination.Play);
     }
 

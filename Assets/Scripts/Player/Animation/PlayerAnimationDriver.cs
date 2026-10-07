@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
 
@@ -84,6 +85,10 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
     private bool _hasManualOverride;
     private bool _restartAction;
     private bool _firstPose = true;
+    private bool _entranceIdleHeld;
+    private bool _entranceIdleAwaitingRelease;
+    private Transform[] _entranceIdleArms;
+    private Quaternion[] _entranceIdleRotations;
     private int _lastEvaluatedFrame = -1;
     private int _lastHealth;
     private int _baseState;
@@ -151,6 +156,51 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
     public int GraphEvaluationCount { get; private set; }
     public float CurrentAimYaw => _aimYaw;
     public Animator RigAnimator => _animator;
+    public bool IsEntranceIdleHeld => _entranceIdleHeld;
+    public bool IsEntranceInputReleasePending => _entranceIdleHeld && _entranceIdleAwaitingRelease;
+
+    /// <summary>Carry the cinematic's relaxed arms through selection until new gameplay input.</summary>
+    public void HoldEntranceIdle()
+    {
+        _entranceIdleArms = new[] { _rightUpperArm, _rightForearm, _rightHand, _leftUpperArm, _leftForearm, _leftHand };
+        _entranceIdleRotations = new Quaternion[_entranceIdleArms.Length];
+        for (int index = 0; index < _entranceIdleArms.Length; index++)
+            if (_entranceIdleArms[index] != null) _entranceIdleRotations[index] = _entranceIdleArms[index].localRotation;
+        _entranceIdleHeld = _entranceIdleAwaitingRelease = true;
+    }
+
+    private void UpdateEntranceIdle()
+    {
+        if (!_entranceIdleHeld) return;
+        if (_dead || _hitRemaining > 0f || _actionRemaining > 0f || _sustained || _charging)
+        {
+            _entranceIdleHeld = false;
+            return;
+        }
+        if (EntranceCinematic.StartupHeld || GameplayPause.IsUiPaused || Time.timeScale <= 0f) return;
+        var keyboard = Keyboard.current;
+        var mouse = Mouse.current;
+        bool actionHeld = (keyboard != null && (keyboard.wKey.isPressed || keyboard.aKey.isPressed ||
+            keyboard.sKey.isPressed || keyboard.dKey.isPressed || keyboard.spaceKey.isPressed ||
+            keyboard.leftShiftKey.isPressed || keyboard.leftCtrlKey.isPressed || keyboard.qKey.isPressed)) ||
+            (mouse != null && mouse.leftButton.isPressed);
+        // A held selector click/skip belongs to UI, so require its release before
+        // treating the next movement, look, fire or ability as gameplay intent.
+        if (_entranceIdleAwaitingRelease)
+        {
+            if (!actionHeld) _entranceIdleAwaitingRelease = false;
+            return;
+        }
+        if (actionHeld || (mouse != null && mouse.delta.ReadValue().sqrMagnitude > .01f))
+            _entranceIdleHeld = false;
+    }
+
+    private void ApplyEntranceIdle()
+    {
+        if (!_entranceIdleHeld) return;
+        for (int index = 0; index < _entranceIdleArms.Length; index++)
+            if (_entranceIdleArms[index] != null) _entranceIdleArms[index].localRotation = _entranceIdleRotations[index];
+    }
 
     // The sandbox owns a different inventory from the disabled gameplay manager on
     // its player prefab. Supplying that runtime avoids reading the inactive inventory.
@@ -329,6 +379,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
         _sustained = _charging = _hasAimedPose = false;
         _restartAction = false;
         _firstPose = true;
+        _entranceIdleHeld = _entranceIdleAwaitingRelease = false;
         _lastEvaluatedFrame = -1;
         DestroyGraph();
     }
@@ -340,6 +391,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
         _lastEvaluatedFrame = Time.frameCount;
         float dt = Mathf.Max(0f, _dead ? Time.unscaledDeltaTime : deltaTime);
         _hasAimedPose = false;
+        UpdateEntranceIdle();
         if (!_dead)
         {
             UpdateLocomotion(dt);
@@ -355,6 +407,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
             ApplyMovingLandingFeedback();
             ApplyAim(aimWorldPoint, dt);
             _recoil = Mathf.MoveTowards(_recoil, 0f, _recoilRecovery * dt);
+            ApplyEntranceIdle();
             CacheAimedPose();
             ApplyRecoil();
         }
@@ -456,7 +509,7 @@ public sealed class PlayerAnimationDriver : MonoBehaviour
             _controller.CrossFadeInFixedTime(state, _actionBlendTime, UpperLayer, 0f);
         _restartAction = false;
         SelectState(state, UpperLayer, ref _upperState, _actionBlendTime);
-        float targetWeight = manualActive || _hitRemaining > 0f || _actionRemaining > 0f || _charging ? _upperBodyWeight : 0f;
+        float targetWeight = (manualActive && !_entranceIdleHeld) || _hitRemaining > 0f || _actionRemaining > 0f || _charging ? _upperBodyWeight : 0f;
         if (_movement != null && _movement.IsStunned) targetWeight *= 0.4f;
         _layerWeight = _firstPose ? targetWeight : Mathf.Lerp(_layerWeight, targetWeight, BlendFactor(dt, _actionBlendTime));
         _controller.SetLayerWeight(UpperLayer, _layerWeight);

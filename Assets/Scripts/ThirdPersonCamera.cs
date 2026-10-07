@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -260,6 +260,13 @@ public class ThirdPersonCamera : MonoBehaviour
         _reducedMotionFovScale = 0f;
     }
 
+    public void GetFollowPose(Vector3 followPosition, Quaternion orbit, out Vector3 position, out Quaternion rotation)
+    {
+        Vector3 anchor=followPosition+Vector3.up*_pivotHeight+orbit*new Vector3(_shoulderOffset,_cameraHeightOffset,0f);
+        position=ResolveCameraPosition(anchor,anchor+orbit*Vector3.back*_cameraDistance);
+        rotation=Quaternion.LookRotation(orbit*Vector3.forward,Vector3.up);
+    }
+
     private void Update()
     {
         if (_followTarget == null)
@@ -279,19 +286,7 @@ public class ThirdPersonCamera : MonoBehaviour
         // Orientación de la cámara basada en el look input.
         Quaternion orbit = Quaternion.Euler(_pitch, _yaw, 0f);
 
-        // Pivote anclado al personaje, a la altura del hombro.
-        Vector3 pivot = _followTarget.position + Vector3.up * _pivotHeight;
-
-        // Desplazamiento lateral (over-the-shoulder) y vertical en el espacio del orbit.
-        Vector3 shoulder = orbit * new Vector3(_shoulderOffset, _cameraHeightOffset, 0f);
-        Vector3 anchor = pivot + shoulder;
-
-        // La cámara se ubica detrás del ancla, en la dirección del orbit.
-        Vector3 back = orbit * Vector3.back;
-        Vector3 desiredPosition = anchor + back * _cameraDistance;
-
-        _gameplayPosition = ResolveCameraPosition(anchor, desiredPosition);
-        _gameplayRotation = Quaternion.LookRotation(orbit * Vector3.forward, Vector3.up);
+        GetFollowPose(_followTarget.position,orbit,out _gameplayPosition,out _gameplayRotation);
     }
 
     private void LateUpdate()

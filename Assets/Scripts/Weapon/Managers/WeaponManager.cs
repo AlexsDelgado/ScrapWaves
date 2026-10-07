@@ -332,8 +332,11 @@ public class WeaponManager : MonoBehaviour
         if (_equipped.Count == 0 || IsManualCycleInProgress)
             return;
 
-        bool fireHeld = IsFireHeld();
-        bool firePressed = IsFirePressed();
+        // The startup selector's held click must be released before it can
+        // become manual fire. Ordinary gameplay input remains unchanged.
+        bool fireInputReady = _animationDriver == null || !_animationDriver.IsEntranceInputReleasePending;
+        bool fireHeld = fireInputReady && IsFireHeld();
+        bool firePressed = fireInputReady && IsFirePressed();
         bool abilityPressed = IsAbilityPressed();
         bool abilityHeld = IsAbilityHeld();
         bool abilityReleased = IsAbilityReleased();

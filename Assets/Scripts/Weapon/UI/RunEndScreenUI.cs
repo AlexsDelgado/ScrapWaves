@@ -133,6 +133,7 @@ public class RunEndScreenUI : MonoBehaviour
 
     private void Retry()
     {
+        EntranceCinematic.PrepareRetry();
         if (GameManager.Instance != null)
             GameManager.Instance.ResetTimeScaleForReload();
         else

@@ -124,6 +124,13 @@ public class PlayerMovement : MonoBehaviour
     public bool IsGroundedOnSurface => _isGrounded;
     public Vector3 GroundNormal => _groundNormal;
 
+    /// <summary>Synchronize an authored grounded placement without emitting a second landing event.</summary>
+    public void SynchronizeGroundedPlacement()
+    {
+        _isGrounded = IsGrounded();
+        _wasGrounded = _isGrounded;
+    }
+
     // Read-only presentation state; gameplay remains the owner of all action timing.
     public bool IsCrouching => _isCrouching;
     public bool IsSliding => _isSliding;
