@@ -58,9 +58,9 @@ MonoBehaviour:
   _difficultyRampSpeedMultiplier: 0.95
   _maxSpawnCountMultiplier: 3
   _scaleEnemyHealth: 1
-  _maxEnemyHealthMultiplier: 6
+  _maxEnemyHealthMultiplier: 4
   _scaleEnemyMoveSpeed: 1
-  _maxEnemySpeedMultiplier: 3
+  _maxEnemySpeedMultiplier: 2.5
   _scaleEnemyDamage: 1
   _maxEnemyDamageMultiplier: 1.35
   _spawnScalingOverHeatRatio:
@@ -68,27 +68,36 @@ MonoBehaviour:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0
-      inSlope: 0.0847811
-      outSlope: 0.0847811
-      tangentMode: 34
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 0.11436623
-      value: 0.009696095
-      inSlope: 0.34243056
-      outSlope: 0.34243056
+      value: 0.02
+      inSlope: 0.33267266
+      outSlope: 0.33267266
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0.5964403
+      inWeight: 0
+      outWeight: 0.15759933
+    - serializedVersion: 3
+      time: 0.8
+      value: 0.15463868
+      inSlope: 0.1745843
+      outSlope: 0.1745843
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.13828182
+      outWeight: 0.6146044
+    - serializedVersion: 3
+      time: 0.87286437
+      value: 0.7
+      inSlope: 5.0889544
+      outSlope: 5.0889544
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
       outWeight: 0.33333334
     - serializedVersion: 3
       time: 1
       value: 1
-      inSlope: 1.1181867
-      outSlope: 1.1181867
+      inSlope: 2.3596847
+      outSlope: 2.3596847
       tangentMode: 34
       weightedMode: 0
       inWeight: 0.33333334
@@ -97,15 +106,15 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _maxSpawnCountMultiplierAtFullHeat: 2.5
-  _spawnIntervalScaleAtFullHeat: 0.5
-  _completedCycleIntervalStep: 0.25
+  _spawnIntervalScaleAtFullHeat: 0.33
+  _completedCycleIntervalStep: 0.15
   _completedCycleIntervalFloor: 0.6
-  _completedCycleBatchStep: 0.25
+  _completedCycleBatchStep: 0.2
   _completedCycleBatchCeiling: 2
   _completedCycleHealthStep: 0.25
   _completedCycleHealthCeiling: 2
-  _pointsToReachDisplay80: 60
-  _pointsFromDisplay80To100: 60
+  _pointsToReachDisplay80: 50
+  _pointsFromDisplay80To100: 50
   _escalationPerOverheatCycle: 1.4
   _heatPerKill: 1
   _postOverheatDecayPerSecond: 25

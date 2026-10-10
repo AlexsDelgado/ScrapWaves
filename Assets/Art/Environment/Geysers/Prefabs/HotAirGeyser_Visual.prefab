@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 49f15d317ab07434f9e4a713f9eb5d95, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GeyserVfx
   _kind: 1
   _launcher: {fileID: 0}
@@ -62,6 +62,8 @@ MonoBehaviour:
   _updraftBudget: 48
   _debrisPerSecond: 4
   _debrisBudget: 20
+  _debrisSize: 0.36
+  _debrisTumbleRate: 1
   _entryParticleCount: 28
   _entryAccentSeconds: 0.45
   _entryBrightness: 1.45
@@ -9921,23 +9923,23 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 32ad92ea125f0a446a8a7a8408c5da7a, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
-      value:
+      value: 
       objectReference: {fileID: 2100000, guid: 16958a3afc0c3bd429de49ae5e3a4191, type: 2}
     - target: {fileID: -7511558181221131132, guid: 32ad92ea125f0a446a8a7a8408c5da7a, type: 3}
       propertyPath: 'm_Materials.Array.data[1]'
-      value:
+      value: 
       objectReference: {fileID: 2100000, guid: 9607862f9aa61e648972a1e38ecdb7be, type: 2}
     - target: {fileID: -7511558181221131132, guid: 32ad92ea125f0a446a8a7a8408c5da7a, type: 3}
       propertyPath: 'm_Materials.Array.data[2]'
-      value:
+      value: 
       objectReference: {fileID: 2100000, guid: f6d5f32f5b79bd341a86d07bf77c389d, type: 2}
     - target: {fileID: -7511558181221131132, guid: 32ad92ea125f0a446a8a7a8408c5da7a, type: 3}
       propertyPath: 'm_Materials.Array.data[3]'
-      value:
+      value: 
       objectReference: {fileID: 2100000, guid: 14412bf8ca903ab4b884d080a41e7ba2, type: 2}
     - target: {fileID: -7511558181221131132, guid: 32ad92ea125f0a446a8a7a8408c5da7a, type: 3}
       propertyPath: 'm_Materials.Array.data[4]'
-      value:
+      value: 
       objectReference: {fileID: 2100000, guid: e89aa5de22b04f94192b1d60c39f26da, type: 2}
     - target: {fileID: 919132149155446097, guid: 32ad92ea125f0a446a8a7a8408c5da7a, type: 3}
       propertyPath: m_Name

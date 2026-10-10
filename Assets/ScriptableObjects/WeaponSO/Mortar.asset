@@ -24,7 +24,7 @@ MonoBehaviour:
   BaseKnockback: 1
   BaseManualAmmo: 15
   ActiveAbilityAmmoCost: 5
-  SkillCooldown: 10
+  SkillCooldown: 7
   Icon: {fileID: 21300000, guid: b2d7a9ac76fcc9a44b4dd5007cff229a, type: 3}
   PresentationProfile: {fileID: 11400000, guid: 45f71e8e653db4f48bb8046b50279932, type: 2}
   _specificTuning:
@@ -139,15 +139,15 @@ MonoBehaviour:
         MortarActiveExplosionRadius: 3.2
         MortarAutoAccuracyRadius: 3.8
         MortarManualAccuracyRadius: 0.75
-        MortarBarrageRadius: 6
+        MortarBarrageRadius: 10
         MortarShellTravelTime: 2
         MortarManualTravelTime: 1
-        MortarActiveTravelTime: 0.3
+        MortarActiveTravelTime: 1
         MortarShellCollisionRadius: 0.18
         MortarActiveDropHeight: 14
         MortarExplosionFalloff: 0.5
         MortarArcHeight: 8
         MortarActiveShellCount: 5
-        MortarActiveDamageScale: 1.2
+        MortarActiveDamageScale: 1
         MortarHeatFireRateBonusAbove50: 0.75
         MortarHeatManualSpeedBonus: 0.5

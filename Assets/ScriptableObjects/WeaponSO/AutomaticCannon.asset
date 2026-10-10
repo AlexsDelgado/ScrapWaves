@@ -24,7 +24,7 @@ MonoBehaviour:
   BaseKnockback: 0.2
   BaseManualAmmo: 200
   ActiveAbilityAmmoCost: 20
-  SkillCooldown: 6
+  SkillCooldown: 4
   Icon: {fileID: 21300000, guid: 1e652b08faa0fcd4f8639ca8e7467a10, type: 3}
   PresentationProfile: {fileID: 11400000, guid: 10ed3f38e747446885e06ecf07ac6759, type: 2}
   _specificTuning:
@@ -91,15 +91,15 @@ MonoBehaviour:
       AttackRateMultiplier: 1
       ManualAmmoMultiplier: 2.2
     - Level: 8
-      DamageMultiplier: 3
+      DamageMultiplier: 3.5
       AttackRateMultiplier: 1
       ManualAmmoMultiplier: 2.4
     - Level: 9
-      DamageMultiplier: 3.5
+      DamageMultiplier: 4.5
       AttackRateMultiplier: 1
       ManualAmmoMultiplier: 2.6
     - Level: 10
-      DamageMultiplier: 5
+      DamageMultiplier: 6
       AttackRateMultiplier: 1
       ManualAmmoMultiplier: 3
   PathB:

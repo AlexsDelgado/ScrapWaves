@@ -24,7 +24,7 @@ MonoBehaviour:
   BaseKnockback: 1.5
   BaseManualAmmo: 40
   ActiveAbilityAmmoCost: 10
-  SkillCooldown: 8
+  SkillCooldown: 5
   Icon: {fileID: 21300000, guid: 77fad924ad9542842b2c3555e774e374, type: 3}
   PresentationProfile: {fileID: 11400000, guid: c04fe21bee051a94ca486c2982ffab06, type: 2}
   _specificTuning:
@@ -135,7 +135,7 @@ MonoBehaviour:
       type: {class: RocketLauncherTuning, ns: , asm: Assembly-CSharp}
       data:
         RocketAutoBaseRocketCount: 1
-        RocketAutoBurstsPerSecond: 0.5
+        RocketAutoBurstsPerSecond: 0.4
         RocketAutoVolleyShotInterval: 0.15
         RocketAutoHeatBonuses:
         - HeatThresholdPercent: 60
