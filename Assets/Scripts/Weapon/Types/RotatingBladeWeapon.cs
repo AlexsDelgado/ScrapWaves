@@ -177,7 +177,11 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         if (!CanBeginActiveAbility())
             return;
 
-        Vector3 thrustDirection = GetHorizontalAimDirection(aimDirection);
+        // Atomic Sharpness is a ground dash; its damage and movement remain planar.
+        // Thrusts use the resolved player aim, including pitch and obstacle convergence.
+        Vector3 thrustDirection = IsAtomicSharpnessPath()
+            ? GetHorizontalAimDirection(aimDirection)
+            : GetThrustAimDirection(aimDirection);
         if (thrustDirection.sqrMagnitude <= 0.0001f)
             return;
 
@@ -295,6 +299,14 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             return 1;
 
         return 1 + Mathf.Max(1, Runtime.Level - 5);
+    }
+
+    private Vector3 GetThrustAimDirection(Vector3 aimDirection)
+    {
+        if (aimDirection.sqrMagnitude > 0.0001f)
+            return aimDirection.normalized;
+
+        return Owner != null ? Owner.forward : Vector3.forward;
     }
 
     private Vector3 GetHorizontalAimDirection(Vector3 aimDirection)
@@ -658,14 +670,11 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         _activeLinePoints[0] = origin;
         _activeLinePoints[1] = origin + direction * range;
         bool strongImpact = IsMultiBladePath() && thrustCount > 1 && ShouldApplyMultiBladeKnockback(thrustIndex, thrustCount);
-        Vector3 visualDirection = IsMultiBladePath()
-            ? GetMultiBladeOffsetDirection(direction, thrustIndex, thrustCount)
-            : direction;
-        ShowThrust(origin, visualDirection, range, lineWidth, tuning);
+        ShowThrust(origin, direction, range, lineWidth, tuning);
         EmitShotFeedback(
             WeaponFeedbackMode.Active,
             origin,
-            visualDirection,
+            direction,
             range,
             isAbilityDamage: true,
             eventIntensity: strongImpact ? 1.35f : thrustCount > 1 ? 0.52f : 1f);
