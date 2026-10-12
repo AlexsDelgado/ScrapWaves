@@ -6,25 +6,21 @@ using UnityEngine;
 public static class BalanceImportMenu
 {
     private const string MaterialCsv = "Assets/Data/Balance/balance_material_usage.csv";
-    private const string WeaponStatsCsv = "Assets/Data/Balance/balance_weapon_stats.csv";
     private const string MaterialBalanceAsset = "Assets/ScriptableObjects/Economy/MaterialUsageBalance.asset";
-    private const string WeaponSoFolder = "Assets/ScriptableObjects/WeaponSO";
 
-    [MenuItem("ScrapWaves/Balance/Import All CSV")]
-    public static void ImportAll()
+    [MenuItem("ScrapWaves/Balance/Import Material Usage CSV")]
+    public static void ImportMaterials()
     {
-        if (!File.Exists(MaterialCsv) || !File.Exists(WeaponStatsCsv))
+        if (!File.Exists(MaterialCsv))
         {
-            EditorUtility.DisplayDialog("Balance Import", "CSV files missing in Assets/Data/Balance.", "OK");
+            EditorUtility.DisplayDialog("Balance Import", "Material usage CSV missing in Assets/Data/Balance.", "OK");
             return;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(MaterialBalanceAsset) ?? "Assets/ScriptableObjects/Economy");
-        MaterialUsageCsvImporter.Import(MaterialCsv, MaterialBalanceAsset);
-        WeaponStatsCsvImporter.ImportAll(WeaponStatsCsv, WeaponSoFolder);
-        AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
-        Debug.Log("Balance import completed.");
+        MaterialUsageBalanceSO balance = MaterialUsageCsvImporter.Import(MaterialCsv, MaterialBalanceAsset);
+        AssetDatabase.SaveAssetIfDirty(balance);
+        Debug.Log("Material usage import completed. Weapon stats are authored in WeaponData assets.");
     }
 
     [MenuItem("ScrapWaves/Balance/Create Default Drop Configs")]

@@ -5,10 +5,8 @@ using UnityEngine;
 public class EconomyBootstrap : MonoBehaviour
 {
     private const string MaterialCsvPath = "Assets/Data/Balance/balance_material_usage.csv";
-    private const string WeaponStatsCsvPath = "Assets/Data/Balance/balance_weapon_stats.csv";
 
     [SerializeField] private MaterialUsageBalanceSO _materialBalance;
-    [SerializeField] private WeaponData[] _weaponDataAssets;
 
     private static bool _bootstrapped;
     public static MaterialUsageBalanceSO RuntimeMaterialBalance { get; private set; }
@@ -56,9 +54,6 @@ public class EconomyBootstrap : MonoBehaviour
         }
 
         RuntimeMaterialBalance = _materialBalance;
-
-        if (File.Exists(WeaponStatsCsvPath))
-            WeaponStatsParser.ImportAll(CsvReader.ReadAllRows(WeaponStatsCsvPath), LoadWeaponAssets());
     }
 
     private void WireCraftingServices()
@@ -66,24 +61,5 @@ public class EconomyBootstrap : MonoBehaviour
         WeaponCraftingService[] services = FindObjectsByType<WeaponCraftingService>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < services.Length; i++)
             services[i].SetMaterialBalance(RuntimeMaterialBalance);
-    }
-
-    private WeaponData[] LoadWeaponAssets()
-    {
-        if (_weaponDataAssets != null && _weaponDataAssets.Length > 0)
-            return _weaponDataAssets;
-
-#if UNITY_EDITOR
-        return new[]
-        {
-            UnityEditor.AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Flamethrower.asset"),
-            UnityEditor.AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset"),
-            UnityEditor.AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Mortar.asset"),
-            UnityEditor.AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/AutomaticCannon.asset"),
-            UnityEditor.AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/RotatingBlade.asset")
-        };
-#else
-        return _weaponDataAssets;
-#endif
     }
 }
