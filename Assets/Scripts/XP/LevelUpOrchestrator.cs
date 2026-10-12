@@ -14,6 +14,7 @@ public class LevelUpOrchestrator : MonoBehaviour
     private PlayerXP _playerXp;
     private readonly Queue<int> _pendingLevels = new();
     private bool _isProcessing;
+    public int LastCompletedLevel { get; private set; }
 
     private void Awake()
     {
@@ -71,5 +72,6 @@ public class LevelUpOrchestrator : MonoBehaviour
         List<StatUpgradeResult> upgrades = _statsHandler.ApplyLevelUpStats(newLevel);
         if (_statFeedback != null)
             _statFeedback.Show(upgrades);
+        if (_passiveHandler != null && _passiveHandler.LastChoiceApplied) LastCompletedLevel = newLevel;
     }
 }

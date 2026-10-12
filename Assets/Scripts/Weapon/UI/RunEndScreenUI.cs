@@ -133,6 +133,7 @@ public class RunEndScreenUI : MonoBehaviour
 
     private void Retry()
     {
+        if (TutorialDirector.IsActive) TutorialDirector.RequestReplay();
         EntranceCinematic.PrepareRetry();
         if (GameManager.Instance != null)
             GameManager.Instance.ResetTimeScaleForReload();

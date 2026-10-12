@@ -35,7 +35,7 @@ public class ChallengeProgressTracker : MonoBehaviour
 
     private void Update()
     {
-        if (SaveManager.Instance == null)
+        if (TutorialDirector.IsActive || SaveManager.Instance == null)
             return;
 
         PlayerHealth health = FindAnyObjectByType<PlayerHealth>();
@@ -80,7 +80,7 @@ public class ChallengeProgressTracker : MonoBehaviour
 
     public static void NotifyPlayerDied()
     {
-        if (SaveManager.Instance == null)
+        if (TutorialDirector.IsActive || SaveManager.Instance == null)
             return;
         if (Instance == null)
             EnsureExists();

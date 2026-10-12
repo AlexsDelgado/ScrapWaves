@@ -95,7 +95,7 @@ public class SwarmSpawner : MonoBehaviour
 
     private void Update()
     {
-        if (EntranceCinematic.StartupHeld) return;
+        if (EntranceCinematic.StartupHeld || TutorialDirector.IsActive) return;
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 

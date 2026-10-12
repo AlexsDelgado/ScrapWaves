@@ -134,6 +134,13 @@ public class CraftingUI : MonoBehaviour
         return true;
     }
 
+    public bool CloseForTutorial()
+    {
+        if (IsChoosingWeapon || _applyingAction) return false;
+        ClosePresentation();
+        return true;
+    }
+
     private void Hide()
     {
         if (IsChoosingWeapon || _applyingAction) return;
@@ -219,7 +226,8 @@ public class CraftingUI : MonoBehaviour
         IReadOnlyList<MaterialCost> cost = _crafting.GetUpgradeCost(weapon.Data, weapon.SelectedPath, next);
         _view.UpgradeReadout?.Bind(_inventory, cost, maximum ? "No further upgrades" : null);
         _view.UpgradeCostText.text = maximum ? "No further upgrades" : BuildCostText(cost);
-        _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost);
+        _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost)
+            && TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon.Data, next);
         _view.UpgradeButtonText.text = maximum ? "MAX LEVEL" : "UPGRADE";
     }
     public static void BindUpgradePreview(CraftingMenuView view, IWeaponBehaviour behaviour, bool maximum = false)

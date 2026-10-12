@@ -98,7 +98,7 @@ public class ZoneSpawner : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (EntranceCinematic.StartupHeld) return;
+        if (EntranceCinematic.StartupHeld || TutorialDirector.IsActive) return;
         if (!_armed)
             return;
 

@@ -40,7 +40,14 @@ public class MetaItemUpgradeRecord
 [Serializable]
 public class SaveData
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
+
+    // Eligibility is set only when no save file exists (or an explicit progress reset).
+    // Missing fields on old or damaged saves must never force existing players into training.
+    public bool FreshSaveTutorialEligible;
+    public bool GameplayTutorialCompleted;
+    public bool MetaTutorialPending;
+    public bool MetaTutorialSeen;
 
     public int Version = CurrentVersion;
     public int Scrap;

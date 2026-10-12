@@ -335,6 +335,12 @@ public class HeatManager : MonoBehaviour
             return;
 
         float cap = TotalHeatCapacity;
+        if (TutorialDirector.IsActive)
+        {
+            // Teach the gauge without starting a real elite/boss cycle or escalation.
+            SetHeat(Mathf.Min(cap * .9f, _currentHeat + amount));
+            return;
+        }
         bool wasBelowMax = _currentHeat < cap - 0.0001f;
 
         _currentHeat += amount;
@@ -376,6 +382,7 @@ public class HeatManager : MonoBehaviour
     /// <summary>Para menú / nueva partida.</summary>
     public void ResetHeatProgressAndEscalation()
     {
+        _postOverheatDecayActive = false;
         _heatRequirementEscalation = 1f;
         _completedOverheatCycles = 0;
         _currentHeat = 0f;

@@ -235,7 +235,7 @@ public class WeaponManager : MonoBehaviour
     public bool CanUseAbility()
     {
         WeaponInstance weapon = GetCurrentManualWeapon();
-        if (IsManualCycleInProgress || weapon?.Data == null || weapon.State != WeaponState.Manual)
+        if (!TutorialDirector.AbilityAllowed || IsManualCycleInProgress || weapon?.Data == null || weapon.State != WeaponState.Manual)
             return false;
         if (weapon.AbilityCooldownTimer > 0f)
             return false;

@@ -154,7 +154,7 @@ public class OrbitalSpawner : MonoBehaviour
 
     private void Update()
     {
-        if (EntranceCinematic.StartupHeld) return;
+        if (EntranceCinematic.StartupHeld || TutorialDirector.IsActive) return;
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 
@@ -211,7 +211,7 @@ public class OrbitalSpawner : MonoBehaviour
         return Mathf.Max(0.05f, BaseSpawnInterval * heatScale * cycleScale);
     }
 
-    private float RunTimeSeconds => Time.timeSinceLevelLoad - _runStartTime;
+    private float RunTimeSeconds => RunSessionStats.ElapsedSeconds;
 
     private void SpawnRouletteWave()
     {

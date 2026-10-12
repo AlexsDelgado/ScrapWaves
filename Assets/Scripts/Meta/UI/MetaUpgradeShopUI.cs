@@ -66,6 +66,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _feedbackText;
     [SerializeField] private TextMeshProUGUI _scrapText;
 
+    [SerializeField] private UnlockCardView[] _authoredCards = System.Array.Empty<UnlockCardView>();
     private readonly List<UnlockCardView> _cards = new();
     private readonly List<UpgradeOffer> _offers = new();
     private SaveManager _subscribed;
@@ -143,10 +144,10 @@ public class MetaUpgradeShopUI : MonoBehaviour
             return;
 
         RectTransform root = transform as RectTransform;
-        if (root == null)
+        if (root == null && !Application.isPlaying)
             root = gameObject.AddComponent<RectTransform>();
 
-        if (_content == null || _scrollRect == null || _detailRoot == null)
+        if (!Application.isPlaying && (_content == null || _scrollRect == null || _detailRoot == null))
             BuildDefaultShell(root);
 
         _layoutBuilt = _content != null && _cardPrefab != null;
@@ -159,7 +160,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
             : transform;
 
         ObjectivesFilterChipBar bar = ObjectivesFilterChipBar.Ensure(filterParent, "UpgradesFilterBar");
-        bar.AddOrBindChip(
+        bar?.AddOrBindChip(
             "HideInsufficientScrap",
             "Hide no scrap",
             () => _hideInsufficientScrap,
@@ -168,7 +169,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
                 _hideInsufficientScrap = value;
                 Rebuild();
             });
-        bar.AddOrBindChip(
+        bar?.AddOrBindChip(
             "HideStat",
             "Hide stat",
             () => _hideStat,
@@ -177,7 +178,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
                 _hideStat = value;
                 Rebuild();
             });
-        bar.AddOrBindChip(
+        bar?.AddOrBindChip(
             "HideItem",
             "Hide item",
             () => _hideItem,
@@ -409,7 +410,8 @@ public class MetaUpgradeShopUI : MonoBehaviour
         for (int i = 0; i < _offers.Count; i++)
         {
             UpgradeOffer offer = _offers[i];
-            UnlockCardView card = Instantiate(_cardPrefab, _content, false);
+            if (i >= _authoredCards.Length) { Debug.LogError("Upgrades: authored card capacity exhausted. Re-author the title scene.", this); break; }
+            UnlockCardView card = _authoredCards[i];
             card.gameObject.SetActive(true);
             string price = offer.State == UnlockCardState.Owned
                 ? "MAX LEVEL"
@@ -434,7 +436,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
         }
 
         UnlockCardView restore = FindCard(restoreId);
-        SelectCard(restore != null ? restore : _cards[0]);
+        if (_cards.Count > 0) SelectCard(restore != null ? restore : _cards[0]);
     }
 
     private void BuildOffers()
@@ -643,7 +645,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
             if (_cards[i] == null)
                 continue;
             _cards[i].Unbind();
-            Destroy(_cards[i].gameObject);
+            _cards[i].gameObject.SetActive(false);
         }
 
         _cards.Clear();

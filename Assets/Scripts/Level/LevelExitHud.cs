@@ -139,6 +139,7 @@ public class LevelExitHud : MonoBehaviour
 
     private void Refresh()
     {
+        if (TutorialDirector.IsActive) { if (_root != null) _root.SetActive(false); return; }
         if (_statusText == null || _root == null)
             return;
 

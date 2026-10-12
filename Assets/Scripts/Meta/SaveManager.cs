@@ -23,6 +23,21 @@ public class SaveManager : MonoBehaviour
     private string _path;
 
     public int Scrap => _data.Scrap;
+    public bool ShouldAutoPlayTutorial => _data.FreshSaveTutorialEligible && !_data.GameplayTutorialCompleted;
+    public bool MetaTutorialPending => _data.MetaTutorialPending && !_data.MetaTutorialSeen;
+    public void CompleteGameplayTutorial()
+    {
+        _data.GameplayTutorialCompleted = true;
+        _data.FreshSaveTutorialEligible = false;
+        if (!_data.MetaTutorialSeen) _data.MetaTutorialPending = true;
+        Save();
+    }
+    public void CompleteMetaTutorial()
+    {
+        _data.MetaTutorialSeen = true;
+        _data.MetaTutorialPending = false;
+        Save();
+    }
     public IReadOnlyList<AchievementDefinition> AchievementCatalog => _achievementCatalog;
     public PresentationAccessibilityState PresentationAccessibility =>
         _data?.PresentationAccessibility?.ToState() ?? PresentationAccessibilityState.Default;
@@ -53,8 +68,15 @@ public class SaveManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         _path = Path.Combine(Application.persistentDataPath, SaveFileName);
+#if UNITY_EDITOR
+        // Isolated Unity validation never writes the user's live profile.
+        string testDirectory = Environment.GetEnvironmentVariable("SCRAPWAVES_TEST_SAVE_DIRECTORY");
+        if (!string.IsNullOrWhiteSpace(testDirectory)) { Directory.CreateDirectory(testDirectory); _path = Path.Combine(testDirectory, SaveFileName); }
+#endif
         EnsureAchievementCatalog();
+        bool newProfile = !File.Exists(_path);
         Load();
+        if (newProfile) Save();
         SpecMetaBootstrap.EnsureRegistered();
     }
 
@@ -87,6 +109,7 @@ public class SaveManager : MonoBehaviour
 
     private void HandlePlayerLevelUp(int newLevel)
     {
+        if (TutorialDirector.IsActive) return;
         if (newLevel <= _data.HighestPlayerLevel)
             return;
 
@@ -98,6 +121,7 @@ public class SaveManager : MonoBehaviour
     /// <summary>Llamado por GameManager.EnterEndState al terminar cualquier run (victoria o derrota).</summary>
     public void ReportRunEnded(bool victory, int bossKillsThisRun, int enemiesKilledThisRun, float survivalSeconds, int scrapEarned)
     {
+        if (TutorialDirector.IsActive) return;
         if (victory)
             _data.TotalRunsCompleted++;
 
@@ -114,6 +138,7 @@ public class SaveManager : MonoBehaviour
     /// <summary>Hook opcional para logros de tipo WeaponLevelReached (sin call site todavía, ver doc).</summary>
     public void ReportWeaponLevelReached(string weaponId, int level)
     {
+        if (TutorialDirector.IsActive) return;
         if (string.IsNullOrEmpty(weaponId))
             return;
 
@@ -138,6 +163,7 @@ public class SaveManager : MonoBehaviour
     /// <summary>Escape hatch para logros AchievementConditionType.Custom que no entran en un contador genérico.</summary>
     public void ReportCustomProgress(string key, float value)
     {
+        if (TutorialDirector.IsActive) return;
         if (string.IsNullOrEmpty(key))
             return;
 
@@ -213,7 +239,7 @@ public class SaveManager : MonoBehaviour
             _data?.PresentationAccessibility?.CloneSanitized() ?? new PresentationAccessibilitySettings();
         _data = new SaveData
         {
-            PresentationAccessibility = preservedAccessibility
+            PresentationAccessibility = preservedAccessibility, FreshSaveTutorialEligible = true
         };
         _data.Sanitize();
         PresentationAccessibilityRuntime.Apply(_data.PresentationAccessibility);
@@ -296,6 +322,7 @@ public class SaveManager : MonoBehaviour
 
     public void ReportWeaponKill(string weaponId)
     {
+        if (TutorialDirector.IsActive) return;
         if (string.IsNullOrEmpty(weaponId))
             return;
 
@@ -311,6 +338,7 @@ public class SaveManager : MonoBehaviour
 
     public void ReportEliteOrBossKill()
     {
+        if (TutorialDirector.IsActive) return;
         _data.TotalEliteOrBossKills++;
         EvaluateAchievements();
         Save();
@@ -318,6 +346,7 @@ public class SaveManager : MonoBehaviour
 
     public void ReportDropsLooted(int amount)
     {
+        if (TutorialDirector.IsActive) return;
         if (amount <= 0)
             return;
         _data.TotalDropsLooted += amount;
@@ -331,6 +360,7 @@ public class SaveManager : MonoBehaviour
     /// </summary>
     public void ReportRunChallengeProgress(string key, float value, bool cumulative)
     {
+        if (TutorialDirector.IsActive) return;
         if (string.IsNullOrEmpty(key))
             return;
 
@@ -526,7 +556,9 @@ public class SaveManager : MonoBehaviour
     {
         try
         {
-            if (File.Exists(_path))
+            if (!File.Exists(_path))
+                _data = new SaveData { FreshSaveTutorialEligible = true };
+            else
                 _data = JsonUtility.FromJson<SaveData>(File.ReadAllText(_path)) ?? new SaveData();
         }
         catch (Exception e)
