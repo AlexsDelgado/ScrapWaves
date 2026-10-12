@@ -5,28 +5,28 @@ using UnityEngine.Rendering;
 [Serializable]
 public sealed class FlamethrowerRadialBurstSettings
 {
-    [Tooltip("Seconds until the last decorative ember disappears. Must fit inside the active cue's pool duration.")]
-    [Range(.2f, .7f)] public float VisualDuration = .42f;
+    [Tooltip("Fallback visual lifetime. Production Q reads the gameplay wave clock.")]
+    [Range(.8f, 1.2f)] public float VisualDuration = .85f;
     [Range(32, 96)] public int BoundarySegments = 64;
     [Range(8, 32)] public int FlameTongues = 20;
     [Range(0, 40)] public int Embers = 24;
-    [Tooltip("Clear space for the player; only the weak ignition sheet crosses this center.")]
+    [Tooltip("Width of the flame trail behind the leading boundary as a fraction of radius. The center stays clear.")]
     [Range(.15f, .45f)] public float ClearCenterFraction = .23f;
     [Range(.04f, .28f)] public float FlameHeightFraction = .17f;
     [Range(.02f, .1f)] public float FlameWidthFraction = .055f;
     public Color FireOuterColor = new(1f, .19f, .015f);
     public Color FireHotColor = new(1f, .86f, .20f);
     [Range(0f, .3f)] public float FuelTintFraction = .12f;
-    [Tooltip("Normalized-time opacity. The full damage footprint is present at time zero.")]
-    public AnimationCurve IgnitionOpacity = new(new Keyframe(0f, .8f), new Keyframe(.12f, .65f), new Keyframe(.26f, 0f), new Keyframe(1f, 0f));
-    public AnimationCurve FlameOpacity = new(new Keyframe(0f, .65f), new Keyframe(.07f, 1f), new Keyframe(.32f, .8f), new Keyframe(.68f, 0f), new Keyframe(1f, 0f));
-    public AnimationCurve EmberOpacity = new(new Keyframe(0f, 0f), new Keyframe(.12f, .8f), new Keyframe(.4f, .5f), new Keyframe(1f, 0f));
-    [Tooltip("Decorative flame travel only. The ignition boundary never shrinks or exceeds the damage radius.")]
+    [Tooltip("Normalized visual-time opacity of the thin leading boundary. Radius follows the gameplay clock.")]
+    public AnimationCurve IgnitionOpacity = new(new Keyframe(0f, .65f), new Keyframe(.1f, 1f), new Keyframe(.72f, 1f), new Keyframe(.85f, .8f), new Keyframe(1f, 0f));
+    public AnimationCurve FlameOpacity = new(new Keyframe(0f, .65f), new Keyframe(.1f, 1f), new Keyframe(.72f, .85f), new Keyframe(1f, 0f));
+    public AnimationCurve EmberOpacity = new(new Keyframe(0f, 0f), new Keyframe(.15f, .65f), new Keyframe(.72f, .5f), new Keyframe(1f, 0f));
+    [Tooltip("Small decorative tongue motion within the moving boundary. Cannot alter wave radius or timing.")]
     public AnimationCurve OutwardTravel = new(new Keyframe(0f, .35f), new Keyframe(.22f, 1f), new Keyframe(1f, 1f));
 
     public void Sanitize()
     {
-        VisualDuration = Mathf.Clamp(VisualDuration, .2f, .7f);
+        VisualDuration = Mathf.Clamp(VisualDuration, .8f, 1.2f);
         BoundarySegments = Mathf.Clamp(BoundarySegments, 32, 96);
         FlameTongues = Mathf.Clamp(FlameTongues, 8, 32);
         Embers = Mathf.Clamp(Embers, 0, 40);
@@ -54,13 +54,15 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
     readonly Vector3[] _flameVertices;
     readonly Vector3[] _emberVertices;
     int _tongues, _embers;
-    float _radius, _intensity, _emission, _flash;
+    float _radius, _maximumRadius, _duration, _intensity, _emission, _flash;
+    FlamethrowerActiveWave.WaveClock _clock;
     bool _cold;
     Color _outer, _hot;
 
     public Renderer[] Renderers { get; }
     public float Radius => _radius;
-    public float Duration => _settings.VisualDuration;
+    public float MaximumRadius => _maximumRadius;
+    public float Duration => _duration;
     public int TongueCount => _tongues;
     public int EmberCount => _embers;
     public Mesh BoundaryMesh => _meshes[0];
@@ -76,7 +78,7 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         if (shader == null) throw new InvalidOperationException("Flamethrower radial ignition shader is missing.");
         _material = new Material(shader) { name = "Q Radial Ignition (Runtime)", hideFlags = HideFlags.HideAndDontSave };
         Renderers = new Renderer[3];
-        string[] names = { "Instant Damage Footprint", "Sharp Flame Tongues", "Short Embers" };
+        string[] names = { "Moving Fire Boundary", "Sharp Flame Tongues", "Short Embers" };
         for (int i = 0; i < 3; i++)
         {
             var go = new GameObject(names[i]); go.transform.SetParent(_root, false);
@@ -93,11 +95,14 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
     }
 
     public void Configure(in WeaponPresentationContext context, FlamethrowerCueStyle style,
-        Color primary, Color core, float baseEmission)
+        Color primary, Color core, float baseEmission, FlamethrowerActiveWave.WaveClock clock = null)
     {
         // ExplosionRadius already contains path and area-stat scaling. No authoring scale can change its meaning.
-        _radius = Mathf.Max(0f, context.ExplosionRadius);
-        _root.localScale = Vector3.one * _radius;
+        _clock = clock;
+        _maximumRadius = Mathf.Max(0f, context.ExplosionRadius);
+        _duration = clock != null ? clock.VisualDuration : _settings.VisualDuration;
+        _radius = 0f;
+        _root.localScale = Vector3.zero;
         _intensity = context.Intensity;
         _emission = baseEmission * context.HeatEmissionMultiplier;
         _flash = context.ReducedFlash ? Mathf.Max(.18f, context.ReducedFlashIntensity) : 1f;
@@ -114,8 +119,11 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
 
     public void Sample(float seconds)
     {
-        float life = Mathf.Clamp01(seconds / _settings.VisualDuration);
-        bool visible = seconds < _settings.VisualDuration && _radius > 0f;
+        if (_clock != null) seconds = _clock.Elapsed;
+        _radius = _clock != null ? _clock.Radius : _maximumRadius * Mathf.Clamp01(seconds / .6f);
+        _root.localScale = Vector3.one * _radius;
+        float life = Mathf.Clamp01(seconds / Mathf.Max(.01f, _duration));
+        bool visible = seconds < _duration && _radius > 0f && !(_clock?.Cancelled ?? false);
         if (!visible)
         {
             for (int layer=0; layer<3; layer++) SetFrame(layer,0f,seconds);
@@ -143,6 +151,11 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         Renderers[layer].enabled = opacity > .001f && _radius > 0f;
     }
 
+    public void Hide()
+    {
+        for (int layer = 0; layer < 3; layer++) SetFrame(layer, 0f, 0f);
+    }
+
     void BuildFootprint()
     {
         int count = _settings.BoundarySegments;
@@ -152,15 +165,17 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         {
             Vector3 axis = Axis(i / (float)count * Mathf.PI * 2f);
             float ragged = .97f + Hash(i * 31 + 7) * .023f;
-            float[] rings = { .015f, _settings.ClearCenterFraction, _settings.ClearCenterFraction, 1f, ragged, 1f };
+            float inner = 1f - _settings.ClearCenterFraction * .85f;
+            float middle = Mathf.Lerp(inner, 1f, .55f);
+            float[] rings = { inner, middle, middle, ragged, ragged, 1f };
             for (int ring = 0; ring < 6; ring++)
             {
                 int index = i * 6 + ring;
                 vertices[index] = axis * rings[ring] + Vector3.up * (ring < 4 ? .006f : .018f);
                 uv[index] = new Vector2(.5f, i/(float)count);
                 uv2[index] = new Vector2(ring >= 4 ? .55f : .16f, 0f);
-                // Low flash under the player; a thin hot irregular edge marks the actual radius immediately.
-                colors[index] = new Color(1f, 1f, 1f, ring == 0 ? .015f : ring == 1 ? .045f : ring < 4 ? .13f : .4f);
+                // The annulus trails behind the leading edge. The cleared center never reads as a filled damage disc.
+                colors[index] = new Color(1f, 1f, 1f, ring == 0 ? .015f : ring == 1 ? .09f : ring < 4 ? .2f : .85f);
             }
             for (int band = 0; band < 3; band++)
             {
@@ -206,14 +221,14 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         {
             float seed=Hash(tongue*43+11), angle=tongue/(float)Mathf.Max(1,_tongues)*Mathf.PI*2f+(seed-.5f)*.30f;
             Vector3 axis=Axis(angle), tangent=Axis(angle+Mathf.PI*.5f);
-            float start=_settings.ClearCenterFraction + seed*.29f;
-            float reach=Mathf.Lerp(start+.10f,.68f+Hash(tongue*79+3)*.30f,travel);
+            float start=1f-_settings.ClearCenterFraction*.8f + seed*.07f;
+            float reach=Mathf.Lerp(.95f,.975f+Hash(tongue*79+3)*.024f,travel);
             float lift=_settings.FlameHeightFraction*(.55f+seed*.45f);
             for (int wing = 0; wing < 2; wing++)
             for (int section = 0; section < TongueSections; section++)
             {
                 float along=section/(float)(TongueSections-1);
-                float curl=Mathf.Sin(along*5f-life*13f+seed*7f)*along*along*.065f;
+                float curl=Mathf.Sin(along*5f-life*13f+seed*7f)*along*along*.022f;
                 float height=.015f+lift*Mathf.Sin(along*Mathf.PI*.68f)*(1f-life*.35f)
                     + Mathf.Sin(along*8f-life*17f+seed*9f)*along*.025f;
                 Vector3 center=axis*Mathf.Lerp(start,reach,along)+tangent*curl+Vector3.up*height;
@@ -232,7 +247,7 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         {
             float seed=Hash(ember*97+13), angle=Hash(ember*53+5)*Mathf.PI*2;
             Vector3 axis=Axis(angle), tangent=Axis(angle+Mathf.PI*.5f);
-            float radius=Mathf.Lerp(_settings.ClearCenterFraction+.08f,.7f+seed*.24f,life);
+            float radius=Mathf.Lerp(.84f,.88f+seed*.10f,life);
             Vector3 center=axis*radius+Vector3.up*(.035f+Mathf.Sin(life*Mathf.PI)*(.06f+seed*.15f));
             float size=(.003f+seed*.005f)*(1f-life);
             for (int wing=0; wing<2; wing++)

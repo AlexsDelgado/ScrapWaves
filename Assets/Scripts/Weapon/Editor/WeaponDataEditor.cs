@@ -126,6 +126,8 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaTimeToStop), "Time to Stop (s)");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaInitialRadius), "Initial Radius (m)");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaFinalRadius), "Final Radius (m)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaGrowthDuration), "Growth Duration (s)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutomaticRangeMultiplier), "Automatic / Manual Travel");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoTickInterval), "Auto Tick Interval");
@@ -143,6 +145,7 @@ public sealed class WeaponDataEditor : Editor
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveRadius), "Active Radius");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveExpansionDuration), "Q Expansion Duration");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveDamageScale), "Active Damage Scale");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualKnockbackScale), "Manual Knockback Scale");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveKnockbackScale), "Active Knockback Scale");

@@ -9,12 +9,13 @@ using Object = UnityEngine.Object;
 public sealed class FlamethrowerRadialBurstTests
 {
     readonly List<Object> _cleanup = new();
-    static readonly MethodInfo Sample = typeof(FlamethrowerCueVfx).GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic);
-    [SetUp] public void Setup() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+    [SetUp] public void Setup() { EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single); Time.timeScale=1f; GameplayPause.Reset(); }
     [TearDown] public void Cleanup()
     {
         foreach (var puddle in Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             Object.DestroyImmediate(puddle.gameObject);
+        foreach (var wave in Object.FindObjectsByType<FlamethrowerActiveWave>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(wave.gameObject);
         for (int i=_cleanup.Count-1;i>=0;i--) if (_cleanup[i]!=null) Object.DestroyImmediate(_cleanup[i]);
         _cleanup.Clear();
     }
@@ -62,19 +63,24 @@ public sealed class FlamethrowerRadialBurstTests
         var context=WeaponPresentationContext.FromFeedback(cue.Cue,in sink.Shot,profile,cue,GameFeelQualityLevel.High,false);
         var pooled=Create(cue.VfxPrefab); pooled.Play(in context,cue.Duration,0f,false);
         var vfx=pooled.GetComponent<FlamethrowerCueVfx>();
-        Assert.That(vfx.ActiveDamageRadius,Is.EqualTo(expectedRadius).Within(.0001f));
+        Assert.That(vfx.ActiveMaximumRadius,Is.EqualTo(expectedRadius).Within(.0001f));
+        Assert.That(vfx.ActiveDamageRadius,Is.Zero);
         Assert.That(pooled.transform.position,Is.EqualTo(owner.transform.position));
-        // Footprint is already full-sized on the damage frame. Aim pitch cannot tilt it.
+        // The front starts at the origin and remains horizontal even when the aim is pitched.
         foreach (var vertex in vfx.ActiveBoundaryMesh.vertices)
         {
             var world=pooled.transform.Find("Q Radial Ignition").TransformPoint(vertex);
             Assert.That(world.y,Is.InRange(owner.transform.position.y,owner.transform.position.y+expectedRadius*.019f));
         }
-        AssertFootprint(vfx,owner.transform.position,expectedRadius);
-        for (int i=0;i<=26;i++)
+        AssertFootprint(vfx,owner.transform.position,0f);
+        for (int i=0;i<=51;i++)
         {
-            Sample.Invoke(vfx,new object[]{i/60f/.72f});
-            AssertAllGeometryInside(vfx,owner.transform.position,expectedRadius);
+            if (i>0) weapon.ActiveWave.Simulate(1f/60f);
+            vfx.SampleActive(i/60f);
+            float currentRadius=weapon.ActiveWave.Clock.Radius;
+            Assert.That(vfx.ActiveDamageRadius,Is.EqualTo(currentRadius).Within(.0001f));
+            AssertFootprint(vfx,owner.transform.position,currentRadius);
+            AssertAllGeometryInside(vfx,owner.transform.position,currentRadius);
         }
         Vector3 emittedAt=pooled.transform.position; owner.transform.position+=Vector3.one*100;
         Assert.That(pooled.transform.position,Is.EqualTo(emittedAt),"A Q burst stays at its damage origin after the player moves.");
@@ -95,9 +101,13 @@ public sealed class FlamethrowerRadialBurstTests
             var origin=new Vector3(cycle,2f,-cycle);
             var context=new WeaponPresentationContext(cue.Cue,null,origin,Vector3.up,explosionRadius:radius);
             pooled.Play(in context,cue.Duration,cycle,false);
+            AssertFootprint(vfx,origin,0f);
+            vfx.SampleActive(.3f);
+            AssertFootprint(vfx,origin,radius*.5f);
+            vfx.SampleActive(.6f);
             AssertFootprint(vfx,origin,radius);
             Assert.That(vfx.ActiveVisualLifetime,Is.LessThanOrEqualTo(cue.Duration));
-            Sample.Invoke(vfx,new object[]{vfx.ActiveVisualLifetime/.72f});
+            vfx.SampleActive(vfx.ActiveVisualLifetime);
             foreach (var renderer in pooled.GetComponentsInChildren<MeshRenderer>()) Assert.That(renderer.enabled,Is.False);
             Assert.That(pooled.ShouldRelease(cycle+cue.Duration),Is.True);
             pooled.Release(); Assert.That(pooled.IsActive,Is.False);
@@ -118,6 +128,7 @@ public sealed class FlamethrowerRadialBurstTests
         var low=new WeaponPresentationContext(cue.Cue,null,Vector3.zero,Vector3.forward,explosionRadius:9f,
             quality:GameFeelQualityLevel.Low,reducedFlash:true,reducedFlashIntensity:0f);
         pooled.Play(in low,cue.Duration,1f,false);
+        vfx.SampleActive(.6f);
         AssertFootprint(vfx,Vector3.zero,9f);
         Assert.That(vfx.ActiveTongueCount,Is.LessThan(tongues)); Assert.That(vfx.ActiveEmberCount,Is.LessThan(embers));
         Assert.That(pooled.GetComponentsInChildren<ParticleSystem>(),Is.Empty);
@@ -134,8 +145,9 @@ public sealed class FlamethrowerRadialBurstTests
         settings.FlameOpacity=AnimationCurve.Constant(0,1,0);
         var context=new WeaponPresentationContext(cue.Cue,null,Vector3.zero,Vector3.forward,explosionRadius:6);
         pooled.Play(in context,cue.Duration,0,false);
+        vfx.SampleActive(.3f);
         Assert.That(pooled.transform.Find("Q Radial Ignition/Sharp Flame Tongues").GetComponent<Renderer>().enabled,Is.False);
-        Assert.That(pooled.transform.Find("Q Radial Ignition/Instant Damage Footprint").GetComponent<Renderer>().enabled,Is.True);
+        Assert.That(pooled.transform.Find("Q Radial Ignition/Moving Fire Boundary").GetComponent<Renderer>().enabled,Is.True);
     }
 
     PooledWeaponVfx Create(GameObject prefab)

@@ -3009,8 +3009,10 @@ public class WeaponUpgradeEffectTests
 
             weapon.UseActiveAbility(Vector3.forward);
 
+            Assert.That(Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None), Is.Empty);
+            weapon.ActiveWave.Simulate(.3f);
             Assert.That(Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
-            Assert.That(Object.FindObjectsByType<FlamethrowerStreamVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+            Assert.That(Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
         }
         finally
         {
@@ -3021,7 +3023,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void FlamethrowerAutomaticCone_LiquidNitrogenAppliesSlow()
+    public void FlamethrowerAutomaticAreas_LiquidNitrogenAppliesSlowOnContact()
     {
         GameObject owner = new("Auto Flamethrower Owner");
         GameObject spawn = new("Auto Flamethrower Spawn");
@@ -3067,6 +3069,7 @@ public class WeaponUpgradeEffectTests
             weapon.Setup(instance, owner.transform, stats, null);
 
             weapon.TickAutomatic(0.02f, Vector3.forward);
+            weapon.ManualAreas.Simulate(0.4f);
 
             Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
             Assert.That(target.GetComponent<WeaponMovementSlowStatus>(), Is.Not.Null);
@@ -3900,6 +3903,13 @@ public class WeaponUpgradeEffectTests
 
     private static void DestroyGeneratedVfx()
     {
+        foreach (FlamethrowerActiveWave wave in Object.FindObjectsByType<FlamethrowerActiveWave>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(wave.gameObject);
+        foreach (FlamethrowerCueVfx cue in Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(cue.gameObject);
+        foreach (FlamethrowerManualAreas areas in Object.FindObjectsByType<FlamethrowerManualAreas>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(areas.gameObject);
+
         foreach (ExplosionRadiusVfx vfx in Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
 

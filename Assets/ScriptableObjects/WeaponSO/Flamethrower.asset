@@ -141,8 +141,10 @@ MonoBehaviour:
         FlameAreaEmissionInterval: 0.15
         FlameAreaLifetime: 1.5
         FlameAreaTimeToStop: 1
-        FlameAreaInitialRadius: 0.35
-        FlameAreaFinalRadius: 0.75
+        FlameAreaInitialRadius: 0.28
+        FlameAreaFinalRadius: 0.875
+        FlameAreaGrowthDuration: 1
+        FlameAutomaticRangeMultiplier: 0.6
         FlameAutoTickInterval: 1
         FlameOverheatAutoTickInterval: 0.5
         FlameOverheatTickThresholdPercent: 75
@@ -153,8 +155,9 @@ MonoBehaviour:
         FlameBurnTickInterval: 0.5
         FlameBurnDamageScale: 0.5
         FlameActiveRadius: 6
+        FlameActiveExpansionDuration: 0.6
         FlameActiveDamageScale: 2
         FlameManualKnockbackScale: 0.25
         FlameActiveKnockbackScale: 3
         FlameVisualDuration: 0.18
-        FlameActiveVisualDuration: 0.45
+        FlameActiveVisualDuration: 0.85

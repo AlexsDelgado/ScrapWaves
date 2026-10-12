@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -9,6 +10,7 @@ internal sealed class FlamethrowerManualPlume
     private readonly ParticleSystem _system;
     private readonly ParticleSystemRenderer _renderer;
     private readonly ParticleSystem.Particle[] _particles = new ParticleSystem.Particle[MaximumParticles];
+    private readonly List<Vector4> _damageSpheres = new(MaximumParticles);
     private readonly MaterialPropertyBlock _properties = new();
     private int _count;
     private float _time;
@@ -40,6 +42,13 @@ internal sealed class FlamethrowerManualPlume
         _system.Pause();
         _renderer = root.GetComponent<ParticleSystemRenderer>();
         _renderer.sharedMaterial = material;
+        // UV2 pads TEXCOORD0 so each particle's world-space damage sphere occupies TEXCOORD1.
+        _renderer.SetActiveVertexStreams(new List<ParticleSystemVertexStream>
+        {
+            ParticleSystemVertexStream.Position, ParticleSystemVertexStream.Color,
+            ParticleSystemVertexStream.UV, ParticleSystemVertexStream.UV2,
+            ParticleSystemVertexStream.Custom1XYZW
+        });
         _renderer.renderMode = ParticleSystemRenderMode.Billboard;
         _renderer.alignment = ParticleSystemRenderSpace.View;
         _renderer.sortMode = ParticleSystemSortMode.Distance;
@@ -53,6 +62,7 @@ internal sealed class FlamethrowerManualPlume
     {
         _time = time;
         _count = 0;
+        _damageSpheres.Clear();
     }
 
     public void Add(Vector3 center, Vector3 direction, Vector3[] path, int pathCount,
@@ -98,12 +108,14 @@ internal sealed class FlamethrowerManualPlume
                 remainingLifetime = 2f,
                 randomSeed = (uint)(seed * WispsPerArea + i + 1)
             };
+            _damageSpheres.Add(new Vector4(center.x, center.y, center.z, radius));
         }
     }
 
     public void End()
     {
         _system.SetParticles(_particles, _count);
+        _system.SetCustomParticleData(_damageSpheres, ParticleSystemCustomData.Custom1);
         _properties.SetFloat("_CloudAge", _time);
         _renderer.SetPropertyBlock(_properties);
     }
@@ -111,7 +123,9 @@ internal sealed class FlamethrowerManualPlume
     public void Clear()
     {
         _count = 0;
+        _damageSpheres.Clear();
         _system.SetParticles(_particles, 0);
+        _system.SetCustomParticleData(_damageSpheres, ParticleSystemCustomData.Custom1);
     }
 
     private static float Hash(int value)

@@ -476,7 +476,7 @@ MonoBehaviour:
     MinimumDistance: 1
     MaximumDistance: 48
     AudioPriority: 60
-    Duration: 0.72
+    Duration: 1
     MinReplayInterval: 0
     PrewarmCount: 5
     MaxSimultaneous: 5
@@ -528,7 +528,7 @@ MonoBehaviour:
     MinimumDistance: 1
     MaximumDistance: 48
     AudioPriority: 60
-    Duration: 0.72
+    Duration: 1
     MinReplayInterval: 0
     PrewarmCount: 5
     MaxSimultaneous: 5
@@ -580,7 +580,7 @@ MonoBehaviour:
     MinimumDistance: 1
     MaximumDistance: 48
     AudioPriority: 60
-    Duration: 0.72
+    Duration: 1
     MinReplayInterval: 0
     PrewarmCount: 5
     MaxSimultaneous: 5
@@ -992,6 +992,18 @@ MonoBehaviour:
     MaximumStreamSegments: 48
     FuelPuddlePrewarmCount: 8
     FuelPuddlePoolCapacity: 32
+  _rotatingBlade:
+    RuntimeVfxPrefab: {fileID: 0}
+    MaximumOrbitingBlades: 6
+    MaximumConcurrentSlashes: 8
+    MaximumConcurrentThrusts: 8
+  _mortar:
+    ShellPrefab: {fileID: 0}
+    LandingIndicatorPrefab: {fileID: 0}
+    ShellPrewarmCount: 24
+    ShellPoolCapacity: 128
+    MaximumDetailedRainShells: 14
+    DamageFeedbackSubVolleyShellCount: 5
   _qualitySettings: {fileID: 11400000, guid: 64b5ca0913ab2c541b8b88552f8334d3, type: 2}
   _reducedFlashColor: {r: 1, g: 0.58, b: 0.16, a: 0.55}
   _reducedFlashIntensity: 0.35

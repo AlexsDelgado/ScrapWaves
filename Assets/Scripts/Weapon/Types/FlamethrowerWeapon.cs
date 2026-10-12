@@ -6,13 +6,15 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
     {
         FlamethrowerTuning t = Runtime.Data.Flamethrower;
-        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticTickInterval(t), GetScaledRange(Runtime.Data.BaseRange), 1, 0f, knockbackScale: 0f);
+        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticTickInterval(t), GetAutomaticRange(t), 1, 0f, knockbackScale: 0f);
         var manual = DiagnosticMode("Manual", 1f, Mathf.Max(0.01f, t.FlameManualTickInterval), GetManualRange(t), 1,
             t.FlameManualAmmoPerSecond * Mathf.Max(0.01f, t.FlameManualTickInterval), knockbackScale: t.FlameManualKnockbackScale);
         float radius = GetScaledRange(GetPathAdjustedActiveRadius(t));
         var active = DiagnosticMode("Active Ability", t.FlameActiveDamageScale, 0f, radius, 1,
             Runtime.Data.ActiveAbilityAmmoCost, true, t.FlameActiveKnockbackScale);
-        automatic.Add("Cone angle", t.FlameAutoConeAngle, " degrees");
+        automatic.Add("Direction", "Character facing at emission")
+            .Add("Travel / manual", Mathf.Clamp(t.FlameAutomaticRangeMultiplier, 0.05f, 1f))
+            .Add("Active areas", ActiveAutomaticAreaCount);
         manual.Add("Active areas", ActiveManualAreaCount).Add("Emission interval", Mathf.Max(0.01f, t.FlameAreaEmissionInterval), " s")
             .Add("Area lifetime", t.FlameAreaLifetime, " s").Add("Time to stop", t.FlameAreaTimeToStop, " s")
             .Add("Initial radius", t.FlameAreaInitialRadius * GetAreaSizeMultiplier(), " m")
@@ -20,10 +22,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             .Add("Damage timing", "One shared tick; one contact hit per enemy across all areas")
             .Add("Ammo / second", t.FlameManualAmmoPerSecond)
             .Add("Ammo timing", "Continuous drain while held; ammo/action is per tick duration");
-        active.Add("Explosion radius", radius, " m");
+        active.Add("Final wave radius", radius, " m").Add("Expansion duration", t.FlameActiveExpansionDuration, " s")
+            .Add("Damage timing", "Once per receiver when the moving front crosses");
         foreach (var section in new[] { automatic, manual, active })
         {
-            section.Add("Maximum targets / tick", Mathf.Max(1, t.FlameMaxTargetsPerTick));
+            section.Add(section == active ? "Maximum targets / cast" : "Maximum targets / tick", Mathf.Max(1, t.FlameMaxTargetsPerTick));
             if (section == automatic && !ShouldApplyAutomaticStatus()) section.Add("Status", "No burn in base automatic mode");
             else if (IsLiquidNitrogenPath()) section.Add("Status", section == active
                 ? "Freeze 2 s, then slowed movement (0.1x for 4 s total); replaces burn"
@@ -51,13 +54,22 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private static readonly Color LiquidNitrogenCoreColor = new(0.78f, 0.97f, 1f, 0.95f);
     private static readonly Color LiquidNitrogenVfxColor = new(0.38f, 0.78f, 1f, 0.88f);
 
-    private readonly List<Transform> _targets = new();
+    private readonly List<FlamethrowerActiveWave> _activeWaves = new();
+    private ActiveCast _applyingActiveCast;
+    private WeaponInstance SourceRuntime => _applyingActiveCast?.Source ?? Runtime;
+    private IWeaponFeedbackSink SourceFeedback => _applyingActiveCast?.Feedback ?? Feedback;
+    private sealed class ActiveCast
+    {
+        public WeaponInstance Source;
+        public FlamethrowerTuning Tuning;
+        public IWeaponFeedbackSink Feedback;
+        public Vector3 Origin;
+        public float AreaSize, Heat;
+    }
 
     private FlamethrowerManualAreas _manualAreas;
 
-    private FlamethrowerStreamVfx _streamVfx;
-    private float _autoTickTimer;
-    private bool _applyingManualAreaDamage;
+    private WeaponFeedbackMode? _applyingAreaMode;
     private bool _sustainedFeedbackActive;
     private WeaponFeedbackMode _sustainedFeedbackMode;
     private WeaponUpgradePath _sustainedFeedbackPath;
@@ -65,7 +77,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     public string LastManualDebugSummary { get; private set; } = "No manual tick yet";
     public int LastManualHitCount => _manualAreas != null ? _manualAreas.LastTargetCount : 0;
     public int LastManualDamageApplications => _manualAreas != null ? _manualAreas.LastAppliedCount : 0;
-    public int ActiveManualAreaCount => _manualAreas != null ? _manualAreas.ActiveCount : 0;
+    public int ActiveManualAreaCount => _manualAreas != null ? _manualAreas.GetActiveCount(WeaponFeedbackMode.Manual) : 0;
+    public int ActiveAutomaticAreaCount => _manualAreas != null ? _manualAreas.GetActiveCount(WeaponFeedbackMode.Automatic) : 0;
     public int LastManualRegistryCount { get; private set; }
     public float LastManualAreaRadius { get; private set; }
     public float LastManualRange { get; private set; }
@@ -79,9 +92,10 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
     }
 
-    // Emits an automatic cone from its assigned arm nozzle in player-body forward.
+    // Capture character facing at emission. Existing areas retain their own world-space trajectory and source mode.
     public override void TickAutomatic(float deltaTime, Vector3 aimDirection)
     {
+        if (deltaTime <= 0f || Time.timeScale <= 0f || GameplayPause.IsUiPaused) return;
         if (Runtime.State != WeaponState.Automatic)
         {
             StopSustainedFeedback(GetAutomaticFlameDirection());
@@ -91,16 +105,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
         Vector3 flameDirection = GetAutomaticFlameDirection();
         AimFireOriginAlong(flameDirection);
-        float range = GetScaledRange(Runtime.Data.BaseRange);
-        ShowAutomaticCone(flameDirection, range, tuning);
+        if (Spawn == null || Owner == null) return;
+        float range = GetAutomaticRange(tuning);
         UpdateSustainedFeedback(WeaponFeedbackMode.Automatic, flameDirection, range);
-
-        _autoTickTimer -= deltaTime;
-        if (_autoTickTimer > 0f)
-            return;
-
-        ApplyAutomaticConeDamage(flameDirection, range, tuning);
-        _autoTickTimer = GetAutomaticTickInterval(tuning);
+        EnsureAreaController();
+        _manualAreas.Emit(deltaTime, Spawn.position, flameDirection, range, GetAreaSizeMultiplier(),
+            tuning, GetStreamStyle(), Heat != null ? Heat.NormalizedHeat : 0f,
+            WeaponFeedbackMode.Automatic, GetAutomaticTickInterval(tuning));
     }
 
     // Only emission follows the muzzle. Existing areas update in their world-space controller.
@@ -124,13 +135,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             LastManualDebugSummary = "No ammo; existing areas keep their lifetime";
             return;
         }
-        if (_manualAreas == null)
-        {
-            GameObject root = new("[Flamethrower Manual Areas]");
-            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(root, Owner.gameObject.scene);
-            _manualAreas = root.AddComponent<FlamethrowerManualAreas>();
-            _manualAreas.Initialize(Owner, ApplyManualAreaDamage, GetPresentationSettings()?.ManualAreaMaterial);
-        }
+        EnsureAreaController();
         LastManualAmmoAfter = Runtime.CurrentAmmo;
         LastManualRange = GetManualRange(tuning);
         LastManualAreaRadius = Mathf.Max(tuning.FlameAreaInitialRadius, tuning.FlameAreaFinalRadius) * GetAreaSizeMultiplier();
@@ -142,19 +147,37 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     }
 
     public FlamethrowerManualAreas ManualAreas => _manualAreas;
+    public FlamethrowerActiveWave ActiveWave { get; private set; }
+
+    private void EnsureAreaController()
+    {
+        if (_manualAreas != null) return;
+        GameObject root = new("[Flamethrower Areas]");
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(root, Owner.gameObject.scene);
+        _manualAreas = root.AddComponent<FlamethrowerManualAreas>();
+        _manualAreas.InitializeModeAware(Owner, ApplyAreaDamage, GetPresentationSettings()?.ManualAreaMaterial);
+    }
 
     public void ClearManualAreas()
     {
+        foreach (var wave in _activeWaves)
+        {
+            if (wave == null) continue;
+            wave.Cancel();
+            if (Application.isPlaying) Object.Destroy(wave.gameObject);
+            else Object.DestroyImmediate(wave.gameObject);
+        }
+        _activeWaves.Clear(); ActiveWave = null;
         if (_manualAreas == null) return;
         _manualAreas.Clear();
         if (Application.isPlaying) Object.Destroy(_manualAreas.gameObject);
         else Object.DestroyImmediate(_manualAreas.gameObject);
         _manualAreas = null;
     }
-    // Emits a circular flame burst around the player.
+    // A fixed-origin Q front reaches the existing final radius in the authored expansion time.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
-        if (!CanBeginActiveAbility())
+        if (Owner == null || !CanBeginActiveAbility())
             return;
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
@@ -164,48 +187,20 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         StopSustainedFeedback(aimDirection);
 
         float activeRadius = GetScaledRange(GetPathAdjustedActiveRadius(tuning));
-        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
-            Owner.position,
-            Owner.forward,
-            activeRadius,
-            360f,
-            Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
-            _targets);
-
-        for (int i = 0; i < hitCount; i++)
-        {
-            int damage = CalculateDirectDamage(
-                tuning.FlameActiveDamageScale,
-                _targets[i],
-                true,
-                out WeaponDamageContext directContext);
-            int burnDamage = CalculateBurnDamage(
-                tuning,
-                _targets[i],
-                true,
-                out WeaponDamageContext burnContext);
-            ApplyDamageToTarget(
-                _targets[i],
-                damage,
-                Owner.position,
-                tuning.FlameActiveKnockbackScale,
-                true,
-                in directContext);
-            ApplyBurnToTargetWithContext(_targets[i], burnDamage, tuning, true, in burnContext);
-        }
-
-        if (IsJellifiedFuelPath())
-        {
-            Vector2 puddleSettings = GetJellifiedActivePuddleSettings(tuning, activeRadius);
-            int puddleDamage = CalculateBurnDamage(tuning, null, true, out _);
-            SpawnFuelPuddle(
-                Owner.position,
-                puddleSettings.x,
-                puddleDamage,
-                puddleSettings.y,
-                tuning.FlameBurnTickInterval,
-                CreateBurnDamageContext(tuning, isAbilityDamage: true));
-        }
+        var cast = new ActiveCast {
+            Source = new WeaponInstance { Data = Runtime.Data, Level = Runtime.Level, SelectedPath = Runtime.SelectedPath, State = WeaponState.Manual },
+            Tuning = JsonUtility.FromJson<FlamethrowerTuning>(JsonUtility.ToJson(tuning)),
+            Feedback = Feedback, Origin = Owner.position, AreaSize = GetAreaSizeMultiplier(), Heat = Heat != null ? Heat.NormalizedHeat : 0f };
+        bool fuel = IsJellifiedFuelPath();
+        Vector2 puddleSettings = fuel ? GetJellifiedActivePuddleSettings(tuning, activeRadius) : Vector2.zero;
+        var root = new GameObject("[Flamethrower Q Wave]");
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(root, Owner.gameObject.scene);
+        ActiveWave = root.AddComponent<FlamethrowerActiveWave>();
+        ActiveWave.Initialize(Owner, Runtime, cast.Origin, activeRadius, tuning.FlameActiveExpansionDuration,
+            tuning.FlameActiveVisualDuration, tuning.FlameMaxTargetsPerTick, target => ApplyActiveWaveHit(target, cast),
+            puddleSettings.x, fuel ? () => ActivateActiveFuelPuddle(cast, puddleSettings) : null);
+        _activeWaves.RemoveAll(wave => wave == null);
+        _activeWaves.Add(ActiveWave);
 
         Vector3 activeDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Owner.forward;
         WeaponFeedbackContext activeFeedback = CreateFeedbackContext(
@@ -216,23 +211,50 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             isAbilityDamage: true);
         Feedback.OnShotFired(in activeFeedback);
         if (!HasProductionPresentation())
-            FlamethrowerStreamVfx.SpawnRing(Owner.position, activeRadius, tuning.FlameActiveVisualDuration, GetStreamCoreColor(), GetStreamEdgeColor());
+        {
+            var context = new WeaponPresentationContext(WeaponPresentationCue.FlamethrowerActiveBurst, Runtime,
+                cast.Origin, activeDirection, isAbility: true, mode: WeaponFeedbackMode.Active, explosionRadius: activeRadius);
+            FlamethrowerCueVfx.SpawnActiveFallback(in context, IsLiquidNitrogenPath() ? FlamethrowerCueStyle.NitrogenActiveBurst
+                : fuel ? FlamethrowerCueStyle.JellifiedActiveBurst : FlamethrowerCueStyle.FlameActiveBurst);
+        }
         CompleteActiveAbility();
+    }
+
+    private void ApplyActiveWaveHit(Transform target, ActiveCast cast)
+    {
+        ActiveCast previous = _applyingActiveCast;
+        _applyingActiveCast = cast;
+        try
+        {
+            int damage = CalculateDirectDamage(cast.Tuning.FlameActiveDamageScale, target, true, out var direct);
+            int burn = CalculateBurnDamage(cast.Tuning, target, true, out var status);
+            ApplyDamageToTarget(target, damage, cast.Origin, cast.Tuning.FlameActiveKnockbackScale, true, in direct);
+            ApplyBurnToTargetWithContext(target, burn, cast.Tuning, true, in status);
+        }
+        finally { _applyingActiveCast = previous; }
+    }
+
+    private void ActivateActiveFuelPuddle(ActiveCast cast, Vector2 settings)
+    {
+        ActiveCast previous = _applyingActiveCast;
+        _applyingActiveCast = cast;
+        try
+        {
+            int damage = CalculateBurnDamage(cast.Tuning, null, true, out var context);
+            SpawnFuelPuddle(cast.Origin, settings.x, damage, settings.y, cast.Tuning.FlameBurnTickInterval, context);
+        }
+        finally { _applyingActiveCast = previous; }
     }
 
     // Flamethrower direct ticks can crit; burn ticks do not.
     public override bool CanCrit() => true;
 
-    // Automatic flame is body-forward. Camera-relative movement must not redirect the shoulder nozzle.
+    // Strafing, backward movement, dash and slide cannot override character facing.
     private Vector3 GetAutomaticFlameDirection()
     {
         Vector3 direction = Owner != null ? Owner.forward : Vector3.forward;
         direction.y = 0f;
-
-        if (direction.sqrMagnitude <= 0.0001f)
-            direction = Vector3.forward;
-
-        return direction.normalized;
+        return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
     }
 
     // Applies faster automatic ticks above the configured heat threshold.
@@ -252,51 +274,27 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         return GetScaledRange(Runtime.Data.BaseRange) * (1f + Mathf.Max(0f, tuning.FlameManualRangeHeatMultiplier) * heat);
     }
 
-    // Damages every enemy inside the horizontal automatic flame cone.
-    private int ApplyAutomaticConeDamage(Vector3 direction, float range, FlamethrowerTuning tuning)
+    private float GetAutomaticRange(FlamethrowerTuning tuning) =>
+        GetManualRange(tuning) * Mathf.Clamp(tuning.FlameAutomaticRangeMultiplier, 0.05f, 1f);
+
+    private bool ApplyAreaDamage(Transform target, Vector3 origin, WeaponFeedbackMode mode)
     {
-        if (Owner == null)
-            return 0;
-
-        Vector3 origin = Spawn != null ? Spawn.position : Owner.position;
-        int hitCount = EnemyRegistry.CollectClosestOnPlaneInCone(
-            origin,
-            direction,
-            range,
-            tuning.FlameAutoConeAngle,
-            Mathf.Max(1, tuning.FlameMaxTargetsPerTick),
-            _targets);
-
-        for (int i = 0; i < hitCount; i++)
-        {
-            int damage = CalculateDirectDamage(1f, _targets[i], false, out WeaponDamageContext directContext);
-            if (ApplyDamageToTarget(_targets[i], damage, origin, 0f, false, in directContext)
-                && ShouldApplyAutomaticStatus())
-            {
-                int burnDamage = CalculateBurnDamage(tuning, _targets[i], false, out WeaponDamageContext burnContext);
-                ApplyBurnToTargetWithContext(_targets[i], burnDamage, tuning, false, in burnContext);
-            }
-        }
-
-        return hitCount;
-    }
-
-    private bool ApplyManualAreaDamage(Transform target, Vector3 origin)
-    {
-        _applyingManualAreaDamage = true;
+        WeaponFeedbackMode? previousMode = _applyingAreaMode;
+        _applyingAreaMode = mode;
         try
         {
             FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
             int damage = CalculateDirectDamage(1f, target, false, out WeaponDamageContext directContext);
-            bool applied = ApplyDamageToTarget(target, damage, origin, tuning.FlameManualKnockbackScale, false, in directContext);
-            if (applied && target != null && target.gameObject.activeInHierarchy)
+            bool manual = mode == WeaponFeedbackMode.Manual;
+            bool applied = ApplyDamageToTarget(target, damage, origin, manual ? tuning.FlameManualKnockbackScale : 0f, false, in directContext);
+            if (applied && target != null && target.gameObject.activeInHierarchy && (manual || ShouldApplyAutomaticStatus()))
             {
                 int burn = CalculateBurnDamage(tuning, target, false, out WeaponDamageContext burnContext);
                 ApplyBurnToTargetWithContext(target, burn, tuning, false, in burnContext);
             }
             return applied;
         }
-        finally { _applyingManualAreaDamage = false; }
+        finally { _applyingAreaMode = previousMode; }
     }
     // Calculates one direct flamethrower damage tick from shared weapon rules.
     private int CalculateDirectDamage(
@@ -305,7 +303,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         bool isAbilityDamage,
         out WeaponDamageContext damageContext)
     {
-        damageContext = CreateDamageContext(damageScale, isAbilityDamage)
+        damageContext = new WeaponDamageContext(Stats, SourceRuntime, CanCrit(), GetCritMultiplierOverride(), damageScale, isAbilityDamage, damageScale)
             .WithFeedbackMetadata(
                 0,
                 isAbilityDamage ? DamageFeedbackKind.Ability : DamageFeedbackKind.SustainedContact);
@@ -330,7 +328,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             : DamageFeedbackKind.Burn;
         damageContext = new WeaponDamageContext(
                 Stats,
-                Runtime,
+                SourceRuntime,
                 canCrit: false,
                 critMultiplierOverride: 1f,
                 damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
@@ -353,7 +351,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             : DamageFeedbackKind.Burn;
         return new WeaponDamageContext(
             Stats,
-            Runtime,
+            SourceRuntime,
             canCrit: false,
             critMultiplierOverride: 1f,
             damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
@@ -364,10 +362,10 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private bool ShouldApplyAutomaticStatus() => IsJellifiedFuelPath() || IsLiquidNitrogenPath();
 
     private bool IsJellifiedFuelPath() =>
-        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
+        SourceRuntime != null && SourceRuntime.HasAdvancedPath && SourceRuntime.SelectedPath == WeaponUpgradePath.PathA;
 
     private bool IsLiquidNitrogenPath() =>
-        Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB;
+        SourceRuntime != null && SourceRuntime.HasAdvancedPath && SourceRuntime.SelectedPath == WeaponUpgradePath.PathB;
 
     // Applies immediate damage to one enemy transform if it has a damage receiver.
     private bool ApplyDamageToTarget(
@@ -382,14 +380,15 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             return false;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
-        string weaponId = Runtime?.Data != null ? Runtime.Data.WeaponId : null;
+        string weaponId = SourceRuntime?.Data != null ? SourceRuntime.Data.WeaponId : null;
         DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
             damageable,
             damage,
             sourceWeaponId: weaponId);
         if (damageable != null && result.Applied)
         {
-            ApplyKnockback(damageable, impactOrigin, damage, knockbackScale);
+            EnemyKnockbackReceiver.TryApply(damageable, impactOrigin,
+                WeaponMath.CalculateKnockback(Stats, SourceRuntime, damage, knockbackScale));
             Vector3 direction = target.position - impactOrigin;
             WeaponFeedbackContext feedback = CreateFeedbackContext(
                 activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
@@ -415,7 +414,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 damageContext.ActionSequenceId,
                 damageContext.DamageKind);
             if (result.IsAuthoritative && result.AppliedDamage > 0)
-                Feedback.OnDamageConfirmed(in feedback);
+                SourceFeedback.OnDamageConfirmed(in feedback);
             return true;
         }
 
@@ -462,11 +461,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             ? WeaponStatusKind.JellifiedBurn
             : WeaponStatusKind.Burn;
         StatusDamageSource source = new(
-            Runtime,
-            Feedback,
+            SourceRuntime,
+            SourceFeedback,
             activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
-            Runtime != null && Runtime.HasAdvancedPath
-                ? Runtime.SelectedPath
+            SourceRuntime != null && SourceRuntime.HasAdvancedPath
+                ? SourceRuntime.SelectedPath
                 : WeaponUpgradePath.None,
             burnContext.ReferenceDamage,
             statusInstanceId: 0,
@@ -477,7 +476,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         if (IsJellifiedFuelPath())
         {
-            float levelScale = Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
+            float levelScale = SourceRuntime != null ? Mathf.Max(1f, SourceRuntime.Level / 6f) : 1f;
             float radius = GetScaledFuelPuddleRadius(tuning) * levelScale;
             SpawnFuelPuddle(
                 target.position,
@@ -514,23 +513,6 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         EmitStatusFeedback(target, 0, activeAbility: false);
     }
 
-    // Keeps the automatic visual aligned with the same cone used for damage.
-    private void ShowAutomaticCone(Vector3 direction, float range, FlamethrowerTuning tuning)
-    {
-        if (Spawn == null)
-            return;
-
-        if (_streamVfx == null)
-        {
-            FlamethrowerPresentationSettings settings = GetPresentationSettings();
-            _streamVfx = FlamethrowerStreamVfx.Create(settings?.StreamPrefab, settings?.MaximumStreamSegments ?? 48);
-        }
-
-        _streamVfx.SetStyle(GetStreamStyle());
-        _streamVfx.SetHeat(Heat != null ? Heat.NormalizedHeat : 0f);
-        _streamVfx.ShowCone(Spawn.position, direction, range, tuning.FlameAutoConeAngle, tuning.FlameVisualDuration);
-    }
-
     private void SpawnFuelPuddle(
         Vector3 position,
         float radius,
@@ -555,7 +537,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 duration,
                 tickInterval,
                 damageContext,
-                Feedback,
+                SourceFeedback,
                 feedbackMode);
             return;
         }
@@ -567,14 +549,14 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             duration,
             tickInterval,
             damageContext,
-            Feedback,
+            SourceFeedback,
             feedbackMode);
     }
 
     private FlamethrowerPresentationSettings GetPresentationSettings() =>
-        Runtime?.Data?.PresentationProfile != null ? Runtime.Data.PresentationProfile.Flamethrower : null;
+        SourceRuntime?.Data?.PresentationProfile != null ? SourceRuntime.Data.PresentationProfile.Flamethrower : null;
 
-    private bool HasProductionPresentation() => Runtime?.Data?.PresentationProfile != null;
+    private bool HasProductionPresentation() => SourceRuntime?.Data?.PresentationProfile != null;
 
     private FlamethrowerStreamStyle GetStreamStyle()
     {
@@ -602,10 +584,6 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     private void StopSustainedFeedback(Vector3 direction)
     {
         _manualAreas?.StopEmission();
-        if (_sustainedFeedbackMode == WeaponFeedbackMode.Manual)
-            _streamVfx?.ReleaseManual();
-        else if (_sustainedFeedbackMode == WeaponFeedbackMode.Automatic)
-            _streamVfx?.ReleaseAutomatic();
 
         if (!_sustainedFeedbackActive || Runtime == null)
             return;
@@ -619,7 +597,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         if (target == null)
             return;
-        Vector3 origin = Spawn != null ? Spawn.position : Owner != null ? Owner.position : target.position;
+        Vector3 origin = _applyingActiveCast != null ? _applyingActiveCast.Origin : Spawn != null ? Spawn.position : Owner != null ? Owner.position : target.position;
         WeaponFeedbackContext context = CreateFeedbackContext(
             activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
             origin,
@@ -629,13 +607,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             target: target,
             anchor: target,
             isAbilityDamage: activeAbility);
-        Feedback.OnStatusApplied(in context);
+        SourceFeedback.OnStatusApplied(in context);
     }
 
     private WeaponFeedbackMode GetCurrentFeedbackMode() =>
-        _applyingManualAreaDamage || (Runtime != null && Runtime.State == WeaponState.Manual)
+        _applyingAreaMode ?? (Runtime != null && Runtime.State == WeaponState.Manual
             ? WeaponFeedbackMode.Manual
-            : WeaponFeedbackMode.Automatic;
+            : WeaponFeedbackMode.Automatic);
 
     private WeaponFeedbackContext CreateFeedbackContext(
         WeaponFeedbackMode mode,
@@ -649,9 +627,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         bool isAbilityDamage = false)
     {
         return new WeaponFeedbackContext(
-            Runtime,
+            SourceRuntime,
             mode,
-            Heat != null ? Heat.NormalizedHeat : 0f,
+            _applyingActiveCast != null ? _applyingActiveCast.Heat : Heat != null ? Heat.NormalizedHeat : 0f,
             origin,
             direction,
             impactPosition: impactPosition,
@@ -673,7 +651,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
     private float GetScaledFuelPuddleRadius(FlamethrowerTuning tuning)
     {
-        return Mathf.Max(0.05f, tuning.FlameFuelPuddleRadius) * GetAreaSizeMultiplier();
+        return Mathf.Max(0.05f, tuning.FlameFuelPuddleRadius) * (_applyingActiveCast?.AreaSize ?? GetAreaSizeMultiplier());
     }
 
     private float GetPathAdjustedBurnDuration(FlamethrowerTuning tuning)
@@ -694,7 +672,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
     private float GetJellifiedFuelLevelScale()
     {
-        return Runtime != null ? Mathf.Max(1f, Runtime.Level / 6f) : 1f;
+        return SourceRuntime != null ? Mathf.Max(1f, SourceRuntime.Level / 6f) : 1f;
     }
 
     private float GetPathAdjustedActiveRadius(FlamethrowerTuning tuning)

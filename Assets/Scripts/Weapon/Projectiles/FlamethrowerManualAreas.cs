@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-/// <summary>World-space manual flames. One clock and target set serve every live area.</summary>
+/// <summary>Shared world-space flames. Each emission captures its mode; due mode clocks share one target set.</summary>
 [DefaultExecutionOrder(1000)]
 public sealed class FlamethrowerManualAreas : MonoBehaviour
 {
@@ -12,19 +12,18 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
     public const float TerrainCoreRadius = 0.025f;
     private readonly List<Area> _active = new();
     private readonly Stack<Area> _available = new();
-    private readonly HashSet<IDamageable> _seen = new();
+    private readonly Dictionary<IDamageable, int> _seen = new();
     private readonly List<Hit> _targets = new();
     private Collider[] _overlaps = new Collider[64];
     private RaycastHit[] _worldHits = new RaycastHit[32];
     private Transform _owner;
-    private Func<Transform, Vector3, bool> _applyHit;
+    private Func<Transform, Vector3, WeaponFeedbackMode, bool> _applyHit;
     private Material _material;
     private bool _ownsMaterial;
     private FlamethrowerManualPlume _plume;
     private float _visualTime;
-    private float _emissionRemaining;
-    private float _tickRemaining;
-    private float _tickInterval;
+    private readonly ModeClock _manualClock = new(0.5f);
+    private readonly ModeClock _automaticClock = new(1f);
     private int _maximumTargets;
     private int _created;
     private int _emitted;
@@ -38,6 +37,20 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
     public Vector3 GetCenter(int index) => _active[index].Root.transform.position;
     public float GetRadius(int index) => _active[index].Radius;
     public Vector3 GetVelocity(int index) => _active[index].Velocity;
+    public WeaponFeedbackMode GetMode(int index) => _active[index].Mode;
+    public int GetActiveCount(WeaponFeedbackMode mode)
+    {
+        int count = 0;
+        foreach (Area area in _active) if (area.Mode == mode) count++;
+        return count;
+    }
+
+    private sealed class ModeClock
+    {
+        public float EmissionRemaining, TickRemaining, TickInterval;
+        public ModeClock(float interval) => TickInterval = interval;
+    }
+    private ModeClock GetClock(WeaponFeedbackMode mode) => mode == WeaponFeedbackMode.Automatic ? _automaticClock : _manualClock;
 
     private sealed class Area
     {
@@ -48,9 +61,10 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         public int PathCount;
         public int Seed;
         public FlamethrowerStreamStyle Style;
+        public WeaponFeedbackMode Mode;
         public float Heat;
         public Vector3 Velocity, VisualDirection;
-        public float Deceleration, Age, Lifetime, StartRadius, EndRadius, Radius;
+        public float Deceleration, Age, Lifetime, GrowthDuration, StartRadius, EndRadius, Radius;
     }
 
     private struct Hit
@@ -58,9 +72,13 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         public Transform Target;
         public Vector3 Origin;
         public float Distance;
+        public WeaponFeedbackMode Mode;
     }
 
     public void Initialize(Transform owner, Func<Transform, Vector3, bool> applyHit, Material material)
+        => InitializeModeAware(owner, (target, origin, mode) => applyHit != null && applyHit(target, origin), material);
+
+    public void InitializeModeAware(Transform owner, Func<Transform, Vector3, WeaponFeedbackMode, bool> applyHit, Material material)
     {
         _owner = owner;
         _applyHit = applyHit;
@@ -75,13 +93,18 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
 
     // Delay newly emitted areas within this frame; LateUpdate advances only their actual age.
     public void Emit(float duration, Vector3 origin, Vector3 direction, float range, float size,
-        FlamethrowerTuning tuning, FlamethrowerStreamStyle style, float heat)
+        FlamethrowerTuning tuning, FlamethrowerStreamStyle style, float heat,
+        WeaponFeedbackMode mode = WeaponFeedbackMode.Manual, float damageTickInterval = -1f)
     {
         if (duration <= 0f || direction.sqrMagnitude < 0.0001f) return;
-        _tickInterval = Mathf.Max(0.01f, tuning.FlameManualTickInterval);
+        if (mode != WeaponFeedbackMode.Manual && mode != WeaponFeedbackMode.Automatic)
+            throw new ArgumentOutOfRangeException(nameof(mode));
+        ModeClock clock = GetClock(mode);
+        float defaultInterval = mode == WeaponFeedbackMode.Automatic ? tuning.FlameAutoTickInterval : tuning.FlameManualTickInterval;
+        clock.TickInterval = Mathf.Max(0.01f, damageTickInterval > 0f ? damageTickInterval : defaultInterval);
         _maximumTargets = Mathf.Max(1, tuning.FlameMaxTargetsPerTick);
         float interval = Mathf.Max(0.01f, tuning.FlameAreaEmissionInterval);
-        while (_emissionRemaining < duration)
+        while (clock.EmissionRemaining < duration)
         {
             Area area = _available.Count > 0 ? _available.Pop() : CreateArea();
             float stopTime = Mathf.Max(0.01f, tuning.FlameAreaTimeToStop);
@@ -89,11 +112,13 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
             area.Velocity = direction.normalized * (2f * Mathf.Max(0f, range) / stopTime);
             area.VisualDirection = direction.normalized;
             area.Deceleration = area.Velocity.magnitude / stopTime;
-            area.Age = -_emissionRemaining;
+            area.Age = -clock.EmissionRemaining;
+            area.Mode = mode;
             area.PathCount = 1;
             area.PathPoints[0] = origin;
             area.PathAges[0] = 0f;
             area.Lifetime = Mathf.Max(0.01f, tuning.FlameAreaLifetime);
+            area.GrowthDuration = Mathf.Clamp(tuning.FlameAreaGrowthDuration, 0.01f, area.Lifetime);
             area.StartRadius = Mathf.Max(0.01f, tuning.FlameAreaInitialRadius) * Mathf.Max(0.01f, size);
             area.EndRadius = Mathf.Max(0.01f, Mathf.Max(tuning.FlameAreaInitialRadius, tuning.FlameAreaFinalRadius)) * Mathf.Max(0.01f, size);
             area.Radius = area.StartRadius;
@@ -102,13 +127,17 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
             area.Root.SetActive(true);
             UpdateVisual(area);
             _active.Add(area);
-            _emissionRemaining += interval;
+            clock.EmissionRemaining += interval;
         }
-        _emissionRemaining -= duration;
+        clock.EmissionRemaining -= duration;
         RefreshPlume();
     }
 
-    public void StopEmission() => _emissionRemaining = 0f;
+    public void StopEmission()
+    {
+        _manualClock.EmissionRemaining = 0f;
+        _automaticClock.EmissionRemaining = 0f;
+    }
 
     private void LateUpdate()
     {
@@ -136,12 +165,10 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         float remaining = deltaTime;
         while (remaining > 0.000001f && _active.Count > 0)
         {
-            if (_tickRemaining <= 0.000001f)
-            {
-                DamageTick();
-                _tickRemaining = Mathf.Max(0.01f, _tickInterval);
-            }
-            float step = Mathf.Min(remaining, Mathf.Min(_tickRemaining, 0.02f));
+            DamageDueModes();
+            float untilTick = float.PositiveInfinity;
+            foreach (Area area in _active) untilTick = Mathf.Min(untilTick, GetClock(area.Mode).TickRemaining);
+            float step = Mathf.Min(remaining, Mathf.Min(untilTick, 0.02f));
             for (int i = _active.Count - 1; i >= 0; i--)
             {
                 Area area = _active[i];
@@ -157,20 +184,38 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
                 else UpdateVisual(area);
             }
             remaining -= step;
-            _tickRemaining -= step;
+            AdvanceClocks(step);
         }
         if (_active.Count == 0)
         {
             // Empty gaps must not let a short-lived cloud restart the damage cooldown.
-            _tickRemaining = Mathf.Max(0f, _tickRemaining - remaining);
+            AdvanceClocks(remaining);
             ClearHitRecords();
         }
-        else if (_tickRemaining <= 0.000001f)
-        {
-            DamageTick();
-            _tickRemaining = Mathf.Max(0.01f, _tickInterval);
-        }
+        else DamageDueModes();
         RefreshPlume();
+    }
+
+    private void AdvanceClocks(float seconds)
+    {
+        _manualClock.TickRemaining = Mathf.Max(0f, _manualClock.TickRemaining - seconds);
+        _automaticClock.TickRemaining = Mathf.Max(0f, _automaticClock.TickRemaining - seconds);
+    }
+
+    private void DamageDueModes()
+    {
+        bool manual = false, automatic = false;
+        foreach (Area area in _active)
+        {
+            if (area.Mode == WeaponFeedbackMode.Manual) manual = true;
+            else automatic = true;
+        }
+        manual &= _manualClock.TickRemaining <= 0.000001f;
+        automatic &= _automaticClock.TickRemaining <= 0.000001f;
+        if (!manual && !automatic) return;
+        DamageTick(manual, automatic);
+        if (manual) _manualClock.TickRemaining = _manualClock.TickInterval;
+        if (automatic) _automaticClock.TickRemaining = _automaticClock.TickInterval;
     }
 
     private void Move(Area area, float deltaTime)
@@ -199,7 +244,7 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         }
         area.Root.transform.position = position;
         RecordTrail(area, position);
-        area.Radius = Mathf.Lerp(area.StartRadius, area.EndRadius, Mathf.Clamp01(area.Age / area.Lifetime));
+        area.Radius = Mathf.Lerp(area.StartRadius, area.EndRadius, Mathf.Clamp01(area.Age / area.GrowthDuration));
     }
 
     // Retain only recent world positions: old fire never follows the player's muzzle.
@@ -252,13 +297,13 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         return found;
     }
 
-    private void DamageTick()
+    private void DamageTick(bool manualDue, bool automaticDue)
     {
         _seen.Clear();
         _targets.Clear();
         foreach (Area area in _active)
         {
-            if (area.Age < 0f) continue;
+            if (area.Age < 0f || (area.Mode == WeaponFeedbackMode.Manual ? !manualDue : !automaticDue)) continue;
             Vector3 center = area.Root.transform.position;
             int count;
             while (true)
@@ -273,13 +318,21 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
                 if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy
                     || (_owner != null && collider.transform.IsChildOf(_owner))) continue;
                 IDamageable receiver = collider.GetComponentInParent<IDamageable>();
-                if (receiver is not Component target || receiver is PlayerHealth || _seen.Contains(receiver)) continue;
+                if (receiver is not Component target || receiver is PlayerHealth) continue;
                 Vector3 point = collider.ClosestPoint(center);
                 // Reverse visibility also catches a center embedded by a moving obstacle.
                 if (TryWorldHit(center, point - center, out _) || TryWorldHit(point, center - point, out _)) continue;
-                _seen.Add(receiver);
-                _targets.Add(new Hit { Target = target.transform, Origin = center,
-                    Distance = _owner != null ? (point - _owner.position).sqrMagnitude : 0f });
+                var candidate = new Hit { Target = target.transform, Origin = center, Mode = area.Mode,
+                    Distance = _owner != null ? (point - _owner.position).sqrMagnitude : 0f };
+                if (_seen.TryGetValue(receiver, out int existing))
+                {
+                    // A coincident manual/automatic tick is still one hit; retain manual contact/status rules.
+                    if (area.Mode == WeaponFeedbackMode.Manual && _targets[existing].Mode == WeaponFeedbackMode.Automatic)
+                        _targets[existing] = candidate;
+                    continue;
+                }
+                _seen.Add(receiver, _targets.Count);
+                _targets.Add(candidate);
             }
         }
         _targets.Sort((a, b) => a.Distance.CompareTo(b.Distance));
@@ -288,14 +341,14 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         for (int i = 0; i < LastTargetCount; i++)
         {
             Hit hit = _targets[i];
-            if (hit.Target != null && hit.Target.gameObject.activeInHierarchy && _applyHit != null && _applyHit(hit.Target, hit.Origin))
+            if (hit.Target != null && hit.Target.gameObject.activeInHierarchy && _applyHit != null && _applyHit(hit.Target, hit.Origin, hit.Mode))
                 LastAppliedCount++;
         }
     }
 
     private Area CreateArea()
     {
-        var root = new GameObject("Manual flame area");
+        var root = new GameObject("Flame area");
         root.layer = 2; // Ignore Raycast; enemy overlaps are explicitly queried with all layers.
         root.transform.SetParent(transform, false);
         SphereCollider trigger = root.AddComponent<SphereCollider>();
@@ -337,7 +390,8 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
         _active.Clear();
         _plume?.Clear();
         ClearHitRecords();
-        _tickRemaining = 0f; _emissionRemaining = 0f;
+        _manualClock.TickRemaining = _automaticClock.TickRemaining = 0f;
+        StopEmission();
         LastTargetCount = 0; LastAppliedCount = 0;
     }
 
