@@ -104,7 +104,7 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionKind? GetAvailableAction(WeaponInstance weapon)
     {
-        if (weapon?.Data == null || _weaponManager == null || _inventory == null
+        if (HasPendingTinkeringChoice || _tinkering || weapon?.Data == null || _weaponManager == null || _inventory == null
             || !_weaponManager.TryGetEquippedWeapon(weapon.Data, out WeaponInstance equipped)
             || equipped != weapon || weapon.Level >= 10) return null;
         if (!TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon.Data, weapon.Level + 1)) return null;

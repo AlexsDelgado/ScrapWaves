@@ -9,9 +9,9 @@ public sealed class CraftingAvailabilityView : MonoBehaviour
     public TMP_Text Marker;
     public Color GlowColor = new(0.35f, 0.9f, 0.48f, 0.045f);
     public Image[] OutlineEdges;
-    public Color OutlineColor = new(0.35f, 0.9f, 0.48f, 0.65f);
-    [Min(0f)] public float PulseSpeed = 2.4f;
-    [Range(0f, 1f)] public float PulseDepth = 0.72f;
+    public Color OutlineColor = new(0.35f, 0.9f, 0.48f, 1f);
+    [Min(0f)] public float PulseSpeed = 4.2f;
+    [Range(0f, 1f)] public float PulseDepth = 0.9f;
     private bool _available;
     private void Update()
     {

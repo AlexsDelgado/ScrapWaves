@@ -75,6 +75,7 @@ public sealed class TutorialDirector : MonoBehaviour
         _begun = true;
         _weapons.ClearEquippedWeapons();
         _weapons.AddWeapon(_definition.StartingWeapon);
+        _marker.SetActive(false);
         _world.SetActive(true);
         _vent.gameObject.SetActive(false);
         _vent.OnLaunched += Complete;
@@ -210,6 +211,7 @@ public sealed class TutorialDirector : MonoBehaviour
     private void SetStep(TutorialStep step)
     {
         Step = step;
+        _marker.SetActive(step == TutorialStep.Movement);
         if (step == TutorialStep.ItemChoice) _hud.Hide(); // Its explanation belongs to the authored three-card choice window.
         else _hud.Show(_definition.Page(step));
         _arrow?.Hide();

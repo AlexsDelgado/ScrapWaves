@@ -57,6 +57,7 @@ public static class TutorialAuthoring
         var markerMaterial=AssetDatabase.LoadAssetAtPath<Material>(Folder+"/Marker.mat");
         if(!markerMaterial){markerMaterial=new Material(Shader.Find("ScrapWaves/TutorialMarker"));AssetDatabase.CreateAsset(markerMaterial,Folder+"/Marker.mat");}
         marker.GetComponent<MeshRenderer>().sharedMaterial=markerMaterial;
+        marker.SetActive(false);
         var sourceStation=Find<CraftingStation>();
         var station=Object.Instantiate(sourceStation,world.transform);
         station.name="Tutorial tinkering table";station.transform.position=center;
@@ -81,7 +82,7 @@ public static class TutorialAuthoring
         Bind(vent,"_launchFromTrigger",true);
         var collider=vent.GetComponent<BoxCollider>();collider.isTrigger=true;
         vent.gameObject.SetActive(false);
-        var canvas=CanvasRoot("TutorialHUD",null,35);
+        var canvas=CanvasRoot("TutorialHUD",null,5150);
         var hud=BuildHud(canvas.transform);
         var choices=player.GetComponent<LevelUpChoiceUI>();
         var normalChoice=Read<ChoiceMenuView>(choices,"_levelUpView");
@@ -166,7 +167,38 @@ public static class TutorialAuthoring
         Key(controls[4].transform,"Q   WEAPON ABILITY",Vector2.zero,new Vector2(285,32));
         foreach(var c in controls)c.SetActive(false);
         var view=panel.gameObject.AddComponent<TutorialHudView>();Bind(view,"_group",group);Bind(view,"_title",title);Bind(view,"_body",body);Bind(view,"_footer",footer);Bind(view,"_advance",advance);BindArray(view,"_controlGroups",controls);
+        BuildCraftingLesson(view, parent);
         return view;
+    }
+
+    private static void BuildCraftingLesson(TutorialHudView view, Transform parent)
+    {
+        // Fits above the existing 736px crafting window; no controls or prices are obscured.
+        var panel=Rect("Crafting lesson",parent,new Vector2(.5f,1),new Vector2(1680,140),new Vector2(0,-20));panel.pivot=new Vector2(.5f,1);
+        panel.gameObject.AddComponent<Image>().color=Ink;
+        var group=panel.gameObject.AddComponent<CanvasGroup>();group.alpha=0;group.blocksRaycasts=false;group.interactable=false;
+        var stripe=Rect("Accent",panel,new Vector2(0,1),new Vector2(5,140),Vector2.zero);stripe.gameObject.AddComponent<Image>().color=Sage;
+        var title=Label("Title",panel,"",22,new Vector2(28,-14),new Vector2(1624,30),Sage);title.fontStyle=FontStyles.Bold;
+        var body=Label("Body",panel,"",20,new Vector2(28,-51),new Vector2(1624,78),Paper);
+        Bind(view,"_craftingGroup",group);Bind(view,"_craftingTitle",title);Bind(view,"_craftingBody",body);Bind(view,"_craftingUi",Find<CraftingUI>());
+    }
+
+    [MenuItem("Tools/ScrapWaves/Repair Tutorial Feedback Layout")]
+    public static void RepairFeedbackLayout()
+    {
+        var scene=EditorSceneManager.OpenScene("Assets/Scenes/GameplayScene.unity");
+        var hud=Find<TutorialHudView>();
+        var canvas=hud.GetComponentInParent<Canvas>();
+        canvas.sortingOrder=5150;
+        var old=canvas.transform.Find("Crafting lesson");if(old)Object.DestroyImmediate(old.gameObject);
+        BuildCraftingLesson(hud,canvas.transform);
+        Read<GameObject>(Find<TutorialDirector>(),"_marker").SetActive(false);
+        // This was a stray authored scene actor, separate from the eight lesson actors and spawners.
+        var stray=scene.GetRootGameObjects().FirstOrDefault(x=>x.name=="EnemyPro" &&
+            PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(x)=="Assets/Prefabs/EnemyPro.prefab");
+        if(stray)Object.DestroyImmediate(stray);
+        EditorSceneManager.MarkSceneDirty(scene);EditorSceneManager.SaveScene(scene);
+        Debug.Log("TUTORIAL_FEEDBACK_LAYOUT_REPAIRED");
     }
 
     private static void BuildTitle()
