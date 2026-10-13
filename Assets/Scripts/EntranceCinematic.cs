@@ -35,6 +35,7 @@ public sealed class EntranceCinematic : MonoBehaviour
     private bool[] _enabled;
     private Rigidbody _body;
     private bool _kinematic;
+    private bool _bodyHeld, _interpolationHeld;
     private RigidbodyInterpolation _interpolation;
     private bool _settled;
     private Transform[] _bones;
@@ -52,6 +53,8 @@ public sealed class EntranceCinematic : MonoBehaviour
     private static void ResetSession() { StartupHeld = false; _retry = false; }
     private void Awake()
     {
+        // Pausing time does not cancel native physics steps already queued this frame.
+        HoldPlayerBody();
         _previousScale = Time.timeScale > 0 ? Time.timeScale : 1f;
         StartupHeld = true;
         _dust?.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -120,7 +123,29 @@ public sealed class EntranceCinematic : MonoBehaviour
     private IEnumerator RestoreInterpolationAfterPhysics()
     {
         yield return new WaitForFixedUpdate();yield return new WaitForFixedUpdate();
-        if(_body!=null)_body.interpolation=_interpolation;
+        RestorePlayerBody(restoreInterpolation: true);
+    }
+    private void HoldPlayerBody()
+    {
+        if (_bodyHeld || _player == null) return;
+        _body = _player.GetComponent<Rigidbody>();
+        if (_body == null) return;
+        _kinematic = _body.isKinematic;
+        _body.isKinematic = true;
+        _bodyHeld = true;
+    }
+    private void RestorePlayerBody(bool restoreInterpolation)
+    {
+        if (_bodyHeld)
+        {
+            if (_body != null) _body.isKinematic = _kinematic;
+            _bodyHeld = false;
+        }
+        if (restoreInterpolation && _interpolationHeld)
+        {
+            if (_body != null) _body.interpolation = _interpolation;
+            _interpolationHeld = false;
+        }
     }
     private void Capture()
     {
@@ -152,7 +177,14 @@ public sealed class EntranceCinematic : MonoBehaviour
         _behaviours=behaviours.ToArray();
         _enabled = new bool[_behaviours.Length];
         for(int i=0;i<_behaviours.Length;i++) if(_behaviours[i]!=null){_enabled[i]=_behaviours[i].enabled;_behaviours[i].enabled=false;}
-        _body = _player.GetComponent<Rigidbody>(); if(_body!=null){_kinematic=_body.isKinematic;_interpolation=_body.interpolation;_body.interpolation=RigidbodyInterpolation.None;_body.isKinematic=true;}
+        HoldPlayerBody(); // Edit-mode previews may reach Capture without Awake.
+        if (_body != null)
+        {
+            // PlayerMovement.Awake configures this after our early kinematic hold.
+            _interpolation = _body.interpolation;
+            _interpolationHeld = true;
+            _body.interpolation = RigidbodyInterpolation.None;
+        }
         var targets=new System.Collections.Generic.List<Transform>();
         foreach(var bone in _bones)if(bone.name=="spine" || bone.name=="spine.006" || bone.name=="shin.L" || bone.name=="shin.R" || bone.name=="foot.L" || bone.name=="foot.R")targets.Add(bone);
         _poseTargets=targets.ToArray();
@@ -224,13 +256,18 @@ public sealed class EntranceCinematic : MonoBehaviour
     }
     public void RestorePresentation()
     {
-        if(!_captured || _restored)return;
+        if (!_captured)
+        {
+            RestorePlayerBody(restoreInterpolation: true);
+            return;
+        }
+        if (_restored) return;
         _restored=true;
         for(int i=0;i<_bones.Length;i++)if(_bones[i]!=null){_bones[i].localPosition=_positions[i];_bones[i].localRotation=_rotations[i];}
         if(_visual!=null)_visual.SetLocalPositionAndRotation(_visualPosition,_visualRotation);
         if(_camera!=null){_camera.transform.SetPositionAndRotation(_cameraPosition,_cameraRotation);_camera.fieldOfView=_fov;}
         for(int i=0;i<_behaviours.Length;i++)if(_behaviours[i]!=null)_behaviours[i].enabled=_enabled[i];
-        if(_body!=null){_body.isKinematic=_kinematic;if(!_settled)_body.interpolation=_interpolation;}
+        RestorePlayerBody(restoreInterpolation: !_settled);
         _dust?.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);_audio?.Stop();
         if(_shadow!=null)_shadow.gameObject.SetActive(false);
         if(_impact!=null)_impact.SetActive(false);
@@ -241,7 +278,7 @@ public sealed class EntranceCinematic : MonoBehaviour
     {
         RestorePresentation();
         if(_held){GameplayPause.SetHeld(ref _held,false);if(GameplayPause.LockCount==0)Time.timeScale=_previousScale;}
-        if(_body!=null)_body.interpolation=_interpolation;
+        RestorePlayerBody(restoreInterpolation: true);
         StartupHeld=false;
     }
 }
