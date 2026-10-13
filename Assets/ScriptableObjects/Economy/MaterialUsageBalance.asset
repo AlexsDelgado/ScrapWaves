@@ -12,6 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 31d5bdb59d235eb4cbcfb014ecdc8ffe, type: 3}
   m_Name: MaterialUsageBalance
   m_EditorClassIdentifier: Assembly-CSharp::MaterialUsageBalanceSO
+  _basicSecondWeaponCost: 5
+  _basicThirdWeaponCost: 10
+  _advancedFirstWeaponCost: 2
+  _advancedSecondWeaponCost: 5
+  _advancedThirdWeaponCost: 5
+  _rejectedFirstWeaponCost: 3
+  _rejectedSecondWeaponCost: 7
+  _rejectedThirdWeaponCost: 10
   _roleAssignments:
   - Column: 1
     Material: 0
@@ -136,55 +144,55 @@ MonoBehaviour:
     Total: 15
   - Role: 1
     Level: 2
+    Total: 10
+  - Role: 1
+    Level: 3
     Total: 15
   - Role: 1
+    Level: 4
+    Total: 30
+  - Role: 1
+    Level: 5
+    Total: 45
+  - Role: 1
+    Level: 7
+    Total: 47
+  - Role: 1
+    Level: 8
+    Total: 65
+  - Role: 1
+    Level: 9
+    Total: 85
+  - Role: 1
+    Level: 10
+    Total: 110
+  - Role: 2
+    Level: 1
+    Total: 10
+  - Role: 2
+    Level: 2
+    Total: 0
+  - Role: 2
     Level: 3
+    Total: 5
+  - Role: 2
+    Level: 4
+    Total: 10
+  - Role: 2
+    Level: 5
+    Total: 15
+  - Role: 2
+    Level: 7
+    Total: 20
+  - Role: 2
+    Level: 8
     Total: 25
-  - Role: 1
-    Level: 4
-    Total: 50
-  - Role: 1
-    Level: 5
-    Total: 100
-  - Role: 1
-    Level: 7
-    Total: 100
-  - Role: 1
-    Level: 8
-    Total: 125
-  - Role: 1
+  - Role: 2
     Level: 9
-    Total: 150
-  - Role: 1
+    Total: 30
+  - Role: 2
     Level: 10
-    Total: 225
-  - Role: 2
-    Level: 1
-    Total: 10
-  - Role: 2
-    Level: 2
-    Total: 0
-  - Role: 2
-    Level: 3
-    Total: 10
-  - Role: 2
-    Level: 4
-    Total: 20
-  - Role: 2
-    Level: 5
     Total: 40
-  - Role: 2
-    Level: 7
-    Total: 50
-  - Role: 2
-    Level: 8
-    Total: 60
-  - Role: 2
-    Level: 9
-    Total: 80
-  - Role: 2
-    Level: 10
-    Total: 120
   - Role: 3
     Level: 1
     Total: 10
@@ -202,16 +210,16 @@ MonoBehaviour:
     Total: 0
   - Role: 3
     Level: 7
-    Total: 10
+    Total: 5
   - Role: 3
     Level: 8
-    Total: 20
+    Total: 10
   - Role: 3
     Level: 9
-    Total: 40
+    Total: 15
   - Role: 3
     Level: 10
-    Total: 100
+    Total: 25
   - Role: 4
     Level: 1
     Total: 10
@@ -229,13 +237,13 @@ MonoBehaviour:
     Total: 0
   - Role: 4
     Level: 7
-    Total: 20
+    Total: 10
   - Role: 4
     Level: 8
-    Total: 40
+    Total: 10
   - Role: 4
     Level: 9
-    Total: 80
+    Total: 20
   - Role: 4
     Level: 10
-    Total: 275
+    Total: 40

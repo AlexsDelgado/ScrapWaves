@@ -231,7 +231,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
-  _speed: 5
+  _speed: 7
   _orbitRadius: 1.8
   _weaveAmplitude: 0.35
   _weaveFrequency: 1.6

@@ -11,6 +11,83 @@ public sealed class StatDisplayFormatTests
 {
     private readonly List<Object> _cleanup = new();
 
+    [TestCase(StatType.DamageMultiplier)]
+    [TestCase(StatType.EliteDamageMultiplier)]
+    [TestCase(StatType.AttackSpeedMultiplier)]
+    [TestCase(StatType.ProjectileAreaSize)]
+    [TestCase(StatType.CriticalChance)]
+    [TestCase(StatType.CriticalDamage)]
+    [TestCase(StatType.Knockback)]
+    [TestCase(StatType.AmmoMultiplier)]
+    [TestCase(StatType.Lifesteal)]
+    [TestCase(StatType.DamageResistance)]
+    [TestCase(StatType.ExtraEliteChance)]
+    [TestCase(StatType.AbilityDamageMultiplier)]
+    [TestCase(StatType.AbilityCooldownReduction)]
+    [TestCase(StatType.LongRangeDamageMultiplier)]
+    [TestCase(StatType.CloseRangeDamageMultiplier)]
+    public void FormatBonus_FractionAndFactorAdditions_ShowPercentUnits(StatType type)
+    {
+        Assert.That(StatDisplayFormat.FormatBonus(type, 0.1f), Is.EqualTo("+10%"));
+        Assert.That(StatDisplayFormat.FormatBonus(type, -0.025f), Is.EqualTo("-2.5%"));
+    }
+
+    [TestCase(StatType.Scavenging, 5f, "+5%")]
+    [TestCase(StatType.DoubleDrop, 5f, "+5%")]
+    [TestCase(StatType.MovementSpeed, 0.1f, "+0.1 m/s")]
+    [TestCase(StatType.DashSpeed, -0.5f, "-0.5 m/s")]
+    [TestCase(StatType.JumpHeight, 0.002f, "+0.002 m")]
+    [TestCase(StatType.PickupRange, 0.25f, "+0.25 m")]
+    [TestCase(StatType.MaxHealth, 30f, "+30 HP")]
+    [TestCase(StatType.HealthRegeneration, 1.5f, "+1.5 HP/s")]
+    [TestCase(StatType.DamageFlat, 2f, "+2")]
+    [TestCase(StatType.AirJumps, 1f, "+1")]
+    [TestCase(StatType.DashCharges, 1f, "+1")]
+    [TestCase(StatType.ShieldCharges, 1f, "+1")]
+    [TestCase(StatType.BaseFireInterval, -0.125f, "-0.125 s")]
+    [TestCase(StatType.ShieldRechargeDelay, 8f, "+8 s")]
+    [TestCase(StatType.HealthRegenerationDelayReduction, 0.5f, "+0.5 s")]
+    public void FormatBonus_FlatAndPercentPointUnits_KeepTheirAuthoredScale(StatType type, float value, string expected)
+    {
+        Assert.That(StatDisplayFormat.FormatBonus(type, value), Is.EqualTo(expected));
+    }
+
+    [TestCase(StatType.MovementSpeed, 1.1f, "+10%")]
+    [TestCase(StatType.CloseRangeDamageMultiplier, 1.2f, "+20%")]
+    [TestCase(StatType.CriticalChance, 0.8f, "-20%")]
+    [TestCase(StatType.MaxHealth, 1f, "+0%")]
+    [TestCase(StatType.MaxHealth, 2.2f, "+120%")]
+    public void FormatBonus_MultiplicativeFactor_ShowsRelativeChange(StatType type, float factor, string expected)
+    {
+        Assert.That(StatDisplayFormat.FormatBonus(type, factor, StatModifierType.Multiplicative), Is.EqualTo(expected));
+    }
+
+    [TestCase(StatType.Lifesteal, 0.0015f, "+0.15%")]
+    [TestCase(StatType.DamageMultiplier, 0.123456f, "+12.346%")]
+    [TestCase(StatType.DamageFlat, 0f, "+0")]
+    [TestCase(StatType.DamageFlat, -0.00001f, "-<0.001")]
+    [TestCase(StatType.JumpHeight, 0.00001f, "+<0.001 m")]
+    public void FormatBonus_Rounding_PreservesSmallValuesAndSigns(StatType type, float value, string expected)
+    {
+        Assert.That(StatDisplayFormat.FormatBonus(type, value), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void FormatBonus_IsIndependentOfCurrentCulture()
+    {
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("es-ES");
+            Assert.That(StatDisplayFormat.FormatBonus(StatType.Lifesteal, 0.0015f), Is.EqualTo("+0.15%"));
+            Assert.That(StatDisplayFormat.FormatBonus(StatType.MovementSpeed, -0.25f), Is.EqualTo("-0.25 m/s"));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
     [TearDown]
     public void TearDown()
     {

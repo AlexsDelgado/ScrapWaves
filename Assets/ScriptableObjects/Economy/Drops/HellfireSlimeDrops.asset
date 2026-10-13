@@ -15,6 +15,6 @@ MonoBehaviour:
   _dropChance: 0.9
   _pool:
   - Material: 0
-    WeightPercent: 40
+    WeightPercent: 20
   - Material: 3
-    WeightPercent: 60
+    WeightPercent: 80
