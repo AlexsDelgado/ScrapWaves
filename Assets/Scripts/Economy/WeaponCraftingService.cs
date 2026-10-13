@@ -62,14 +62,14 @@ public class WeaponCraftingService : MonoBehaviour
 
     public IReadOnlyList<MaterialCost> GetTinkeringCost(int targetSlotIndex)
     {
-        return WeaponCraftingCostCalculator.GetTinkeringSlotCost(targetSlotIndex, false);
+        return WeaponCraftingCostCalculator.GetTinkeringSlotCost(_materialBalance, targetSlotIndex);
     }
 
     public IReadOnlyList<MaterialCost> GetAdvancedTinkeringCost(WeaponData weapon)
     {
         int slot = GetNextAdvancedWeaponIndex();
         bool rejected = weapon != null && _advancedRejected.TryGetValue(weapon.WeaponId, out bool value) && value;
-        return WeaponCraftingCostCalculator.GetAdvancedTinkeringCost(slot, rejected);
+        return WeaponCraftingCostCalculator.GetAdvancedTinkeringCost(_materialBalance, slot, rejected);
     }
 
     public CraftingActionResult TryUpgradeWeapon(WeaponData weapon, int targetLevel)
@@ -289,7 +289,7 @@ public class WeaponCraftingService : MonoBehaviour
         _advancedRejected[weapon.WeaponId] = true;
         _guaranteedPath[weapon.WeaponId] = alternate;
         _advancedOffers[weapon.WeaponId] = alternate;
-        return new CraftingActionResult(true, "Oferta rechazada. Costo de re-tinkering +50%.");
+        return new CraftingActionResult(true, "Oferta rechazada. El siguiente intento usa el costo configurado para una oferta rechazada.");
     }
 
     public List<WeaponData> BuildUnequippedWeapons()

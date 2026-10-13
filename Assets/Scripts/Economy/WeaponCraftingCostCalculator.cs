@@ -50,18 +50,16 @@ public static class WeaponCraftingCostCalculator
         return costs;
     }
 
-    public static List<MaterialCost> GetTinkeringSlotCost(int slotIndex, bool advancedRejected)
+    // Compatibility for callers without an authored balance; the old rejection flag
+    // never affected basic tinkering. Production services use the balance overload.
+    public static List<MaterialCost> GetTinkeringSlotCost(int slotIndex, bool advancedRejected) =>
+        GetTinkeringSlotCost(null, slotIndex);
+
+    public static List<MaterialCost> GetTinkeringSlotCost(MaterialUsageBalanceSO balance, int slotIndex)
     {
         var costs = new List<MaterialCost>();
-        if (slotIndex <= 1)
-            return costs;
-
-        int commonEach = slotIndex switch
-        {
-            2 => 5,
-            3 => 15,
-            _ => 0
-        };
+        int commonEach = balance != null ? balance.GetTinkeringCommonCost(slotIndex)
+            : MaterialUsageBalanceSO.GetDefaultTinkeringCommonCost(slotIndex);
 
         if (commonEach <= 0)
             return costs;
@@ -72,15 +70,13 @@ public static class WeaponCraftingCostCalculator
         return costs;
     }
 
-    public static List<MaterialCost> GetAdvancedTinkeringCost(int slotIndex, bool rejectedOnce)
+    public static List<MaterialCost> GetAdvancedTinkeringCost(int slotIndex, bool rejectedOnce) =>
+        GetAdvancedTinkeringCost(null, slotIndex, rejectedOnce);
+
+    public static List<MaterialCost> GetAdvancedTinkeringCost(MaterialUsageBalanceSO balance, int advancedWeaponIndex, bool rejectedOnce)
     {
-        int rareEach = slotIndex switch
-        {
-            1 => rejectedOnce ? 8 : 5,
-            2 => rejectedOnce ? 22 : 15,
-            3 => rejectedOnce ? 45 : 30,
-            _ => 0
-        };
+        int rareEach = balance != null ? balance.GetAdvancedTinkeringRareCost(advancedWeaponIndex, rejectedOnce)
+            : MaterialUsageBalanceSO.GetDefaultAdvancedTinkeringRareCost(advancedWeaponIndex, rejectedOnce);
 
         var costs = new List<MaterialCost>();
         if (rareEach <= 0)

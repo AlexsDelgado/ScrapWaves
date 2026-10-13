@@ -12,6 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 31d5bdb59d235eb4cbcfb014ecdc8ffe, type: 3}
   m_Name: MaterialUsageBalance
   m_EditorClassIdentifier: Assembly-CSharp::MaterialUsageBalanceSO
+  _basicSecondWeaponCost: 5
+  _basicThirdWeaponCost: 15
+  _advancedFirstWeaponCost: 5
+  _advancedSecondWeaponCost: 15
+  _advancedThirdWeaponCost: 30
+  _rejectedFirstWeaponCost: 8
+  _rejectedSecondWeaponCost: 22
+  _rejectedThirdWeaponCost: 45
   _roleAssignments:
   - Column: 1
     Material: 0

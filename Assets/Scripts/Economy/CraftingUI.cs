@@ -309,7 +309,7 @@ public class CraftingUI : MonoBehaviour
         _view.AdvancedDescriptionText.text = available
             ? CraftingUpgradePreview.DescribeAdvanced(behaviour, _offeredPath, description) : description;
         _view.AdvancedNoticeText.text = guaranteed ? "Other path guaranteed after your previous decline."
-            : canDecline ? "Decline: pay this attempt's cost. Next try costs +50% with the other path guaranteed."
+            : canDecline ? "Decline: pay this attempt's cost. The next try uses the rejected-offer price, with the other path guaranteed."
             : "Only one path is unlocked.";
         IReadOnlyList<MaterialCost> cost = _crafting.GetAdvancedTinkeringCost(weapon.Data);
         _view.AdvancedReadout?.Bind(_inventory, cost, available ? null : "No upgrade available");
