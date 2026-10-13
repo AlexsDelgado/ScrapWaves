@@ -62,7 +62,8 @@ public sealed class EntranceCinematic : MonoBehaviour
     {
         Capture();
         bool retry = _retry; _retry = false;
-        if (!retry)
+        bool playCinematic = EntranceCinematicLaunchSettings.ConsumePlaybackDecision();
+        if (!retry && playCinematic)
         {
             float elapsed = 0f;
             bool impactPlayed = false;

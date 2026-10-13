@@ -45,6 +45,7 @@ public static class SceneNavigation
             return false;
         }
 
+        EntranceCinematicLaunchSettings.PrepareSceneLoad(destination);
         PrepareForSceneChange();
         SceneManager.LoadScene(buildIndex);
         return true;
