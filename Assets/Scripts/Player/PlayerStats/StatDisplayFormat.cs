@@ -11,6 +11,68 @@ public static class StatDisplayFormat
 {
     private const string Number = "0.###";
 
+    /// <summary>
+    /// Formats an offered bonus, rather than a final stat value. Additive bonuses to
+    /// factor/fraction stats use percent units; multiplicative values ARE factors
+    /// (1.2 means +20%). Scavenging and DoubleDrop are already percentage points.
+    /// This conversion is presentation only and never changes the authored value.
+    /// </summary>
+    public static string FormatBonus(StatType type, float value,
+        StatModifierType modifierType = StatModifierType.Additive)
+    {
+        if (modifierType == StatModifierType.Multiplicative)
+            return FormatBonusAmount((value - 1f) * 100f, "%");
+
+        switch (type)
+        {
+            case StatType.DamageMultiplier:
+            case StatType.EliteDamageMultiplier:
+            case StatType.AttackSpeedMultiplier:
+            case StatType.ProjectileAreaSize:
+            case StatType.CriticalChance:
+            case StatType.CriticalDamage:
+            case StatType.Knockback:
+            case StatType.AmmoMultiplier:
+            case StatType.Lifesteal:
+            case StatType.DamageResistance:
+            case StatType.ExtraEliteChance:
+            case StatType.AbilityDamageMultiplier:
+            case StatType.AbilityCooldownReduction:
+            case StatType.LongRangeDamageMultiplier:
+            case StatType.CloseRangeDamageMultiplier:
+                return FormatBonusAmount(value * 100f, "%");
+            case StatType.Scavenging:
+            case StatType.DoubleDrop:
+                return FormatBonusAmount(value, "%");
+            case StatType.MovementSpeed:
+            case StatType.DashSpeed:
+                return FormatBonusAmount(value, " m/s");
+            case StatType.JumpHeight:
+            case StatType.PickupRange:
+                return FormatBonusAmount(value, " m");
+            case StatType.MaxHealth:
+                return FormatBonusAmount(value, " HP");
+            case StatType.HealthRegeneration:
+                return FormatBonusAmount(value, " HP/s");
+            case StatType.BaseFireInterval:
+            case StatType.ShieldRechargeDelay:
+            case StatType.HealthRegenerationDelayReduction:
+                return FormatBonusAmount(value, " s");
+            default:
+                return FormatBonusAmount(value, string.Empty);
+        }
+    }
+
+    private static string FormatBonusAmount(float value, string unit)
+    {
+        double rounded = Math.Round(Math.Abs((double)value), 3, MidpointRounding.AwayFromZero);
+        // Do not turn a small, real bonus or penalty into a misleading signed zero.
+        string amount = value != 0f && rounded == 0d
+            ? "<0.001"
+            : rounded.ToString(Number, CultureInfo.InvariantCulture);
+        return (value < 0f ? "-" : "+") + amount + unit;
+    }
+
     // Formats a stat value with the unit suffix implied by its type and definition.
     public static string FormatStat(StatDefinition definition, float value)
     {
