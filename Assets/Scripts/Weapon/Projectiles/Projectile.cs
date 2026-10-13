@@ -31,6 +31,7 @@ public class Projectile : MonoBehaviour
     private Vector3 _launchPosition;
     private float _maxTravelDistance;
     private bool _explodeOnMaxTravel;
+    private bool _clampTravelEndpoint;
     private AutomaticRocketTrajectory _automaticRocketTrajectory;
     private bool _usesAutomaticRocketTrajectory;
     private float _automaticRocketDistance;
@@ -59,6 +60,8 @@ public class Projectile : MonoBehaviour
     private float _clusterFragmentConeRange;
     private float _clusterFragmentDamageScale;
     private WeaponDamageContext _clusterDamageContext;
+    private float _clusterProjectileLifetime = -1f;
+    private bool _clusterClampTravelEndpoint;
     private Collider _detonationCollider;
     private IWeaponPresentationSink _presentationSink;
     private WeaponInstance _presentationWeapon;
@@ -89,6 +92,12 @@ public class Projectile : MonoBehaviour
     public float ActiveSpeed => _activeSpeed * DebugSpeedTool.ProjectileScale;
     public bool HasPresentationContext => _presentationSink != null;
     public bool UsesAutomaticRocketTrajectory => _usesAutomaticRocketTrajectory;
+    public float ActiveLifetimeSeconds => _activeMaxLifetime;
+
+    public void ConfigureLifetime(float seconds) => _activeMaxLifetime = Mathf.Max(0.05f, seconds);
+    public void ConfigureClusterLifetime(float seconds) => _clusterProjectileLifetime = Mathf.Max(0.05f, seconds);
+    public void ConfigureClusterTravelEndpointClamp() => _clusterClampTravelEndpoint = true;
+    public void ConfigureExactClusterRadius(float radius) => _clusterExplosionRadius = Mathf.Max(0f, radius);
 
     private void Awake()
     {
@@ -280,6 +289,7 @@ public class Projectile : MonoBehaviour
         _explosionFalloff = 0f;
         _maxTravelDistance = 0f;
         _explodeOnMaxTravel = false;
+        _clampTravelEndpoint = false;
         _applyDamageAmplifierOnExplosion = false;
         _damageAmplifierMultiplier = 1f;
         _damageAmplifierDuration = 0f;
@@ -300,6 +310,8 @@ public class Projectile : MonoBehaviour
         _clusterFragmentConeRange = 0f;
         _clusterFragmentDamageScale = 0f;
         _clusterDamageContext = default;
+        _clusterProjectileLifetime = -1f;
+        _clusterClampTravelEndpoint = false;
         _detonationCollider = null;
     }
 
@@ -324,10 +336,11 @@ public class Projectile : MonoBehaviour
     }
 
     // Configures detonation once the projectile travels its weapon range.
-    public void ConfigureMaxTravel(float maxDistance, bool explodeOnMaxTravel)
+    public void ConfigureMaxTravel(float maxDistance, bool explodeOnMaxTravel, bool clampEndpoint = false)
     {
         _maxTravelDistance = Mathf.Max(0f, maxDistance);
         _explodeOnMaxTravel = explodeOnMaxTravel;
+        _clampTravelEndpoint = clampEndpoint;
     }
 
     // Called only for automatic back-pipe rockets after the normal pooled launch setup.
@@ -400,6 +413,8 @@ public class Projectile : MonoBehaviour
         _clusterFragmentConeRange = Mathf.Max(0f, fragmentConeRange);
         _clusterFragmentDamageScale = Mathf.Max(0f, fragmentDamageScale);
         _clusterDamageContext = damageContext;
+        _clusterProjectileLifetime = -1f;
+        _clusterClampTravelEndpoint = false;
     }
 
     private void FixedUpdate()
@@ -424,8 +439,22 @@ public class Projectile : MonoBehaviour
         {
             delta = _direction * (ActiveSpeed * Time.fixedDeltaTime);
         }
+        bool reachedAuthoredEndpoint = false;
+        if (_clampTravelEndpoint && !_usesAutomaticRocketTrajectory && _maxTravelDistance > 0f)
+        {
+            float remaining = Mathf.Max(0f, _maxTravelDistance - Vector3.Distance(_launchPosition, currentPosition));
+            reachedAuthoredEndpoint = delta.magnitude >= remaining;
+            if (reachedAuthoredEndpoint) delta = Vector3.ClampMagnitude(delta, remaining);
+        }
         if (TryConsumeSweptWorldCollision(currentPosition, delta))
             return;
+
+        if (reachedAuthoredEndpoint)
+        {
+            MoveToImpactPoint(currentPosition + delta);
+            ConsumeAtCurrentPosition(_explodeOnMaxTravel);
+            return;
+        }
 
         if (_usesAutomaticRocketTrajectory && _maxTravelDistance > 0f && _automaticRocketDistance >= _maxTravelDistance)
         {
@@ -447,10 +476,15 @@ public class Projectile : MonoBehaviour
 
     private void Update()
     {
+        AdvanceLifetime(Time.deltaTime);
+    }
+
+    private void AdvanceLifetime(float deltaTime)
+    {
         if (_consumed)
             return;
 
-        _elapsed += Time.deltaTime;
+        _elapsed += deltaTime;
         if (_elapsed * Mathf.Max(0.05f, DebugSpeedTool.ProjectileScale) >= _activeMaxLifetime)
             ConsumeAtCurrentPosition(_explodeOnMaxTravel);
     }
@@ -803,6 +837,10 @@ public class Projectile : MonoBehaviour
             surface);
         if (_useFragmentCone)
             impact = impact.WithDirection(GetFragmentForward());
+        // Use the fired payload, including an explicitly disabled cone. Never read
+        // the weapon's current path/row after an in-flight upgrade or mode change.
+        impact = impact.WithFragmentGeometry(_useFragmentCone ? _fragmentConeRange : 0f,
+            _useFragmentCone ? _fragmentConeAngle : 0f);
 
         if (_feedbackImpactCueOverride != WeaponPresentationCue.None)
         {
@@ -825,7 +863,9 @@ public class Projectile : MonoBehaviour
                 isKill: impact.IsKill,
                 targetClass: impact.TargetClass,
                 surfaceType: impact.SurfaceType,
-                explosionRadius: impact.ExplosionRadius);
+                explosionRadius: impact.ExplosionRadius,
+                fragmentConeRange: impact.FragmentConeRange,
+                fragmentConeAngle: impact.FragmentConeAngle);
             _feedbackSink.Emit(in explicitImpact);
         }
         else
@@ -1210,10 +1250,15 @@ public class Projectile : MonoBehaviour
                 sequenceId,
                 DamageFeedbackKind.Fragment,
                 completesSequenceContributor: sequenceId != 0);
+            if (_clusterProjectileLifetime >= 0f)
+                clusterProjectile.ConfigureLifetime(_clusterProjectileLifetime);
+            if (_clusterClampTravelEndpoint)
+                clusterProjectile.ConfigureMaxTravel(_clusterTravelDistance, true, clampEndpoint: true);
             if (_feedbackSink == null)
                 continue;
 
-            WeaponFeedbackContext clusterFeedback = _feedbackTemplate.WithExplosionRadius(_clusterExplosionRadius);
+            WeaponFeedbackContext clusterFeedback = _feedbackTemplate.WithExplosionRadius(_clusterExplosionRadius)
+                .WithFragmentGeometry(_clusterFragmentConeRange, _clusterFragmentConeAngle);
             clusterFeedback = clusterFeedback.WithDamageMetadata(
                 _clusterDamageContext.ReferenceDamage,
                 sequenceId,

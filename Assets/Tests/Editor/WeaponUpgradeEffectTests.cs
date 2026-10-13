@@ -3363,13 +3363,15 @@ public class WeaponUpgradeEffectTests
                 null,
                 new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
 
-            // Keep a healthy margin before the 0.75 airburst threshold because
-            // Update adds the editor frame delta, which varies with test order.
-            SetPrivateField(shell, "_elapsed", 0.5f);
+            Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1),
+                "The fixture starts with its parent shell only.");
+            // Update adds the Editor frame delta. Subtract it so a slow preceding test
+            // cannot advance the shell past the exact pre-airburst sample time.
+            SetPrivateField(shell, "_elapsed", 0.5f - Time.deltaTime);
             InvokePrivate(shell, "Update");
             Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
 
-            SetPrivateField(shell, "_elapsed", 0.75f);
+            SetPrivateField(shell, "_elapsed", 0.75f - Time.deltaTime);
             InvokePrivate(shell, "Update");
             MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
             Assert.That(subShells, Has.Length.EqualTo(15));
@@ -3551,7 +3553,8 @@ public class WeaponUpgradeEffectTests
             0f,
             0f,
             2,
-            0.01f);
+            0.01f,
+            null); // Disabled landing-spread override preserves the inherited payload.
 
         MethodInfo launch = typeof(MortarShellImpact).GetMethod(
             "Launch",

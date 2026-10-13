@@ -43,7 +43,7 @@ public sealed class MortarLandingIndicatorVfx : MonoBehaviour, IWeaponVfxPrewarm
         WeaponUpgradePath path)
     {
         CacheLayers();
-        _blastRadius = Mathf.Max(0.01f, blastRadius);
+        _blastRadius = Mathf.Max(0f, blastRadius);
         _travelTime = Mathf.Max(_minimumPulsePeriod, travelTime);
         _path = path;
         Vector3 safeNormal = normal.sqrMagnitude > 0.0001f ? normal.normalized : Vector3.up;

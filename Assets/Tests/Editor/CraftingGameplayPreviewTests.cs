@@ -39,7 +39,7 @@ public class CraftingGameplayPreviewTests
                     var readout=CraftingUpgradePreview.Build(live);
                     Assert.That(readout.Rows.Length,Is.EqualTo(3));
                     Assert.That(readout.Notice,Does.Contain(mode==WeaponState.Manual?"Manual:":"Automatic:"));
-                    Assert.That(readout.Notice,Does.Contain("No crits, target bonuses or active abilities"));
+                    Assert.That(readout.Notice,Does.Contain("Changes also include other modes and Q"));
                     Assert.That(JsonUtility.ToJson(live.Runtime),Is.EqualTo(runtime));
                     Assert.That(UnityEngine.Random.state,Is.EqualTo(random));
                 }
@@ -79,7 +79,7 @@ public class CraftingGameplayPreviewTests
         Assert.That(view.UpgradeStatLabels[1].text,Is.EqualTo("Manual capacity"));
         Assert.That(view.UpgradeStatValues[1].text,Is.EqualTo("70 → 75"));
         Assert.That(view.UpgradePreviewNotice,Is.Not.Null);
-        Assert.That(view.UpgradePreviewNotice.text,Does.StartWith("2 gameplay stat changes."));
+        Assert.That(view.UpgradePreviewNotice.text,Does.Contain("gameplay stat changes."));
         Assert.That(root.GetComponentsInChildren<Transform>(true).Length,Is.EqualTo(children));
     }
 

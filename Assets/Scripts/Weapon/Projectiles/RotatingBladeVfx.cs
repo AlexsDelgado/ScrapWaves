@@ -130,15 +130,17 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         float hitRadius,
         float duration,
         Color bladeColor,
-        float normalizedHeat)
+        float normalizedHeat,
+        bool exactHitEnvelope = false)
     {
         Initialize();
         BeginOrbitFrame();
+        if (exactHitEnvelope && hitRadius <= 0f) return;
 
-        ownerOrigin += Vector3.up * 0.14f;
+        if (!exactHitEnvelope) ownerOrigin += Vector3.up * 0.14f;
         bladeCenter.y = ownerOrigin.y;
         float orbitRadius = Vector3.Distance(ownerOrigin, bladeCenter);
-        if (orbitRadius <= 0.01f)
+        if (orbitRadius <= 0.01f && !exactHitEnvelope)
             return;
 
         float heat = Mathf.Clamp01(normalizedHeat);
@@ -163,12 +165,12 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             radial = Vector3.forward;
 
         Vector3 radialDirection = radial.normalized;
-        float halfLength = Mathf.Max(0.2f, hitRadius);
+        float halfLength = exactHitEnvelope ? hitRadius : Mathf.Max(0.2f, hitRadius);
         LineRenderer bladeLine = GetNextBladeLine();
         bladeLine.enabled = true;
         bladeLine.loop = false;
         bladeLine.positionCount = 2;
-        bladeLine.widthMultiplier = Mathf.Clamp(hitRadius * 0.11f, 0.035f, 0.24f);
+        bladeLine.widthMultiplier = exactHitEnvelope ? hitRadius * .11f : Mathf.Clamp(hitRadius * 0.11f, 0.035f, 0.24f);
         bladeLine.SetPosition(0, bladeCenter - radialDirection * halfLength);
         bladeLine.SetPosition(1, bladeCenter + radialDirection * halfLength);
 
@@ -176,10 +178,10 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         physicalBlade.Root.transform.SetPositionAndRotation(
             bladeCenter,
             Quaternion.LookRotation(radialDirection, Vector3.up));
-        float bladeLength = Mathf.Max(_minimumBladeLength, hitRadius * 2f);
+        float bladeLength = exactHitEnvelope ? hitRadius * 2f : Mathf.Max(_minimumBladeLength, hitRadius * 2f);
         physicalBlade.Root.transform.localScale = new Vector3(
-            Mathf.Clamp(hitRadius * 0.85f, 0.28f, 1.6f),
-            Mathf.Clamp(hitRadius * 0.38f, 0.14f, 0.7f),
+            exactHitEnvelope ? hitRadius * .85f : Mathf.Clamp(hitRadius * 0.85f, 0.28f, 1.6f),
+            exactHitEnvelope ? hitRadius * .38f : Mathf.Clamp(hitRadius * 0.38f, 0.14f, 0.7f),
             bladeLength * 0.5f);
         SetBladeVisualEnabled(physicalBlade, true);
         ApplyBladeProperties(physicalBlade, bladeColor, heat);
@@ -241,7 +243,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         ShowThrust(origin, direction, range, lineWidth, duration, ThrustColor);
     }
 
-    public void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color)
+    public void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color, bool exactHitEnvelope = false)
     {
         Initialize();
         direction = direction.normalized;
@@ -251,10 +253,10 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         float safeDuration = Mathf.Max(0.05f, duration);
         _thrustTimer = _thrustDuration = safeDuration;
         _thrustColor = color;
-        _thrustLine.enabled = true;
+        _thrustLine.enabled = !exactHitEnvelope || lineWidth > 0f;
         _thrustLine.loop = false;
         _thrustLine.positionCount = 2;
-        _thrustLine.widthMultiplier = Mathf.Max(0.035f, lineWidth * 0.16f);
+        _thrustLine.widthMultiplier = exactHitEnvelope ? Mathf.Max(0f, lineWidth * .16f) : Mathf.Max(0.035f, lineWidth * 0.16f);
         _thrustLine.SetPosition(0, origin);
         _thrustLine.SetPosition(1, origin + direction * range);
         SetLineColor(_thrustLine, _thrustColor, 1f);
@@ -264,14 +266,14 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         surface.Root.transform.localScale = Vector3.one;
         surface.Timer = surface.Duration = safeDuration;
         surface.Color = color;
-        BuildThrustSurface(surface.Mesh, range, lineWidth);
-        surface.Renderer.enabled = true;
+        BuildThrustSurface(surface.Mesh, range, lineWidth, exactHitEnvelope);
+        surface.Renderer.enabled = !exactHitEnvelope || lineWidth > 0f;
         ApplyPulseProperties(surface, 0f);
     }
 
-    public void ShowDash(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color)
+    public void ShowDash(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color, bool exactHitEnvelope = false)
     {
-        ShowThrust(origin, direction, range, Mathf.Max(0.08f, lineWidth * 0.62f), duration, color);
+        ShowThrust(origin, direction, range, exactHitEnvelope ? lineWidth : Mathf.Max(0.08f, lineWidth * 0.62f), duration, color, exactHitEnvelope);
         direction = GetHorizontalDirection(direction);
         if (direction.sqrMagnitude <= 0.0001f)
             return;
@@ -765,7 +767,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         triangles.Add(outerEnd);
     }
 
-    private static void BuildThrustSurface(Mesh mesh, float range, float width)
+    private static void BuildThrustSurface(Mesh mesh, float range, float width, bool exactHitEnvelope)
     {
         int pointCount = ThrustSegmentCount + 1;
         Vector3[] vertices = new Vector3[pointCount * 2];
@@ -775,8 +777,9 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         for (int i = 0; i < pointCount; i++)
         {
             float t = i / (float)(pointCount - 1);
-            float halfWidth = Mathf.Max(0.025f, width * 0.5f * Mathf.Lerp(0.22f, 0.72f, Mathf.Sin(t * Mathf.PI)));
-            float lateralNoise = Mathf.Sin(t * Mathf.PI * 7f) * width * 0.035f;
+            float halfWidth = exactHitEnvelope ? Mathf.Max(0f, width * .5f)
+                : Mathf.Max(0.025f, width * 0.5f * Mathf.Lerp(0.22f, 0.72f, Mathf.Sin(t * Mathf.PI)));
+            float lateralNoise = exactHitEnvelope ? 0f : Mathf.Sin(t * Mathf.PI * 7f) * width * 0.035f;
             vertices[i * 2] = new Vector3(-halfWidth + lateralNoise, 0f, range * t);
             vertices[i * 2 + 1] = new Vector3(halfWidth + lateralNoise, 0f, range * t);
             uvs[i * 2] = new Vector2(0f, t);

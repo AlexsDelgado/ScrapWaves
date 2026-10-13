@@ -3,15 +3,53 @@ using UnityEngine;
 
 public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 {
+    public override float? GetManualAimConvergenceDistance()
+    {
+        if (Runtime?.Data == null) return null;
+        WeaponResolvedStat range = WeaponStatAuthoringResolver.ResolveModeValue(Runtime,
+            WeaponStatMode.Manual, WeaponStatField.RangeMeters, Runtime.Data.BaseRange);
+        return range.IsAuthored ? GetManualRange(Runtime.Data.Flamethrower) : (float?)null;
+    }
+
+    public override WeaponGeometrySnapshot CaptureGeometry()
+    {
+        if (Runtime?.Data == null) return null;
+        FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
+        float abilityRadius = GetActiveRadius(tuning);
+        var guides = new List<WeaponGeometryGuide>
+        {
+            new(WeaponStatMode.Automatic, WeaponGeometryPurpose.ProjectilePath, WeaponGeometryShape.Line,
+                WeaponGeometryAnchor.Muzzle, rangeMeters: GetAutomaticRange(tuning), direction: WeaponGeometryDirection.OwnerForward),
+            new(WeaponStatMode.Manual, WeaponGeometryPurpose.ProjectilePath, WeaponGeometryShape.Line,
+                WeaponGeometryAnchor.Muzzle, rangeMeters: GetManualRange(tuning)),
+            new(WeaponStatMode.Ability, WeaponGeometryPurpose.Hitbox, WeaponGeometryShape.Circle,
+                WeaponGeometryAnchor.Owner, radiusMeters: abilityRadius)
+        };
+        if (IsJellifiedFuelPath() && abilityRadius > 0f)
+        {
+            Vector2 footprint = GetJellifiedActivePuddleSettings(tuning, abilityRadius);
+            if (footprint.x > 0f && footprint.y > 0f)
+                guides.Add(new WeaponGeometryGuide(WeaponStatMode.Ability, WeaponGeometryPurpose.Hitbox,
+                    WeaponGeometryShape.Circle, WeaponGeometryAnchor.Owner, radiusMeters: footprint.x));
+        }
+        // Receiver-contact footprints need a future target position. Existing live
+        // area spheres and puddles are rendered from their actual runtime geometry.
+        return new WeaponGeometrySnapshot(guides.ToArray());
+    }
+
     protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
     {
         FlamethrowerTuning t = Runtime.Data.Flamethrower;
-        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticTickInterval(t), GetAutomaticRange(t), 1, 0f, knockbackScale: 0f);
-        var manual = DiagnosticMode("Manual", 1f, Mathf.Max(0.01f, t.FlameManualTickInterval), GetManualRange(t), 1,
-            t.FlameManualAmmoPerSecond * Mathf.Max(0.01f, t.FlameManualTickInterval), knockbackScale: t.FlameManualKnockbackScale);
-        float radius = GetScaledRange(GetPathAdjustedActiveRadius(t));
-        var active = DiagnosticMode("Active Ability", t.FlameActiveDamageScale, 0f, radius, 1,
-            Runtime.Data.ActiveAbilityAmmoCost, true, t.FlameActiveKnockbackScale);
+        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticTickInterval(t), GetAutomaticRange(t), 1, 0f, knockbackScale: 0f, mode: WeaponStatMode.Automatic);
+        float manualInterval = GetManualTickInterval(t);
+        var manual = DiagnosticMode("Manual", 1f, manualInterval, GetManualRange(t), 1,
+            t.FlameManualAmmoPerSecond * manualInterval, knockbackScale: t.FlameManualKnockbackScale, mode: WeaponStatMode.Manual);
+        float radius = GetActiveRadius(t);
+        var active = DiagnosticMode("Active Ability", 1f, 0f, radius, 1,
+            Runtime.Data.ActiveAbilityAmmoCost, true, t.FlameActiveKnockbackScale,
+            mode: WeaponStatMode.Ability, weaponDamageScale: t.FlameActiveDamageScale);
+        automatic.Add("Tick rate rule", "Inherited clocks unchanged; explicit rate uses player speed and overheat ratio, capped at 100 ticks/s");
+        manual.Add("Tick rate rule", "Inherited clocks unchanged; explicit rate uses player speed, capped at 100 ticks/s");
         automatic.Add("Direction", "Character facing at emission")
             .Add("Travel / manual", Mathf.Clamp(t.FlameAutomaticRangeMultiplier, 0.05f, 1f))
             .Add("Active areas", ActiveAutomaticAreaCount);
@@ -28,9 +66,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             section.Add(section == active ? "Maximum targets / cast" : "Maximum targets / tick", Mathf.Max(1, t.FlameMaxTargetsPerTick));
             if (section == automatic && !ShouldApplyAutomaticStatus()) section.Add("Status", "No burn in base automatic mode");
-            else if (IsLiquidNitrogenPath()) section.Add("Status", section == active
-                ? "Freeze 2 s, then slowed movement (0.1x for 4 s total); replaces burn"
-                : "Movement ramps from 0.5x to 0.1x over 6 hits, lasts 3 s; replaces burn");
+            else if (t.FlameBurnDuration <= 0f && !HasAuthoredNitrogenControl(section == active))
+                section.Add("Status", "Disabled by inherited burn-duration guard");
+            else if (IsLiquidNitrogenPath()) section.Add("Status", GetNitrogenStatusDescription(section == active));
             else
             {
                 if (Stats != null && Stats.GetDefinition(StatType.DamageMultiplier) != null
@@ -43,6 +81,11 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         {
             Vector2 puddle = GetJellifiedActivePuddleSettings(t, radius);
             active.Add("Fuel puddle radius", puddle.x, " m").Add("Fuel puddle duration", puddle.y, " s");
+            Vector2 contact = GetContactPuddleSettings(t);
+            automatic.Add("Contact puddle radius", contact.x, " m").Add("Contact puddle duration", contact.y, " s");
+            manual.Add("Contact puddle radius", contact.x, " m").Add("Contact puddle duration", contact.y, " s");
+            active.Add("Contact puddle radius", contact.x, " m").Add("Contact puddle duration", contact.y, " s");
+            active.Add("Contact puddles", "Q receiver contacts retain contact settings; the central footprint uses Q settings");
         }
         sections.Add(automatic); sections.Add(manual); sections.Add(active);
     }
@@ -141,7 +184,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         LastManualAreaRadius = Mathf.Max(tuning.FlameAreaInitialRadius, tuning.FlameAreaFinalRadius) * GetAreaSizeMultiplier();
         UpdateSustainedFeedback(WeaponFeedbackMode.Manual, aimDirection, LastManualRange);
         _manualAreas.Emit(firingTime, Spawn.position, aimDirection, LastManualRange, GetAreaSizeMultiplier(),
-            tuning, GetStreamStyle(), Heat != null ? Heat.NormalizedHeat : 0f);
+            tuning, GetStreamStyle(), Heat != null ? Heat.NormalizedHeat : 0f, WeaponFeedbackMode.Manual, GetManualTickInterval(tuning));
         if (firingTime < deltaTime) StopSustainedFeedback(aimDirection);
         LastManualDebugSummary = $"Areas {ActiveManualAreaCount} | Hits {LastManualHitCount} | Applied {LastManualDamageApplications}";
     }
@@ -186,7 +229,15 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         StopSustainedFeedback(aimDirection);
 
-        float activeRadius = GetScaledRange(GetPathAdjustedActiveRadius(tuning));
+        float activeRadius = GetActiveRadius(tuning);
+        if (activeRadius <= 0f && WeaponStatAuthoringResolver.ResolveModeValue(Runtime,
+            WeaponStatMode.Ability, WeaponStatField.ExplosionRadiusMeters, 0f).IsAuthored)
+        {
+            // Explicit zero means no wave or central footprint; the committed Q
+            // still spends its normal ammo and starts its normal cooldown.
+            CompleteActiveAbility();
+            return;
+        }
         var cast = new ActiveCast {
             Source = new WeaponInstance { Data = Runtime.Data, Level = Runtime.Level, SelectedPath = Runtime.SelectedPath, State = WeaponState.Manual },
             Tuning = JsonUtility.FromJson<FlamethrowerTuning>(JsonUtility.ToJson(tuning)),
@@ -257,25 +308,62 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
     }
 
-    // Applies faster automatic ticks above the configured heat threshold.
+    // Disabled overrides retain the exact existing tick clocks (including their lack
+    // of player/level attack-speed binding). An explicit rate opts into player speed;
+    // automatic heat retains the ratio between the two authored legacy intervals.
     private float GetAutomaticTickInterval(FlamethrowerTuning tuning)
     {
+        float coolInterval = Mathf.Max(0.01f, tuning.FlameAutoTickInterval);
+        float hotInterval = Mathf.Max(0.01f, tuning.FlameOverheatAutoTickInterval);
         float heatPercent = Heat != null ? Heat.NormalizedHeat * 100f : 0f;
-        if (heatPercent >= tuning.FlameOverheatTickThresholdPercent)
-            return Mathf.Max(0.01f, tuning.FlameOverheatAutoTickInterval);
-
-        return Mathf.Max(0.01f, tuning.FlameAutoTickInterval);
+        bool overheated = heatPercent >= tuning.FlameOverheatTickThresholdPercent;
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(SourceRuntime,
+            WeaponStatMode.Automatic, WeaponStatField.AttackCyclesPerSecond, 1f / coolInterval);
+        if (!rate.IsAuthored) return overheated ? hotInterval : coolInterval;
+        float speed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float heatSpeed = overheated ? coolInterval / hotInterval : 1f;
+        return Mathf.Max(0.01f, 1f / Mathf.Max(0.0001f, rate.Value * speed * heatSpeed));
     }
 
-    // Manual stream reaches farther as heat rises.
+    private float GetManualTickInterval(FlamethrowerTuning tuning)
+    {
+        float legacy = Mathf.Max(0.01f, tuning.FlameManualTickInterval);
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(SourceRuntime,
+            WeaponStatMode.Manual, WeaponStatField.AttackCyclesPerSecond, 1f / legacy);
+        return rate.IsAuthored
+            ? Mathf.Max(0.01f, 1f / Mathf.Max(0.0001f, rate.Value * WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier)))
+            : legacy;
+    }
+
     private float GetManualRange(FlamethrowerTuning tuning)
     {
-        float heat = Heat != null ? Heat.NormalizedHeat : 0f;
-        return GetScaledRange(Runtime.Data.BaseRange) * (1f + Mathf.Max(0f, tuning.FlameManualRangeHeatMultiplier) * heat);
+        float neutral = WeaponStatAuthoringResolver.ResolveModeValue(SourceRuntime,
+            WeaponStatMode.Manual, WeaponStatField.RangeMeters, Runtime.Data.BaseRange).Value;
+        return GetScaledRange(neutral) * GetRangeHeatMultiplier(tuning);
     }
 
-    private float GetAutomaticRange(FlamethrowerTuning tuning) =>
-        GetManualRange(tuning) * Mathf.Clamp(tuning.FlameAutomaticRangeMultiplier, 0.05f, 1f);
+    private float GetAutomaticRange(FlamethrowerTuning tuning)
+    {
+        // Inheritance derives from legacy tuning, not the Manual override: editing
+        // one mode must never change the other mode's reach.
+        WeaponResolvedStat range = WeaponStatAuthoringResolver.ResolveModeValue(SourceRuntime,
+            WeaponStatMode.Automatic, WeaponStatField.RangeMeters,
+            Runtime.Data.BaseRange * Mathf.Clamp(tuning.FlameAutomaticRangeMultiplier, 0.05f, 1f));
+        if (!range.IsAuthored)
+            return GetScaledRange(Runtime.Data.BaseRange) * GetRangeHeatMultiplier(tuning)
+                * Mathf.Clamp(tuning.FlameAutomaticRangeMultiplier, 0.05f, 1f);
+        return GetScaledRange(range.Value) * GetRangeHeatMultiplier(tuning);
+    }
+
+    private float GetRangeHeatMultiplier(FlamethrowerTuning tuning) =>
+        1f + Mathf.Max(0f, tuning.FlameManualRangeHeatMultiplier) * (Heat != null ? Heat.NormalizedHeat : 0f);
+
+    private float GetActiveRadius(FlamethrowerTuning tuning) => GetScaledRange(
+        WeaponStatAuthoringResolver.ResolveModeValue(SourceRuntime, WeaponStatMode.Ability,
+            WeaponStatField.ExplosionRadiusMeters, GetPathAdjustedActiveRadius(tuning)).Value);
+
+    private WeaponStatMode GetDamageMode(bool isAbility) => isAbility ? WeaponStatMode.Ability
+        : GetCurrentFeedbackMode() == WeaponFeedbackMode.Manual ? WeaponStatMode.Manual : WeaponStatMode.Automatic;
 
     private bool ApplyAreaDamage(Transform target, Vector3 origin, WeaponFeedbackMode mode)
     {
@@ -303,7 +391,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         bool isAbilityDamage,
         out WeaponDamageContext damageContext)
     {
-        damageContext = new WeaponDamageContext(Stats, SourceRuntime, CanCrit(), GetCritMultiplierOverride(), damageScale, isAbilityDamage, damageScale)
+        damageContext = new WeaponDamageContext(Stats, SourceRuntime, CanCrit(), GetCritMultiplierOverride(), 1f, isAbilityDamage, 1f,
+                mode: GetDamageMode(isAbilityDamage), weaponDamageScale: damageScale)
             .WithFeedbackMetadata(
                 0,
                 isAbilityDamage ? DamageFeedbackKind.Ability : DamageFeedbackKind.SustainedContact);
@@ -319,7 +408,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         bool isAbilityDamage,
         out WeaponDamageContext damageContext)
     {
-        float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
+        float pathScale = GetJellifiedBurnDamageMultiplier();
         WeaponStatusKind statusKind = IsJellifiedFuelPath()
             ? WeaponStatusKind.JellifiedBurn
             : WeaponStatusKind.Burn;
@@ -333,7 +422,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 critMultiplierOverride: 1f,
                 damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
                 isAbilityDamage: isAbilityDamage,
-                knockbackScale: 0f)
+                knockbackScale: 0f, mode: GetDamageMode(isAbilityDamage), useModeDamageOverride: false)
             .WithFeedbackMetadata(0, damageKind, statusKind: statusKind);
         return target != null
             ? damageContext.CalculateDamage(target)
@@ -342,7 +431,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
     private WeaponDamageContext CreateBurnDamageContext(FlamethrowerTuning tuning, bool isAbilityDamage)
     {
-        float pathScale = IsJellifiedFuelPath() ? 1.35f : 1f;
+        float pathScale = GetJellifiedBurnDamageMultiplier();
         WeaponStatusKind statusKind = IsJellifiedFuelPath()
             ? WeaponStatusKind.JellifiedBurn
             : WeaponStatusKind.Burn;
@@ -356,7 +445,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             critMultiplierOverride: 1f,
             damageScale: Mathf.Max(0f, tuning.FlameBurnDamageScale) * pathScale,
             isAbilityDamage: isAbilityDamage,
-            knockbackScale: 0f).WithFeedbackMetadata(0, damageKind, statusKind: statusKind);
+            knockbackScale: 0f, mode: GetDamageMode(isAbilityDamage), useModeDamageOverride: false).WithFeedbackMetadata(0, damageKind, statusKind: statusKind);
     }
 
     private bool ShouldApplyAutomaticStatus() => IsJellifiedFuelPath() || IsLiquidNitrogenPath();
@@ -388,7 +477,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (damageable != null && result.Applied)
         {
             EnemyKnockbackReceiver.TryApply(damageable, impactOrigin,
-                WeaponMath.CalculateKnockback(Stats, SourceRuntime, damage, knockbackScale));
+                damageContext.CalculateKnockback(damage, knockbackScale));
             Vector3 direction = target.position - impactOrigin;
             WeaponFeedbackContext feedback = CreateFeedbackContext(
                 activeAbility ? WeaponFeedbackMode.Active : GetCurrentFeedbackMode(),
@@ -439,8 +528,10 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         bool activeAbility,
         in WeaponDamageContext burnContext)
     {
-        if (target == null || tuning.FlameBurnDuration <= 0f)
-            return;
+        if (target == null) return;
+        // Relevant explicitly authored nitrogen controls are independent of the
+        // unrelated burn gate; wholly inherited status retains the guard exactly.
+        if (tuning.FlameBurnDuration <= 0f && !HasAuthoredNitrogenControl(activeAbility)) return;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
         if (damageable is not Component damageComponent)
@@ -476,13 +567,12 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
 
         if (IsJellifiedFuelPath())
         {
-            float levelScale = SourceRuntime != null ? Mathf.Max(1f, SourceRuntime.Level / 6f) : 1f;
-            float radius = GetScaledFuelPuddleRadius(tuning) * levelScale;
+            Vector2 contact = GetContactPuddleSettings(tuning);
             SpawnFuelPuddle(
                 target.position,
-                radius,
+                contact.x,
                 damagePerTick,
-                duration,
+                contact.y,
                 tuning.FlameBurnTickInterval,
                 CreateBurnDamageContext(tuning, activeAbility));
         }
@@ -498,18 +588,23 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         if (activeAbility)
         {
-            const float freezeDuration = 2f;
+            float freezeDuration = GetAbilityFreezeDuration();
+            if (freezeDuration <= 0f) return;
             if (!HasProductionPresentation())
                 WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 1.2f, frozen: true);
-            WeaponMovementSlowStatus.Apply(target, 0.1f, freezeDuration * 2f, "Deep Freeze");
+            Vector2 slow = GetAbilitySlowSettings(freezeDuration);
+            if (slow.y > 0f)
+                WeaponMovementSlowStatus.Apply(target, slow.x, slow.y, "Deep Freeze");
             WeaponMovementFreezeStatus.Apply(target, freezeDuration);
             EmitStatusFeedback(target, 0, activeAbility: true);
             return;
         }
 
+        var ramp = GetNitrogenSlowSettings();
+        if (ramp.duration <= 0f) return;
         if (!HasProductionPresentation())
             WeaponStatusShardVfx.SpawnIceShards(target, LiquidNitrogenCoreColor, LiquidNitrogenVfxColor, 0.55f, frozen: false);
-        WeaponMovementSlowStatus.ApplyRamp(target, 0.5f, 0.1f, 6, 3f, "Liquid Nitrogen");
+        WeaponMovementSlowStatus.ApplyRamp(target, ramp.initial, ramp.minimum, ramp.hits, ramp.duration, "Liquid Nitrogen");
         EmitStatusFeedback(target, 0, activeAbility: false);
     }
 
@@ -521,6 +616,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         float tickInterval,
         WeaponDamageContext damageContext)
     {
+        if (radius <= 0f || duration <= 0f) return;
         WeaponFeedbackMode feedbackMode = damageContext.IsAbilityDamage
             ? WeaponFeedbackMode.Active
             : GetCurrentFeedbackMode();
@@ -538,7 +634,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 tickInterval,
                 damageContext,
                 SourceFeedback,
-                feedbackMode);
+                feedbackMode,
+                exactDimensions: true);
             return;
         }
 
@@ -550,7 +647,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             tickInterval,
             damageContext,
             SourceFeedback,
-            feedbackMode);
+            feedbackMode,
+            exactDimensions: true);
     }
 
     private FlamethrowerPresentationSettings GetPresentationSettings() =>
@@ -658,7 +756,8 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         float duration = tuning.FlameBurnDuration;
         if (IsJellifiedFuelPath())
-            duration *= 2f;
+            duration *= WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+                GetFlameOverrides()?.JellifiedBurnDurationMultiplier ?? default, 2f).Value;
         return duration;
     }
 
@@ -666,8 +765,82 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     {
         float levelScale = GetJellifiedFuelLevelScale();
         float radius = Mathf.Max(0.1f, activeRadius * 0.5f) * levelScale;
-        float duration = Mathf.Max(0.1f, tuning.FlameBurnDuration * 2f) * levelScale;
+        float duration = Mathf.Max(0.1f, GetPathAdjustedBurnDuration(tuning)) * levelScale;
+        WeaponFlameStatOverrides values = GetFlameOverrides();
+        WeaponOptionalFloat radiusOverride = values?.AbilityPuddleRadiusMeters ?? default;
+        if (radiusOverride.Enabled)
+            radius = WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime, radiusOverride, radius).Value
+                * (_applyingActiveCast?.AreaSize ?? GetAreaSizeMultiplier());
+        duration = WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+            values?.AbilityPuddleDurationSeconds ?? default, duration).Value;
         return new Vector2(radius, duration);
+    }
+
+    private Vector2 GetContactPuddleSettings(FlamethrowerTuning tuning)
+    {
+        WeaponFlameStatOverrides values = GetFlameOverrides();
+        WeaponOptionalFloat radiusOverride = values?.ContactPuddleRadiusMeters ?? default;
+        float radius = Mathf.Max(0.1f, GetScaledFuelPuddleRadius(tuning) * GetJellifiedFuelLevelScale());
+        if (radiusOverride.Enabled)
+            radius = WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime, radiusOverride, radius).Value
+                * (_applyingActiveCast?.AreaSize ?? GetAreaSizeMultiplier());
+        float duration = WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+            values?.ContactPuddleDurationSeconds ?? default, Mathf.Max(0.1f, GetPathAdjustedBurnDuration(tuning))).Value;
+        return new Vector2(radius, duration);
+    }
+
+    private WeaponFlameStatOverrides GetFlameOverrides() => WeaponStatAuthoringResolver.GetLevelRow(SourceRuntime)?.Flame;
+
+    private float GetAbilityFreezeDuration() => IsLiquidNitrogenPath()
+        ? WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+            GetFlameOverrides()?.AbilityFreezeDurationSeconds ?? default, 2f).Value : 0f;
+
+    private float GetJellifiedBurnDamageMultiplier() => IsJellifiedFuelPath()
+        ? WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+            GetFlameOverrides()?.JellifiedBurnDamageMultiplier ?? default, 1.35f).Value : 1f;
+
+    private (float initial, float minimum, int hits, float duration) GetNitrogenSlowSettings()
+    {
+        WeaponFlameStatOverrides values = GetFlameOverrides();
+        return (
+            WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime, values?.NitrogenInitialSlowMultiplier ?? default, 0.5f).Value,
+            WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime, values?.NitrogenMinimumSlowMultiplier ?? default, 0.1f).Value,
+            WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime, values?.NitrogenHitsToMinimum ?? default, 6).Value,
+            WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime, values?.NitrogenSlowDurationSeconds ?? default, 3f).Value);
+    }
+
+    private Vector2 GetAbilitySlowSettings(float freezeDuration)
+    {
+        WeaponFlameStatOverrides values = GetFlameOverrides();
+        float multiplier = WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+            values?.AbilitySlowMultiplier ?? default, 0.1f).Value;
+        float secondsPerFreezeSecond = WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,
+            values?.AbilitySlowDurationPerFreezeSecond ?? default, 2f).Value;
+        return new Vector2(multiplier, freezeDuration * secondsPerFreezeSecond);
+    }
+
+    private bool HasAuthoredNitrogenControl(bool ability)
+    {
+        if (!IsLiquidNitrogenPath()) return false;
+        WeaponFlameStatOverrides values = GetFlameOverrides();
+        if (values == null) return false;
+        return ability
+            ? values.AbilityFreezeDurationSeconds.Enabled || values.AbilitySlowMultiplier.Enabled
+                || values.AbilitySlowDurationPerFreezeSecond.Enabled
+            : values.NitrogenInitialSlowMultiplier.Enabled || values.NitrogenMinimumSlowMultiplier.Enabled
+                || values.NitrogenHitsToMinimum.Enabled || values.NitrogenSlowDurationSeconds.Enabled;
+    }
+
+    private string GetNitrogenStatusDescription(bool ability)
+    {
+        if (ability)
+        {
+            float freeze = GetAbilityFreezeDuration();
+            Vector2 slow = GetAbilitySlowSettings(freeze);
+            return $"Freeze {freeze:0.###} s; movement {slow.x:0.###}x for {slow.y:0.###} s total; replaces burn";
+        }
+        var ramp = GetNitrogenSlowSettings();
+        return $"Movement ramps from {ramp.initial:0.###}x to {ramp.minimum:0.###}x over {ramp.hits} hits, lasts {ramp.duration:0.###} s; replaces burn";
     }
 
     private float GetJellifiedFuelLevelScale()

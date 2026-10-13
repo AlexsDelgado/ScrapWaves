@@ -430,12 +430,12 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
     private Vector3 ResolveAimDirection()
     {
         WeaponInstance manualWeapon = CurrentManualWeapon;
-        float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
+        BasicProjectileWeapon geometrySource = CurrentManualBehaviour as BasicProjectileWeapon;
         Transform spawn = ProjectileSpawn != null ? ProjectileSpawn : PlayerTransform;
         Vector3 origin = spawn != null ? spawn.position : transform.position;
         CurrentAimSolution = _aimProvider != null
-            ? _aimProvider.ResolveWeaponAim(origin, manualWeapon)
-            : ReticleAimProvider.CreateFallback(origin, fallbackDistance, Camera.main,
+            ? _aimProvider.ResolveWeaponAim(origin, manualWeapon, geometrySource)
+            : ReticleAimProvider.CreateWeaponFallback(origin, manualWeapon, geometrySource, Camera.main,
                 PlayerTransform != null ? PlayerTransform.forward : Vector3.forward);
         return CurrentAimSolution.Direction;
     }

@@ -48,18 +48,45 @@ public class ReticleAimProvider : MonoBehaviour
     public Camera AimCamera => ResolveCamera();
 
     public bool TryGetAimSolution(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, out AimSolution solution)
+        => TryGetAimSolutionCore(origin, fallbackDistance, preferDamageableAimPoint, 1f, out solution);
+
+    private bool TryGetAimSolutionCore(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint,
+        float minimumDistance, out AimSolution solution)
     {
         solution = default;
         if (!TryGetGameplayRay(ResolveCamera(), out Ray ray)) return false;
-        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint), Time.frameCount);
+        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint, minimumDistance), Time.frameCount);
         return solution.IsValid;
     }
 
-    public AimSolution ResolveWeaponAim(Vector3 origin, WeaponInstance weapon)
+    public AimSolution ResolveWeaponAim(Vector3 origin, WeaponInstance weapon, BasicProjectileWeapon behaviour = null)
     {
-        float distance = weapon?.Data != null ? weapon.Data.BaseRange : _maxAimDistance;
-        return TryGetAimSolution(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), out AimSolution solution)
-            ? solution : CreateFallback(origin, distance, ResolveCamera(), transform.forward);
+        float? authored = GetAuthoredConvergenceDistance(behaviour);
+        float distance = authored ?? (weapon?.Data != null ? weapon.Data.BaseRange : _maxAimDistance);
+        float minimumDistance = authored.HasValue ? 0f : 1f;
+        return TryGetAimSolutionCore(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), minimumDistance, out AimSolution solution)
+            ? solution : CreateFallback(origin, distance, ResolveCamera(), transform.forward, minimumDistance);
+    }
+
+    public static float ResolveConvergenceDistance(WeaponInstance weapon, BasicProjectileWeapon behaviour, float fallback = 0f)
+    {
+        float? authored = GetAuthoredConvergenceDistance(behaviour);
+        if (authored.HasValue) return authored.Value;
+        return weapon?.Data != null ? weapon.Data.BaseRange : fallback;
+    }
+
+    public static AimSolution CreateWeaponFallback(Vector3 origin, WeaponInstance weapon, BasicProjectileWeapon behaviour,
+        Camera camera, Vector3 forward)
+    {
+        float? authored = GetAuthoredConvergenceDistance(behaviour);
+        float distance = authored ?? (weapon?.Data != null ? weapon.Data.BaseRange : 0f);
+        return CreateFallback(origin, distance, camera, forward, authored.HasValue ? 0f : 1f);
+    }
+
+    private static float? GetAuthoredConvergenceDistance(BasicProjectileWeapon behaviour)
+    {
+        float? value = behaviour?.GetManualAimConvergenceDistance();
+        return value.HasValue && !float.IsNaN(value.Value) && !float.IsInfinity(value.Value) && value.Value > 0f ? value : null;
     }
 
     public static bool TryGetGameplayRay(Camera camera, out Ray ray)
@@ -73,11 +100,11 @@ public class ReticleAimProvider : MonoBehaviour
         return true;
     }
 
-    public static AimSolution CreateFallback(Vector3 origin, float distance, Camera camera, Vector3 forward)
+    public static AimSolution CreateFallback(Vector3 origin, float distance, Camera camera, Vector3 forward, float minimumDistance = 1f)
     {
         if (TryGetGameplayRay(camera, out Ray ray)) forward = ray.direction;
         if (forward.sqrMagnitude <= 0.0001f) forward = Vector3.forward;
-        return new AimSolution(origin, origin + forward.normalized * Mathf.Max(1f, distance), Time.frameCount);
+        return new AimSolution(origin, origin + forward.normalized * Mathf.Max(minimumDistance, distance), Time.frameCount);
     }
 
     public bool TryGetMortarTerrainImpact(
@@ -138,11 +165,11 @@ public class ReticleAimProvider : MonoBehaviour
         return _aimCamera;
     }
 
-    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint)
+    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, float minimumDistance = 1f)
     {
         int hitCount = Physics.RaycastNonAlloc(ray, _hitBuffer, _maxAimDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
         float closestDistance = float.PositiveInfinity;
-        Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance);
+        Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance, minimumDistance);
         bool directlyHitsEnemy = false;
 
         for (int i = 0; i < hitCount; i++)
@@ -244,10 +271,10 @@ public class ReticleAimProvider : MonoBehaviour
         return damageable is Component damageableComponent ? damageableComponent.transform : null;
     }
 
-    private Vector3 GetNoHitTargetPoint(Ray ray, Vector3 origin, float fallbackDistance)
+    private Vector3 GetNoHitTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, float minimumDistance = 1f)
     {
         // Keep no-hit shots converged with the reticle at weapon reach, not at camera max distance.
-        float distance = Mathf.Clamp(fallbackDistance, 1f, _maxAimDistance);
+        float distance = Mathf.Clamp(fallbackDistance, minimumDistance, _maxAimDistance);
         Vector3 cameraToOrigin = ray.origin - origin;
         float projection = Vector3.Dot(ray.direction, cameraToOrigin);
         float c = cameraToOrigin.sqrMagnitude - distance * distance;

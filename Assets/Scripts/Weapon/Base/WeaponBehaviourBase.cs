@@ -35,7 +35,9 @@ public interface IRocketReticleStatus
 
 public interface IMortarReticleStatus
 {
+    float ManualRange { get; }
     float ManualExplosionRadius { get; }
+    float ManualFootprintRadius { get; }
     float ShellCollisionRadius { get; }
     float ManualTravelTime { get; }
     float ArcHeight { get; }
@@ -150,17 +152,21 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
         if (!CanBeginActiveAbility())
             return;
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
+        if (!TrySpendManualAmmo(WeaponMath.GetActiveAbilityAmmoCost(Runtime), requireFullAmount: false))
             return;
 
         FireAt(Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange, 1.75f, false, isAbilityDamage: true);
         CompleteActiveAbility();
     }
 
-    protected bool CanBeginActiveAbility() =>
-        Runtime != null
-        && Runtime.State == WeaponState.Manual
-        && Runtime.AbilityCooldownTimer <= 0f;
+    protected bool CanBeginActiveAbility()
+    {
+        if (!(Runtime != null && Runtime.State == WeaponState.Manual && Runtime.AbilityCooldownTimer <= 0f))
+            return false;
+        // Invalid authoring must fail before an eligible Q action spends resources.
+        WeaponStatAuthoringResolver.GetLevelRow(Runtime);
+        return true;
+    }
 
     protected void CompleteActiveAbility()
     {
@@ -178,11 +184,13 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
         return GetFireIntervalWithoutHeat() / Mathf.Max(0.01f, GetHeatFireRateMultiplier());
     }
 
-    protected float GetFireIntervalWithoutHeat()
+    protected float GetFireIntervalWithoutHeat(WeaponStatMode? mode = null)
     {
         float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
         float weaponRate = Mathf.Max(0.01f, Runtime.Data.BaseAttackRate * WeaponMath.GetAttackRateMultiplier(Runtime));
-        return 1f / Mathf.Max(0.05f, weaponRate * attackSpeed);
+        WeaponResolvedStat authoredRate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime,
+            mode ?? WeaponStatAuthoringResolver.GetImmediateMode(Runtime), WeaponStatField.AttackCyclesPerSecond, weaponRate);
+        return authoredRate.IsAuthored ? 1f / (authoredRate.Value * attackSpeed) : 1f / Mathf.Max(0.05f, weaponRate * attackSpeed);
     }
 
     // Lets individual weapons decide whether heat affects fire rate.
@@ -230,7 +238,7 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
         float speedMultiplier,
         float maxTravelDistance,
         bool explodeOnMaxTravel,
-        bool isAbilityDamage = false)
+        bool isAbilityDamage = false, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         if (Pool == null || Spawn == null)
             return false;
@@ -241,7 +249,7 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
 
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
-        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage, mode: mode, weaponDamageScale: weaponDamageScale);
         int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(finalDamage);
         return Pool.TrySpawnExplosiveProjectile(
@@ -259,21 +267,21 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
     }
 
     // Spawns one projectile toward position and resolves final scaled damage.
-    protected bool FireAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
+    protected bool FireAt(Vector3 targetPosition, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         if (Spawn == null)
             return false;
 
-        return FireInDirection(targetPosition - Spawn.position, damageScale, eliteOrBoss, isAbilityDamage);
+        return FireInDirection(targetPosition - Spawn.position, damageScale, eliteOrBoss, isAbilityDamage, mode, weaponDamageScale);
     }
 
     // Spawns one projectile in a known direction and resolves final scaled damage.
-    protected bool FireInDirection(Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false)
+    protected bool FireInDirection(Vector3 direction, float damageScale, bool eliteOrBoss, bool isAbilityDamage = false, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         if (Spawn == null)
             return false;
 
-        return FireFromPositionInDirection(Spawn.position, direction, damageScale, eliteOrBoss, isAbilityDamage);
+        return FireFromPositionInDirection(Spawn.position, direction, damageScale, eliteOrBoss, isAbilityDamage, mode, weaponDamageScale);
     }
 
     // Spawns one projectile from a specific position in a known direction.
@@ -282,7 +290,7 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
         Vector3 direction,
         float damageScale,
         bool eliteOrBoss,
-        bool isAbilityDamage = false)
+        bool isAbilityDamage = false, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         return FireFromPositionInDirection(
             position,
@@ -290,7 +298,9 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
             damageScale,
             eliteOrBoss,
             out _,
-            isAbilityDamage);
+            isAbilityDamage,
+            mode,
+            weaponDamageScale);
     }
 
     // Spawns one projectile and returns the configured pooled instance when successful.
@@ -300,7 +310,7 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
         float damageScale,
         bool eliteOrBoss,
         out Projectile spawnedProjectile,
-        bool isAbilityDamage = false)
+        bool isAbilityDamage = false, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         spawnedProjectile = null;
         if (Pool == null)
@@ -311,7 +321,7 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
 
         direction.Normalize();
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage);
+        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage, mode: mode, weaponDamageScale: weaponDamageScale);
         int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(finalDamage);
         return Pool.TrySpawnProjectile(
@@ -324,9 +334,9 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
             out spawnedProjectile);
     }
 
-    protected WeaponDamageContext CreateDamageContext(float damageScale, bool isAbilityDamage, float knockbackScale = -1f)
+    protected WeaponDamageContext CreateDamageContext(float damageScale, bool isAbilityDamage, float knockbackScale = -1f, WeaponStatMode? mode = null, float weaponDamageScale = 1f, bool useModeDamageOverride = true)
     {
-        float resolvedKnockbackScale = knockbackScale >= 0f ? knockbackScale : damageScale;
+        float resolvedKnockbackScale = knockbackScale >= 0f ? knockbackScale : damageScale * weaponDamageScale;
         return new WeaponDamageContext(
             Stats,
             Runtime,
@@ -334,7 +344,10 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
             GetCritMultiplierOverride(),
             damageScale,
             isAbilityDamage,
-            resolvedKnockbackScale);
+            resolvedKnockbackScale,
+            mode: mode,
+            weaponDamageScale: weaponDamageScale,
+            useModeDamageOverride: useModeDamageOverride);
     }
 
     // Applies projectile/area size stat to weapon ranges and areas without affecting angles.
@@ -349,9 +362,9 @@ public partial class BasicProjectileWeapon : IWeaponBehaviour, IWeaponPresentati
     }
 
     // Applies weapon knockback to a damage receiver after a successful hit.
-    protected void ApplyKnockback(IDamageable damageable, Vector3 impactOrigin, int damage, float scale)
+    protected void ApplyKnockback(IDamageable damageable, Vector3 impactOrigin, int damage, float scale, WeaponStatMode? mode = null)
     {
-        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, scale);
+        float knockback = WeaponMath.CalculateKnockback(Stats, Runtime, damage, scale, mode: mode);
         EnemyKnockbackReceiver.TryApply(damageable, impactOrigin, knockback);
     }
 }

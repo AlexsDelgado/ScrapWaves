@@ -58,6 +58,16 @@ public static class WeaponMath
     public static float GetManualAmmoCapacity(WeaponInstance instance, float ammoScale = 1f)
     {
         if (instance?.Data == null) return 0f;
+        WeaponResolvedStat authored = WeaponStatAuthoringResolver.ResolveModeValue(instance,
+            WeaponStatMode.Manual, WeaponStatField.AmmoCapacity, 0f);
+        if (authored.IsAuthored)
+        {
+            // Explicit capacity replaces the selected neutral capacity. A legacy path
+            // override's player-scaling bypass remains part of that path's contract.
+            WeaponUpgradePathData selectedPath = GetPathData(instance);
+            return selectedPath != null && selectedPath.ManualAmmoOverride >= 0f
+                ? authored.Value : authored.Value * ammoScale;
+        }
         float ammo = Mathf.Max(0f, instance.Data.BaseManualAmmo) * ammoScale;
 
         WeaponLevelData levelData = GetLevelData(instance);
@@ -89,23 +99,13 @@ public static class WeaponMath
         if (instance?.Data == null)
             return 0f;
 
-        float baseCooldown = Mathf.Max(0f, instance.Data.SkillCooldown);
+        float baseCooldown = WeaponStatAuthoringResolver.ResolveAbilityCooldownSeconds(instance).Value;
         float reduction = GetAbilityCooldownReduction(stats);
         return baseCooldown * (1f - reduction);
     }
 
-    public static float GetActiveAbilityAmmoCost(WeaponInstance instance)
-    {
-        if (instance?.Data == null)
-            return 0f;
-
-        if (instance.HasAdvancedPath
-            && instance.Data.WeaponType == WeaponType.AutomaticCannon
-            && instance.SelectedPath == WeaponUpgradePath.PathA)
-            return 80f;
-
-        return Mathf.Max(0f, instance.Data.ActiveAbilityAmmoCost);
-    }
+    public static float GetActiveAbilityAmmoCost(WeaponInstance instance) =>
+        WeaponStatAuthoringResolver.ResolveAbilityAmmoCost(instance).Value;
 
     public static float GetAbilityCooldownReduction(PlayerStats stats)
     {
@@ -116,15 +116,22 @@ public static class WeaponMath
     }
 
     // Calculates a gameplay-friendly impulse from weapon tuning, damage, player stat, and caller scale.
-    public static float CalculateKnockback(PlayerStats stats, WeaponInstance instance, int damage, float scale = 1f, float falloffScale = 1f)
+    public static float CalculateKnockback(PlayerStats stats, WeaponInstance instance, int damage, float scale = 1f, float falloffScale = 1f, WeaponStatMode? mode = null)
     {
         if (instance?.Data == null || scale <= 0f || falloffScale <= 0f)
             return 0f;
+        WeaponStatMode resolvedMode = mode ?? WeaponStatAuthoringResolver.GetImmediateMode(instance);
+        float baseKnockback = WeaponStatAuthoringResolver.ResolveModeValue(instance, resolvedMode,
+            WeaponStatField.KnockbackStrength, Mathf.Max(0f, instance.Data.BaseKnockback)).Value;
+        return CalculateKnockbackFromStrength(stats, baseKnockback, damage, scale, falloffScale);
+    }
 
-        float baseKnockback = Mathf.Max(0f, instance.Data.BaseKnockback);
+    public static float CalculateKnockbackFromStrength(PlayerStats stats, float baseKnockback, int damage, float scale = 1f, float falloffScale = 1f)
+    {
+        if (scale <= 0f || falloffScale <= 0f) return 0f;
         float statKnockback = GetStatScale(stats, StatType.Knockback);
         float damageFactor = 1f + Mathf.Sqrt(Mathf.Max(0, damage)) * 0.25f;
-        return baseKnockback * statKnockback * Mathf.Max(0f, scale) * Mathf.Max(0f, falloffScale) * damageFactor;
+        return Mathf.Max(0f, baseKnockback) * statKnockback * Mathf.Max(0f, scale) * Mathf.Max(0f, falloffScale) * damageFactor;
     }
 
     // Calculates final attack-rate scalar from level and selected path.

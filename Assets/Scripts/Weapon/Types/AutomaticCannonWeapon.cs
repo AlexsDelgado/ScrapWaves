@@ -3,6 +3,34 @@ using UnityEngine;
 
 public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 {
+    public override float? GetManualAimConvergenceDistance()
+    {
+        if (Runtime?.Data == null) return null;
+        WeaponResolvedStat range = GetManualProjectileRange();
+        return range.IsAuthored ? range.Value : null;
+    }
+
+    public override WeaponGeometrySnapshot CaptureGeometry()
+    {
+        if (Runtime?.Data == null) return null;
+        var guides = new List<WeaponGeometryGuide>
+        {
+            CreateAutomaticTargetingGuide(GetAutomaticAcquisitionRange())
+        };
+        float manualRange = IsHeadHunterPath() ? GetHeadHunterManualRange() : GetManualProjectileRange().Value;
+        if (!float.IsInfinity(manualRange))
+            guides.Add(new(WeaponStatMode.Manual, WeaponGeometryPurpose.ProjectilePath, WeaponGeometryShape.Line,
+                WeaponGeometryAnchor.Muzzle, rangeMeters: manualRange));
+        if (IsHeadHunterPath())
+        {
+            guides.Add(new(WeaponStatMode.Automatic, WeaponGeometryPurpose.ProjectilePath, WeaponGeometryShape.Line,
+                WeaponGeometryAnchor.Muzzle, rangeMeters: GetHeadHunterProjectileRange()));
+            guides.Add(new(WeaponStatMode.Ability, WeaponGeometryPurpose.ProjectilePath, WeaponGeometryShape.Line,
+                WeaponGeometryAnchor.Muzzle, rangeMeters: GetHeadHunterActivePierceRange()));
+        }
+        return new WeaponGeometrySnapshot(guides.ToArray());
+    }
+
     protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
     {
         AutomaticCannonTuning t = Runtime.Data.AutomaticCannon;
@@ -10,11 +38,11 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         float eliteScale = headHunter ? GetHeadHunterEnemyTypeScale(WeaponEnemyKind.Elite) : 1f;
         float bossScale = headHunter ? GetHeadHunterEnemyTypeScale(WeaponEnemyKind.Boss) : 1f;
         var automatic = DiagnosticMode("Automatic", headHunter ? 1f : GetHeatDamageMultiplier(),
-            GetAutomaticFireInterval(t), Runtime.Data.BaseRange, GetAutomaticShotCount(t), 0f,
+            GetAutomaticFireInterval(t), GetAutomaticAcquisitionRange(), GetAutomaticShotCount(t), 0f,
             eliteDamageScale: eliteScale, bossDamageScale: bossScale);
         var manual = DiagnosticMode("Manual", 1f,
             GetManualFireInterval(t),
-            headHunter ? GetHeadHunterProjectileRange() : Runtime.Data.BaseRange,
+            headHunter ? GetHeadHunterManualRange() : GetManualProjectileRange().Value,
             GetManualShotCount(t), GetManualShotCount(t), eliteDamageScale: eliteScale, bossDamageScale: bossScale);
         int activeCount = headHunter ? 1 : IsContinuousFirePath() ? GetContinuousFireActiveBulletCount()
             : Mathf.Max(1, t.CannonActiveBaseBulletCount) + GetActiveHeatBonusBulletCount(t);
@@ -24,21 +52,24 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         automatic.Add("Burst shot spacing", GetLineBurstShotInterval(t.CannonAutoLineSpacing), " s");
         manual.Add("Burst shot spacing", GetLineBurstShotInterval(t.CannonManualLineSpacing), " s")
             .Add("Ammo constraint", "Volley is limited by remaining ammo");
+        if (!headHunter)
+            manual.Add("Projectile lifetime", GetManualProjectileLifetime().Value, " s")
+                .Add("Travel limit", "Ends at the first of its maximum distance, lifetime, or collision");
         if (headHunter)
         {
             automatic.Add("Pierce limit", GetHeadHunterPierceLimit());
             manual.Add("Pierce limit", GetHeadHunterPierceLimit()).Add("Weak-point multiplier", GetHeadHunterWeakPointScale(), "x")
                 .Add("Trigger", "One shot per click");
             foreach (var section in new[] { automatic, manual, active })
-                section.Add("Enemy-type multipliers", "Elite 2x / Boss 3x, in addition to player elite multiplier");
-            automatic.Add("Pierce damage", "First target 100%; each subsequent target loses 10 percentage points");
-            manual.Add("Pierce damage", "First target 100%; each subsequent target loses 10 percentage points");
+                section.Add("Elite damage multiplier", eliteScale, "x").Add("Boss damage multiplier", bossScale, "x");
+            automatic.Add("Second target damage multiplier", GetHeadHunterPierceDamageScale(1), "x");
+            manual.Add("Second target damage multiplier", GetHeadHunterPierceDamageScale(1), "x");
             active.Add("Charge time", GetHeadHunterActiveChargeSeconds(), " s").Add("Pierce limit", "Unlimited");
         }
         else if (IsContinuousFirePath())
             active.Add("Duration", GetContinuousFireActiveDuration(), " s")
                 .Add("Bullets / second", GetContinuousFireActiveBulletsPerSecond());
-        else active.Add("Scatter radius", t.CannonAbilityScatterRadius, " m");
+        if (!headHunter) active.Add("Projectile scatter", t.CannonAbilityScatterRadius, " degrees");
         sections.Add(automatic); sections.Add(manual); sections.Add(active);
     }
 
@@ -53,6 +84,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private readonly List<Transform> _piercingTargets = new();
     private readonly List<Vector3> _piercingHitOrigins = new();
+    private readonly List<Transform> _piercingCandidates = new();
+    private readonly List<Collider> _piercingCandidateColliders = new();
     private readonly List<PendingHeadHunterImpact> _pendingHeadHunterImpacts = new();
     private readonly List<PendingHeadHunterWorldImpact> _pendingHeadHunterWorldImpacts = new();
     private readonly Vector3[] _piercingLine = new Vector3[2];
@@ -143,7 +176,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (Spawn == null)
             return;
 
-        float targetRange = Mathf.Max(0f, Runtime.Data.BaseRange);
+        float targetRange = GetAutomaticAcquisitionRange();
         if (!Targeting.TryGetTarget(Runtime, Owner, targetRange, aimDirection, out Transform target))
         {
             ClearFireOriginAim();
@@ -251,7 +284,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             FireHeadHunterPiercingLine(
                 aimDirection,
                 GetHeadHunterPierceLimit(),
-                GetHeadHunterProjectileRange(),
+                GetHeadHunterManualRange(),
                 allowWeakPointHits: true,
                 isAbilityDamage: false,
                 label: null);
@@ -337,13 +370,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     protected override float GetHeatFireRateMultiplier() => 1f;
 
     // Critical hits deal double the normal critical damage effect.
-    protected override float GetCritMultiplierOverride()
-    {
-        float multiplier = Runtime?.Data != null ? Runtime.Data.AutomaticCannon.CannonCriticalDamageMultiplierOverride : AutomaticCannonTuning.Defaults.CannonCriticalDamageMultiplierOverride;
-        if (Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathB)
-            multiplier *= 1.5f;
-        return multiplier;
-    }
+    protected override float GetCritMultiplierOverride() => Runtime?.Data != null
+        ? WeaponStatAuthoringResolver.GetLegacyCriticalDamageMultiplier(Runtime)
+        : AutomaticCannonTuning.Defaults.CannonCriticalDamageMultiplierOverride;
 
     // Converts 25/50/75 heat thresholds into stacking damage bonuses.
     private float GetHeatDamageMultiplier()
@@ -380,8 +409,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (!IsContinuousFirePath())
             return 1f;
 
-        float heatPercent = Heat != null ? Heat.NormalizedHeat * 100f : 0f;
-        float heatBonus = Mathf.Floor(heatPercent / 2f) * 0.01f;
+        float heat = Heat != null ? Heat.NormalizedHeat : 0f;
+        float heatStep = WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.ContinuousModeHeatStep ?? default, 0.02f).Value;
+        float speedBonus = WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.ContinuousModeHeatSpeedBonus ?? default, 0.01f).Value;
+        bool authoredHeat = (Authored?.ContinuousModeHeatStep.Enabled ?? false) || (Authored?.ContinuousModeHeatSpeedBonus.Enabled ?? false);
+        float heatBonus = authoredHeat ? Mathf.Floor(heat / heatStep) * speedBonus
+            : Mathf.Floor((heat * 100f) / 2f) * 0.01f;
         return 1.25f + heatBonus;
     }
 
@@ -390,8 +423,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         if (!IsContinuousFirePath())
             return 1f;
 
-        float heatPercent = Heat != null ? Heat.NormalizedHeat * 100f : 0f;
-        float heatBonus = Mathf.Floor(heatPercent / 2f) * 0.01f;
+        float heat = Heat != null ? Heat.NormalizedHeat : 0f;
+        float heatStep = WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.ContinuousModeHeatStep ?? default, 0.02f).Value;
+        float speedBonus = WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.ContinuousModeHeatSpeedBonus ?? default, 0.01f).Value;
+        bool authoredHeat = (Authored?.ContinuousModeHeatStep.Enabled ?? false) || (Authored?.ContinuousModeHeatSpeedBonus.Enabled ?? false);
+        float heatBonus = authoredHeat ? Mathf.Floor(heat / heatStep) * speedBonus
+            : Mathf.Floor((heat * 100f) / 2f) * 0.01f;
         return Mathf.Max(0.01f, tuning.ContinuousFireAutoAttackSpeedMultiplier) + heatBonus;
     }
 
@@ -415,14 +452,53 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         return 1f;
     }
 
-    private float GetManualFireInterval(AutomaticCannonTuning tuning) =>
-        AutomaticCannonFireLogic.GetManualBurstInterval(tuning.CannonManualBurstsPerSecond,
+    private WeaponCannonStatOverrides Authored => WeaponStatAuthoringResolver.GetLevelRow(Runtime)?.Cannon;
+
+    private float GetAutomaticAcquisitionRange() => WeaponStatAuthoringResolver.ResolveModeValue(
+        Runtime, WeaponStatMode.Automatic, WeaponStatField.RangeMeters, Runtime.Data.BaseRange).Value;
+
+    // Inherit deliberately leaves ordinary manual projectiles without a distance cap.
+    private WeaponResolvedStat GetManualProjectileRange() => WeaponStatAuthoringResolver.ResolveModeValue(
+        Runtime, WeaponStatMode.Manual, WeaponStatField.RangeMeters, float.PositiveInfinity);
+
+    private WeaponResolvedStat GetManualProjectileLifetime() => WeaponStatAuthoringResolver.ResolveOptional(
+        Runtime, Authored?.ManualProjectileLifetimeSeconds ?? default, Pool != null ? Pool.ProjectileLifetime : 3f);
+
+    private float GetHeadHunterManualRange() => WeaponStatAuthoringResolver.ResolveModeValue(
+        Runtime, WeaponStatMode.Manual, WeaponStatField.RangeMeters, GetHeadHunterProjectileRange()).Value;
+
+    private float GetManualFireInterval(AutomaticCannonTuning tuning)
+    {
+        float pathNeutral = IsContinuousFirePath() ? 1.25f * Mathf.Max(1, tuning.CannonManualBurstCount)
+            : IsHeadHunterPath() ? 1.75f : 1f;
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Manual,
+            WeaponStatField.AttackCyclesPerSecond,
+            tuning.CannonManualBurstsPerSecond * WeaponMath.GetAttackRateMultiplier(Runtime) * pathNeutral);
+        if (rate.IsAuthored)
+        {
+            float heatScale = IsContinuousFirePath() ? GetContinuousFireAttackSpeedMultiplier() / 1.25f : 1f;
+            return 1f / (rate.Value * WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier) * heatScale);
+        }
+        return AutomaticCannonFireLogic.GetManualBurstInterval(tuning.CannonManualBurstsPerSecond,
             WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier),
             WeaponMath.GetAttackRateMultiplier(Runtime) * GetManualAttackSpeedPathMultiplier());
+    }
 
     private float GetAutomaticFireInterval(AutomaticCannonTuning tuning)
     {
         float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float pathNeutral = IsContinuousFirePath()
+            ? Mathf.Max(0.01f, tuning.ContinuousFireAutoAttackSpeedMultiplier) * Mathf.Max(1, tuning.CannonAutoBurstCount)
+            : IsHeadHunterPath() ? Mathf.Max(0.01f, tuning.HeadHunterAutoAttackSpeedMultiplier) : 1f;
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Automatic,
+            WeaponStatField.AttackCyclesPerSecond,
+            tuning.CannonAutoBurstsPerSecond * WeaponMath.GetAttackRateMultiplier(Runtime) * pathNeutral);
+        if (rate.IsAuthored)
+        {
+            float heatScale = IsContinuousFirePath() ? GetContinuousFireAutoAttackSpeedMultiplier(tuning)
+                / Mathf.Max(0.01f, tuning.ContinuousFireAutoAttackSpeedMultiplier) : 1f;
+            return 1f / (rate.Value * attackSpeed * heatScale);
+        }
         float weaponRate = WeaponMath.GetAttackRateMultiplier(Runtime);
         float burstsPerSecond = Mathf.Max(0.01f, tuning.CannonAutoBurstsPerSecond);
         float interval = 1f / Mathf.Max(0.05f, burstsPerSecond * attackSpeed * weaponRate);
@@ -455,18 +531,22 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private float GetContinuousFireActiveDuration()
     {
-        float heatBonus = Heat != null ? Mathf.Floor(Heat.NormalizedHeat * 2f) : 0f;
-        return 2f + heatBonus;
+        float heatSteps = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.ContinuousAbilityHeatDurationSteps ?? default, 2f).Value;
+        float heatBonus = Heat != null ? Mathf.Floor(Heat.NormalizedHeat * heatSteps) : 0f;
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.ContinuousAbilityDurationSeconds ?? default, 2f).Value + heatBonus;
     }
 
     private float GetContinuousFireActiveBulletsPerSecond()
     {
-        return ContinuousFireActiveBulletsPerSecond;
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.ContinuousAbilityBulletsPerSecond ?? default, ContinuousFireActiveBulletsPerSecond).Value;
     }
 
     private int GetContinuousFireActiveBulletCount()
     {
-        return Mathf.Max(1, Mathf.RoundToInt(GetContinuousFireActiveBulletsPerSecond() * GetContinuousFireActiveDuration()));
+        return Mathf.Max(0, Mathf.RoundToInt(GetContinuousFireActiveBulletsPerSecond() * GetContinuousFireActiveDuration()));
     }
 
     private float GetActiveAbilityAmmoCost()
@@ -480,8 +560,14 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return 1f;
 
         float heat = Heat != null ? Heat.NormalizedHeat : 0f;
-        int extraSteps = Mathf.FloorToInt(heat / 0.2f);
-        return Mathf.Clamp(5f + extraSteps, 5f, 10f);
+        float baseMultiplier = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.HeadHunterWeakPointMultiplier ?? default, 5f).Value;
+        float heatStep = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.HeadHunterWeakPointHeatStep ?? default, 0.2f).Value;
+        float maximum = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.HeadHunterWeakPointMaximum ?? default, 10f).Value;
+        int extraSteps = Mathf.FloorToInt(heat / heatStep);
+        return Mathf.Min(baseMultiplier + extraSteps, maximum);
     }
 
     private int GetContinuousFireBonus()
@@ -504,25 +590,26 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     {
         return kind switch
         {
-            WeaponEnemyKind.Boss => 3f,
-            WeaponEnemyKind.Elite => 2f,
+            WeaponEnemyKind.Boss => WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.HeadHunterBossDamageMultiplier ?? default, 3f).Value,
+            WeaponEnemyKind.Elite => WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.HeadHunterEliteDamageMultiplier ?? default, 2f).Value,
             _ => 1f
         };
     }
 
     private int GetHeadHunterPierceLimit()
     {
-        return 10;
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.HeadHunterPierceTargetCount ?? default, 10).Value;
     }
 
     private float GetHeadHunterPierceDamageScale(int pierceIndex)
     {
-        return Mathf.Clamp01(1f - Mathf.Max(0, pierceIndex) * 0.1f);
+        return Mathf.Clamp01(1f - Mathf.Max(0, pierceIndex) * WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.HeadHunterPierceDamageLossPerTarget ?? default, 0.1f).Value);
     }
 
     private float GetHeadHunterActiveChargeSeconds()
     {
-        return 1f;
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.HeadHunterAbilityChargeSeconds ?? default, 1f).Value;
     }
 
     private float GetHeadHunterProjectileRange()
@@ -538,7 +625,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
     private float GetHeadHunterActivePierceRange()
     {
         float baseRange = Runtime?.Data != null ? Mathf.Max(0f, Runtime.Data.BaseRange) : 0f;
-        return Mathf.Max(HeadHunterActiveMinimumRange, baseRange);
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.HeadHunterAbilityPierceRangeMeters ?? default,
+            Mathf.Max(HeadHunterActiveMinimumRange, baseRange)).Value;
     }
 
     private float GetHeadHunterDamageScale(WeaponEnemyKind kind, int pierceIndex, bool weakPointHit, bool isActiveAbility)
@@ -817,7 +905,12 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 shotDistance / Mathf.Max(0.01f, projectileSpeed));
         }
 
-        int hitCount = EnemyRegistry.CollectClosestNearPolyline(
+        // An authored total count means the first targets along the shot. Disabled count
+        // authoring (including loss-only edits) retains the legacy selection and ordering.
+        bool authoredCount = !isAbilityDamage && (Authored?.HeadHunterPierceTargetCount.Enabled ?? false);
+        int hitCount = authoredCount
+            ? CollectAuthoredHeadHunterTargets(origin, direction, Mathf.Max(1, maxTargets))
+            : EnemyRegistry.CollectClosestNearPolyline(
             _piercingLine,
             _piercingLine.Length,
             HeadHunterPierceRadius,
@@ -860,10 +953,64 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 i,
                 GetHeadHunterImpactDelay(origin, direction, i, projectileSpeed),
                 actionSequenceId,
-                damageContext.ReferenceDamage);
+                damageContext.ReferenceDamage,
+                damageContext);
         }
 
         DamageFeedbackSequenceRuntime.CompleteSequence(actionSequenceId);
+    }
+
+    private int CollectAuthoredHeadHunterTargets(Vector3 origin, Vector3 direction, int maxTargets)
+    {
+        _piercingTargets.Clear();
+        _piercingHitOrigins.Clear();
+        EnemyRegistry.CollectActive(_piercingCandidates);
+        float radiusSqr = HeadHunterPierceRadius * HeadHunterPierceRadius;
+        // Validation caps the authored total at 1024. Examine every active candidate,
+        // retaining only the nearest maxTargets; never truncate registration order first.
+        foreach (Transform candidate in _piercingCandidates)
+        {
+            // Match CollectClosestNearPolyline's transform/collider eligibility, including
+            // its fallback to the transform and the closest point on the bounded segment.
+            Vector3 closest = ClosestHeadHunterLinePoint(candidate.position);
+            float distanceSqr = (candidate.position - closest).sqrMagnitude;
+            candidate.GetComponentsInChildren(false, _piercingCandidateColliders);
+            foreach (Collider collider in _piercingCandidateColliders)
+            {
+                if (collider == null || !collider.enabled) continue;
+                Vector3 linePoint = ClosestHeadHunterLinePoint(collider.bounds.center);
+                float colliderDistanceSqr = (linePoint - collider.ClosestPoint(linePoint)).sqrMagnitude;
+                if (colliderDistanceSqr >= distanceSqr) continue;
+                distanceSqr = colliderDistanceSqr;
+                closest = linePoint;
+            }
+            _piercingCandidateColliders.Clear();
+            if (distanceSqr > radiusSqr) continue;
+
+            float alongShot = Vector3.Dot(closest - origin, direction);
+            int index = 0;
+            while (index < _piercingHitOrigins.Count
+                && Vector3.Dot(_piercingHitOrigins[index] - origin, direction) <= alongShot) index++;
+            if (index >= maxTargets) continue;
+            _piercingTargets.Insert(index, candidate);
+            _piercingHitOrigins.Insert(index, closest);
+            if (_piercingTargets.Count > maxTargets)
+            {
+                _piercingTargets.RemoveAt(maxTargets);
+                _piercingHitOrigins.RemoveAt(maxTargets);
+            }
+        }
+        _piercingCandidates.Clear();
+        return _piercingTargets.Count;
+    }
+
+    private Vector3 ClosestHeadHunterLinePoint(Vector3 point)
+    {
+        Vector3 segment = _piercingLine[1] - _piercingLine[0];
+        float denominator = segment.sqrMagnitude;
+        if (denominator <= 0.0001f) return _piercingLine[0];
+        float fraction = Mathf.Clamp01(Vector3.Dot(point - _piercingLine[0], segment) / denominator);
+        return _piercingLine[0] + segment * fraction;
     }
 
     private bool TrySpawnHeadHunterProjectileVisual(
@@ -889,7 +1036,17 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             && projectile != null)
         {
             projectileSpeed = Mathf.Max(0.01f, projectile.ActiveSpeed);
-            projectile.ConfigureMaxTravel(Mathf.Max(0.01f, maxTravelDistance), explodeOnMaxTravel: false);
+            bool authoredReach = isAbility
+                ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.HeadHunterAbilityPierceRangeMeters ?? default,
+                    HeadHunterActiveMinimumRange).IsAuthored
+                : Runtime.State == WeaponState.Manual && WeaponStatAuthoringResolver.ResolveModeValue(
+                    Runtime, WeaponStatMode.Manual, WeaponStatField.RangeMeters, GetHeadHunterProjectileRange()).IsAuthored;
+            projectile.ConfigureMaxTravel(Mathf.Max(0.01f, maxTravelDistance), explodeOnMaxTravel: false, clampEndpoint: authoredReach);
+            if (authoredReach)
+            {
+                float visualLifetime = maxTravelDistance / projectileSpeed * Mathf.Max(0.05f, DebugSpeedTool.ProjectileScale) + 0.05f;
+                projectile.ConfigureLifetime(Mathf.Max(Pool.ProjectileLifetime, visualLifetime));
+            }
             if (Presentation is IWeaponFeedbackSink semantic)
             {
                 WeaponFeedbackContext feedback = CreateFeedbackContext(
@@ -980,7 +1137,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         int pierceIndex,
         float delay,
         int actionSequenceId,
-        float referenceDamage)
+        float referenceDamage,
+        WeaponDamageContext damageContext)
     {
         if (target == null || damage <= 0)
         {
@@ -1002,7 +1160,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             PierceIndex = Mathf.Max(0, pierceIndex),
             RemainingDelay = Mathf.Max(0f, delay),
             ActionSequenceId = actionSequenceId,
-            ReferenceDamage = Mathf.Max(0f, referenceDamage)
+            ReferenceDamage = Mathf.Max(0f, referenceDamage),
+            DamageContext = damageContext
         });
     }
 
@@ -1112,7 +1271,8 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             sourceWeaponId: weaponId);
         if (result.Applied)
         {
-            ApplyKnockback(damageable, impact.ImpactOrigin, impact.Damage, 1f);
+            EnemyKnockbackReceiver.TryApply(damageable, impact.ImpactOrigin,
+                impact.DamageContext.CalculateKnockback(impact.Damage));
             if (impact.WeakPointHit)
                 WeaponWeakPointFeedback.NotifyWeakPointHit();
 
@@ -1219,6 +1379,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         public float RemainingDelay;
         public int ActionSequenceId;
         public float ReferenceDamage;
+        public WeaponDamageContext DamageContext;
     }
 
     private struct PendingHeadHunterWorldImpact
@@ -1552,13 +1713,17 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
         DamageFeedbackKind damageKind = DamageFeedbackKind.Direct,
         WeaponFeedbackMode? feedbackMode = null)
     {
+        WeaponFeedbackMode capturedMode = feedbackMode ?? GetFeedbackMode(isAbilityDamage);
+        WeaponStatMode statMode = capturedMode == WeaponFeedbackMode.Active ? WeaponStatMode.Ability
+            : capturedMode == WeaponFeedbackMode.Manual ? WeaponStatMode.Manual : WeaponStatMode.Automatic;
         bool spawned = FireFromPositionInDirection(
             position,
             direction,
             damageScale,
             eliteOrBoss,
             out Projectile projectile,
-            isAbilityDamage);
+            isAbilityDamage,
+            mode: statMode);
         if (!spawned || projectile == null)
         {
             if (actionSequenceId != 0)
@@ -1566,6 +1731,15 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
             return false;
         }
 
+        if (statMode == WeaponStatMode.Manual)
+        {
+            WeaponResolvedStat range = GetManualProjectileRange();
+            if (range.IsAuthored)
+                projectile.ConfigureMaxTravel(range.Value, explodeOnMaxTravel: false, clampEndpoint: true);
+            WeaponResolvedStat lifetime = GetManualProjectileLifetime();
+            if (lifetime.IsAuthored)
+                projectile.ConfigureLifetime(lifetime.Value);
+        }
         projectile.ConfigureDamageFeedback(
             actionSequenceId,
             damageKind,

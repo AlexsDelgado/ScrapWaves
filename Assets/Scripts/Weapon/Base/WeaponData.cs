@@ -211,6 +211,10 @@ public class WeaponData : ScriptableObject, IUnlockable
     public WeaponPresentationProfile PresentationProfile;
 
     [SerializeReference] private WeaponSpecificTuning _specificTuning;
+    // Switching the selected weapon type must not erase another type's authored payload.
+    [SerializeReference, HideInInspector] private List<WeaponSpecificTuning> _retainedSpecificTunings = new();
+
+    public WeaponStatProfile StatProfile = new();
 
     [Header("Meta / Desbloqueo")]
     [Tooltip("Todo el contenido existente arranca desbloqueado; tildar en falso solo en armas nuevas que deban pasar por el sistema de logros/tienda.")]
@@ -276,15 +280,28 @@ public class WeaponData : ScriptableObject, IUnlockable
     {
         WeaponSpecificTuning expected = CreateSpecificTuning(WeaponType);
         if (expected == null)
-        {
-            _specificTuning = null;
             return;
+        if (_specificTuning != null && _specificTuning.GetType() == expected.GetType())
+            return;
+
+        _retainedSpecificTunings ??= new List<WeaponSpecificTuning>();
+        if (_specificTuning != null)
+        {
+            Type previousType = _specificTuning.GetType();
+            _retainedSpecificTunings.RemoveAll(tuning => tuning != null && tuning.GetType() == previousType);
+            _retainedSpecificTunings.Add(_specificTuning);
         }
 
-        if (_specificTuning == null || _specificTuning.GetType() != expected.GetType())
+        Type expectedType = expected.GetType();
+        int retainedIndex = _retainedSpecificTunings.FindIndex(tuning => tuning != null && tuning.GetType() == expectedType);
+        if (retainedIndex >= 0)
+        {
+            _specificTuning = _retainedSpecificTunings[retainedIndex];
+            _retainedSpecificTunings.RemoveAt(retainedIndex);
+        }
+        else
             _specificTuning = expected;
     }
-
     private void OnValidate()
     {
         EnsureSpecificTuningForCurrentType();

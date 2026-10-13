@@ -75,6 +75,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
     private MaterialPropertyBlock _propertyBlock;
     private PuddlePool _pool;
     private bool _visualReady;
+    private bool _exactDimensions;
 
     public float GameplayRadius => _radius;
     public int MeshLayerCount => (_fillRenderer != null ? 1 : 0) + (_edgeRenderer != null ? 1 : 0);
@@ -96,7 +97,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
         float tickInterval,
         WeaponDamageContext damageContext,
         IWeaponFeedbackSink feedbackSink = null,
-        WeaponFeedbackMode feedbackMode = WeaponFeedbackMode.Automatic)
+        WeaponFeedbackMode feedbackMode = WeaponFeedbackMode.Automatic,
+        bool exactDimensions = false)
     {
         FlamethrowerFuelPuddle puddle = CreateFallback();
         puddle.Configure(
@@ -107,7 +109,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
             tickInterval,
             damageContext,
             feedbackSink,
-            feedbackMode);
+            feedbackMode,
+            exactDimensions);
         return puddle;
     }
 
@@ -122,7 +125,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
         float tickInterval,
         WeaponDamageContext damageContext,
         IWeaponFeedbackSink feedbackSink = null,
-        WeaponFeedbackMode feedbackMode = WeaponFeedbackMode.Automatic)
+        WeaponFeedbackMode feedbackMode = WeaponFeedbackMode.Automatic,
+        bool exactDimensions = false)
     {
         if (prefab == null)
         {
@@ -134,7 +138,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
                 tickInterval,
                 damageContext,
                 feedbackSink,
-                feedbackMode);
+                feedbackMode,
+                exactDimensions);
         }
 
         int key = prefab.GetInstanceID();
@@ -172,7 +177,8 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
             tickInterval,
             damageContext,
             feedbackSink,
-            feedbackMode);
+            feedbackMode,
+            exactDimensions);
         return puddle;
     }
 
@@ -202,12 +208,14 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
         float tickInterval,
         WeaponDamageContext damageContext,
         IWeaponFeedbackSink feedbackSink,
-        WeaponFeedbackMode feedbackMode)
+        WeaponFeedbackMode feedbackMode,
+        bool exactDimensions = false)
     {
         EnsureVisual();
-        _radius = Mathf.Max(0.1f, radius);
+        _exactDimensions = exactDimensions;
+        _radius = Mathf.Max(exactDimensions ? 0f : 0.1f, radius);
         _damagePerTick = Mathf.Max(1, damagePerTick);
-        _initialDuration = Mathf.Max(0.1f, duration);
+        _initialDuration = Mathf.Max(exactDimensions ? 0f : 0.1f, duration);
         _remainingDuration = _initialDuration;
         _tickInterval = Mathf.Max(0.05f, tickInterval);
         _tickTimer = 0f;
@@ -237,11 +245,14 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
 
     private void Awake() => EnsureVisual();
 
-    private void Update()
+    private void Update() => Simulate(Time.deltaTime);
+
+    /// <summary>The same frame step used by runtime and deterministic lifecycle tests.</summary>
+    public void Simulate(float deltaTime)
     {
-        _remainingDuration -= Time.deltaTime;
-        _tickTimer -= Time.deltaTime;
-        _statusSegmentElapsed += Time.deltaTime;
+        _remainingDuration -= deltaTime;
+        _tickTimer -= deltaTime;
+        _statusSegmentElapsed += deltaTime;
         if (_tickTimer <= 0f && _remainingDuration > 0f)
         {
             if (_statusSegmentElapsed >= MaximumTallySegmentDuration)
@@ -509,11 +520,11 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
         // Authored particle radii are suitable for the small on-hit puddle, but the
         // active ability can create a much larger pool. Fill each particle shape
         // from the actual damage radius so bubbles and smoke cover the whole pool.
-        SetParticleCoverage(_bubbles, _radius * 0.9f, 1f);
-        SetParticleCoverage(_darkSmoke, _radius * 0.82f, 0.86f);
+        SetParticleCoverage(_bubbles, _radius * 0.9f, 1f, _exactDimensions ? 0f : 0.05f);
+        SetParticleCoverage(_darkSmoke, _radius * 0.82f, 0.86f, _exactDimensions ? 0f : 0.05f);
     }
 
-    private static void SetParticleCoverage(ParticleSystem particles, float radius, float radiusThickness)
+    private static void SetParticleCoverage(ParticleSystem particles, float radius, float radiusThickness, float minimumRadius)
     {
         if (particles == null)
             return;
@@ -521,7 +532,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
         // Unity's Circle shape is authored in its local XY plane. Rotate it onto
         // the ground so emission covers both world X and Z and travels upward.
         shape.rotation = new Vector3(-90f, 0f, 0f);
-        shape.radius = Mathf.Max(0.05f, radius);
+        shape.radius = Mathf.Max(minimumRadius, radius);
         shape.radiusThickness = Mathf.Clamp01(radiusThickness);
     }
 
@@ -549,7 +560,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
         SetParticlesActive(false);
         if (_pool == null)
         {
-            Destroy(gameObject);
+            DestroyRuntimeObject(gameObject);
             return;
         }
         gameObject.SetActive(false);

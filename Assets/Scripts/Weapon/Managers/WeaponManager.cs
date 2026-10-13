@@ -370,10 +370,10 @@ public class WeaponManager : MonoBehaviour
     {
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
         WeaponInstance manualWeapon = GetCurrentManualWeapon();
-        float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
+        BasicProjectileWeapon geometrySource = GetCurrentManualBehaviour() as BasicProjectileWeapon;
         CurrentAimSolution = _reticleAimProvider != null
-            ? _reticleAimProvider.ResolveWeaponAim(spawn.position, manualWeapon)
-            : ReticleAimProvider.CreateFallback(spawn.position, fallbackDistance, Camera.main, transform.forward);
+            ? _reticleAimProvider.ResolveWeaponAim(spawn.position, manualWeapon, geometrySource)
+            : ReticleAimProvider.CreateWeaponFallback(spawn.position, manualWeapon, geometrySource, Camera.main, transform.forward);
         return CurrentAimSolution.Direction;
     }
 

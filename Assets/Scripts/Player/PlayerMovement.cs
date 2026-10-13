@@ -288,7 +288,7 @@ public class PlayerMovement : MonoBehaviour
         _slowTimer = Mathf.Max(_slowTimer, seconds);
     }
 
-    public void ApplyWeaponDash(Vector3 worldDirection, float speed, float seconds)
+    public void ApplyWeaponDash(Vector3 worldDirection, float speed, float seconds, bool restartTimer = false)
     {
         if (_rb == null || seconds <= 0f || speed <= 0f)
             return;
@@ -301,7 +301,7 @@ public class PlayerMovement : MonoBehaviour
         StopSlide(false);
         StopCrouch();
         _isDashing = true;
-        _dashTimer = Mathf.Max(_dashTimer, seconds);
+        _dashTimer = restartTimer ? seconds : Mathf.Max(_dashTimer, seconds);
 
         Vector3 desiredVelocity = direction * speed;
         _dashLaunchDirectionWorld = direction;

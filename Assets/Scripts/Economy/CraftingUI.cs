@@ -302,8 +302,12 @@ public class CraftingUI : MonoBehaviour
         WeaponMenuCopy copy = _content != null ? _content.Find(weapon.Data) : null;
         _view.AdvancedPathText.text = !available ? "No upgrade available"
             : _offeredPath == WeaponUpgradePath.PathA ? weapon.Data.PathA?.PathName : weapon.Data.PathB?.PathName;
-        _view.AdvancedDescriptionText.text = copy == null ? string.Empty
+        string description = copy == null ? string.Empty
             : _offeredPath == WeaponUpgradePath.PathA ? copy.PathADescription : copy.PathBDescription;
+        IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
+        IWeaponBehaviour behaviour = _selectedSlot < equipped.Count ? equipped[_selectedSlot] : null;
+        _view.AdvancedDescriptionText.text = available
+            ? CraftingUpgradePreview.DescribeAdvanced(behaviour, _offeredPath, description) : description;
         _view.AdvancedNoticeText.text = guaranteed ? "Other path guaranteed after your previous decline."
             : canDecline ? "Decline: pay this attempt's cost. Next try costs +50% with the other path guaranteed."
             : "Only one path is unlocked.";

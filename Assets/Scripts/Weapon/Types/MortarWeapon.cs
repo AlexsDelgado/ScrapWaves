@@ -2,31 +2,84 @@ using UnityEngine;
 
 public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 {
+    public override float? GetManualAimConvergenceDistance()
+    {
+        if (Runtime?.Data == null) return null;
+        WeaponResolvedStat range = WeaponStatAuthoringResolver.ResolveModeValue(
+            Runtime, WeaponStatMode.Manual, WeaponStatField.RangeMeters, Runtime.Data.BaseRange);
+        return range.IsAuthored ? range.Value : null;
+    }
+
+    public override WeaponGeometrySnapshot CaptureGeometry()
+    {
+        if (Runtime?.Data == null) return null;
+        MortarTuning tuning = Runtime.Data.Mortar;
+        float automaticRange = GetModeRange(WeaponStatMode.Automatic);
+        float manualRange = ManualRange;
+        bool grapeshot = IsGrapeshotPath();
+        WeaponGeometryPurpose ordinaryPurpose = grapeshot ? WeaponGeometryPurpose.Targeting : WeaponGeometryPurpose.Explosion;
+        WeaponGeometryShape ordinaryShape = grapeshot ? WeaponGeometryShape.Circle : WeaponGeometryShape.Sphere;
+        return new WeaponGeometrySnapshot(
+            new(WeaponStatMode.Automatic, WeaponGeometryPurpose.Targeting, WeaponGeometryShape.Circle,
+                WeaponGeometryAnchor.Owner, radiusMeters: automaticRange),
+            new(WeaponStatMode.Automatic, ordinaryPurpose, ordinaryShape, WeaponGeometryAnchor.Muzzle,
+                radiusMeters: GetModeFootprintRadius(WeaponStatMode.Automatic, tuning.MortarAutoExplosionRadius),
+                forwardOffsetMeters: automaticRange),
+            new(WeaponStatMode.Manual, WeaponGeometryPurpose.ProjectilePath, WeaponGeometryShape.Arc,
+                WeaponGeometryAnchor.Muzzle, rangeMeters: manualRange, arcHeightMeters: tuning.MortarArcHeight),
+            new(WeaponStatMode.Manual, ordinaryPurpose, ordinaryShape, WeaponGeometryAnchor.Muzzle,
+                radiusMeters: ManualFootprintRadius, forwardOffsetMeters: manualRange),
+            new(WeaponStatMode.Ability, WeaponGeometryPurpose.Targeting, WeaponGeometryShape.Circle,
+                WeaponGeometryAnchor.Muzzle, radiusMeters: GetBarrageRadius(tuning) * GetAreaSizeMultiplier(),
+                forwardOffsetMeters: Runtime.Data.BaseRange),
+            new(WeaponStatMode.Ability, WeaponGeometryPurpose.Explosion, WeaponGeometryShape.Sphere,
+                WeaponGeometryAnchor.Muzzle,
+                radiusMeters: GetExplosionRadius(WeaponStatMode.Ability, tuning.MortarActiveExplosionRadius) * GetAreaSizeMultiplier(),
+                forwardOffsetMeters: Runtime.Data.BaseRange));
+    }
+
     protected override void CollectDiagnostics(System.Collections.Generic.List<WeaponDiagnosticSection> sections)
     {
         MortarTuning t = Runtime.Data.Mortar;
-        var automatic = DiagnosticMode("Automatic", 1f, GetFireInterval(), Runtime.Data.BaseRange, 1, 0f);
-        var manual = DiagnosticMode("Manual", 1f, GetManualFireInterval(), Runtime.Data.BaseRange, 1, 1f);
+        bool grapeshot = IsGrapeshotPath();
+        float pelletScale = grapeshot ? GetUpgradePayloadForMode(false, WeaponStatMode.Automatic).GrapeshotDamageScale : 1f;
+        var automatic = DiagnosticMode("Automatic", pelletScale, GetAutomaticFireInterval(), GetModeRange(WeaponStatMode.Automatic), 1, 0f,
+            knockbackScale: grapeshot ? 0.2f : -1f);
+        var manual = DiagnosticMode("Manual", pelletScale, GetManualFireInterval(), GetModeRange(WeaponStatMode.Manual), 1, 1f,
+            knockbackScale: grapeshot ? 0.2f : -1f);
         int count = IsGrapeshotPath() ? GetGrapeshotRainShellCount(t) : GetActiveShellCount(t);
-        var active = DiagnosticMode("Active Ability", t.MortarActiveDamageScale, 0f, Runtime.Data.BaseRange,
-            count, Runtime.Data.ActiveAbilityAmmoCost, true);
-        automatic.Add("Explosion radius", t.MortarAutoExplosionRadius * GetAreaSizeMultiplier(), " m")
+        var active = DiagnosticMode("Active Ability", 1f, 0f, Runtime.Data.BaseRange,
+            count, WeaponMath.GetActiveAbilityAmmoCost(Runtime), true, weaponDamageScale: t.MortarActiveDamageScale);
+        automatic.Add(IsGrapeshotPath() ? "Grapeshot target spread" : "Explosion radius",
+                GetModeFootprintRadius(WeaponStatMode.Automatic, t.MortarAutoExplosionRadius), " m")
             .Add("Travel time", t.MortarShellTravelTime, " s").Add("Accuracy radius", t.MortarAutoAccuracyRadius, " m");
-        manual.Add("Explosion radius", ManualExplosionRadius, " m").Add("Travel time", GetManualTravelTime(t), " s")
+        manual.Add(IsGrapeshotPath() ? "Grapeshot target spread" : "Explosion radius", ManualFootprintRadius, " m")
+            .Add("Travel time", GetManualTravelTime(t), " s")
             .Add("Accuracy radius", t.MortarManualAccuracyRadius, " m");
-        active.Add("Explosion radius", t.MortarActiveExplosionRadius * GetAreaSizeMultiplier(), " m")
-            .Add("Barrage radius", t.MortarBarrageRadius * GetAreaSizeMultiplier(), " m")
+        active.Add("Explosion radius", GetExplosionRadius(WeaponStatMode.Ability, t.MortarActiveExplosionRadius) * GetAreaSizeMultiplier(), " m")
+            .Add("Barrage radius", GetBarrageRadius(t) * GetAreaSizeMultiplier(), " m")
             .Add("First shell travel time", GetActiveShellTravelTime(t, 0), " s")
             .Add("Last shell travel time", GetActiveShellTravelTime(t, count - 1), " s");
         foreach (var section in new[] { automatic, manual, active })
         {
             section.Add("Explosion falloff", t.MortarExplosionFalloff);
-            MortarUpgradePayload payload = GetUpgradePayload(section == active);
+            WeaponStatMode mode = section == automatic ? WeaponStatMode.Automatic
+                : section == manual ? WeaponStatMode.Manual : WeaponStatMode.Ability;
+            MortarUpgradePayload payload = GetUpgradePayloadForMode(section == active, mode);
             section.Add("Explosion repetitions", payload.RepeatExplosionCount)
                 .Add("Repeat delay", payload.RepeatExplosionDelay, " s");
             if (payload.UseGrapeshot)
-                section.Add("Grapeshot count", payload.GrapeshotCount).Add("Grapeshot cone", payload.GrapeshotConeAngle, " degrees")
-                    .Add("Grapeshot damage scale", payload.GrapeshotDamageScale, "x");
+            {
+                section.Add("Grapeshot count", payload.GrapeshotCount)
+                    .Add("Grapeshot damage scale", payload.GrapeshotDamageScale, "x")
+                    .Add("Damage unit", "Per pellet; parent shell deals no damage");
+                if (Stats != null && Stats.GetDefinition(StatType.DamageMultiplier) != null
+                    && Stats.GetDefinition(StatType.EliteDamageMultiplier) != null)
+                {
+                    var source = new WeaponDamageContext(Stats, Runtime, false, 1f, 1f, false, 1f, mode: mode);
+                    section.Add("Source damage before split (non-critical)", source.EstimateDamage(false));
+                }
+            }
         }
         sections.Add(automatic); sections.Add(manual); sections.Add(active);
     }
@@ -36,9 +89,13 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
     private readonly RaycastHit[] _barragePredictionHits = new RaycastHit[32];
     private readonly RaycastHit[] _presentationSupportHits = new RaycastHit[16];
 
+    public float ManualRange => Runtime?.Data == null ? 0f : GetModeRange(WeaponStatMode.Manual);
     public float ManualExplosionRadius => Runtime?.Data == null
         ? 0f
-        : Runtime.Data.Mortar.MortarManualExplosionRadius * GetAreaSizeMultiplier();
+        : GetExplosionRadius(WeaponStatMode.Manual, Runtime.Data.Mortar.MortarManualExplosionRadius) * GetAreaSizeMultiplier();
+    public float ManualFootprintRadius => Runtime?.Data == null
+        ? 0f
+        : GetModeFootprintRadius(WeaponStatMode.Manual, Runtime.Data.Mortar.MortarManualExplosionRadius);
     public float ShellCollisionRadius => Runtime?.Data == null
         ? 0.01f
         : Runtime.Data.Mortar.MortarShellCollisionRadius * GetAreaSizeMultiplier();
@@ -71,7 +128,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         if (!EnemyRegistry.TryGetRandomOnPlaneWithinVerticalDelta(
                 Owner.position,
-                Runtime.Data.BaseRange,
+                GetModeRange(WeaponStatMode.Automatic),
                 ConfiguredEnemyTargeting.DefaultMaxAimVerticalDelta,
                 out Transform target))
         {
@@ -79,7 +136,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             return;
         }
 
-        FireTimer = GetFireInterval();
+        FireTimer = GetAutomaticFireInterval();
         Vector3 impact = EnemyRegistry.GetAimPoint(target) + RandomPlanarOffset(tuning.MortarAutoAccuracyRadius);
         AimFireOriginAt(null, impact);
         Vector3 launch = Spawn != null ? Spawn.position : Owner.position;
@@ -87,7 +144,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             WeaponFeedbackMode.Automatic,
             launch,
             impact,
-            tuning.MortarAutoExplosionRadius * GetAreaSizeMultiplier(),
+            GetExplosionRadius(WeaponStatMode.Automatic, tuning.MortarAutoExplosionRadius) * GetAreaSizeMultiplier(),
             false);
         FireShell(
             launch,
@@ -123,13 +180,13 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         MortarTuning tuning = Runtime.Data.Mortar;
         FireTimer = GetManualFireInterval();
-        Vector3 impact = Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange;
+        Vector3 impact = Spawn.position + aimDirection.normalized * GetModeRange(WeaponStatMode.Manual);
         impact += RandomPlanarOffset(tuning.MortarManualAccuracyRadius);
         EmitLaunchFeedback(
             WeaponFeedbackMode.Manual,
             Spawn.position,
             impact,
-            tuning.MortarManualExplosionRadius * GetAreaSizeMultiplier(),
+            GetExplosionRadius(WeaponStatMode.Manual, tuning.MortarManualExplosionRadius) * GetAreaSizeMultiplier(),
             false);
         FireShell(
             Spawn.position,
@@ -167,11 +224,11 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             return;
         }
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
+        if (!TrySpendManualAmmo(WeaponMath.GetActiveAbilityAmmoCost(Runtime), requireFullAmount: false))
             return;
 
         int shellCount = IsGrapeshotPath() ? GetGrapeshotRainShellCount(tuning) : GetActiveShellCount(tuning);
-        float barrageRadius = tuning.MortarBarrageRadius * GetAreaSizeMultiplier();
+        float barrageRadius = GetBarrageRadius(tuning) * GetAreaSizeMultiplier();
         EmitLaunchFeedback(
             WeaponFeedbackMode.Active,
             Spawn.position,
@@ -220,7 +277,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         CompleteActiveAbility();
     }
 
-    public override bool CanCrit() => false;
+    public override bool CanCrit() => WeaponStatAuthoringResolver.SupportsCriticalHits(Runtime);
 
     protected override float GetHeatFireRateMultiplier()
     {
@@ -231,9 +288,50 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         return 1f + heatOverHalf * Mathf.Max(0f, Runtime.Data.Mortar.MortarHeatFireRateBonusAbove50);
     }
 
+    private WeaponMortarStatOverrides Authored => WeaponStatAuthoringResolver.GetLevelRow(Runtime)?.Mortar;
+
+    private float GetModeRange(WeaponStatMode mode) => WeaponStatAuthoringResolver.ResolveModeValue(
+        Runtime, mode, WeaponStatField.RangeMeters, Runtime.Data.BaseRange).Value;
+
+    private float GetExplosionRadius(WeaponStatMode mode, float legacyRadius) => WeaponStatAuthoringResolver.ResolveModeValue(
+        Runtime, mode, WeaponStatField.ExplosionRadiusMeters, legacyRadius).Value;
+
+    private float GetBarrageRadius(MortarTuning tuning) => WeaponStatAuthoringResolver.ResolveOptional(
+        Runtime, Authored?.BarrageRadiusMeters ?? default, tuning.MortarBarrageRadius).Value;
+
+    private float? GetAuthoredGrapeshotLandingSpread(WeaponStatMode mode)
+    {
+        WeaponOptionalFloat field = mode == WeaponStatMode.Automatic
+            ? Authored?.GrapeshotAutomaticLandingSpreadMeters ?? default
+            : Authored?.GrapeshotManualLandingSpreadMeters ?? default;
+        WeaponResolvedStat spread = WeaponStatAuthoringResolver.ResolveOptional(Runtime, field, 0f);
+        return spread.IsAuthored ? spread.Value * GetAreaSizeMultiplier() : null;
+    }
+
+    private float GetModeFootprintRadius(WeaponStatMode mode, float legacyRadius)
+    {
+        float radius = GetExplosionRadius(mode, legacyRadius) * GetAreaSizeMultiplier();
+        return IsGrapeshotPath() && mode != WeaponStatMode.Ability
+            ? GetAuthoredGrapeshotLandingSpread(mode) ?? Mathf.Max(0.75f, radius * 1.5f)
+            : radius;
+    }
+
+    private float GetAutomaticFireInterval()
+    {
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Automatic,
+            WeaponStatField.AttackCyclesPerSecond, Runtime.Data.BaseAttackRate * WeaponMath.GetAttackRateMultiplier(Runtime));
+        return rate.IsAuthored
+            ? 1f / (rate.Value * WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier) * GetHeatFireRateMultiplier())
+            : GetFireIntervalWithoutHeat(WeaponStatMode.Automatic) / Mathf.Max(0.01f, GetHeatFireRateMultiplier());
+    }
+
     private float GetManualFireInterval()
     {
-        return GetFireIntervalWithoutHeat();
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Manual,
+            WeaponStatField.AttackCyclesPerSecond, Runtime.Data.BaseAttackRate * WeaponMath.GetAttackRateMultiplier(Runtime));
+        return rate.IsAuthored
+            ? 1f / (rate.Value * WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier))
+            : GetFireIntervalWithoutHeat(WeaponStatMode.Manual);
     }
 
     private float GetManualTravelTime(MortarTuning tuning)
@@ -244,11 +342,16 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     private int GetActiveShellCount(MortarTuning tuning)
     {
-        int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
-        return Mathf.Max(1, 5 + heatBonus);
+        float heatShells = WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.AbilityHeatShellBonus ?? default, 10f).Value;
+        int heatBonus = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * heatShells) : 0;
+        int count = WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.ActiveShellCount ?? default, 5).Value;
+        return Mathf.Max(0, count + heatBonus);
     }
 
-    private MortarUpgradePayload GetUpgradePayload(bool activeAbility)
+    private MortarUpgradePayload GetUpgradePayload(bool activeAbility) => GetUpgradePayloadForMode(
+        activeAbility, WeaponStatAuthoringResolver.GetImmediateMode(Runtime, activeAbility));
+
+    private MortarUpgradePayload GetUpgradePayloadForMode(bool activeAbility, WeaponStatMode mode)
     {
         if (Runtime == null || !Runtime.HasAdvancedPath)
             return MortarUpgradePayload.None;
@@ -258,11 +361,17 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             if (activeAbility)
                 return MortarUpgradePayload.None;
 
-            return new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f);
+            return new MortarUpgradePayload(true,
+                WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.GrapeshotPelletCount ?? default, 15).Value,
+                70f, // Legacy unused cone payload is retained only for compatibility.
+                WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.GrapeshotDamageMultiplier ?? default, 0.5f).Value,
+                1, 0f, GetAuthoredGrapeshotLandingSpread(mode));
         }
 
         if (Runtime.SelectedPath == WeaponUpgradePath.PathB)
-            return new MortarUpgradePayload(false, 0, 0f, 0f, 3, 2f);
+            return new MortarUpgradePayload(false, 0, 0f, 0f,
+                WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.MultiChargedTotalExplosions ?? default, 3).Value,
+                WeaponStatAuthoringResolver.ResolveOptional(Runtime, Authored?.MultiChargedRepeatDelaySeconds ?? default, 2f).Value);
 
         return MortarUpgradePayload.None;
     }
@@ -275,11 +384,17 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
     private int GetGrapeshotRainShellCount(MortarTuning tuning)
     {
-        const float rainDurationSeconds = 5f;
-        int heatBonusPerSecond = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * 10f) : 0;
-        int projectilesPerSecond = 10 + heatBonusPerSecond;
-        return Mathf.Max(1, Mathf.RoundToInt(projectilesPerSecond * rainDurationSeconds));
+        float rainDurationSeconds = GetGrapeshotRainDuration();
+        float maximumHeatRate = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.GrapeshotAbilityHeatProjectilesPerSecond ?? default, 10f).Value;
+        int heatBonusPerSecond = Heat != null ? Mathf.FloorToInt(Heat.NormalizedHeat * maximumHeatRate) : 0;
+        float projectilesPerSecond = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.GrapeshotAbilityProjectilesPerSecond ?? default, 10f).Value + heatBonusPerSecond;
+        return Mathf.Max(0, Mathf.RoundToInt(projectilesPerSecond * rainDurationSeconds));
     }
+
+    private float GetGrapeshotRainDuration() => WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+        Authored?.GrapeshotAbilityDurationSeconds ?? default, 5f).Value;
 
     private float GetActiveShellTravelTime(MortarTuning tuning, int shellIndex)
     {
@@ -289,12 +404,13 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         if (IsGrapeshotPath())
         {
-            const float rainDurationSeconds = 5f;
+            float rainDurationSeconds = GetGrapeshotRainDuration();
             int shellCount = Mathf.Max(1, GetGrapeshotRainShellCount(tuning));
             return baseTravelTime + Mathf.Max(0, shellIndex) * (rainDurationSeconds / shellCount);
         }
 
-        return baseTravelTime + Mathf.Max(0, shellIndex) * 0.08f;
+        return baseTravelTime + Mathf.Max(0, shellIndex) * WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            Authored?.BasicAbilityShellSpacingSeconds ?? default, 0.08f).Value;
     }
 
     private bool FireShell(
@@ -316,12 +432,15 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
     {
         MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
-        MortarUpgradePayload payload = GetUpgradePayload(activeAbility);
+        WeaponStatMode statMode = mode == WeaponFeedbackMode.Active ? WeaponStatMode.Ability
+            : mode == WeaponFeedbackMode.Manual ? WeaponStatMode.Manual : WeaponStatMode.Automatic;
+        MortarUpgradePayload payload = GetUpgradePayloadForMode(activeAbility, statMode);
         int contributorCount = GetDamageFeedbackContributorCount(payload);
         int sequenceId = manageSequenceLifecycle
             ? DamageFeedbackSequenceRuntime.BeginSequence(DamageFeedbackKind.Explosion, contributorCount)
             : actionSequenceId;
-        WeaponDamageContext damageContext = CreateDamageContext(damageScale, isAbilityDamage)
+        explosionRadius = GetExplosionRadius(statMode, explosionRadius);
+        WeaponDamageContext damageContext = CreateDamageContext(1f, isAbilityDamage, mode: statMode, weaponDamageScale: damageScale)
             .WithFeedbackMetadata(
                 sequenceId,
                 DamageFeedbackKind.Explosion);
@@ -470,7 +589,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         MortarPresentationSurface.Resolve(
             terrainHit,
-            tuning.MortarActiveExplosionRadius * GetAreaSizeMultiplier(),
+            GetExplosionRadius(WeaponStatMode.Ability, tuning.MortarActiveExplosionRadius) * GetAreaSizeMultiplier(),
             Owner,
             _presentationSupportHits,
             out surfacePoint,
