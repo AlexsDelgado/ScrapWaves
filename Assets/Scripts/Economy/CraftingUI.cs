@@ -134,6 +134,13 @@ public class CraftingUI : MonoBehaviour
         return true;
     }
 
+    public bool CloseForTutorial()
+    {
+        if (IsChoosingWeapon || _applyingAction) return false;
+        ClosePresentation();
+        return true;
+    }
+
     private void Hide()
     {
         if (IsChoosingWeapon || _applyingAction) return;
@@ -219,7 +226,8 @@ public class CraftingUI : MonoBehaviour
         IReadOnlyList<MaterialCost> cost = _crafting.GetUpgradeCost(weapon.Data, weapon.SelectedPath, next);
         _view.UpgradeReadout?.Bind(_inventory, cost, maximum ? "No further upgrades" : null);
         _view.UpgradeCostText.text = maximum ? "No further upgrades" : BuildCostText(cost);
-        _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost);
+        _view.UpgradeButton.interactable = !maximum && _inventory.CanAfford(cost)
+            && TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon.Data, next);
         _view.UpgradeButtonText.text = maximum ? "MAX LEVEL" : "UPGRADE";
     }
     public static void BindUpgradePreview(CraftingMenuView view, IWeaponBehaviour behaviour, bool maximum = false)
@@ -294,8 +302,12 @@ public class CraftingUI : MonoBehaviour
         WeaponMenuCopy copy = _content != null ? _content.Find(weapon.Data) : null;
         _view.AdvancedPathText.text = !available ? "No upgrade available"
             : _offeredPath == WeaponUpgradePath.PathA ? weapon.Data.PathA?.PathName : weapon.Data.PathB?.PathName;
-        _view.AdvancedDescriptionText.text = copy == null ? string.Empty
+        string description = copy == null ? string.Empty
             : _offeredPath == WeaponUpgradePath.PathA ? copy.PathADescription : copy.PathBDescription;
+        IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
+        IWeaponBehaviour behaviour = _selectedSlot < equipped.Count ? equipped[_selectedSlot] : null;
+        _view.AdvancedDescriptionText.text = available
+            ? CraftingUpgradePreview.DescribeAdvanced(behaviour, _offeredPath, description) : description;
         _view.AdvancedNoticeText.text = guaranteed ? "Other path guaranteed after your previous decline."
             : canDecline ? "Decline: pay this attempt's cost. Next try costs +50% with the other path guaranteed."
             : "Only one path is unlocked.";

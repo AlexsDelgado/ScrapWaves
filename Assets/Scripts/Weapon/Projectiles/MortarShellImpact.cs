@@ -7,6 +7,7 @@ public readonly struct MortarUpgradePayload
     public readonly int GrapeshotCount;
     public readonly float GrapeshotConeAngle;
     public readonly float GrapeshotDamageScale;
+    public readonly float? GrapeshotLandingSpreadMeters;
     public readonly int RepeatExplosionCount;
     public readonly float RepeatExplosionDelay;
 
@@ -16,12 +17,14 @@ public readonly struct MortarUpgradePayload
         float grapeshotConeAngle,
         float grapeshotDamageScale,
         int repeatExplosionCount,
-        float repeatExplosionDelay)
+        float repeatExplosionDelay,
+        float? grapeshotLandingSpreadMeters = null)
     {
         UseGrapeshot = useGrapeshot;
         GrapeshotCount = grapeshotCount;
         GrapeshotConeAngle = grapeshotConeAngle;
         GrapeshotDamageScale = grapeshotDamageScale;
+        GrapeshotLandingSpreadMeters = grapeshotLandingSpreadMeters;
         RepeatExplosionCount = repeatExplosionCount;
         RepeatExplosionDelay = repeatExplosionDelay;
     }
@@ -314,7 +317,7 @@ public sealed class MortarShellImpact : MonoBehaviour
                 style,
                 presentationTarget,
                 presentationNormal,
-                _explosionRadius,
+                _payload.UseGrapeshot ? GetGrapeshotLandingSpread() : _explosionRadius,
                 _travelTime,
                 _feedbackTemplate.NormalizedHeat,
                 _detailedPresentation,
@@ -666,7 +669,7 @@ public sealed class MortarShellImpact : MonoBehaviour
         float subShellCollisionRadius = Mathf.Max(0.04f, _collisionRadius * 0.75f);
         float subShellExplosionRadius = Mathf.Max(0.08f, subShellCollisionRadius * 1.25f);
         float subShellTravelTime = Mathf.Clamp(_travelTime * 0.45f, 0.22f, 0.6f);
-        float spreadRadius = Mathf.Max(0.75f, _explosionRadius * 1.5f);
+        float spreadRadius = GetGrapeshotLandingSpread();
         float fallDistance = Mathf.Max(1.5f, _explosionRadius * 1.2f);
 
         WeaponUpgradeVfx.SpawnRing(center, Mathf.Max(0.35f, _explosionRadius * 0.45f), GrapeshotVfxColor, 0.35f, 1.1f, null);
@@ -714,6 +717,9 @@ public sealed class MortarShellImpact : MonoBehaviour
                 DamageFeedbackSequenceRuntime.CompleteContributor(grapeshotContext.ActionSequenceId);
         }
     }
+
+    private float GetGrapeshotLandingSpread() => _payload.GrapeshotLandingSpreadMeters
+        ?? Mathf.Max(0.75f, _explosionRadius * 1.5f);
 
     private int ResolveDamage(IDamageable damageable, Collider hitCollider, float additionalScale = 1f)
     {

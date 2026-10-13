@@ -66,6 +66,14 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
     private GameFeelQualityLevel _quality = GameFeelQualityLevel.High;
     private bool _reducedFlash;
     private bool _cached;
+    private MeshFilter[] _fragmentMeshes;
+    private Mesh[] _fragmentSourceMeshes;
+    private Mesh[] _fragmentRuntimeMeshes;
+    private Vector3[][] _fragmentSourceVertices;
+    private Matrix4x4[] _fragmentMeshToRoot;
+    private Vector3[] _fragmentMiniLocalPositions;
+    private Vector3[] _fragmentMiniRootPositions;
+    private int[] _fragmentMeshMiniIndex;
 
     public RocketLauncherVfxStyle Style => _style;
     public int RuntimeParticleSystemCount => _particleLayers?.Length ?? 0;
@@ -86,8 +94,14 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             : 1f;
         if (_forwardMiniExplosionRoot != null)
         {
-            float coneRange = Mathf.Max(0.05f, context.ExplosionRadius * _forwardConeRangeMultiplier);
+            float coneRange = context.HasFragmentGeometry ? context.FragmentConeRange
+                : Mathf.Max(0.05f, context.ExplosionRadius * _forwardConeRangeMultiplier);
+            float coneAngle = context.HasFragmentGeometry ? context.FragmentConeAngle : 45f;
+            _forwardMiniExplosionRoot.gameObject.SetActive(coneRange > 0f && coneAngle > 0f);
             _forwardMiniExplosionRoot.localScale = Vector3.one * coneRange;
+            bool preserveRestMesh = !context.HasFragmentGeometry || (Mathf.Approximately(coneAngle, 45f)
+                && Mathf.Approximately(coneRange, context.ExplosionRadius * 4f));
+            ApplyFragmentAngle(coneAngle, preserveRestMesh);
         }
         _emissionMultiplier = context.HeatEmissionMultiplier;
         _smokeMultiplier = context.HeatSmokeMultiplier;
@@ -129,6 +143,106 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
     }
 
     private void OnDisable() => SetLightEnabled(false);
+
+    // The authored mini-explosions are a 45 degree sector. Re-map their planar
+    // vertex angle while preserving radial distance, so changing the cone angle
+    // cannot extend the visible mesh past the projectile's captured range.
+    private void CacheFragmentGeometry()
+    {
+        if (_forwardMiniExplosionRoot == null || _fragmentMeshes != null) return;
+        _fragmentMiniLocalPositions = new Vector3[_forwardMiniExplosions.Length];
+        _fragmentMiniRootPositions = new Vector3[_forwardMiniExplosions.Length];
+        for (int i = 0; i < _forwardMiniExplosions.Length; i++)
+        {
+            if (_forwardMiniExplosions[i] == null) continue;
+            _fragmentMiniLocalPositions[i] = _forwardMiniExplosions[i].localPosition;
+            _fragmentMiniRootPositions[i] = _forwardMiniExplosionRoot.InverseTransformPoint(_forwardMiniExplosions[i].position);
+        }
+        _fragmentMeshes = _forwardMiniExplosionRoot.GetComponentsInChildren<MeshFilter>(true);
+        _fragmentSourceMeshes = new Mesh[_fragmentMeshes.Length];
+        _fragmentRuntimeMeshes = new Mesh[_fragmentMeshes.Length];
+        _fragmentSourceVertices = new Vector3[_fragmentMeshes.Length][];
+        _fragmentMeshToRoot = new Matrix4x4[_fragmentMeshes.Length];
+        _fragmentMeshMiniIndex = new int[_fragmentMeshes.Length];
+        for (int i = 0; i < _fragmentMeshes.Length; i++)
+        {
+            _fragmentSourceMeshes[i] = _fragmentMeshes[i].sharedMesh;
+            _fragmentMeshToRoot[i] = _forwardMiniExplosionRoot.worldToLocalMatrix * _fragmentMeshes[i].transform.localToWorldMatrix;
+            _fragmentMeshMiniIndex[i] = -1;
+            for (int j = 0; j < _forwardMiniExplosions.Length; j++)
+            {
+                if (_forwardMiniExplosions[j] != null && _fragmentMeshes[i].transform.IsChildOf(_forwardMiniExplosions[j]))
+                { _fragmentMeshMiniIndex[i] = j; break; }
+            }
+            if (_fragmentSourceMeshes[i] != null) _fragmentSourceVertices[i] = _fragmentSourceMeshes[i].vertices;
+        }
+    }
+
+    private static Vector3 RemapFragmentPoint(Vector3 point, float fullAngle)
+    {
+        float radius = Mathf.Min(1f, Mathf.Sqrt(point.x * point.x + point.z * point.z));
+        float halfRestAngle = 22.5f * Mathf.Deg2Rad;
+        float angle = Mathf.Clamp(Mathf.Atan2(point.x, point.z), -halfRestAngle, halfRestAngle) * fullAngle / 45f;
+        return new Vector3(Mathf.Sin(angle) * radius, point.y, Mathf.Cos(angle) * radius);
+    }
+
+    private void ApplyFragmentAngle(float fullAngle, bool preserveRestMesh)
+    {
+        if (_forwardMiniExplosionRoot == null || fullAngle <= 0f || _fragmentMeshes == null) return;
+        for (int i = 0; i < _forwardMiniExplosions.Length; i++)
+        {
+            Transform mini = _forwardMiniExplosions[i];
+            if (mini == null) continue;
+            mini.localPosition = preserveRestMesh ? _fragmentMiniLocalPositions[i]
+                : mini.parent.InverseTransformPoint(_forwardMiniExplosionRoot.TransformPoint(
+                    RemapFragmentPoint(_fragmentMiniRootPositions[i], fullAngle)));
+        }
+        for (int i = 0; i < _fragmentMeshes.Length; i++)
+        {
+            if (_fragmentSourceMeshes[i] == null) continue;
+            if (preserveRestMesh)
+            {
+                _fragmentMeshes[i].sharedMesh = _fragmentSourceMeshes[i];
+                continue;
+            }
+            if (_fragmentRuntimeMeshes[i] == null)
+            {
+                _fragmentRuntimeMeshes[i] = Instantiate(_fragmentSourceMeshes[i]);
+                _fragmentRuntimeMeshes[i].name = _fragmentSourceMeshes[i].name + " (resolved fragment cone)";
+            }
+            // Exclude this root's scale: it already owns the resolved range.
+            Matrix4x4 toRoot = _fragmentMeshToRoot[i];
+            Matrix4x4 fromRoot = toRoot.inverse;
+            int miniIndex = _fragmentMeshMiniIndex[i];
+            Vector3 centerDelta = miniIndex >= 0
+                ? RemapFragmentPoint(_fragmentMiniRootPositions[miniIndex], fullAngle) - _fragmentMiniRootPositions[miniIndex]
+                : Vector3.zero;
+            Vector3[] vertices = new Vector3[_fragmentSourceVertices[i].Length];
+            for (int v = 0; v < vertices.Length; v++)
+            {
+                Vector3 p = toRoot.MultiplyPoint3x4(_fragmentSourceVertices[i][v]);
+                p = RemapFragmentPoint(p, fullAngle);
+                // Animate each remapped mini explosion around its remapped center.
+                // Every intermediate pop remains inside the same convex sector.
+                vertices[v] = fromRoot.MultiplyPoint3x4(p - centerDelta);
+            }
+            _fragmentRuntimeMeshes[i].vertices = vertices;
+            _fragmentRuntimeMeshes[i].RecalculateBounds();
+            _fragmentRuntimeMeshes[i].RecalculateNormals();
+            _fragmentMeshes[i].sharedMesh = _fragmentRuntimeMeshes[i];
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (_fragmentRuntimeMeshes == null) return;
+        foreach (Mesh mesh in _fragmentRuntimeMeshes)
+            if (mesh != null)
+            {
+                if (Application.isPlaying) Destroy(mesh);
+                else DestroyImmediate(mesh);
+            }
+    }
 
     private void OnValidate()
     {
@@ -182,6 +296,9 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
         }
         if (float.IsInfinity(_nearestMiniExplosionDepth))
             _nearestMiniExplosionDepth = _furthestMiniExplosionDepth = 0f;
+
+        // Capture rest transforms before OnEnable/ApplyFrame can scale a mini to zero.
+        CacheFragmentGeometry();
 
         _baseMaxParticles = new int[_particleLayers.Length];
         for (int i = 0; i < _particleLayers.Length; i++)

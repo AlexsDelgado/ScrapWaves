@@ -16,8 +16,8 @@ public enum ObjectivesMenuTab
 
 /// <summary>
 /// Binds progression data to the authored title-screen Objectives and Unlocks presentation.
-/// Every fixed screen object is supplied by the scene. Runtime-instantiated content is limited
-/// to the assigned ObjectiveRowView and UnlockCardView prefab templates.
+/// Every screen object and content row is supplied by the scene. Runtime only binds data
+/// to the saved ObjectiveRowView and UnlockCardView instances.
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectivesMenuUI : MonoBehaviour
@@ -29,10 +29,10 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField, Tooltip("Optional title-screen stack. When assigned, Back requests its authored close transition after purchase cancellation.")]
     private TitleScreenScreenStack _screenStack;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-    [SerializeField, Tooltip("DEV: optional authored reset button. If empty, one is created at runtime.")]
+    [SerializeField, Tooltip("DEV: optional authored reset button. If empty, the control stays unavailable at runtime.")]
     private Button _devResetProgressButton;
 
-    [SerializeField, Tooltip("DEV: optional authored max-upgrades button. If empty, one is created at runtime.")]
+    [SerializeField, Tooltip("DEV: optional authored max-upgrades button. If empty, the control stays unavailable at runtime.")]
     private Button _devMaxUpgradesButton;
 
     private const int DevScrapTarget = 9999;
@@ -87,6 +87,8 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField, Tooltip("Meta stats/items shop presenter (Unlocks-style cards).")]
     private MetaUpgradeShopUI _metaUpgradeShop;
 
+    [SerializeField] private ObjectiveRowView[] _authoredRows = Array.Empty<ObjectiveRowView>();
+    [SerializeField] private UnlockCardView[] _authoredUnlocks = Array.Empty<UnlockCardView>();
     private readonly List<ObjectiveRowView> _objectiveRows = new();
     private readonly List<UnlockCardView> _unlockCards = new();
 
@@ -316,7 +318,7 @@ public class ObjectivesMenuUI : MonoBehaviour
             ObjectivesFilterChipBar objectivesBar = ObjectivesFilterChipBar.Ensure(
                 objectivesParent,
                 "ObjectivesFilterBar");
-            objectivesBar.AddOrBindChip(
+            objectivesBar?.AddOrBindChip(
                 "HideObtained",
                 "Hide obtained",
                 () => _hideObtainedObjectives,
@@ -338,7 +340,7 @@ public class ObjectivesMenuUI : MonoBehaviour
             ObjectivesFilterChipBar unlocksBar = ObjectivesFilterChipBar.Ensure(
                 unlocksParent,
                 "UnlocksFilterBar");
-            unlocksBar.AddOrBindChip(
+            unlocksBar?.AddOrBindChip(
                 "HideOwned",
                 "Hide owned",
                 () => _hideUnlockOwned,
@@ -347,7 +349,7 @@ public class ObjectivesMenuUI : MonoBehaviour
                     _hideUnlockOwned = value;
                     RequestRefresh();
                 });
-            unlocksBar.AddOrBindChip(
+            unlocksBar?.AddOrBindChip(
                 "HideAvailable",
                 "Hide available",
                 () => _hideUnlockAvailable,
@@ -356,7 +358,7 @@ public class ObjectivesMenuUI : MonoBehaviour
                     _hideUnlockAvailable = value;
                     RequestRefresh();
                 });
-            unlocksBar.AddOrBindChip(
+            unlocksBar?.AddOrBindChip(
                 "HideInsufficientScrap",
                 "Hide no scrap",
                 () => _hideUnlockInsufficientScrap,
@@ -447,7 +449,7 @@ public class ObjectivesMenuUI : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void EnsureDevResetProgressButton()
     {
-        if (_devResetProgressButton != null || _screenRoot == null)
+        if (Application.isPlaying || _devResetProgressButton != null || _screenRoot == null)
             return;
 
         _devResetProgressButton = HudUiFactory.CreateButton(
@@ -481,7 +483,7 @@ public class ObjectivesMenuUI : MonoBehaviour
 
     private void EnsureDevMaxUpgradesButton()
     {
-        if (_devMaxUpgradesButton != null || _screenRoot == null)
+        if (Application.isPlaying || _devMaxUpgradesButton != null || _screenRoot == null)
             return;
 
         _devMaxUpgradesButton = HudUiFactory.CreateButton(
@@ -644,7 +646,8 @@ public class ObjectivesMenuUI : MonoBehaviour
                 continue;
 
             float current = Mathf.Min(saveManager.GetProgress(achievement), achievement.TargetValue);
-            ObjectiveRowView row = Instantiate(_objectiveRowPrefab, _objectivesContent, false);
+            if (_objectiveRows.Count >= _authoredRows.Length) { Debug.LogError("Objectives: authored row capacity exhausted. Re-author the title scene.", this); break; }
+            ObjectiveRowView row = _authoredRows[_objectiveRows.Count];
             row.gameObject.SetActive(true);
             row.Bind(
                 achievement,
@@ -736,7 +739,8 @@ public class ObjectivesMenuUI : MonoBehaviour
         if (ShouldHideUnlock(state))
             return;
 
-        UnlockCardView card = Instantiate(_unlockCardPrefab, _unlocksContent, false);
+        if (_unlockCards.Count >= _authoredUnlocks.Length) { Debug.LogError("Objectives: authored unlock capacity exhausted. Re-author the title scene.", this); return; }
+        UnlockCardView card = _authoredUnlocks[_unlockCards.Count];
         card.gameObject.SetActive(true);
         card.Bind(item, displayName, itemType, state, HandleUnlockFocused);
         _unlockCards.Add(card);
@@ -1135,7 +1139,7 @@ public class ObjectivesMenuUI : MonoBehaviour
             if (row == null)
                 continue;
             row.Unbind();
-            DestroyDynamicInstance(row.gameObject);
+            row.gameObject.SetActive(false);
         }
         _objectiveRows.Clear();
     }
@@ -1149,7 +1153,7 @@ public class ObjectivesMenuUI : MonoBehaviour
             if (card == null)
                 continue;
             card.Unbind();
-            DestroyDynamicInstance(card.gameObject);
+            card.gameObject.SetActive(false);
         }
         _unlockCards.Clear();
     }

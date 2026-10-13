@@ -106,7 +106,7 @@ public class DialogueDirector : MonoBehaviour
     private void Update()
     {
         BindExitObjective();
-        if (!IsGameRunning())
+        if (TutorialDirector.IsActive || !IsGameRunning())
             return;
 
         if (!_runStarted)

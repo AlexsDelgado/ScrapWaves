@@ -212,15 +212,16 @@ public class WeaponDiagnosticsTests
         Assert.That(copy.RocketLauncher.RocketAutoHeatBonuses, Is.Empty);
     }
 
-    [TestCase("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset", 0.9f)]
-    [TestCase("Assets/ScriptableObjects/WeaponSO/Sandbox_RocketLauncher.asset", 1f)]
-    [TestCase("Assets/Scripts/Weapon/Testing/SO/Sandbox_RocketLauncher.asset", 1f)]
-    public void RocketAssets_PreserveInitialAutomaticBalance(string path, float rate)
+    // Current manually tuned production asset is authoritative (published baseline: 0.5 bursts/s).
+    [TestCase("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset", 0.5f, 0.9f, 60f, 80f, 90f)]
+    [TestCase("Assets/ScriptableObjects/WeaponSO/Sandbox_RocketLauncher.asset", 1f, 1f, 25f, 50f, 75f)]
+    [TestCase("Assets/Scripts/Weapon/Testing/SO/Sandbox_RocketLauncher.asset", 1f, 1f, 25f, 50f, 75f)]
+    public void RocketAssets_PreserveCurrentAuthoredAutomaticBalance(string path, float automaticRate, float manualRate, float firstHeat, float secondHeat, float thirdHeat)
     {
         var data = AssetDatabase.LoadAssetAtPath<WeaponData>(path);
-        Assert.That(data.RocketLauncher.RocketAutoBurstsPerSecond, Is.EqualTo(rate));
-        Assert.That(data.RocketLauncher.RocketAutoBurstsPerSecond, Is.EqualTo(data.BaseAttackRate));
-        Assert.That(data.RocketLauncher.RocketAutoHeatBonuses.Select(e => e.HeatThresholdPercent), Is.EqualTo(new[] { 25f, 50f, 75f }));
+        Assert.That(data.RocketLauncher.RocketAutoBurstsPerSecond, Is.EqualTo(automaticRate));
+        Assert.That(data.BaseAttackRate, Is.EqualTo(manualRate), "Automatic volley cadence and manual fire rate are independently authored.");
+        Assert.That(data.RocketLauncher.RocketAutoHeatBonuses.Select(e => e.HeatThresholdPercent), Is.EqualTo(new[] { firstHeat, secondHeat, thirdHeat }));
         Assert.That(data.RocketLauncher.RocketAutoHeatBonuses.Select(e => e.AdditionalRockets), Is.EqualTo(new[] { 1, 2, 3 }));
     }
 

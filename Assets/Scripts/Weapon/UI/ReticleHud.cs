@@ -538,7 +538,7 @@ public class ReticleHud : MonoBehaviour
             || !_aimProvider.TryGetMortarTerrainImpact(
                 aim.Origin,
                 aim.Direction,
-                runtime.Data.BaseRange,
+                mortar.ManualRange,
                 mortar.ArcHeight,
                 mortar.ShellCollisionRadius,
                 mortar.ManualTravelTime,
@@ -550,7 +550,7 @@ public class ReticleHud : MonoBehaviour
 
         MortarPresentationSurface.Resolve(
             terrainHit,
-            mortar.ManualExplosionRadius,
+            mortar.ManualFootprintRadius,
             transform,
             _mortarPresentationSupportHits,
             out Vector3 presentationPoint,
@@ -562,7 +562,7 @@ public class ReticleHud : MonoBehaviour
             _authoredMortarMarker.Configure(
                 markerPosition,
                 normal,
-                Mathf.Max(_mortarLandingRingRadius, mortar.ManualExplosionRadius),
+                Mathf.Max(0f, mortar.ManualFootprintRadius),
                 mortar.ManualTravelTime,
                 runtime.HasAdvancedPath ? runtime.SelectedPath : WeaponUpgradePath.None);
             if (_mortarMarkerRoot != null)
@@ -578,7 +578,7 @@ public class ReticleHud : MonoBehaviour
             _mortarBlastRing,
             markerPosition,
             normal,
-            Mathf.Max(_mortarLandingRingRadius, mortar.ManualExplosionRadius));
+            Mathf.Max(0f, mortar.ManualFootprintRadius));
         SetMortarMarkerVisible(true);
     }
 

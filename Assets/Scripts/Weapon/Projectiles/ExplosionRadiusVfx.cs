@@ -61,7 +61,7 @@ public sealed class ExplosionRadiusVfx : MonoBehaviour
     private void Initialize(float radius, float duration, Color color)
     {
         _baseColor = color;
-        _radius = Mathf.Max(0.01f, radius);
+        _radius = Mathf.Max(0f, radius);
         _duration = Mathf.Max(0.05f, duration);
 
         if (_outerRing == null || _shockwaveRing == null)

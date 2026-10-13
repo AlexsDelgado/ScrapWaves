@@ -24,11 +24,25 @@ public static class FlamethrowerRadialBurstAuthoring
                 serialized.FindProperty("_particleLayers").arraySize = 0;
                 serialized.FindProperty("_animatedRoots").arraySize = 0;
                 serialized.FindProperty("_lightPulse").objectReferenceValue = null;
+                serialized.FindProperty("_lifetime").floatValue = 1f;
+                var settings = serialized.FindProperty("_activeBurstSettings");
+                var defaults = new FlamethrowerRadialBurstSettings();
+                settings.FindPropertyRelative(nameof(FlamethrowerRadialBurstSettings.VisualDuration)).floatValue = .85f;
+                settings.FindPropertyRelative(nameof(FlamethrowerRadialBurstSettings.FlameHeightFraction)).floatValue = .08f;
+                settings.FindPropertyRelative(nameof(FlamethrowerRadialBurstSettings.FlameWidthFraction)).floatValue = .025f;
+                settings.FindPropertyRelative(nameof(FlamethrowerRadialBurstSettings.IgnitionOpacity)).animationCurveValue = defaults.IgnitionOpacity;
+                settings.FindPropertyRelative(nameof(FlamethrowerRadialBurstSettings.FlameOpacity)).animationCurveValue = defaults.FlameOpacity;
+                settings.FindPropertyRelative(nameof(FlamethrowerRadialBurstSettings.EmberOpacity)).animationCurveValue = defaults.EmberOpacity;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 PrefabUtility.SaveAsPrefabAsset(contents, path);
             }
             finally { PrefabUtility.UnloadPrefabContents(contents); }
         }
+        var profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>("Assets/ScriptableObjects/WeaponPresentation/FlamethrowerPresentation.asset");
+        foreach (var cue in profile.Cues)
+            if (cue.Cue == WeaponPresentationCue.FlamethrowerActiveBurst || cue.Cue == WeaponPresentationCue.FlamethrowerJellifiedActive || cue.Cue == WeaponPresentationCue.FlamethrowerNitrogenActive)
+                cue.Duration = 1f;
+        profile.RebuildCache(); EditorUtility.SetDirty(profile); AssetDatabase.SaveAssets();
         Debug.Log("Refreshed only the three flamethrower Q presentation prefabs.");
     }
 }

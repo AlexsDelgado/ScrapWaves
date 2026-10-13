@@ -74,7 +74,7 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryUpgradeWeapon(WeaponData weapon, int targetLevel)
     {
-        if (weapon == null || _weaponManager == null || _inventory == null)
+        if (!TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon, targetLevel) || weapon == null || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
         if (!_weaponManager.TryGetEquippedWeapon(weapon, out WeaponInstance instance))
@@ -97,16 +97,17 @@ public class WeaponCraftingService : MonoBehaviour
     }
 
     // Availability queries never roll or cache offers, spend materials, or mutate progression.
-    public bool CanTinkerNewWeapon() => !HasPendingTinkeringChoice && !_tinkering
+    public bool CanTinkerNewWeapon() => TutorialDirector.AllowsCrafting(CraftingActionKind.TinkerNewWeapon) && !HasPendingTinkeringChoice && !_tinkering
         && _weaponManager != null && _inventory != null
         && _weaponManager.CanAddWeapon() && BuildUnequippedWeapons().Count >= 2
         && _inventory.CanAfford(GetTinkeringCost(_weaponManager.GetEquippedWeapons().Count + 1));
 
     public CraftingActionKind? GetAvailableAction(WeaponInstance weapon)
     {
-        if (weapon?.Data == null || _weaponManager == null || _inventory == null
+        if (HasPendingTinkeringChoice || _tinkering || weapon?.Data == null || _weaponManager == null || _inventory == null
             || !_weaponManager.TryGetEquippedWeapon(weapon.Data, out WeaponInstance equipped)
             || equipped != weapon || weapon.Level >= 10) return null;
+        if (!TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon.Data, weapon.Level + 1)) return null;
         if (weapon.Level == 5 && weapon.SelectedPath == WeaponUpgradePath.None)
         {
             WeaponUpgradePath path;
@@ -254,7 +255,7 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryAdvancedTinkering(WeaponData weapon, WeaponUpgradePath path, bool accept)
     {
-        if (weapon == null || _weaponManager == null || _inventory == null)
+        if (!TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon) || weapon == null || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
         if (!_weaponManager.TryGetEquippedWeapon(weapon, out WeaponInstance instance))

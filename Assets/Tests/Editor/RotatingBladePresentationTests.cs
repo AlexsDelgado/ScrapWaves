@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -96,7 +98,7 @@ public sealed class RotatingBladePresentationTests
     }
 
     [Test]
-    public void ManualSlash_MaterializesAsNarrowLeftToRightSweepInsideGameplayRange()
+    public void ManualSlash_MaterializesAsFilledLeftToRightSweepInsideGameplayRange()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
         RotatingBladeVfx vfx = null;
@@ -118,8 +120,8 @@ public sealed class RotatingBladePresentationTests
             }
             Assert.That(furthest, Is.EqualTo(range).Within(range * 0.05f));
             Assert.That(furthest, Is.LessThanOrEqualTo(range + 0.001f), "Presentation must stay inside the damage range.");
-            Assert.That(nearest, Is.GreaterThan(range * 0.75f), "The slash must remain a narrow crescent instead of filling a cone.");
-            Assert.That(mesh.vertexCount, Is.EqualTo((96 + 1) * 2), "The first frame should contain only the small leading edge of the sweep.");
+            Assert.That(nearest, Is.InRange(range * 0.06f, range * 0.12f), "The fan should reach inward but stop short of the player.");
+            Assert.That(mesh.vertexCount, Is.GreaterThan((96 + 1) * 2), "The filled fan needs radial samples for its inward fade.");
 
             float minimumAngle = float.MaxValue;
             float maximumAngle = float.MinValue;
@@ -139,13 +141,153 @@ public sealed class RotatingBladePresentationTests
             MeshRenderer slashRenderer = vfx.transform.Find("Blade Slash Surface 1").GetComponent<MeshRenderer>();
             Assert.That(slashRenderer.sharedMaterial.shader.name, Is.EqualTo("ScrapWaves/GameFeel/Flowing Slash"));
             Assert.That(slashRenderer.sharedMaterial.GetColor("_BaseColor").a, Is.GreaterThanOrEqualTo(0.85f),
-                "The authored slash body should be physically dense rather than predominantly transparent.");
+                "The outer slash retains its authored opacity; the fan fades through vertex alpha.");
         }
         finally
         {
             if (vfx != null)
                 Object.DestroyImmediate(vfx.gameObject);
         }
+    }
+
+    [TestCase(1f, 45f)]
+    [TestCase(3f, 85f)]
+    [TestCase(6f, 150f)]
+    public void ManualSlash_FillsSectorWithRapidInwardFadeAndBrightRim(float range, float coneAngle)
+    {
+        Mesh mesh = new();
+        try
+        {
+            RebuildSlash(mesh, range, coneAngle, 1f);
+            Vector3[] vertices = mesh.vertices;
+            Color[] colors = mesh.colors;
+            var centerSamples = new SortedDictionary<float, float>();
+            float halfAngle = coneAngle * 0.5f;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                float radius = vertices[i].magnitude;
+                float angle = Mathf.Atan2(vertices[i].x, vertices[i].z) * Mathf.Rad2Deg;
+                Assert.That(radius, Is.LessThanOrEqualTo(range + 0.001f), "Fill must stay inside the damage range.");
+                Assert.That(Mathf.Abs(angle), Is.LessThanOrEqualTo(halfAngle + 0.001f), "Fill must stay inside the damage cone.");
+                Assert.That(colors[i].a, Is.InRange(0f, 1f));
+                if (radius < range * 0.12f)
+                    Assert.That(colors[i].a, Is.Zero.Within(0.0001f), "The fan must disappear near the player.");
+                if (Mathf.Abs(angle) < 0.001f)
+                    centerSamples[radius] = colors[i].a;
+            }
+
+            Assert.That(centerSamples.Count, Is.GreaterThanOrEqualTo(4), "A nonlinear inward fade needs multiple radial samples.");
+            float previousAlpha = 0f;
+            foreach (var sample in centerSamples)
+            {
+                Assert.That(sample.Value, Is.GreaterThanOrEqualTo(previousAlpha - 0.0001f), "Opacity should rise smoothly toward the outer rim.");
+                previousAlpha = sample.Value;
+            }
+            Assert.That(previousAlpha, Is.GreaterThan(0.9f), "The outer slash rim must remain readable.");
+
+            // Sample rendered triangles, rather than only checking for unused interior vertices.
+            float nearAlpha = SampleSlashAlpha(mesh, Vector3.forward * (range * 0.2f));
+            float middleAlpha = SampleSlashAlpha(mesh, Vector3.forward * (range * 0.5f));
+            float rimAlpha = SampleSlashAlpha(mesh, Vector3.forward * (range * 0.95f));
+            Assert.That(nearAlpha, Is.LessThan(0.04f));
+            Assert.That(middleAlpha, Is.GreaterThan(0.05f), "The interior should be visible, not an empty crescent.");
+            Assert.That(middleAlpha, Is.LessThan(rimAlpha * 0.45f), "The fan must lose opacity quickly toward the player.");
+            Assert.That(rimAlpha, Is.GreaterThan(0.8f));
+            foreach (float side in new[] { -1f, 1f })
+            {
+                Vector3 point = Quaternion.AngleAxis(side * halfAngle * 0.55f, Vector3.up) * Vector3.forward * (range * 0.5f);
+                Assert.That(SampleSlashAlpha(mesh, point), Is.GreaterThan(0.02f), "The fill must cover both halves of the swept sector.");
+            }
+        }
+        finally { Object.DestroyImmediate(mesh); }
+    }
+
+    [Test]
+    public void ManualSlash_FillRevealsAcrossTheExistingSweep()
+    {
+        Mesh mesh = new();
+        try
+        {
+            const float coneAngle = 85f;
+            float previousEnd = -coneAngle;
+            foreach (float reveal in new[] { 0f, 0.25f, 0.5f, 1f })
+            {
+                RebuildSlash(mesh, 3f, coneAngle, reveal);
+                float start = float.MaxValue;
+                float end = float.MinValue;
+                foreach (Vector3 vertex in mesh.vertices)
+                {
+                    float angle = Mathf.Atan2(vertex.x, vertex.z) * Mathf.Rad2Deg;
+                    start = Mathf.Min(start, angle);
+                    end = Mathf.Max(end, angle);
+                }
+                Assert.That(start, Is.EqualTo(-coneAngle * 0.5f).Within(0.001f));
+                Assert.That(end, Is.GreaterThan(previousEnd));
+                if (reveal == 0f) Assert.That(end - start, Is.LessThan(3f));
+                if (reveal == 0.5f) Assert.That(end, Is.InRange(-2f, 2f));
+                if (reveal == 1f) Assert.That(end, Is.EqualTo(coneAngle * 0.5f).Within(0.001f));
+                previousEnd = end;
+            }
+        }
+        finally { Object.DestroyImmediate(mesh); }
+    }
+
+    [TestCase(0f)]
+    [TestCase(45f)]
+    [TestCase(-45f)]
+    [TestCase(90f)]
+    [TestCase(-90f)]
+    public void ManualSlash_FilledSectorFollowsPitchedAim(float pitch)
+    {
+        RotatingBladeVfx vfx = RotatingBladeVfx.Create();
+        try
+        {
+            Vector3 origin = new(3f, 4f, 5f);
+            Vector3 direction = Quaternion.AngleAxis(-pitch, Vector3.right) * Vector3.forward;
+            const float range = 3f, coneAngle = 85f;
+            vfx.ShowSlash(origin, direction, range, coneAngle, 0.2f);
+            Transform surface = vfx.transform.Find("Blade Slash Surface 1");
+            Mesh mesh = surface.GetComponent<MeshFilter>().sharedMesh;
+            RebuildSlash(mesh, range, coneAngle, 1f);
+            Assert.That(Vector3.Distance(surface.position, origin), Is.LessThan(0.001f));
+            Assert.That(Vector3.Angle(surface.forward, direction), Is.LessThan(0.02f));
+            foreach (Vector3 local in mesh.vertices)
+            {
+                Vector3 delta = surface.TransformPoint(local) - origin;
+                Assert.That(delta.magnitude, Is.LessThanOrEqualTo(range + 0.001f));
+                Assert.That(Vector3.Angle(direction, delta), Is.LessThanOrEqualTo(coneAngle * 0.5f + 0.02f));
+            }
+        }
+        finally { Object.DestroyImmediate(vfx.gameObject); }
+    }
+
+    private static void RebuildSlash(Mesh mesh, float range, float coneAngle, float reveal)
+    {
+        typeof(RotatingBladeVfx).GetMethod("BuildSlashSurface", BindingFlags.Static | BindingFlags.NonPublic)
+            .Invoke(null, new object[] { mesh, range, coneAngle, reveal });
+    }
+
+    private static float SampleSlashAlpha(Mesh mesh, Vector3 point)
+    {
+        Vector3[] vertices = mesh.vertices;
+        Color[] colors = mesh.colors;
+        int[] triangles = mesh.triangles;
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            int a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
+            Vector3 edge0 = vertices[b] - vertices[a];
+            Vector3 edge1 = vertices[c] - vertices[a];
+            Vector3 offset = point - vertices[a];
+            float d00 = Vector3.Dot(edge0, edge0), d01 = Vector3.Dot(edge0, edge1), d11 = Vector3.Dot(edge1, edge1);
+            float denominator = d00 * d11 - d01 * d01;
+            if (Mathf.Abs(denominator) < 0.0000000001f) continue;
+            float u = (d11 * Vector3.Dot(offset, edge0) - d01 * Vector3.Dot(offset, edge1)) / denominator;
+            float v = (d00 * Vector3.Dot(offset, edge1) - d01 * Vector3.Dot(offset, edge0)) / denominator;
+            if (u < -0.0001f || v < -0.0001f || u + v > 1.0001f) continue;
+            return colors[a].a * (1f - u - v) + colors[b].a * u + colors[c].a * v;
+        }
+        Assert.Fail($"No slash triangle covers interior point {point}.");
+        return 0f;
     }
 
     [Test]

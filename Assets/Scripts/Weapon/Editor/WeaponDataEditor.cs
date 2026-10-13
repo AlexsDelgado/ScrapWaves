@@ -2,9 +2,10 @@ using UnityEditor;
 using UnityEngine;
 
 [CustomEditor(typeof(WeaponData))]
-public sealed class WeaponDataEditor : Editor
+public sealed partial class WeaponDataEditor : Editor
 {
     private SerializedProperty _specificTuning;
+    private bool _showIdentityAndPresentation;
 
     private void OnEnable()
     {
@@ -13,21 +14,37 @@ public sealed class WeaponDataEditor : Editor
 
     public override void OnInspectorGUI()
     {
-        serializedObject.Update();
-
-        DrawCoreFields();
-        EditorGUILayout.Space();
-        DrawBaseCombatFields();
-        EditorGUILayout.Space();
-        DrawWeaponSpecificFields();
-        EditorGUILayout.Space();
-        DrawUpgradeFields();
-
-        serializedObject.ApplyModifiedProperties();
+        float previousLabelWidth = EditorGUIUtility.labelWidth;
+        EditorGUIUtility.labelWidth = Mathf.Clamp(EditorGUIUtility.currentViewWidth * 0.46f, 180f, 380f);
+        try { DrawInspectorContents(); }
+        finally { EditorGUIUtility.labelWidth = previousLabelWidth; }
     }
 
+    private void DrawInspectorContents()
+    {
+        serializedObject.Update();
+        DrawCoreFields();
+        EditorGUILayout.Space();
+        DrawStatAuthoring();
+        EditorGUILayout.Space();
+        _showSharedTuning = EditorGUILayout.Foldout(_showSharedTuning, "Shared weapon tuning (all levels)", true);
+        if (_showSharedTuning)
+        {
+            EditorGUILayout.HelpBox("These source values affect every level that inherits them. Level overrides above remain independent.", MessageType.Info);
+            DrawBaseCombatFields();
+            EditorGUILayout.Space();
+            DrawWeaponSpecificFields();
+            EditorGUILayout.Space();
+            DrawUpgradeFields();
+        }
+        serializedObject.ApplyModifiedProperties();
+    }
     private void DrawCoreFields()
     {
+        string displayName = serializedObject.FindProperty(nameof(WeaponData.DisplayName)).stringValue;
+        EditorGUILayout.LabelField(string.IsNullOrEmpty(displayName) ? target.name : displayName, EditorStyles.boldLabel);
+        _showIdentityAndPresentation = EditorGUILayout.Foldout(_showIdentityAndPresentation, "Identity and presentation", true);
+        if (!_showIdentityAndPresentation) return;
         EditorGUILayout.LabelField("Identity", EditorStyles.boldLabel);
         DrawProperty(nameof(WeaponData.WeaponId));
         DrawProperty(nameof(WeaponData.DisplayName));
@@ -39,7 +56,7 @@ public sealed class WeaponDataEditor : Editor
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("UI", EditorStyles.boldLabel);
         DrawProperty(nameof(WeaponData.Icon));
-        DrawProperty(nameof(WeaponData.SkillCooldown));
+
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Presentation", EditorStyles.boldLabel);
@@ -48,20 +65,61 @@ public sealed class WeaponDataEditor : Editor
 
     private void DrawBaseCombatFields()
     {
-        EditorGUILayout.LabelField("Base Combat", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Shared combat sources", EditorStyles.boldLabel);
         DrawProperty(nameof(WeaponData.BaseDamage));
-        DrawProperty(nameof(WeaponData.BaseAttackRate));
-        DrawProperty(nameof(WeaponData.BaseRange));
-        DrawProperty(nameof(WeaponData.BaseKnockback));
-        DrawProperty(nameof(WeaponData.BaseManualAmmo));
-        DrawProperty(nameof(WeaponData.ActiveAbilityAmmoCost));
+        if ((SelectedAuthoringType == WeaponType.RocketLauncher && _authoringMode == WeaponStatAuthoringMode.Manual)
+            || (SelectedAuthoringType == WeaponType.Mortar && _authoringMode != WeaponStatAuthoringMode.Ability))
+            DrawProperty(nameof(WeaponData.BaseAttackRate));
+        bool usesBaseRange = SelectedAuthoringType == WeaponType.RocketLauncher || SelectedAuthoringType == WeaponType.Mortar
+            || (SelectedAuthoringType == WeaponType.Flamethrower && _authoringMode != WeaponStatAuthoringMode.Ability)
+            || (SelectedAuthoringType == WeaponType.AutomaticCannon && (_authoringMode == WeaponStatAuthoringMode.Automatic
+                || (_authoringMode == WeaponStatAuthoringMode.Ability && SelectedAuthoringPath == WeaponUpgradePath.PathB)));
+        if (usesBaseRange)
+        {
+            DrawProperty(nameof(WeaponData.BaseRange));
+            if (_authoringMode == WeaponStatAuthoringMode.Ability)
+            {
+                string purpose = SelectedAuthoringType == WeaponType.Mortar ? "Inherited distance to the aimed barrage center; barrage radius controls spread."
+                    : SelectedAuthoringType == WeaponType.RocketLauncher && SelectedAuthoringPath == WeaponUpgradePath.PathB
+                        ? "Inherited parent and child maximum travel sources; this path does not lock targets."
+                    : SelectedAuthoringType == WeaponType.AutomaticCannon
+                        ? "Inherited pierce reach source, with the existing minimum of 1000 m. The exact Q override above replaces that reach."
+                    : null;
+                if (purpose != null) EditorGUILayout.HelpBox(purpose, MessageType.None);
+            }
+        }
+        if (!(SelectedAuthoringType == WeaponType.Flamethrower && _authoringMode == WeaponStatAuthoringMode.Automatic)
+            && !(SelectedAuthoringType == WeaponType.RotatingBlade && SelectedAuthoringPath == WeaponUpgradePath.PathB))
+            DrawProperty(nameof(WeaponData.BaseKnockback));
+        if (_authoringMode == WeaponStatAuthoringMode.Manual)
+            DrawProperty(nameof(WeaponData.BaseManualAmmo));
+        if (_authoringMode == WeaponStatAuthoringMode.Ability)
+        {
+            if (SelectedAuthoringType == WeaponType.AutomaticCannon && SelectedAuthoringPath == WeaponUpgradePath.PathA)
+                EditorGUILayout.HelpBox("Continuous Fire inherits its existing 80-ammo Q cost. Use the exact level Q ammo override above to change it.", MessageType.None);
+            else DrawProperty(nameof(WeaponData.ActiveAbilityAmmoCost));
+            DrawProperty(nameof(WeaponData.SkillCooldown));
+        }
     }
-
     private void DrawWeaponSpecificFields()
     {
         SerializedProperty weaponTypeProperty = serializedObject.FindProperty(nameof(WeaponData.WeaponType));
         WeaponType weaponType = (WeaponType)weaponTypeProperty.enumValueIndex;
-        EnsureSpecificTuning(weaponType);
+        WeaponSpecificTuning expected = WeaponData.CreateSpecificTuning(weaponType);
+        object current = _specificTuning.managedReferenceValue;
+        if (expected == null || current == null || current.GetType() != expected.GetType())
+        {
+            EditorGUILayout.HelpBox("No matching tuning payload is initialized. Initializing it retains the other weapon payloads.", MessageType.Info);
+            if (GUILayout.Button("Initialize selected weapon tuning"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                Undo.RecordObject(target, "Initialize weapon tuning");
+                ((WeaponData)target).EnsureSpecificTuningForCurrentType();
+                EditorUtility.SetDirty(target);
+                serializedObject.Update();
+            }
+            return;
+        }
 
         switch (weaponType)
         {
@@ -126,6 +184,8 @@ public sealed class WeaponDataEditor : Editor
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaTimeToStop), "Time to Stop (s)");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaInitialRadius), "Initial Radius (m)");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaFinalRadius), "Final Radius (m)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAreaGrowthDuration), "Growth Duration (s)");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutomaticRangeMultiplier), "Automatic / Manual Travel");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameAutoTickInterval), "Auto Tick Interval");
@@ -143,6 +203,7 @@ public sealed class WeaponDataEditor : Editor
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveRadius), "Active Radius");
+        DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveExpansionDuration), "Q Expansion Duration");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveDamageScale), "Active Damage Scale");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameManualKnockbackScale), "Manual Knockback Scale");
         DrawSpecificProperty(nameof(FlamethrowerTuning.FlameActiveKnockbackScale), "Active Knockback Scale");
@@ -244,28 +305,34 @@ public sealed class WeaponDataEditor : Editor
 
     private void DrawUpgradeFields()
     {
-        EditorGUILayout.LabelField("Levels And Paths", EditorStyles.boldLabel);
-        DrawProperty(nameof(WeaponData.LevelData), includeChildren: true);
-        DrawProperty(nameof(WeaponData.PathA), includeChildren: true);
-        DrawProperty(nameof(WeaponData.PathB), includeChildren: true);
-    }
-
-    private void EnsureSpecificTuning(WeaponType weaponType)
-    {
-        WeaponSpecificTuning expected = WeaponData.CreateSpecificTuning(weaponType);
-        object current = _specificTuning.managedReferenceValue;
-
-        if (expected == null)
+        EditorGUILayout.LabelField("Selected progression source", EditorStyles.boldLabel);
+        var context = new WeaponInstance { Data = (WeaponData)target, Level = _authoringLevel, SelectedPath = SelectedAuthoringPath };
+        if (context.Data.StatProfile != null && !context.Data.StatProfile.TryValidate(SelectedAuthoringType, out _)) return;
+        if (_authoringMode == WeaponStatAuthoringMode.Ability)
+            EditorGUILayout.HelpBox("Q spends the Manual magazine. Edit its shared capacity in Manual mode; Q ammo cost and timing are separate controls.", MessageType.None);
+        else if (_authoringMode == WeaponStatAuthoringMode.Manual)
+            EditorGUILayout.HelpBox("Manual magazine capacity is shared with Q. An exact capacity override replaces the inherited level multiplier and path capacity.", MessageType.None);
+        if (_authoringLevel < 6)
+            DrawSelectedProgressionRow(serializedObject.FindProperty(nameof(WeaponData.LevelData)));
+        else
         {
-            if (current != null)
-                _specificTuning.managedReferenceValue = null;
-            return;
+            SerializedProperty path = serializedObject.FindProperty(SelectedAuthoringPath == WeaponUpgradePath.PathA
+                ? nameof(WeaponData.PathA) : nameof(WeaponData.PathB));
+            if (path != null)
+            {
+                EditorGUILayout.PropertyField(path.FindPropertyRelative(nameof(WeaponUpgradePathData.PathName)));
+                EditorGUILayout.PropertyField(path.FindPropertyRelative(nameof(WeaponUpgradePathData.DamageMultiplier)));
+                if (WeaponStatInspectorPolicy.ShowsProgressionAttackRate(context, _authoringMode))
+                    EditorGUILayout.PropertyField(path.FindPropertyRelative(nameof(WeaponUpgradePathData.AttackRateMultiplier)));
+                if (WeaponStatInspectorPolicy.ShowsPathAmmoOverride(context, _authoringMode))
+                {
+                    EditorGUILayout.PropertyField(path.FindPropertyRelative(nameof(WeaponUpgradePathData.ManualAmmoOverride)));
+                    EditorGUILayout.HelpBox("Negative inherits capacity and applies player ammo scaling. Zero or positive sets a fixed capacity without player scaling. With an exact capacity override, only this sign still controls player scaling; the exact value supplies capacity.", MessageType.None);
+                }
+                DrawSelectedProgressionRow(path.FindPropertyRelative(nameof(WeaponUpgradePathData.LevelData)));
+            }
         }
-
-        if (current == null || current.GetType() != expected.GetType())
-            _specificTuning.managedReferenceValue = expected;
     }
-
     private void DrawProperty(string propertyName, bool includeChildren = false)
     {
         SerializedProperty property = serializedObject.FindProperty(propertyName);
@@ -275,8 +342,14 @@ public sealed class WeaponDataEditor : Editor
 
     private void DrawSpecificProperty(string propertyName, string label, bool includeChildren = false)
     {
+        if (!WeaponStatInspectorPolicy.ShowsSpecificField(SelectedAuthoringType, propertyName,
+            _authoringLevel, SelectedAuthoringPath, _authoringMode)) return;
         SerializedProperty property = _specificTuning.FindPropertyRelative(propertyName);
         if (property != null)
+        {
+            label = WeaponStatInspectorPolicy.SpecificFieldLabel(SelectedAuthoringType, propertyName,
+                _authoringLevel, SelectedAuthoringPath, _authoringMode, label);
             EditorGUILayout.PropertyField(property, new GUIContent(label, property.tooltip), includeChildren);
+        }
     }
 }

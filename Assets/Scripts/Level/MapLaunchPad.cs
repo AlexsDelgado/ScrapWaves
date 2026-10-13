@@ -49,7 +49,7 @@ public sealed class MapLaunchPad : MonoBehaviour
 
     private void TryLaunch(Collider contactingBody, bool requireTopContact)
     {
-        if (_busy || _landing == null)
+        if (!TutorialDirector.AllowsLaunch(this) || _busy || _landing == null)
             return;
 
         PlayerMovement movement = contactingBody.GetComponentInParent<PlayerMovement>();

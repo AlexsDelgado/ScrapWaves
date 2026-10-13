@@ -551,7 +551,7 @@ public sealed class AutomaticWeaponMountTests
     }
 
     [Test]
-    public void AutomaticFlamethrowerDirection_UsesBodyForward()
+    public void AutomaticFlamethrowerDirection_FollowsBodyForward()
     {
         GameObject owner = Track(new GameObject("Owner"));
         owner.transform.rotation = Quaternion.Euler(0f, 90f, 0f);

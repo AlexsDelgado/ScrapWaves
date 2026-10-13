@@ -908,7 +908,8 @@ public sealed class StatAttributionPanel : MonoBehaviour
     {
         _builder.Clear();
 
-        string weaponName = roll.Weapon?.Data != null ? roll.Weapon.Data.name : "unknown weapon";
+        string weaponName = factors.SourceLevel > 0 ? factors.SourceWeaponType.ToString()
+            : roll.Weapon?.Data != null ? roll.Weapon.Data.name : "unknown weapon";
         _builder.Append("<b>").Append(weaponName).Append("</b>");
         if (roll.IsCritical) _builder.Append("   [CRIT]");
         if (roll.EliteOrBoss) _builder.Append("   [ELITE/BOSS]");
@@ -927,6 +928,15 @@ public sealed class StatAttributionPanel : MonoBehaviour
         _factorDetailText.text = _builder.ToString();
     }
 
+    private void AppendCapturedWeaponSource(in WeaponDamageFactors factors)
+    {
+        if (factors.SourceLevel <= 0) return;
+        _builder.Append("fired weapon     ").Append(factors.SourceWeaponType).Append('\n');
+        _builder.Append("fired level      ").Append(factors.SourceLevel).Append('\n');
+        _builder.Append("fired path       ").Append(factors.SourcePath).Append('\n');
+        _builder.Append("fired mode       ").Append(factors.Mode).Append('\n');
+    }
+
     private void AppendFactorExplanation(in WeaponDamageRoll roll, in WeaponDamageFactors factors)
     {
         WeaponData data = roll.Weapon?.Data;
@@ -934,24 +944,26 @@ public sealed class StatAttributionPanel : MonoBehaviour
         switch (_selectedFactor)
         {
             case Factor.Base:
-                _builder.Append("WeaponData.BaseDamage, authored on the weapon asset.\n");
-                if (data != null)
+                _builder.Append(factors.HasAuthoredDamage
+                    ? "StatProfile damage replacement for the firing action.\n"
+                    : "Inherited WeaponData.BaseDamage at the time of the firing action.\n");
+                AppendCapturedWeaponSource(in factors);
+                if (factors.SourceLevel <= 0 && data != null)
                     _builder.Append("asset            ").Append(data.name).Append('\n');
                 return;
 
             case Factor.WeaponLevel:
-                _builder.Append("WeaponLevelData.DamageMultiplier for the weapon's current level.\n");
-                if (roll.Weapon != null)
-                    _builder.Append("weapon level     ").Append(roll.Weapon.Level).Append('\n');
+                _builder.Append(factors.HasAuthoredDamage
+                    ? "Level multiplier bypassed: authored mode damage replaces the complete neutral weapon value.\n"
+                    : "Inherited WeaponLevelData.DamageMultiplier captured for the firing action.\n");
+                AppendCapturedWeaponSource(in factors);
                 return;
 
             case Factor.UpgradePath:
-                _builder.Append("WeaponUpgradePathData.DamageMultiplier for the selected path.\n");
-                if (roll.Weapon != null)
-                {
-                    _builder.Append("path             ").Append(roll.Weapon.SelectedPath).Append('\n');
-                    _builder.Append("advanced path    ").Append(roll.Weapon.HasAdvancedPath ? "yes" : "no").Append('\n');
-                }
+                _builder.Append(factors.HasAuthoredDamage
+                    ? "Path multiplier bypassed: authored mode damage replaces the complete neutral weapon value.\n"
+                    : "Inherited WeaponUpgradePathData.DamageMultiplier captured for the firing action.\n");
+                AppendCapturedWeaponSource(in factors);
                 return;
 
             case Factor.Critical:

@@ -3009,8 +3009,10 @@ public class WeaponUpgradeEffectTests
 
             weapon.UseActiveAbility(Vector3.forward);
 
+            Assert.That(Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None), Is.Empty);
+            weapon.ActiveWave.Simulate(.3f);
             Assert.That(Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
-            Assert.That(Object.FindObjectsByType<FlamethrowerStreamVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+            Assert.That(Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
         }
         finally
         {
@@ -3021,7 +3023,7 @@ public class WeaponUpgradeEffectTests
     }
 
     [Test]
-    public void FlamethrowerAutomaticCone_LiquidNitrogenAppliesSlow()
+    public void FlamethrowerAutomaticAreas_LiquidNitrogenAppliesSlowOnContact()
     {
         GameObject owner = new("Auto Flamethrower Owner");
         GameObject spawn = new("Auto Flamethrower Spawn");
@@ -3067,6 +3069,7 @@ public class WeaponUpgradeEffectTests
             weapon.Setup(instance, owner.transform, stats, null);
 
             weapon.TickAutomatic(0.02f, Vector3.forward);
+            weapon.ManualAreas.Simulate(0.4f);
 
             Assert.That(damageable.TotalDamage, Is.GreaterThan(0));
             Assert.That(target.GetComponent<WeaponMovementSlowStatus>(), Is.Not.Null);
@@ -3360,13 +3363,15 @@ public class WeaponUpgradeEffectTests
                 null,
                 new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
 
-            // Keep a healthy margin before the 0.75 airburst threshold because
-            // Update adds the editor frame delta, which varies with test order.
-            SetPrivateField(shell, "_elapsed", 0.5f);
+            Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1),
+                "The fixture starts with its parent shell only.");
+            // Update adds the Editor frame delta. Subtract it so a slow preceding test
+            // cannot advance the shell past the exact pre-airburst sample time.
+            SetPrivateField(shell, "_elapsed", 0.5f - Time.deltaTime);
             InvokePrivate(shell, "Update");
             Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
 
-            SetPrivateField(shell, "_elapsed", 0.75f);
+            SetPrivateField(shell, "_elapsed", 0.75f - Time.deltaTime);
             InvokePrivate(shell, "Update");
             MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
             Assert.That(subShells, Has.Length.EqualTo(15));
@@ -3548,7 +3553,8 @@ public class WeaponUpgradeEffectTests
             0f,
             0f,
             2,
-            0.01f);
+            0.01f,
+            null); // Disabled landing-spread override preserves the inherited payload.
 
         MethodInfo launch = typeof(MortarShellImpact).GetMethod(
             "Launch",
@@ -3900,6 +3906,13 @@ public class WeaponUpgradeEffectTests
 
     private static void DestroyGeneratedVfx()
     {
+        foreach (FlamethrowerActiveWave wave in Object.FindObjectsByType<FlamethrowerActiveWave>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(wave.gameObject);
+        foreach (FlamethrowerCueVfx cue in Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(cue.gameObject);
+        foreach (FlamethrowerManualAreas areas in Object.FindObjectsByType<FlamethrowerManualAreas>(FindObjectsSortMode.None))
+            Object.DestroyImmediate(areas.gameObject);
+
         foreach (ExplosionRadiusVfx vfx in Object.FindObjectsByType<ExplosionRadiusVfx>(FindObjectsSortMode.None))
             Object.DestroyImmediate(vfx.gameObject);
 

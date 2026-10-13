@@ -303,6 +303,13 @@ public class ObjectivesMenuUIPresenterTests
         SetPrivate(presenter, "_purchaseButtonLabel", purchaseButtonLabel);
         SetPrivate(presenter, "_purchaseFeedbackText", purchaseFeedback);
 
+        var authoredRows = new List<ObjectiveRowView>();
+        if (objectiveTemplate != null) foreach (var achievement in _saveManager.AchievementCatalog) { var row = UnityEngine.Object.Instantiate(objectiveTemplate, objectivesContent); row.gameObject.SetActive(false); authoredRows.Add(row); }
+        var authoredCards = new List<UnlockCardView>();
+        int cardCount = catalog.Weapons.Count + catalog.PassiveItems.Count + catalog.WeaponPathUnlocks.Count;
+        for (int i = 0; i < cardCount; i++) { var card = UnityEngine.Object.Instantiate(unlockTemplate, unlocksContent); card.gameObject.SetActive(false); authoredCards.Add(card); }
+        SetPrivate(presenter, "_authoredRows", authoredRows.ToArray());
+        SetPrivate(presenter, "_authoredUnlocks", authoredCards.ToArray());
         screenRoot.SetActive(false);
         return new PresenterFixture
         {

@@ -34,6 +34,9 @@ public readonly struct WeaponPresentationContext
     public readonly WeaponEnemyKind TargetClass;
     public readonly ImpactSurfaceType SurfaceType;
     public readonly float ExplosionRadius;
+    public readonly bool HasFragmentGeometry;
+    public readonly float FragmentConeRange;
+    public readonly float FragmentConeAngle;
     public readonly GameFeelQualityLevel Quality;
     public readonly bool ReducedFlash;
     public readonly float HeatEmissionMultiplier;
@@ -69,7 +72,9 @@ public readonly struct WeaponPresentationContext
         float heatSmokeMultiplier = 1f,
         float heatSparkMultiplier = 1f,
         Color reducedFlashColor = default,
-        float reducedFlashIntensity = 0.35f)
+        float reducedFlashIntensity = 0.35f,
+        float fragmentConeRange = -1f,
+        float fragmentConeAngle = 0f)
     {
         Cue = cue;
         Weapon = weapon;
@@ -91,6 +96,9 @@ public readonly struct WeaponPresentationContext
         TargetClass = targetClass;
         SurfaceType = surfaceType;
         ExplosionRadius = Mathf.Max(0f, explosionRadius);
+        HasFragmentGeometry = fragmentConeRange >= 0f;
+        FragmentConeRange = Mathf.Max(0f, fragmentConeRange);
+        FragmentConeAngle = Mathf.Clamp(fragmentConeAngle, 0f, 180f);
         Quality = quality;
         ReducedFlash = reducedFlash;
         HeatEmissionMultiplier = Mathf.Max(0f, heatEmissionMultiplier);
@@ -143,6 +151,8 @@ public readonly struct WeaponPresentationContext
             profile != null ? profile.ReducedFlashColor : new Color(1f, 0.58f, 0.16f, 0.55f),
             screenFlashEnabled
                 ? (profile != null ? profile.ReducedFlashIntensity : 0.35f)
-                : 0f);
+                : 0f,
+            context.HasFragmentGeometry ? context.FragmentConeRange : -1f,
+            context.FragmentConeAngle);
     }
 }

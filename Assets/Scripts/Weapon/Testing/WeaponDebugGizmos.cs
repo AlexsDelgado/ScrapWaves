@@ -18,404 +18,198 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     private const int ArcSegments = 24;
     private const float RuntimeLineWidth = 0.055f;
     private static Material s_runtimeMaterial;
-
     private readonly List<LineRenderer> _runtimeLines = new();
     private WeaponTestingSandboxManager _sandbox;
     private Transform _runtimeRoot;
     private int _runtimeLineIndex;
+    private int _geometryFrame = -1;
+    private BasicProjectileWeapon _geometryWeapon;
+    private int _geometryLevel;
+    private WeaponUpgradePath _geometryPath;
+    private WeaponGeometrySnapshot _geometry;
 
     public void Bind(WeaponTestingSandboxManager sandbox)
     {
         _sandbox = sandbox;
+        _geometryFrame = -1;
     }
 
     private void Update()
     {
-        if (!Application.isPlaying)
-            return;
-
-        if (!ShowRuntimeVisuals || _sandbox == null || _sandbox.PlayerTransform == null)
+        if (!Application.isPlaying) return;
+        if (!ShowRuntimeVisuals || !TryGetWeapon(out BasicProjectileWeapon weapon))
         {
             HideRuntimeLines();
             return;
         }
-
-        WeaponInstance weapon = _sandbox.CurrentManualWeapon;
-        if (weapon?.Data == null)
-        {
-            HideRuntimeLines();
-            return;
-        }
-
-        Transform player = _sandbox.PlayerTransform;
-        Vector3 origin = _sandbox.ProjectileSpawn != null ? _sandbox.ProjectileSpawn.position : player.position + Vector3.up;
-        Vector3 forward = _sandbox.CurrentAimDirection.sqrMagnitude > 0.0001f ? _sandbox.CurrentAimDirection.normalized : player.forward;
-
         BeginRuntimeFrame();
-        DrawRuntimeTargeting(weapon, origin, forward);
-        DrawRuntimeWeaponSpecific(weapon, origin, forward);
+        DrawResolvedGeometry(weapon, true);
         EndRuntimeFrame();
     }
 
-    private void OnDisable()
-    {
-        HideRuntimeLines();
-    }
+    private void OnDisable() => HideRuntimeLines();
 
     private void OnDrawGizmos()
     {
-        if (_sandbox == null || _sandbox.PlayerTransform == null)
-            return;
+        if (TryGetWeapon(out BasicProjectileWeapon weapon)) DrawResolvedGeometry(weapon, false);
+    }
 
-        WeaponInstance weapon = _sandbox.CurrentManualWeapon;
-        if (weapon?.Data == null)
-            return;
+    private bool TryGetWeapon(out BasicProjectileWeapon weapon)
+    {
+        weapon = _sandbox != null ? _sandbox.CurrentManualBehaviour as BasicProjectileWeapon : null;
+        return _sandbox != null && _sandbox.PlayerTransform != null && weapon?.Runtime?.Data != null;
+    }
 
+    private WeaponGeometrySnapshot ReadGeometry(BasicProjectileWeapon weapon)
+    {
+        if (!Application.isPlaying || _geometryFrame != Time.frameCount || _geometryWeapon != weapon
+            || _geometryLevel != weapon.Runtime.Level || _geometryPath != weapon.Runtime.SelectedPath)
+        {
+            _geometry = weapon.CaptureGeometry();
+            _geometryFrame = Time.frameCount;
+            _geometryWeapon = weapon;
+            _geometryLevel = weapon.Runtime.Level;
+            _geometryPath = weapon.Runtime.SelectedPath;
+        }
+        return _geometry;
+    }
+
+    private void DrawResolvedGeometry(BasicProjectileWeapon weapon, bool runtime)
+    {
         Transform player = _sandbox.PlayerTransform;
-        Vector3 origin = _sandbox.ProjectileSpawn != null ? _sandbox.ProjectileSpawn.position : player.position + Vector3.up;
-        Vector3 forward = _sandbox.CurrentAimDirection.sqrMagnitude > 0.0001f ? _sandbox.CurrentAimDirection.normalized : player.forward;
-
-        DrawTargeting(weapon, origin, forward);
-        DrawWeaponSpecific(weapon, origin, forward);
-    }
-
-    private void DrawRuntimeTargeting(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        if (!ShowTargetingCone || weapon.Data.WeaponType == WeaponType.RotatingBlade)
-            return;
-
-        Color color = new(0.1f, 0.65f, 1f, 0.9f);
-        if (weapon.Data.WeaponType == WeaponType.Flamethrower)
-            DrawRuntimeLine(origin, origin + forward * weapon.Data.BaseRange, color, RuntimeLineWidth);
-        else
-            DrawRuntimeCone(origin, forward, weapon.Data.BaseRange, 90f, color);
-    }
-
-    private void DrawRuntimeWeaponSpecific(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        switch (weapon.Data.WeaponType)
+        Vector3 muzzle = _sandbox.ProjectileSpawn != null ? _sandbox.ProjectileSpawn.position : player.position + Vector3.up;
+        Vector3 aim = _sandbox.CurrentAimDirection.sqrMagnitude > 0.0001f
+            ? _sandbox.CurrentAimDirection.normalized : player.forward;
+        WeaponGeometrySnapshot snapshot = ReadGeometry(weapon);
+        if (snapshot != null)
         {
-            case WeaponType.Flamethrower:
-                DrawRuntimeFlamethrower(weapon, origin, forward);
-                break;
-            case WeaponType.RocketLauncher:
-                DrawRuntimeRocketLauncher(weapon, origin, forward);
-                break;
-            case WeaponType.Mortar:
-                DrawRuntimeMortar(weapon, origin, forward);
-                break;
-            case WeaponType.AutomaticCannon:
-                DrawRuntimeAutomaticCannon(weapon, origin, forward);
-                break;
-            case WeaponType.RotatingBlade:
-                DrawRuntimeRotatingBlade(weapon, origin, forward);
-                break;
-        }
-    }
-
-    private void DrawRuntimeFlamethrower(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        FlamethrowerTuning tuning = weapon.Data.Flamethrower;
-        float size = GetAreaSize();
-        Color guideColor = GetFlamethrowerGuideColor(weapon, 0.9f);
-        if (ShowWeaponHitboxes)
-            DrawManualFlameAreas(true, guideColor);
-
-        if (ShowExplosionRadius && !IsJellifiedFuelPath(weapon))
-            DrawRuntimeSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius * size, GetFlamethrowerGuideColor(weapon, 0.75f));
-    }
-
-    private void DrawRuntimeRocketLauncher(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        RocketLauncherTuning tuning = weapon.Data.RocketLauncher;
-        float size = GetAreaSize();
-        Vector3 target = origin + forward.normalized * weapon.Data.BaseRange;
-
-        if (ShowProjectilePaths)
-            DrawRuntimeLine(origin, target, new Color(1f, 0.9f, 0.05f, 0.95f), RuntimeLineWidth);
-
-        if (ShowExplosionRadius)
-            DrawRuntimeSphere(target, tuning.RocketManualExplosionRadius * size, new Color(1f, 0.42f, 0.02f, 0.95f));
-    }
-
-    private void DrawRuntimeMortar(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        MortarTuning tuning = weapon.Data.Mortar;
-        float size = GetAreaSize();
-        Vector3 target = origin + forward.normalized * weapon.Data.BaseRange;
-
-        if (ShowProjectilePaths)
-        {
-            DrawRuntimeArc(origin, target, tuning.MortarArcHeight, new Color(1f, 0.86f, 0.05f, 0.95f));
-            Vector3 dropStart = target + Vector3.up * tuning.MortarActiveDropHeight;
-            DrawRuntimeLine(dropStart, target, new Color(1f, 0.25f, 0.04f, 0.95f), RuntimeLineWidth * 1.5f);
-            DrawRuntimeSphere(dropStart, Mathf.Max(0.08f, tuning.MortarShellCollisionRadius * size), new Color(1f, 0.55f, 0.08f, 0.9f));
-        }
-
-        if (ShowExplosionRadius)
-        {
-            DrawRuntimeSphere(target, tuning.MortarManualExplosionRadius * size, new Color(1f, 0.45f, 0.04f, 0.95f));
-            DrawRuntimeSphere(target, tuning.MortarActiveExplosionRadius * size, new Color(1f, 0.12f, 0.02f, 0.8f));
-            DrawRuntimeCircle(target, Vector3.up, tuning.MortarManualAccuracyRadius, new Color(1f, 1f, 1f, 0.65f), RuntimeLineWidth);
-        }
-
-        if (ShowWeaponHitboxes)
-            DrawRuntimeCircle(target, Vector3.up, tuning.MortarBarrageRadius * size, new Color(1f, 0.82f, 0.05f, 0.75f), RuntimeLineWidth);
-    }
-
-    private void DrawRuntimeAutomaticCannon(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        AutomaticCannonTuning tuning = weapon.Data.AutomaticCannon;
-        Vector3 direction = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
-
-        if (ShowProjectilePaths)
-        {
-            Color pathColor = new(0.78f, 1f, 0.16f, 0.95f);
-            int count = Mathf.Max(1, tuning.CannonManualBurstCount);
-            DrawRuntimeLine(origin, origin + direction * weapon.Data.BaseRange, pathColor, RuntimeLineWidth);
-            for (int i = 0; i < count; i++)
+            foreach (WeaponGeometryGuide guide in snapshot.Guides)
             {
-                Vector3 roundPosition = origin + direction * (tuning.CannonManualLineSpacing * i);
-                DrawRuntimeSphere(roundPosition, 0.08f, pathColor);
+                if (!IsVisible(guide.Purpose)) continue;
+                Vector3 direction = guide.Direction == WeaponGeometryDirection.OwnerForward ? player.forward : aim;
+                if (guide.Direction == WeaponGeometryDirection.HorizontalAim)
+                {
+                    direction.y = 0f;
+                    if (direction.sqrMagnitude <= 0.0001f) { direction = player.forward; direction.y = 0f; }
+                }
+                direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
+                Vector3 anchor = guide.Anchor == WeaponGeometryAnchor.Owner ? player.position : muzzle;
+                DrawGuide(in guide, anchor, direction, runtime);
             }
         }
-
-        if (ShowWeaponHitboxes)
-            DrawRuntimeCone(origin, direction, weapon.Data.BaseRange, tuning.CannonAbilityScatterRadius, new Color(1f, 1f, 1f, 0.55f));
-    }
-
-    private void DrawRuntimeRotatingBlade(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        RotatingBladeTuning tuning = weapon.Data.RotatingBlade;
-        float size = GetAreaSize();
-        Vector3 playerPosition = _sandbox.PlayerTransform.position;
-
-        if (ShowWeaponHitboxes)
+        // These are already the actual moving damage areas, including their current sizes.
+        if (ShowWeaponHitboxes && weapon is FlamethrowerWeapon flame && flame.ManualAreas != null)
         {
-            float orbitRadius = tuning.BladeOrbitRadius * size;
-            float hitRadius = tuning.BladeHitRadius * size;
-            DrawRuntimeCircle(playerPosition, Vector3.up, orbitRadius, new Color(0.45f, 0.95f, 1f, 0.9f), RuntimeLineWidth);
-
-            Vector3 flatForward = forward;
-            flatForward.y = 0f;
-            if (flatForward.sqrMagnitude <= 0.0001f)
-                flatForward = _sandbox.PlayerTransform.forward;
-            flatForward.y = 0f;
-            flatForward = flatForward.sqrMagnitude > 0.0001f ? flatForward.normalized : Vector3.forward;
-
-            DrawRuntimeSphere(playerPosition + flatForward * orbitRadius, hitRadius, new Color(0.2f, 1f, 1f, 0.95f));
-            DrawSwordCone(playerPosition, forward, tuning.BladeManualRange * size, tuning.BladeManualConeAngle, true);
-        }
-
-        if (ShowProjectilePaths)
-        {
-            float activeRange = tuning.BladeManualRange * size * GetBladeActiveRangeMultiplier(tuning);
-            float activeRadius = tuning.BladeActiveLineWidth * size * 0.5f;
-            DrawRuntimeHose(origin, forward, activeRange, activeRadius, new Color(0.18f, 1f, 1f, 0.95f));
+            FlamethrowerManualAreas areas = flame.ManualAreas;
+            for (int i = 0; i < areas.ActiveCount; i++)
+                DrawSphere(areas.GetCenter(i), areas.GetRadius(i), new Color(1f, 0.28f, 0.02f, 0.85f), runtime);
         }
     }
 
-    private void DrawTargeting(WeaponInstance weapon, Vector3 origin, Vector3 forward)
+    private bool IsVisible(WeaponGeometryPurpose purpose) => purpose switch
     {
-        if (!ShowTargetingCone)
-            return;
+        WeaponGeometryPurpose.Targeting => ShowTargetingCone,
+        WeaponGeometryPurpose.ProjectilePath => ShowProjectilePaths,
+        WeaponGeometryPurpose.Hitbox => ShowWeaponHitboxes,
+        WeaponGeometryPurpose.Explosion => ShowExplosionRadius,
+        _ => false
+    };
 
-        Gizmos.color = new Color(0.2f, 0.7f, 1f, 0.65f);
-        float range = weapon.Data.BaseRange;
-        if (weapon.Data.WeaponType == WeaponType.RotatingBlade)
-            return;
-        if (weapon.Data.WeaponType == WeaponType.Flamethrower)
-            Gizmos.DrawLine(origin, origin + forward * range);
-        else
-            DrawCone(origin, forward, range, 90f);
-    }
+    private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 
-    private void DrawWeaponSpecific(WeaponInstance weapon, Vector3 origin, Vector3 forward)
+    private void DrawGuide(in WeaponGeometryGuide guide, Vector3 anchor, Vector3 forward, bool runtime)
     {
-        switch (weapon.Data.WeaponType)
+        if (!Finite(guide.ForwardOffsetMeters) || !Finite(guide.RangeMeters) || !Finite(guide.RadiusMeters)
+            || !Finite(guide.FullAngleDegrees) || !Finite(guide.ArcHeightMeters)) return;
+        if (guide.RangeMeters < 0f || guide.RadiusMeters < 0f) return;
+        Vector3 origin = anchor + forward * guide.ForwardOffsetMeters;
+        Vector3 end = origin + forward * guide.RangeMeters;
+        Color color = guide.Mode == WeaponStatMode.Automatic ? new Color(0.1f, 0.65f, 1f, 0.9f)
+            : guide.Mode == WeaponStatMode.Ability ? new Color(1f, 0.42f, 0.02f, 0.9f)
+            : new Color(0.4f, 1f, 0.55f, 0.9f);
+        if (!runtime) Gizmos.color = color;
+        switch (guide.Shape)
         {
-            case WeaponType.Flamethrower:
-                DrawFlamethrower(weapon, origin, forward);
+            case WeaponGeometryShape.Line:
+                if (guide.RangeMeters > 0f) DrawLine(origin, end, color, runtime);
                 break;
-            case WeaponType.RocketLauncher:
-                DrawRocketLauncher(weapon, origin, forward);
+            case WeaponGeometryShape.Circle:
+                DrawCircle(origin, Vector3.up, guide.RadiusMeters, color, runtime);
                 break;
-            case WeaponType.Mortar:
-                DrawMortar(weapon, origin, forward);
+            case WeaponGeometryShape.Sphere:
+                DrawSphere(origin, guide.RadiusMeters, color, runtime);
                 break;
-            case WeaponType.AutomaticCannon:
-                DrawAutomaticCannon(weapon, origin, forward);
+            case WeaponGeometryShape.PlanarCone:
+                if (guide.RangeMeters <= 0f || guide.FullAngleDegrees <= 0f) break;
+                if (runtime) DrawRuntimeCone(origin, forward, guide.RangeMeters, guide.FullAngleDegrees, color);
+                else DrawCone(origin, forward, guide.RangeMeters, guide.FullAngleDegrees);
                 break;
-            case WeaponType.RotatingBlade:
-                DrawRotatingBlade(weapon, origin, forward);
+            case WeaponGeometryShape.SphericalCone:
+                if (guide.RangeMeters > 0f && guide.FullAngleDegrees > 0f)
+                    DrawSwordCone(origin, forward, guide.RangeMeters, guide.FullAngleDegrees, runtime);
+                break;
+            case WeaponGeometryShape.Capsule:
+                DrawCapsule(origin, end, guide.RadiusMeters, color, runtime);
+                break;
+            case WeaponGeometryShape.SweptCircle:
+                DrawSweptCircle(origin, guide.RangeMeters, guide.RadiusMeters, color, runtime);
+                break;
+            case WeaponGeometryShape.Arc:
+                if (guide.RangeMeters <= 0f) break;
+                if (runtime) DrawRuntimeArc(origin, end, guide.ArcHeightMeters, color);
+                else DrawArc(origin, end, guide.ArcHeightMeters);
                 break;
         }
     }
 
-    private void DrawFlamethrower(WeaponInstance weapon, Vector3 origin, Vector3 forward)
+    private void DrawLine(Vector3 start, Vector3 end, Color color, bool runtime)
     {
-        FlamethrowerTuning tuning = weapon.Data.Flamethrower;
-        if (ShowWeaponHitboxes)
-        {
-            Gizmos.color = GetFlamethrowerGuideColor(weapon, 0.85f);
-            DrawManualFlameAreas(false, GetFlamethrowerGuideColor(weapon, 0.85f));
-        }
+        if (runtime) DrawRuntimeLine(start, end, color, RuntimeLineWidth);
+        else { Gizmos.color = color; Gizmos.DrawLine(start, end); }
+    }
 
-        if (ShowExplosionRadius && !IsJellifiedFuelPath(weapon))
+    private void DrawSphere(Vector3 center, float radius, Color color, bool runtime)
+    {
+        if (!Finite(radius) || radius <= 0f) return;
+        if (runtime) DrawRuntimeSphere(center, radius, color);
+        else { Gizmos.color = color; Gizmos.DrawWireSphere(center, radius); }
+    }
+
+    private void DrawCircle(Vector3 center, Vector3 normal, float radius, Color color, bool runtime)
+    {
+        if (!Finite(radius) || radius <= 0f) return;
+        if (runtime) { DrawRuntimeCircle(center, normal, radius, color, RuntimeLineWidth); return; }
+        GetPlaneBasis(normal, out Vector3 x, out Vector3 y);
+        Vector3 previous = center + x * radius;
+        for (int i = 1; i <= CircleSegments; i++)
         {
-            Gizmos.color = GetFlamethrowerGuideColor(weapon, 0.7f);
-            Gizmos.DrawWireSphere(_sandbox.PlayerTransform.position, tuning.FlameActiveRadius);
+            float angle = i * Mathf.PI * 2f / CircleSegments;
+            Vector3 next = center + (x * Mathf.Cos(angle) + y * Mathf.Sin(angle)) * radius;
+            DrawLine(previous, next, color, false);
+            previous = next;
         }
     }
 
-    private void DrawManualFlameAreas(bool runtime, Color color)
+    private void DrawCapsule(Vector3 start, Vector3 end, float radius, Color color, bool runtime)
     {
-        if (_sandbox.CurrentManualBehaviour is not FlamethrowerWeapon flame || flame.ManualAreas == null) return;
-        FlamethrowerManualAreas areas = flame.ManualAreas;
-        for (int i = 0; i < areas.ActiveCount; i++)
-        {
-            if (runtime) DrawRuntimeSphere(areas.GetCenter(i), areas.GetRadius(i), color);
-            else { Gizmos.color = color; Gizmos.DrawWireSphere(areas.GetCenter(i), areas.GetRadius(i)); }
-        }
+        if (!Finite(radius) || radius < 0f) return;
+        if (radius == 0f) { DrawLine(start, end, color, runtime); return; }
+        Vector3 direction = (end - start).normalized;
+        GetPlaneBasis(direction, out Vector3 x, out Vector3 y);
+        DrawSphere(start, radius, color, runtime);
+        DrawSphere(end, radius, color, runtime);
+        foreach (Vector3 radial in new[] { x, -x, y, -y })
+            DrawLine(start + radial * radius, end + radial * radius, color, runtime);
     }
 
-    private static bool IsJellifiedFuelPath(WeaponInstance weapon) =>
-        weapon != null && weapon.HasAdvancedPath && weapon.SelectedPath == WeaponUpgradePath.PathA;
-
-    private static bool IsLiquidNitrogenPath(WeaponInstance weapon) =>
-        weapon != null && weapon.HasAdvancedPath && weapon.SelectedPath == WeaponUpgradePath.PathB;
-
-    private static Color GetFlamethrowerGuideColor(WeaponInstance weapon, float alpha)
+    private void DrawSweptCircle(Vector3 center, float orbitRadius, float contactRadius, Color color, bool runtime)
     {
-        if (IsJellifiedFuelPath(weapon))
-            return new Color(0.03f, 0.28f, 0.06f, alpha);
-        if (IsLiquidNitrogenPath(weapon))
-            return new Color(0.55f, 0.9f, 1f, alpha);
-        return new Color(1f, 0.28f, 0.02f, alpha);
-    }
-
-    private void DrawRocketLauncher(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        RocketLauncherTuning tuning = weapon.Data.RocketLauncher;
-        float size = _sandbox.StatOverride != null ? _sandbox.StatOverride.ProjectileAreaSizeMultiplier : 1f;
-        Vector3 target = origin + forward * weapon.Data.BaseRange;
-
-        if (ShowProjectilePaths)
-        {
-            Gizmos.color = new Color(1f, 0.9f, 0.1f, 0.8f);
-            Gizmos.DrawLine(origin, target);
-        }
-
-        if (ShowExplosionRadius)
-        {
-            Gizmos.color = new Color(1f, 0.45f, 0.05f, 0.75f);
-            Gizmos.DrawWireSphere(target, tuning.RocketManualExplosionRadius * size);
-        }
-    }
-
-    private void DrawMortar(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        MortarTuning tuning = weapon.Data.Mortar;
-        Vector3 target = origin + forward * weapon.Data.BaseRange;
-        float size = _sandbox.StatOverride != null ? _sandbox.StatOverride.ProjectileAreaSizeMultiplier : 1f;
-
-        if (ShowProjectilePaths)
-        {
-            Gizmos.color = new Color(1f, 0.85f, 0.05f, 0.8f);
-            DrawArc(origin, target, tuning.MortarArcHeight);
-
-            Gizmos.color = new Color(1f, 0.25f, 0.05f, 0.9f);
-            Vector3 dropStart = target + Vector3.up * tuning.MortarActiveDropHeight;
-            Gizmos.DrawLine(dropStart, target);
-            Gizmos.DrawWireSphere(dropStart, Mathf.Max(0.08f, tuning.MortarShellCollisionRadius * size));
-        }
-
-        if (ShowExplosionRadius)
-        {
-            Gizmos.color = new Color(1f, 0.45f, 0.05f, 0.75f);
-            Gizmos.DrawWireSphere(target, tuning.MortarManualExplosionRadius * size);
-            Gizmos.color = new Color(1f, 0.2f, 0.05f, 0.45f);
-            Gizmos.DrawWireSphere(target, tuning.MortarActiveExplosionRadius * size);
-            Gizmos.color = new Color(1f, 1f, 1f, 0.35f);
-            Gizmos.DrawWireSphere(target, tuning.MortarManualAccuracyRadius);
-        }
-
-        if (ShowWeaponHitboxes)
-        {
-            Gizmos.color = new Color(1f, 0.85f, 0.05f, 0.45f);
-            Gizmos.DrawWireSphere(target, tuning.MortarBarrageRadius * size);
-        }
-    }
-
-    private void DrawAutomaticCannon(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        AutomaticCannonTuning tuning = weapon.Data.AutomaticCannon;
-        if (ShowProjectilePaths)
-        {
-            Gizmos.color = new Color(0.8f, 1f, 0.2f, 0.8f);
-            Gizmos.DrawLine(origin, origin + forward * weapon.Data.BaseRange);
-            for (int i = 0; i < tuning.CannonManualBurstCount; i++)
-            {
-                Vector3 roundPosition = origin + forward * (tuning.CannonManualLineSpacing * i);
-                Gizmos.DrawWireSphere(roundPosition, 0.08f);
-            }
-        }
-
-        if (ShowWeaponHitboxes)
-        {
-            Gizmos.color = new Color(1f, 1f, 1f, 0.35f);
-            DrawCone(origin, forward, weapon.Data.BaseRange, tuning.CannonAbilityScatterRadius);
-        }
-    }
-
-    private void DrawRotatingBlade(WeaponInstance weapon, Vector3 origin, Vector3 forward)
-    {
-        RotatingBladeTuning tuning = weapon.Data.RotatingBlade;
-        float size = _sandbox.StatOverride != null ? _sandbox.StatOverride.ProjectileAreaSizeMultiplier : 1f;
-
-        if (ShowWeaponHitboxes)
-        {
-            Gizmos.color = new Color(0.75f, 0.95f, 1f, 0.85f);
-            float orbitRadius = tuning.BladeOrbitRadius * size;
-            float hitRadius = tuning.BladeHitRadius * size;
-            Gizmos.DrawWireSphere(_sandbox.PlayerTransform.position, orbitRadius);
-
-            Vector3 flatForward = forward;
-            flatForward.y = 0f;
-            if (flatForward.sqrMagnitude <= 0.0001f)
-                flatForward = _sandbox.PlayerTransform.forward;
-            flatForward.y = 0f;
-            flatForward = flatForward.sqrMagnitude > 0.0001f ? flatForward.normalized : Vector3.forward;
-
-            Gizmos.color = new Color(0.45f, 1f, 1f, 0.9f);
-            Gizmos.DrawWireSphere(_sandbox.PlayerTransform.position + flatForward * orbitRadius, hitRadius);
-
-            Gizmos.color = new Color(0.6f, 1f, 0.65f, 0.85f);
-            DrawSwordCone(_sandbox.PlayerTransform.position, forward, tuning.BladeManualRange * size, tuning.BladeManualConeAngle, false);
-        }
-
-        if (ShowProjectilePaths)
-        {
-            float activeRange = tuning.BladeManualRange * size * GetBladeActiveRangeMultiplier(tuning);
-            float activeRadius = tuning.BladeActiveLineWidth * size * 0.5f;
-            Gizmos.color = new Color(0.2f, 1f, 1f, 0.85f);
-            DrawHose(origin, forward, activeRange, activeRadius);
-        }
-    }
-
-    private float GetBladeActiveRangeMultiplier(RotatingBladeTuning tuning)
-    {
-        float heatPercent = _sandbox.HeatOverride != null ? _sandbox.HeatOverride.NormalizedHeat * 100f : 0f;
-        float stepPercent = Mathf.Max(0.01f, tuning.BladeActiveHeatStepPercent);
-        float bonusSteps = Mathf.Floor(heatPercent / stepPercent);
-        return Mathf.Min(
-            Mathf.Max(1f, tuning.BladeActiveBaseRangeMultiplier) + bonusSteps,
-            Mathf.Max(tuning.BladeActiveBaseRangeMultiplier, tuning.BladeActiveMaxRangeMultiplier));
-    }
-
-    private float GetAreaSize()
-    {
-        return _sandbox.StatOverride != null ? Mathf.Max(0.01f, _sandbox.StatOverride.ProjectileAreaSizeMultiplier) : 1f;
+        DrawCircle(center, Vector3.up, orbitRadius + contactRadius, color, runtime);
+        if (orbitRadius > contactRadius) DrawCircle(center, Vector3.up, orbitRadius - contactRadius, color, runtime);
+        DrawCircle(center + Vector3.up * contactRadius, Vector3.up, orbitRadius, color, runtime);
+        DrawCircle(center - Vector3.up * contactRadius, Vector3.up, orbitRadius, color, runtime);
+        foreach (Vector3 offset in new[] { Vector3.forward, Vector3.back, Vector3.left, Vector3.right })
+            DrawCircle(center + offset * orbitRadius, Vector3.Cross(Vector3.up, offset), contactRadius, color, runtime);
     }
 
     private void BeginRuntimeFrame()
@@ -499,7 +293,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
         Quaternion frame = Quaternion.LookRotation(forward,
             Mathf.Abs(Vector3.Dot(forward, Vector3.up)) > 0.999f ? Vector3.forward : Vector3.up);
-        float halfAngle = Mathf.Clamp(angle, 1f, 180f) * 0.5f * Mathf.Deg2Rad;
+        float halfAngle = Mathf.Clamp(angle, 0f, 180f) * 0.5f * Mathf.Deg2Rad;
         Color color = new(0.4f, 1f, 0.55f, 0.8f);
         void Line(Vector3 a, Vector3 b)
         {
@@ -564,7 +358,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     {
         forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
         range = Mathf.Max(0f, range);
-        radius = Mathf.Max(0.01f, radius);
+        if (!Finite(radius) || radius <= 0f) return;
 
         GetPlaneBasis(forward, out Vector3 side, out Vector3 vertical);
         Vector3 end = origin + forward * range;
@@ -589,8 +383,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         for (int i = 0; i <= ArcSegments; i++)
         {
             float t = i / (float)ArcSegments;
-            Vector3 point = Vector3.Lerp(start, end, t);
-            point.y += 4f * height * t * (1f - t);
+            Vector3 point = MortarTrajectory.Evaluate(start, end, height, t);
             points[i] = point;
         }
 
@@ -599,7 +392,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
 
     private void DrawRuntimeSphere(Vector3 center, float radius, Color color)
     {
-        radius = Mathf.Max(0.01f, radius);
+        if (!Finite(radius) || radius <= 0f) return;
         DrawRuntimeCircle(center, Vector3.up, radius, color, RuntimeLineWidth);
         DrawRuntimeCircle(center, Vector3.right, radius, color, RuntimeLineWidth);
         DrawRuntimeCircle(center, Vector3.forward, radius, color, RuntimeLineWidth);
@@ -679,7 +472,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
     {
         forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
         range = Mathf.Max(0f, range);
-        radius = Mathf.Max(0.01f, radius);
+        if (!Finite(radius) || radius <= 0f) return;
 
         Vector3 side = Vector3.Cross(Vector3.up, forward);
         if (side.sqrMagnitude <= 0.0001f)
@@ -709,8 +502,7 @@ public sealed class WeaponDebugGizmos : MonoBehaviour
         for (int i = 1; i <= 24; i++)
         {
             float t = i / 24f;
-            Vector3 point = Vector3.Lerp(start, end, t);
-            point.y += 4f * height * t * (1f - t);
+            Vector3 point = MortarTrajectory.Evaluate(start, end, height, t);
             Gizmos.DrawLine(previous, point);
             previous = point;
         }

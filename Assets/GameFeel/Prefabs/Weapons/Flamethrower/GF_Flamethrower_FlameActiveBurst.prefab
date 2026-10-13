@@ -64,7 +64,7 @@ MonoBehaviour:
   _particleLayers: []
   _animatedRoots: []
   _lightPulse: {fileID: 0}
-  _lifetime: 0.72
+  _lifetime: 1
   _size: 1
   _baseEmission: 3
   _rotationDegreesPerSecond: 90
@@ -144,13 +144,13 @@ MonoBehaviour:
     m_RotationOrder: 4
   _activeBurstShader: {fileID: 4800000, guid: 89635c98ca161774895db3fb8ec628da, type: 3}
   _activeBurstSettings:
-    VisualDuration: 0.42
+    VisualDuration: 0.85
     BoundarySegments: 64
     FlameTongues: 20
     Embers: 24
     ClearCenterFraction: 0.23
-    FlameHeightFraction: 0.17
-    FlameWidthFraction: 0.055
+    FlameHeightFraction: 0.08
+    FlameWidthFraction: 0.025
     FireOuterColor: {r: 1, g: 0.19, b: 0.015, a: 1}
     FireHotColor: {r: 1, g: 0.86, b: 0.2, a: 1}
     FuelTintFraction: 0.12
@@ -159,15 +159,6 @@ MonoBehaviour:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.8
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 0.12
         value: 0.65
         inSlope: 0
         outSlope: 0
@@ -176,8 +167,26 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 0.26
-        value: 0
+        time: 0.1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.72
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.85
+        value: 0.8
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -209,7 +218,7 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 0.07
+        time: 0.1
         value: 1
         inSlope: 0
         outSlope: 0
@@ -218,17 +227,8 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 0.32
-        value: 0.8
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 0.68
-        value: 0
+        time: 0.72
+        value: 0.85
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -260,8 +260,8 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 0.12
-        value: 0.8
+        time: 0.15
+        value: 0.65
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -269,7 +269,7 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 0.4
+        time: 0.72
         value: 0.5
         inSlope: 0
         outSlope: 0

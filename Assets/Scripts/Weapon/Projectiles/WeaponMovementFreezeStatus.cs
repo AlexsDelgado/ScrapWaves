@@ -38,14 +38,18 @@ public sealed class WeaponMovementFreezeStatus : MonoBehaviour
         status.Refresh(duration);
     }
 
-    private void Update()
+    private void Update() => Simulate(Time.deltaTime);
+
+    /// <summary>Advances the same freeze lifetime used by Update with deterministic elapsed time.</summary>
+    public void Simulate(float deltaTime)
     {
-        _remainingDuration -= Time.deltaTime;
+        _remainingDuration -= deltaTime;
         if (_remainingDuration > 0f)
             return;
 
         SetMovement(true);
-        Destroy(this);
+        if (Application.isPlaying) Destroy(this);
+        else DestroyImmediate(this);
     }
 
     private void OnDestroy()

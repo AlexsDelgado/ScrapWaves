@@ -191,8 +191,8 @@ public static class TitleScreenAuthoringValidator
         }
 
         MainMenuItemView[] items = FindInScene<MainMenuItemView>(roots);
-        if (items.Length < 6)
-            result.Error("Expected four production and two developer MainMenuItemView instances.");
+        if (items.Length < 7)
+            result.Error("Expected five production and two developer MainMenuItemView instances.");
         for (int i = 0; i < items.Length; i++)
         {
             if (!items[i].HasRequiredReferences)
@@ -327,7 +327,7 @@ public static class TitleScreenAuthoringValidator
         SerializedObject serialized = new(controller);
         string[] requiredFields =
         {
-            "_playButton", "_objectivesButton", "_settingsButton", "_quitButton", "_quitConfirmButton",
+            "_playButton", "_tutorialButton", "_objectivesButton", "_settingsButton", "_quitButton", "_quitConfirmButton",
             "_developerRoot", "_weaponSandboxButton", "_enemiesTestingButton", "_eventSystem", "_screenStack",
             "_presentation", "_objectivesScreen", "_settingsScreen", "_sceneTransition", "_settingsService",
             "_playItem", "_objectivesItem", "_settingsItem", "_quitItem", "_weaponSandboxItem", "_enemiesTestingItem"
@@ -345,23 +345,25 @@ public static class TitleScreenAuthoringValidator
         MainMenuItemView[] allItems,
         Result result)
     {
-        string[] expected = { "PLAY", "SETTINGS", "OBJECTIVES", "QUIT" };
+        string[] expected = { "PLAY", "SETTINGS", "OBJECTIVES", "QUIT", "PLAY TUTORIAL" };
         Button[] controllerButtons =
         {
             controller.PlayButton,
             controller.SettingsButton,
             controller.ObjectivesButton,
-            controller.QuitButton
+            controller.QuitButton,
+            controller.TutorialButton
         };
         string[] labels =
         {
             ReadButtonLabel(controller.PlayButton),
             ReadButtonLabel(controller.SettingsButton),
             ReadButtonLabel(controller.ObjectivesButton),
-            ReadButtonLabel(controller.QuitButton)
+            ReadButtonLabel(controller.QuitButton),
+            ReadButtonLabel(controller.TutorialButton)
         };
         if (!labels.SequenceEqual(expected))
-            result.Error($"Production menu controller labels are '{string.Join(", ", labels)}'; expected PLAY, SETTINGS, OBJECTIVES, QUIT.");
+            result.Error($"Production menu controller labels are '{string.Join(", ", labels)}'; expected PLAY, SETTINGS, OBJECTIVES, QUIT, PLAY TUTORIAL.");
 
         MainMenuItemView[] productionItems = allItems
             .Where(item => item != null && !item.IsDeveloperEntry)
@@ -369,7 +371,7 @@ public static class TitleScreenAuthoringValidator
             .ToArray();
         if (productionItems.Length != expected.Length)
         {
-            result.Error($"Expected exactly four non-developer production items; found {productionItems.Length}.");
+            result.Error($"Expected exactly five non-developer production items; found {productionItems.Length}.");
         }
         else
         {
@@ -377,13 +379,13 @@ public static class TitleScreenAuthoringValidator
                 .Select(item => ReadButtonLabel(item.Button))
                 .ToArray();
             if (!authoredLabels.SequenceEqual(expected))
-                result.Error($"Authored production item order/labels are '{string.Join(", ", authoredLabels)}'; expected PLAY, SETTINGS, OBJECTIVES, QUIT.");
+                result.Error($"Authored production item order/labels are '{string.Join(", ", authoredLabels)}'; expected PLAY, SETTINGS, OBJECTIVES, QUIT, PLAY TUTORIAL.");
 
             MainMenuItemView[] controllerItems = controllerButtons
                 .Select(button => button != null ? button.GetComponent<MainMenuItemView>() : null)
                 .ToArray();
             if (!controllerItems.SequenceEqual(productionItems))
-                result.Error("The four production controller references must match the authored MenuRoot item order.");
+                result.Error("The five production controller references must match the authored MenuRoot item order.");
         }
 
         if (productionItems.Any(item => !IsUnderNamedParent(item.transform, "MenuRoot")))

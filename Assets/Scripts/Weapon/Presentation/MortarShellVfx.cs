@@ -97,7 +97,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
             _landingRoot.SetActive(showLanding);
         if (_blastRadiusRing != null)
         {
-            float diameter = Mathf.Max(0.12f, explosionRadius * 2f);
+            float diameter = Mathf.Max(0f, explosionRadius) * 2f;
             _blastRadiusRing.localScale = new Vector3(
                 _blastBaseScale.x * diameter,
                 _blastBaseScale.y,

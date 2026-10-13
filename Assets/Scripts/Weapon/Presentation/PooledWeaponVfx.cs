@@ -10,6 +10,12 @@ public interface IWeaponVfxContextReceiver
     void ApplyContext(in WeaponPresentationContext context);
 }
 
+public interface IWeaponVfxGameplayLifetime
+{
+    bool UsesGameplayLifetime { get; }
+    bool GameplayLifetimeComplete { get; }
+}
+
 [DisallowMultipleComponent]
 public sealed class PooledWeaponVfx : MonoBehaviour
 {
@@ -17,6 +23,7 @@ public sealed class PooledWeaponVfx : MonoBehaviour
     private Light[] _lights;
     private IWeaponVfxContextReceiver[] _contextReceivers;
     private Transform _poolParent;
+    private IWeaponVfxGameplayLifetime _gameplayLifetime;
 
     public bool IsActive { get; private set; }
     public bool IsLooping { get; private set; }
@@ -29,6 +36,7 @@ public sealed class PooledWeaponVfx : MonoBehaviour
         MonoBehaviour[] behaviours = GetComponentsInChildren<MonoBehaviour>(true);
         for (int i = 0; i < behaviours.Length; i++)
         {
+            if (behaviours[i] is IWeaponVfxGameplayLifetime lifetime) _gameplayLifetime = lifetime;
             if (behaviours[i] is IWeaponVfxPrewarm prewarmable)
                 prewarmable.Prewarm();
         }
@@ -95,6 +103,8 @@ public sealed class PooledWeaponVfx : MonoBehaviour
 
     public bool ShouldRelease(float now)
     {
+        if (IsActive && !IsLooping && _gameplayLifetime != null && _gameplayLifetime.UsesGameplayLifetime)
+            return _gameplayLifetime.GameplayLifetimeComplete;
         return IsActive && !IsLooping && now >= ReleaseTime;
     }
 

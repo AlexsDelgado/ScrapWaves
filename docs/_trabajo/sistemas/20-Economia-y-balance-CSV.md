@@ -1,5 +1,7 @@
 # Economía de materiales y balance CSV — alpha 23-09-2026
 
+> Actualización 2026-10-12: la importación CSV de armas y el auto-import del editor se retiraron. Los WeaponData manuales son la autoridad; el CSV de armas queda como referencia. El menú vigente importa solo materiales. Los detalles de importación de armas y S-10 más abajo describen el estado histórico de esta auditoría. Flujo actual y verificación: [BALANCE_NOTES.md](../../../Assets/Data/Balance/BALANCE_NOTES.md).
+
 Cómo se generan, se recogen y se gastan los materiales dentro de la run, y de dónde salen los números de balance (CSV, ScriptableObjects y el hub de spawn). Los valores serializados en assets y prefabs mandan sobre los defaults de script. Cuando difieren, van los dos.
 
 ## Scripts

@@ -9,6 +9,7 @@ public sealed class TitleScreenController : MonoBehaviour
 {
     [Header("Authored production controls")]
     [SerializeField] private Button _playButton;
+    [SerializeField] private Button _tutorialButton;
     [SerializeField] private Button _objectivesButton;
     [SerializeField] private Button _settingsButton;
     [SerializeField] private Button _quitButton;
@@ -43,6 +44,7 @@ public sealed class TitleScreenController : MonoBehaviour
 
     public bool IncludeTestingButtons => _includeTestingButtons;
     public Button PlayButton => _playButton;
+    public Button TutorialButton => _tutorialButton;
     public Button ObjectivesButton => _objectivesButton;
     public Button SettingsButton => _settingsButton;
     public Button QuitButton => _quitButton;
@@ -131,6 +133,13 @@ public sealed class TitleScreenController : MonoBehaviour
 
         _presentation?.PlayConfirm(_quitItem);
         _screenStack.OpenQuitConfirmation(_quitButton.gameObject);
+    }
+
+    public void PlayTutorial()
+    {
+        if (_sceneTransition != null && _sceneTransition.IsTransitioning) return;
+        TutorialDirector.RequestReplay();
+        LoadPlay();
     }
 
     private void LoadPlay()
@@ -280,6 +289,7 @@ public sealed class TitleScreenController : MonoBehaviour
         AddVisibleDestination(destinations, _settingsButton);
         AddVisibleDestination(destinations, _objectivesButton);
         AddVisibleDestination(destinations, _quitButton);
+        AddVisibleDestination(destinations, _tutorialButton);
         if (_includeTestingButtons)
         {
             AddVisibleDestination(destinations, _weaponSandboxButton);

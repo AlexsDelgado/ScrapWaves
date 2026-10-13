@@ -33,7 +33,7 @@ public sealed class ObjectivesFilterChipBar
     public static ObjectivesFilterChipBar Ensure(Transform parent, string name)
     {
         Transform existing = parent != null ? parent.Find(name) : null;
-        if (existing != null && !UsesCurrentStyle(existing))
+        if (!Application.isPlaying && existing != null && !UsesCurrentStyle(existing))
         {
             if (Application.isPlaying)
                 UnityEngine.Object.Destroy(existing.gameObject);
@@ -49,6 +49,7 @@ public sealed class ObjectivesFilterChipBar
             return bar;
         }
 
+        if (Application.isPlaying) { Debug.LogError("Missing authored filter bar: " + name); return null; }
         var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(HorizontalLayoutGroup));
         go.transform.SetParent(parent, false);
         go.transform.SetAsFirstSibling();
@@ -100,6 +101,7 @@ public sealed class ObjectivesFilterChipBar
         }
         else
         {
+            if (Application.isPlaying) { Debug.LogError("Missing authored filter chip: " + chipName); return; }
             var chipGo = new GameObject(chipName, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             chipGo.transform.SetParent(_root, false);
 

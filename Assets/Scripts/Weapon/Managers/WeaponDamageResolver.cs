@@ -8,6 +8,12 @@ using UnityEngine;
 /// </summary>
 public readonly struct WeaponDamageFactors
 {
+    // Immutable action provenance: never re-read the mutable weapon after launch.
+    public readonly WeaponType SourceWeaponType;
+    public readonly int SourceLevel;
+    public readonly WeaponUpgradePath SourcePath;
+    public readonly WeaponStatMode Mode;
+    public readonly bool HasAuthoredDamage;
     public readonly float BaseDamage;
     public readonly float LevelMultiplier;
     public readonly float PathMultiplier;
@@ -39,8 +45,18 @@ public readonly struct WeaponDamageFactors
         float additionalScale,
         float finalDamage,
         float critDamageStat = 0f,
-        float critOverride = 1f)
+        float critOverride = 1f,
+        WeaponType sourceWeaponType = default,
+        int sourceLevel = 0,
+        WeaponUpgradePath sourcePath = WeaponUpgradePath.None,
+        WeaponStatMode mode = WeaponStatMode.Automatic,
+        bool hasAuthoredDamage = false)
     {
+        SourceWeaponType = sourceWeaponType;
+        SourceLevel = sourceLevel;
+        SourcePath = sourcePath;
+        Mode = mode;
+        HasAuthoredDamage = hasAuthoredDamage;
         CritDamageStat = critDamageStat;
         CritOverride = critOverride;
         BaseDamage = baseDamage;
@@ -99,6 +115,13 @@ public readonly struct WeaponDamageRoll
 
 public readonly struct WeaponDamageContext
 {
+    public readonly WeaponType SourceWeaponType;
+    public readonly int SourceLevel;
+    public readonly WeaponUpgradePath SourcePath;
+    public readonly WeaponStatMode Mode;
+    public readonly bool HasAuthoredDamage;
+    public readonly bool KnockbackStrengthIsAuthored;
+    public readonly float ResolvedKnockbackStrength;
     public readonly PlayerStats Stats;
     public readonly WeaponInstance Weapon;
     public readonly bool CanCrit;
@@ -138,13 +161,28 @@ public readonly struct WeaponDamageContext
         DamageFeedbackKind damageKind = DamageFeedbackKind.Direct,
         int statusInstanceId = 0,
         WeaponStatusKind statusKind = WeaponStatusKind.Burn,
-        int segmentIndex = 0)
+        int segmentIndex = 0,
+        WeaponStatMode? mode = null,
+        float weaponDamageScale = 1f,
+        bool useModeDamageOverride = true)
     {
+        SourceWeaponType = weapon?.Data != null ? weapon.Data.WeaponType : default;
+        SourceLevel = weapon?.Level ?? 0;
+        SourcePath = weapon != null && weapon.Level >= 6 ? weapon.SelectedPath : WeaponUpgradePath.None;
+        Mode = mode ?? WeaponStatAuthoringResolver.GetImmediateMode(weapon, isAbilityDamage);
+        WeaponResolvedStat authoredDamage = useModeDamageOverride
+            ? WeaponStatAuthoringResolver.ResolveModeValue(weapon, Mode, WeaponStatField.Damage, 0f)
+            : default;
+        HasAuthoredDamage = authoredDamage.IsAuthored;
+        WeaponResolvedStat authoredKnockback = WeaponStatAuthoringResolver.ResolveModeValue(weapon, Mode,
+            WeaponStatField.KnockbackStrength, weapon?.Data != null ? Mathf.Max(0f, weapon.Data.BaseKnockback) : 0f);
+        KnockbackStrengthIsAuthored = authoredKnockback.IsAuthored;
+        ResolvedKnockbackStrength = authoredKnockback.Value;
         Stats = stats;
         Weapon = weapon;
-        CanCrit = canCrit;
-        CritMultiplierOverride = critMultiplierOverride;
-        DamageScale = Mathf.Max(0f, damageScale);
+        CanCrit = canCrit && WeaponStatAuthoringResolver.SupportsCriticalHits(weapon);
+        CritMultiplierOverride = WeaponStatAuthoringResolver.ResolveCriticalDamageMultiplier(weapon, critMultiplierOverride).Value;
+        DamageScale = HasAuthoredDamage ? Mathf.Max(0f, damageScale) : Mathf.Max(0f, damageScale * weaponDamageScale);
         IsAbilityDamage = isAbilityDamage;
         KnockbackScale = Mathf.Max(0f, knockbackScale);
         IsCritical = false;
@@ -167,13 +205,13 @@ public readonly struct WeaponDamageContext
         if (stats == null || weapon?.Data == null)
             return;
 
-        float damage = Mathf.Max(0f, weapon.Data.BaseDamage);
+        float damage = HasAuthoredDamage ? authoredDamage.Value : Mathf.Max(0f, weapon.Data.BaseDamage);
         BaseDamage = damage;
 
-        LevelMultiplier = WeaponDamageResolver.GetLevelDamageMultiplier(weapon);
+        LevelMultiplier = HasAuthoredDamage ? 1f : WeaponDamageResolver.GetLevelDamageMultiplier(weapon);
         damage *= LevelMultiplier;
 
-        PathMultiplier = WeaponDamageResolver.GetPathDamageMultiplier(weapon);
+        PathMultiplier = HasAuthoredDamage ? 1f : WeaponDamageResolver.GetPathDamageMultiplier(weapon);
         damage *= PathMultiplier;
 
         StatDamageMultiplier = Mathf.Max(0f, stats.GetStat(StatType.DamageMultiplier));
@@ -188,11 +226,11 @@ public readonly struct WeaponDamageContext
         EliteDamageMultiplier = Mathf.Max(0f, stats.GetStat(StatType.EliteDamageMultiplier));
         ReferenceDamage = damage * DamageScale;
 
-        IsCritical = canCrit && WeaponDamageResolver.RollCrit(stats);
+        IsCritical = CanCrit && WeaponDamageResolver.RollCrit(stats, weapon);
         if (IsCritical)
         {
             CritDamageStat = stats.GetStat(StatType.CriticalDamage);
-            CritMultiplier = Mathf.Max(1f, CritDamageStat * critMultiplierOverride);
+            CritMultiplier = Mathf.Max(1f, CritDamageStat * CritMultiplierOverride);
             damage *= CritMultiplier;
         }
 
@@ -209,6 +247,13 @@ public readonly struct WeaponDamageContext
         float damageScaleMultiplier = 1f,
         float knockbackScaleMultiplier = 1f)
     {
+        SourceWeaponType = source.SourceWeaponType;
+        SourceLevel = source.SourceLevel;
+        SourcePath = source.SourcePath;
+        Mode = source.Mode;
+        HasAuthoredDamage = source.HasAuthoredDamage;
+        KnockbackStrengthIsAuthored = source.KnockbackStrengthIsAuthored;
+        ResolvedKnockbackStrength = source.ResolvedKnockbackStrength;
         Stats = source.Stats;
         Weapon = source.Weapon;
         CanCrit = source.CanCrit;
@@ -340,7 +385,12 @@ public readonly struct WeaponDamageContext
                     safeAdditionalScale,
                     damage,
                     CritDamageStat,
-                    CritMultiplierOverride)));
+                    CritMultiplierOverride,
+                    SourceWeaponType,
+                    SourceLevel,
+                    SourcePath,
+                    Mode,
+                    HasAuthoredDamage)));
 
         return damage;
     }
@@ -367,7 +417,10 @@ public readonly struct WeaponDamageContext
         if (!IsValid)
             return 0f;
 
-        return WeaponMath.CalculateKnockback(Stats, Weapon, damage, KnockbackScale, falloffScale);
+        // Legacy strength and player bonuses retain their existing impact-time sampling.
+        // Authored strength is bound to this action's captured mode/key instead.
+        float strength = KnockbackStrengthIsAuthored ? ResolvedKnockbackStrength : Mathf.Max(0f, Weapon.Data.BaseKnockback);
+        return WeaponMath.CalculateKnockbackFromStrength(Stats, strength, damage, KnockbackScale, falloffScale);
     }
 }
 
@@ -376,7 +429,7 @@ public static class WeaponDamageResolver
     public static event System.Action<WeaponDamageRoll> OnDamageResolved;
 
     // Calculates damage from weapon base, level/path, stats, and crit.
-    public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f, bool isAbilityDamage = false, Vector3? targetPosition = null)
+    public static float CalculateDamage(PlayerStats stats, WeaponInstance instance, bool eliteOrBoss, bool canCrit, float critMultiplierOverride = 1f, bool isAbilityDamage = false, Vector3? targetPosition = null, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         WeaponDamageContext context = new(
             stats,
@@ -385,7 +438,9 @@ public static class WeaponDamageResolver
             critMultiplierOverride,
             1f,
             isAbilityDamage,
-            1f);
+            1f,
+            mode: mode,
+            weaponDamageScale: weaponDamageScale);
         return context.CalculateDamageValue(eliteOrBoss, targetPosition);
     }
 
@@ -408,10 +463,17 @@ public static class WeaponDamageResolver
         return pathData != null ? Mathf.Max(0.01f, pathData.DamageMultiplier) : 1f;
     }
 
-    // Rolls crit chance from stat system with clamping.
-    public static bool RollCrit(PlayerStats stats)
+    // Legacy callers retain the player-only chance and the existing inclusive roll.
+    public static bool RollCrit(PlayerStats stats) => RollCrit(stats, null);
+
+    public static bool RollCrit(PlayerStats stats, WeaponInstance instance)
     {
-        float critChance = Mathf.Clamp01(stats.GetStat(StatType.CriticalChance));
-        return UnityEngine.Random.value <= critChance;
+        WeaponResolvedStat chance = WeaponStatAuthoringResolver.ResolveCriticalChance(instance,
+            stats.GetStat(StatType.CriticalChance));
+        // Preserve the random sample point even for explicit zero/one values.
+        float sample = UnityEngine.Random.value;
+        return chance.IsAuthored
+            ? chance.Value > 0f && (chance.Value >= 1f || sample <= chance.Value)
+            : sample <= chance.Value;
     }
 }

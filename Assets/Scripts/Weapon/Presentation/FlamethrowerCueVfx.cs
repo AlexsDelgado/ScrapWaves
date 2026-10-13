@@ -16,7 +16,7 @@ public enum FlamethrowerCueStyle
 }
 
 [DisallowMultipleComponent]
-public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxContextReceiver
+public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxContextReceiver, IWeaponVfxGameplayLifetime
 {
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
@@ -63,16 +63,41 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
     private GameFeelQualityLevel _quality = GameFeelQualityLevel.High;
     private bool _cached;
     private FlamethrowerRadialBurst _activeBurst;
+    private FlamethrowerActiveWave.WaveClock _waveClock;
+    private bool _standalone;
 
     public FlamethrowerCueStyle Style => _style;
     public int RuntimeMeshLayerCount => _meshLayers?.Length ?? 0;
     public int RuntimeParticleSystemCount => _particleLayers?.Length ?? 0;
     public bool UsesActiveRadialPlume => _activeBurst != null;
     public float ActiveDamageRadius => _activeBurst?.Radius ?? 0f;
+    public float ActiveMaximumRadius => _activeBurst?.MaximumRadius ?? 0f;
     public float ActiveVisualLifetime => _activeBurst?.Duration ?? 0f;
     public int ActiveTongueCount => _activeBurst?.TongueCount ?? 0;
     public int ActiveEmberCount => _activeBurst?.EmberCount ?? 0;
     public Mesh ActiveBoundaryMesh => _activeBurst?.BoundaryMesh;
+    public bool UsesGameplayLifetime => IsActiveBurst();
+    public bool GameplayLifetimeComplete => _waveClock != null ? _waveClock.Complete : _elapsed >= ActiveVisualLifetime;
+
+    public static FlamethrowerCueVfx SpawnActiveFallback(in WeaponPresentationContext context, FlamethrowerCueStyle style)
+    {
+        var cue = new GameObject("Flamethrower Q fallback").AddComponent<FlamethrowerCueVfx>();
+        cue._style = style; cue._cached = false; cue._standalone = true;
+        if (style == FlamethrowerCueStyle.NitrogenActiveBurst)
+        {
+            cue._primaryColor = new Color(.12f, .68f, 1f, .9f);
+            cue._coreColor = new Color(.7f, .95f, 1f, 1f);
+        }
+        cue.ApplyContext(in context);
+        return cue;
+    }
+
+    // Deterministic presentation entry for validation/capture. Bound production Q always reads its authoritative clock.
+    public void SampleActive(float seconds)
+    {
+        _elapsed = Mathf.Max(0f, seconds);
+        _activeBurst?.Sample(_waveClock != null ? _waveClock.Elapsed : _elapsed);
+    }
 
     public void Prewarm()
     {
@@ -101,7 +126,9 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
             transform.SetParent(null, true);
             transform.SetPositionAndRotation(context.Position, Quaternion.identity);
             transform.localScale = Vector3.one;
-            _activeBurst.Configure(in context, _style, _primaryColor, _coreColor, _baseEmission);
+            _waveClock = FlamethrowerActiveWave.FindClock(context.Weapon);
+            _elapsed = 0f;
+            _activeBurst.Configure(in context, _style, _primaryColor, _coreColor, _baseEmission, _waveClock);
         }
         ApplyParticleBudget();
         ApplyFrame(0f);
@@ -119,6 +146,13 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
 
     private void Update()
     {
+        if (IsActiveBurst())
+        {
+            float seconds = _waveClock != null ? _waveClock.Elapsed : _elapsed + (GameplayPause.IsUiPaused ? 0f : Time.deltaTime);
+            SampleActive(seconds);
+            if (_standalone && GameplayLifetimeComplete) Destroy(gameObject);
+            return;
+        }
         _elapsed += Time.unscaledDeltaTime;
         bool looping = _style == FlamethrowerCueStyle.FlameNozzleLoop ||
                        _style == FlamethrowerCueStyle.JellifiedNozzleLoop ||
@@ -144,7 +178,7 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
     private void OnDisable()
     {
         SetLightEnabled(false);
-        _activeBurst?.Sample(_activeBurst.Duration);
+        _activeBurst?.Hide();
     }
 
     private void OnDestroy() => _activeBurst?.Dispose();
@@ -219,7 +253,7 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
     {
         if (_activeBurst != null)
         {
-            _activeBurst.Sample(normalizedLife * _lifetime);
+            SampleActive(normalizedLife * _lifetime);
             return;
         }
         float flashScale = _reducedFlash ? _reducedFlashIntensity : 1f;
