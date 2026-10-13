@@ -231,7 +231,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleFollow
   _target: {fileID: 0}
-  _speed: 3
+  _speed: 4.25
   _orbitRadius: 1.8
   _weaveAmplitude: 0.35
   _weaveFrequency: 1.6
@@ -256,7 +256,7 @@ MonoBehaviour:
   _dashSpeed: 30
   _dashDuration: 0.5
   _dashMaxDistance: 12
-  _contactRadius: 1.5
+  _contactRadius: 1.2
   _hitDamage: 25
   _pushForce: 20
   _maxEngageSeconds: 2

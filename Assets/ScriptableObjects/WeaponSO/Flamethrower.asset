@@ -29,6 +29,1590 @@ MonoBehaviour:
   PresentationProfile: {fileID: 11400000, guid: 61907abd96477234988db620c95824a6, type: 2}
   _specificTuning:
     rid: 6175396285239142401
+  _retainedSpecificTunings: []
+  StatProfile:
+    Version: 1
+    Levels:
+    - WeaponType: 1
+      Level: 1
+      Path: 0
+      Automatic:
+        Damage:
+          Enabled: 0
+          Value: 0
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Manual:
+        Damage:
+          Enabled: 0
+          Value: 0
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Ability:
+        Damage:
+          Enabled: 0
+          Value: 0
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 1
+          Value: 0.3
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Cannon:
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityBulletsPerSecond:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointHeatStep:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMaximum:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityHeatDurationSteps:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatStep:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatSpeedBonus:
+          Enabled: 0
+          Value: 0
+        HeadHunterEliteDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterBossDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceTargetCount:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceDamageLossPerTarget:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityChargeSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityPierceRangeMeters:
+          Enabled: 0
+          Value: 0
+      Flame:
+        ContactPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ContactPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityFreezeDurationSeconds:
+          Enabled: 0
+          Value: 0
+        NitrogenInitialSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenMinimumSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenHitsToMinimum:
+          Enabled: 0
+          Value: 0
+        NitrogenSlowDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilitySlowMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilitySlowDurationPerFreezeSecond:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDurationMultiplier:
+          Enabled: 0
+          Value: 0
+      Rocket:
+        AutomaticProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        KineticDebuffDurationSeconds:
+          Enabled: 0
+          Value: 0
+        KineticDamageTakenMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentConeRangePerExplosionRadius:
+          Enabled: 0
+          Value: 0
+        FragmentConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        AutomaticProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        KineticExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticExplosionFalloffMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticOrdinaryKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticAbilityKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentOrdinaryExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentAdditionalAutomaticRockets:
+          Enabled: 0
+          Value: 0
+        FragmentDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterRocketCount:
+          Enabled: 0
+          Value: 0
+        AbilityClusterDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterSpeedMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterFalloff:
+          Enabled: 0
+          Value: 0
+        AbilityClusterLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+      Mortar:
+        EnableCriticalHits: 0
+        BarrageRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ActiveShellCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotPelletCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        MultiChargedTotalExplosions:
+          Enabled: 0
+          Value: 0
+        MultiChargedRepeatDelaySeconds:
+          Enabled: 0
+          Value: 0
+        GrapeshotAutomaticLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotManualLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityHeatShellBonus:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityHeatProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        BasicAbilityShellSpacingSeconds:
+          Enabled: 0
+          Value: 0
+      Blade:
+        OrbitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AutomaticHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        RotationsPerSecond:
+          Enabled: 0
+          Value: 0
+        ManualConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        ThrustLengthMeters:
+          Enabled: 0
+          Value: 0
+        AbilityHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicDashRangeMeters:
+          Enabled: 0
+          Value: 0
+        AtomicHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicRangePerHitMultiplier:
+          Enabled: 0
+          Value: 0
+        AtomicDashSegmentSeconds:
+          Enabled: 0
+          Value: 0
+        AtomicPostDashInvulnerabilitySeconds:
+          Enabled: 0
+          Value: 0
+        ExtraBladeCount:
+          Enabled: 0
+          Value: 0
+        MultiBladeActionIntervalSeconds:
+          Enabled: 0
+          Value: 0
+        MultiBladeSpreadAngleDegrees:
+          Enabled: 0
+          Value: 0
+      CriticalChance:
+        Enabled: 0
+        Value: 0
+      CriticalChanceComposition: 0
+      CriticalDamageMultiplier:
+        Enabled: 0
+        Value: 0
+      AbilityCooldownSeconds:
+        Enabled: 0
+        Value: 0
+      AbilityAmmoCost:
+        Enabled: 0
+        Value: 0
+    - WeaponType: 1
+      Level: 2
+      Path: 0
+      Automatic:
+        Damage:
+          Enabled: 1
+          Value: 6
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Manual:
+        Damage:
+          Enabled: 1
+          Value: 6
+        RangeMeters:
+          Enabled: 1
+          Value: 7.5
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 1
+          Value: 120
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Ability:
+        Damage:
+          Enabled: 1
+          Value: 12
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 1
+          Value: 0.3
+        ExplosionRadiusMeters:
+          Enabled: 1
+          Value: 7
+      Cannon:
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityBulletsPerSecond:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointHeatStep:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMaximum:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityHeatDurationSteps:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatStep:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatSpeedBonus:
+          Enabled: 0
+          Value: 0
+        HeadHunterEliteDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterBossDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceTargetCount:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceDamageLossPerTarget:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityChargeSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityPierceRangeMeters:
+          Enabled: 0
+          Value: 0
+      Flame:
+        ContactPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ContactPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityFreezeDurationSeconds:
+          Enabled: 0
+          Value: 0
+        NitrogenInitialSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenMinimumSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenHitsToMinimum:
+          Enabled: 0
+          Value: 0
+        NitrogenSlowDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilitySlowMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilitySlowDurationPerFreezeSecond:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDurationMultiplier:
+          Enabled: 0
+          Value: 0
+      Rocket:
+        AutomaticProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        KineticDebuffDurationSeconds:
+          Enabled: 0
+          Value: 0
+        KineticDamageTakenMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentConeRangePerExplosionRadius:
+          Enabled: 0
+          Value: 0
+        FragmentConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        AutomaticProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        KineticExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticExplosionFalloffMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticOrdinaryKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticAbilityKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentOrdinaryExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentAdditionalAutomaticRockets:
+          Enabled: 0
+          Value: 0
+        FragmentDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterRocketCount:
+          Enabled: 0
+          Value: 0
+        AbilityClusterDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterSpeedMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterFalloff:
+          Enabled: 0
+          Value: 0
+        AbilityClusterLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+      Mortar:
+        EnableCriticalHits: 0
+        BarrageRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ActiveShellCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotPelletCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        MultiChargedTotalExplosions:
+          Enabled: 0
+          Value: 0
+        MultiChargedRepeatDelaySeconds:
+          Enabled: 0
+          Value: 0
+        GrapeshotAutomaticLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotManualLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityHeatShellBonus:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityHeatProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        BasicAbilityShellSpacingSeconds:
+          Enabled: 0
+          Value: 0
+      Blade:
+        OrbitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AutomaticHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        RotationsPerSecond:
+          Enabled: 0
+          Value: 0
+        ManualConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        ThrustLengthMeters:
+          Enabled: 0
+          Value: 0
+        AbilityHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicDashRangeMeters:
+          Enabled: 0
+          Value: 0
+        AtomicHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicRangePerHitMultiplier:
+          Enabled: 0
+          Value: 0
+        AtomicDashSegmentSeconds:
+          Enabled: 0
+          Value: 0
+        AtomicPostDashInvulnerabilitySeconds:
+          Enabled: 0
+          Value: 0
+        ExtraBladeCount:
+          Enabled: 0
+          Value: 0
+        MultiBladeActionIntervalSeconds:
+          Enabled: 0
+          Value: 0
+        MultiBladeSpreadAngleDegrees:
+          Enabled: 0
+          Value: 0
+      CriticalChance:
+        Enabled: 0
+        Value: 0
+      CriticalChanceComposition: 0
+      CriticalDamageMultiplier:
+        Enabled: 0
+        Value: 0
+      AbilityCooldownSeconds:
+        Enabled: 0
+        Value: 0
+      AbilityAmmoCost:
+        Enabled: 0
+        Value: 0
+    - WeaponType: 1
+      Level: 3
+      Path: 0
+      Automatic:
+        Damage:
+          Enabled: 1
+          Value: 7
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Manual:
+        Damage:
+          Enabled: 1
+          Value: 7
+        RangeMeters:
+          Enabled: 1
+          Value: 8
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 1
+          Value: 140
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Ability:
+        Damage:
+          Enabled: 1
+          Value: 14
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 1
+          Value: 0.3
+        ExplosionRadiusMeters:
+          Enabled: 1
+          Value: 8
+      Cannon:
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityBulletsPerSecond:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointHeatStep:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMaximum:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityHeatDurationSteps:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatStep:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatSpeedBonus:
+          Enabled: 0
+          Value: 0
+        HeadHunterEliteDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterBossDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceTargetCount:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceDamageLossPerTarget:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityChargeSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityPierceRangeMeters:
+          Enabled: 0
+          Value: 0
+      Flame:
+        ContactPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ContactPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityFreezeDurationSeconds:
+          Enabled: 0
+          Value: 0
+        NitrogenInitialSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenMinimumSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenHitsToMinimum:
+          Enabled: 0
+          Value: 0
+        NitrogenSlowDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilitySlowMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilitySlowDurationPerFreezeSecond:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDurationMultiplier:
+          Enabled: 0
+          Value: 0
+      Rocket:
+        AutomaticProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        KineticDebuffDurationSeconds:
+          Enabled: 0
+          Value: 0
+        KineticDamageTakenMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentConeRangePerExplosionRadius:
+          Enabled: 0
+          Value: 0
+        FragmentConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        AutomaticProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        KineticExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticExplosionFalloffMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticOrdinaryKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticAbilityKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentOrdinaryExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentAdditionalAutomaticRockets:
+          Enabled: 0
+          Value: 0
+        FragmentDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterRocketCount:
+          Enabled: 0
+          Value: 0
+        AbilityClusterDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterSpeedMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterFalloff:
+          Enabled: 0
+          Value: 0
+        AbilityClusterLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+      Mortar:
+        EnableCriticalHits: 0
+        BarrageRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ActiveShellCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotPelletCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        MultiChargedTotalExplosions:
+          Enabled: 0
+          Value: 0
+        MultiChargedRepeatDelaySeconds:
+          Enabled: 0
+          Value: 0
+        GrapeshotAutomaticLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotManualLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityHeatShellBonus:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityHeatProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        BasicAbilityShellSpacingSeconds:
+          Enabled: 0
+          Value: 0
+      Blade:
+        OrbitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AutomaticHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        RotationsPerSecond:
+          Enabled: 0
+          Value: 0
+        ManualConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        ThrustLengthMeters:
+          Enabled: 0
+          Value: 0
+        AbilityHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicDashRangeMeters:
+          Enabled: 0
+          Value: 0
+        AtomicHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicRangePerHitMultiplier:
+          Enabled: 0
+          Value: 0
+        AtomicDashSegmentSeconds:
+          Enabled: 0
+          Value: 0
+        AtomicPostDashInvulnerabilitySeconds:
+          Enabled: 0
+          Value: 0
+        ExtraBladeCount:
+          Enabled: 0
+          Value: 0
+        MultiBladeActionIntervalSeconds:
+          Enabled: 0
+          Value: 0
+        MultiBladeSpreadAngleDegrees:
+          Enabled: 0
+          Value: 0
+      CriticalChance:
+        Enabled: 0
+        Value: 0
+      CriticalChanceComposition: 0
+      CriticalDamageMultiplier:
+        Enabled: 0
+        Value: 0
+      AbilityCooldownSeconds:
+        Enabled: 0
+        Value: 5.75
+      AbilityAmmoCost:
+        Enabled: 0
+        Value: 0
+    - WeaponType: 1
+      Level: 4
+      Path: 0
+      Automatic:
+        Damage:
+          Enabled: 1
+          Value: 8
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Manual:
+        Damage:
+          Enabled: 1
+          Value: 8
+        RangeMeters:
+          Enabled: 1
+          Value: 8.5
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 1
+          Value: 160
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Ability:
+        Damage:
+          Enabled: 1
+          Value: 16
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 1
+          Value: 0.3
+        ExplosionRadiusMeters:
+          Enabled: 1
+          Value: 9
+      Cannon:
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityBulletsPerSecond:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointHeatStep:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMaximum:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityHeatDurationSteps:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatStep:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatSpeedBonus:
+          Enabled: 0
+          Value: 0
+        HeadHunterEliteDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterBossDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceTargetCount:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceDamageLossPerTarget:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityChargeSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityPierceRangeMeters:
+          Enabled: 0
+          Value: 0
+      Flame:
+        ContactPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ContactPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityFreezeDurationSeconds:
+          Enabled: 0
+          Value: 0
+        NitrogenInitialSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenMinimumSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenHitsToMinimum:
+          Enabled: 0
+          Value: 0
+        NitrogenSlowDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilitySlowMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilitySlowDurationPerFreezeSecond:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDurationMultiplier:
+          Enabled: 0
+          Value: 0
+      Rocket:
+        AutomaticProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        KineticDebuffDurationSeconds:
+          Enabled: 0
+          Value: 0
+        KineticDamageTakenMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentConeRangePerExplosionRadius:
+          Enabled: 0
+          Value: 0
+        FragmentConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        AutomaticProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        KineticExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticExplosionFalloffMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticOrdinaryKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticAbilityKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentOrdinaryExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentAdditionalAutomaticRockets:
+          Enabled: 0
+          Value: 0
+        FragmentDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterRocketCount:
+          Enabled: 0
+          Value: 0
+        AbilityClusterDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterSpeedMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterFalloff:
+          Enabled: 0
+          Value: 0
+        AbilityClusterLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+      Mortar:
+        EnableCriticalHits: 0
+        BarrageRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ActiveShellCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotPelletCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        MultiChargedTotalExplosions:
+          Enabled: 0
+          Value: 0
+        MultiChargedRepeatDelaySeconds:
+          Enabled: 0
+          Value: 0
+        GrapeshotAutomaticLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotManualLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityHeatShellBonus:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityHeatProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        BasicAbilityShellSpacingSeconds:
+          Enabled: 0
+          Value: 0
+      Blade:
+        OrbitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AutomaticHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        RotationsPerSecond:
+          Enabled: 0
+          Value: 0
+        ManualConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        ThrustLengthMeters:
+          Enabled: 0
+          Value: 0
+        AbilityHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicDashRangeMeters:
+          Enabled: 0
+          Value: 0
+        AtomicHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicRangePerHitMultiplier:
+          Enabled: 0
+          Value: 0
+        AtomicDashSegmentSeconds:
+          Enabled: 0
+          Value: 0
+        AtomicPostDashInvulnerabilitySeconds:
+          Enabled: 0
+          Value: 0
+        ExtraBladeCount:
+          Enabled: 0
+          Value: 0
+        MultiBladeActionIntervalSeconds:
+          Enabled: 0
+          Value: 0
+        MultiBladeSpreadAngleDegrees:
+          Enabled: 0
+          Value: 0
+      CriticalChance:
+        Enabled: 0
+        Value: 0
+      CriticalChanceComposition: 0
+      CriticalDamageMultiplier:
+        Enabled: 0
+        Value: 0
+      AbilityCooldownSeconds:
+        Enabled: 0
+        Value: 5.75
+      AbilityAmmoCost:
+        Enabled: 0
+        Value: 0
+    - WeaponType: 1
+      Level: 5
+      Path: 0
+      Automatic:
+        Damage:
+          Enabled: 1
+          Value: 9
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Manual:
+        Damage:
+          Enabled: 1
+          Value: 9
+        RangeMeters:
+          Enabled: 1
+          Value: 9
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 1
+          Value: 180
+        KnockbackStrength:
+          Enabled: 0
+          Value: 0
+        ExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+      Ability:
+        Damage:
+          Enabled: 1
+          Value: 20
+        RangeMeters:
+          Enabled: 0
+          Value: 0
+        AttackCyclesPerSecond:
+          Enabled: 0
+          Value: 0
+        AmmoCapacity:
+          Enabled: 0
+          Value: 0
+        KnockbackStrength:
+          Enabled: 1
+          Value: 0.3
+        ExplosionRadiusMeters:
+          Enabled: 1
+          Value: 10
+      Cannon:
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityBulletsPerSecond:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointHeatStep:
+          Enabled: 0
+          Value: 0
+        HeadHunterWeakPointMaximum:
+          Enabled: 0
+          Value: 0
+        ContinuousAbilityHeatDurationSteps:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatStep:
+          Enabled: 0
+          Value: 0
+        ContinuousModeHeatSpeedBonus:
+          Enabled: 0
+          Value: 0
+        HeadHunterEliteDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterBossDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceTargetCount:
+          Enabled: 0
+          Value: 0
+        HeadHunterPierceDamageLossPerTarget:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityChargeSeconds:
+          Enabled: 0
+          Value: 0
+        HeadHunterAbilityPierceRangeMeters:
+          Enabled: 0
+          Value: 0
+      Flame:
+        ContactPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ContactPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityPuddleDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityFreezeDurationSeconds:
+          Enabled: 0
+          Value: 0
+        NitrogenInitialSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenMinimumSlowMultiplier:
+          Enabled: 0
+          Value: 0
+        NitrogenHitsToMinimum:
+          Enabled: 0
+          Value: 0
+        NitrogenSlowDurationSeconds:
+          Enabled: 0
+          Value: 0
+        AbilitySlowMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilitySlowDurationPerFreezeSecond:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        JellifiedBurnDurationMultiplier:
+          Enabled: 0
+          Value: 0
+      Rocket:
+        AutomaticProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterExplosionRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AbilityClusterTravelRangeMeters:
+          Enabled: 0
+          Value: 0
+        KineticDebuffDurationSeconds:
+          Enabled: 0
+          Value: 0
+        KineticDamageTakenMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentConeRangePerExplosionRadius:
+          Enabled: 0
+          Value: 0
+        FragmentConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        AutomaticProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        ManualProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        AbilityProjectileLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+        KineticExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticExplosionFalloffMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticOrdinaryKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        KineticAbilityKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentOrdinaryExplosionRadiusMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentKnockbackMultiplier:
+          Enabled: 0
+          Value: 0
+        FragmentAdditionalAutomaticRockets:
+          Enabled: 0
+          Value: 0
+        FragmentDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterRocketCount:
+          Enabled: 0
+          Value: 0
+        AbilityClusterDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterSpeedMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityClusterFalloff:
+          Enabled: 0
+          Value: 0
+        AbilityClusterLifetimeSeconds:
+          Enabled: 0
+          Value: 0
+      Mortar:
+        EnableCriticalHits: 0
+        BarrageRadiusMeters:
+          Enabled: 0
+          Value: 0
+        ActiveShellCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotPelletCount:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityDurationSeconds:
+          Enabled: 0
+          Value: 0
+        MultiChargedTotalExplosions:
+          Enabled: 0
+          Value: 0
+        MultiChargedRepeatDelaySeconds:
+          Enabled: 0
+          Value: 0
+        GrapeshotAutomaticLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotManualLandingSpreadMeters:
+          Enabled: 0
+          Value: 0
+        GrapeshotDamageMultiplier:
+          Enabled: 0
+          Value: 0
+        AbilityHeatShellBonus:
+          Enabled: 0
+          Value: 0
+        GrapeshotAbilityHeatProjectilesPerSecond:
+          Enabled: 0
+          Value: 0
+        BasicAbilityShellSpacingSeconds:
+          Enabled: 0
+          Value: 0
+      Blade:
+        OrbitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AutomaticHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        RotationsPerSecond:
+          Enabled: 0
+          Value: 0
+        ManualConeAngleDegrees:
+          Enabled: 0
+          Value: 0
+        ThrustLengthMeters:
+          Enabled: 0
+          Value: 0
+        AbilityHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicDashRangeMeters:
+          Enabled: 0
+          Value: 0
+        AtomicHitRadiusMeters:
+          Enabled: 0
+          Value: 0
+        AtomicRangePerHitMultiplier:
+          Enabled: 0
+          Value: 0
+        AtomicDashSegmentSeconds:
+          Enabled: 0
+          Value: 0
+        AtomicPostDashInvulnerabilitySeconds:
+          Enabled: 0
+          Value: 0
+        ExtraBladeCount:
+          Enabled: 0
+          Value: 0
+        MultiBladeActionIntervalSeconds:
+          Enabled: 0
+          Value: 0
+        MultiBladeSpreadAngleDegrees:
+          Enabled: 0
+          Value: 0
+      CriticalChance:
+        Enabled: 0
+        Value: 0
+      CriticalChanceComposition: 0
+      CriticalDamageMultiplier:
+        Enabled: 0
+        Value: 0
+      AbilityCooldownSeconds:
+        Enabled: 0
+        Value: 0
+      AbilityAmmoCost:
+        Enabled: 0
+        Value: 0
   <UnlockedFromStart>k__BackingField: 1
   <Requirement>k__BackingField:
     RequiredAchievement: {fileID: 0}
