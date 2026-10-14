@@ -369,12 +369,12 @@ public class CannonMortarStatConsumerTests
         foreach (MortarShellImpact child in children)
         {
             Vector3 target = Field<Vector3>(child, "_target");
-            Assert.That(new Vector2(target.x, target.z).magnitude, Is.LessThanOrEqualTo(spread + 0.0001f));
+            Assert.That(new Vector2(target.x, target.z - 4f).magnitude, Is.LessThanOrEqualTo(spread + 0.0001f));
             Assert.That(Field<float>(child, "_explosionRadius"), Is.EqualTo(0.16875f).Within(0.0001f),
                 "The landing distribution and each pellet's blast remain distinct.");
         }
         if (spread > 0f)
-            Assert.That(children.Max(c => { Vector3 p = Field<Vector3>(c, "_target"); return new Vector2(p.x, p.z).magnitude; }),
+            Assert.That(children.Max(c => { Vector3 p = Field<Vector3>(c, "_target"); return new Vector2(p.x, p.z - 4f).magnitude; }),
                 Is.GreaterThan(spread * 0.1f), "A nonzero spread must actually move child targets.");
         var footprint = f.Weapon.GetType().GetProperty("ManualFootprintRadius");
         Assert.That(footprint, Is.Not.Null);
@@ -442,7 +442,8 @@ public class CannonMortarStatConsumerTests
         Assert.That(f.Weapon.GetManualAimConvergenceDistance(), Is.EqualTo(3.25f));
         var guides = f.Weapon.CaptureGeometry().Guides;
         Assert.That(guides.Single(g => g.Mode == WeaponStatMode.Manual && g.Purpose == WeaponGeometryPurpose.ProjectilePath).RangeMeters,
-            Is.EqualTo(3.25f));
+            Is.EqualTo(type == WeaponType.Mortar ? f.Data.Mortar.MortarManualMaximumRange : 3.25f),
+            "Mortar's pitch range guide is independent of the legacy Q convergence override.");
         Assert.That(guides.Single(g => g.Mode == WeaponStatMode.Automatic && g.Anchor == WeaponGeometryAnchor.Owner).RadiusMeters,
             Is.EqualTo(7f));
         f.Row.Manual.RangeMeters = default;
@@ -466,23 +467,25 @@ public class CannonMortarStatConsumerTests
         Assert.That(guides.Where(g => g.Mode == WeaponStatMode.Ability).All(g => g.ForwardOffsetMeters == f.Data.BaseRange), Is.True);
     }
 
-    [Test]
-    public void M05_M06_ManualAimAndVisibleBlastUseIndependentAuthoredRangeAndRadius()
+    [TestCase(-20f, 5f)] [TestCase(0f, 18f)] [TestCase(7.5f, 22f)]
+    public void M05_M06_ManualPitchControlsAndVisibleBlastUseIndependentRangeAndRadius(float pitch, float range)
     {
         Fixture f = Create(WeaponType.Mortar, 1, WeaponUpgradePath.None);
+        Floor();
+        f.AimCamera.transform.rotation = Quaternion.Euler(-pitch, 0f, 0f);
         f.Runtime.State = WeaponState.Manual;
         f.Row.Manual.RangeMeters = F(3.25f); f.Row.Manual.ExplosionRadiusMeters = F(0.7f);
         f.Row.Automatic.RangeMeters = F(12f); f.Row.Automatic.ExplosionRadiusMeters = F(5f);
         f.Weapon.TickManual(0f, Vector3.forward, true);
         MortarShellImpact shell = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
-        Assert.That(Field<Vector3>(shell, "_target").z, Is.EqualTo(3.25f).Within(0.0001f));
+        Assert.That(Field<Vector3>(shell, "_target").z, Is.EqualTo(range).Within(0.0001f));
         Assert.That(Field<float>(shell, "_explosionRadius"), Is.EqualTo(0.7f));
         var reticle = (IMortarReticleStatus)f.Weapon;
-        Assert.That(reticle.ManualRange, Is.EqualTo(3.25f));
+        Assert.That(reticle.ManualRange, Is.EqualTo(22f));
         Assert.That(reticle.ManualExplosionRadius, Is.EqualTo(0.7f));
-        TestTarget inside = Target(Vector3.forward * 3.25f + Vector3.right * 0.6f);
-        TestTarget outside = Target(Vector3.forward * 3.25f + Vector3.left * 0.8f);
-        Call(shell, "Detonate", Vector3.forward * 3.25f);
+        TestTarget inside = Target(Vector3.forward * range + Vector3.right * 0.6f);
+        TestTarget outside = Target(Vector3.forward * range + Vector3.left * 0.8f);
+        Call(shell, "Detonate", Vector3.forward * range);
         Assert.That(inside.TotalDamage, Is.GreaterThan(0)); Assert.That(outside.TotalDamage, Is.Zero);
     }
 
@@ -836,15 +839,13 @@ public class CannonMortarStatConsumerTests
         Assert.That(shells.Length, Is.EqualTo(3));
         foreach (MortarShellImpact shell in shells)
         {
-            Set(shell, "_elapsed", 0.85f - Time.deltaTime);
-            Call(shell, "Update");
+            AdvanceMortarTo(shell, 0.85f);
         }
         Assert.That(target.TotalDamage, Is.EqualTo(firstWaveHits * 10),
             "At the same elapsed time the spacing must change how many shells actually hit terrain and apply damage.");
         foreach (MortarShellImpact shell in Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None))
         {
-            Set(shell, "_elapsed", Field<float>(shell, "_travelTime") + 0.05f - Time.deltaTime);
-            Call(shell, "Update");
+            AdvanceMortarTo(shell, Field<float>(shell, "_travelTime") + 0.05f);
         }
         Assert.That(target.TotalDamage, Is.EqualTo(30), "Spacing changes timing, not the promised shell count or per-shell damage.");
     }
@@ -892,10 +893,10 @@ public class CannonMortarStatConsumerTests
         f.Weapon.UseActiveAbility(Vector3.forward);
         MortarShellImpact shell = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
         Assert.That(shell.transform.position.y - Field<Vector3>(shell, "_target").y, Is.EqualTo(dropHeight).Within(0.0001f));
-        Set(shell, "_elapsed", travelTime * 0.25f - Time.deltaTime); Call(shell, "Update");
+        AdvanceMortarTo(shell, travelTime * 0.25f);
         Assert.That(target.TotalDamage, Is.Zero);
         Assert.That(shell.transform.position.y, Is.GreaterThan(0.2f));
-        Set(shell, "_elapsed", travelTime + 0.05f - Time.deltaTime); Call(shell, "Update");
+        AdvanceMortarTo(shell, travelTime + 0.05f);
         Assert.That(target.TotalDamage, Is.EqualTo(10));
     }
 
@@ -909,7 +910,7 @@ public class CannonMortarStatConsumerTests
         wall.transform.localScale = new Vector3(0.1f, 2f, 0.2f);
         Physics.SyncTransforms();
         MortarShellImpact shell = EmitMortar(f, WeaponStatMode.Manual, Vector3.forward * 4f);
-        Set(shell, "_elapsed", 0.3f - Time.deltaTime); Call(shell, "Update");
+        AdvanceMortarTo(shell, 0.3f);
         Assert.That(shell == null, Is.EqualTo(shouldHit),
             "Only the larger swept sphere reaches the off-axis terrain blocker and detonates.");
     }
@@ -976,7 +977,7 @@ public class CannonMortarStatConsumerTests
         f.Weapon.TickManual(0f, Vector3.forward, true);
         MortarShellImpact manual = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
         Assert.That(Field<Vector3>(manual, "_target").x, Is.Zero);
-        Assert.That(Field<Vector3>(manual, "_target").z, Is.EqualTo(f.Data.BaseRange));
+        Assert.That(Field<Vector3>(manual, "_target").z, Is.EqualTo(f.Data.Mortar.MortarManualLevelRange));
     }
 
     [TestCase(0.4f, 10)] [TestCase(1.5f, 0)]
@@ -991,12 +992,12 @@ public class CannonMortarStatConsumerTests
         MortarShellImpact shell = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
         for (float elapsed = 0.01f; elapsed <= 0.5001f && shell != null; elapsed += 0.01f)
         {
-            Set(shell, "_elapsed", elapsed - Time.deltaTime); Call(shell, "Update");
+            AdvanceMortarTo(shell, elapsed);
         }
         Assert.That(target.TotalDamage, Is.EqualTo(damageAtHalfSecond));
         for (float elapsed = 0.51f; elapsed <= travelTime + 0.1001f && shell != null; elapsed += 0.01f)
         {
-            Set(shell, "_elapsed", elapsed - Time.deltaTime); Call(shell, "Update");
+            AdvanceMortarTo(shell, elapsed);
         }
         Assert.That(target.TotalDamage, Is.EqualTo(10), "The automatic travel setting changes arrival timing, not damage.");
     }
@@ -1122,16 +1123,20 @@ public class CannonMortarStatConsumerTests
         else f.Weapon.TickManual(0f, Vector3.forward, true);
         MortarShellImpact shell = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
         Vector3 start = Field<Vector3>(shell, "_start"), end = Field<Vector3>(shell, "_target");
-        Set(shell, "_elapsed", Field<float>(shell, "_travelTime") * 0.5f - Time.deltaTime); Call(shell, "Update");
+        AdvanceMortarTo(shell, Field<float>(shell, "_travelTime") * 0.5f);
         Assert.That(shell, Is.Not.Null);
-        Assert.That(shell.transform.position.y, Is.EqualTo((start.y + end.y) * 0.5f + height).Within(0.0001f));
+        if (mode == WeaponStatMode.Manual && height == 0f)
+            Assert.That(shell.transform.position.y, Is.GreaterThan((start.y + end.y) * 0.5f),
+                "Manual fire retains a mortar arc across elevation changes even when the authored height is zero.");
+        else
+            Assert.That(shell.transform.position.y, Is.EqualTo((start.y + end.y) * 0.5f + height).Within(0.0001f));
         Assert.That(shell.transform.position.z, Is.EqualTo((start.z + end.z) * 0.5f).Within(0.0001f));
         DestroyTransient<MortarShellImpact>(); Floor();
         f.Runtime.State = WeaponState.Manual; f.Row.Mortar.ActiveShellCount = I(1); f.Row.Mortar.BarrageRadiusMeters = F(0f);
         f.Weapon.UseActiveAbility(Vector3.forward);
         MortarShellImpact ability = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
         start = Field<Vector3>(ability, "_start"); end = Field<Vector3>(ability, "_target");
-        Set(ability, "_elapsed", Field<float>(ability, "_travelTime") * 0.5f - Time.deltaTime); Call(ability, "Update");
+        AdvanceMortarTo(ability, Field<float>(ability, "_travelTime") * 0.5f);
         Assert.That(ability.transform.position.y, Is.EqualTo((start.y + end.y) * 0.5f).Within(0.0001f));
         Assert.That(ability.transform.position.z, Is.EqualTo(start.z).Within(0.0001f));
     }
@@ -1179,7 +1184,7 @@ public class CannonMortarStatConsumerTests
 
     [TestCase(WeaponStatMode.Automatic, 0f)] [TestCase(WeaponStatMode.Automatic, 2f)]
     [TestCase(WeaponStatMode.Manual, 0f)] [TestCase(WeaponStatMode.Manual, 2f)]
-    public void MortarLegacyAccuracyChangesSpawnedLandingTargetWithoutChangingOppositeMode(WeaponStatMode mode, float radius)
+    public void MortarLegacyAccuracyChangesAutomaticLandingWhileManualRemainsPrecise(WeaponStatMode mode, float radius)
     {
         Fixture f = Create(WeaponType.Mortar, 1, WeaponUpgradePath.None);
         f.Data.Mortar.MortarAutoAccuracyRadius = mode == WeaponStatMode.Automatic ? radius : 0f;
@@ -1188,16 +1193,16 @@ public class CannonMortarStatConsumerTests
         if (mode == WeaponStatMode.Automatic) { f.Runtime.State = WeaponState.Automatic; f.Weapon.TickAutomatic(0f, Vector3.forward); }
         else f.Weapon.TickManual(0f, Vector3.forward, true);
         MortarShellImpact shell = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
-        Vector3 aim = Vector3.forward * (mode == WeaponStatMode.Automatic ? 4f : f.Data.BaseRange);
-        float displacement = Vector3.Distance(Field<Vector3>(shell, "_target"), aim);
-        if (radius == 0f) Assert.That(displacement, Is.LessThan(0.0001f));
+        Vector3 aim = Vector3.forward * (mode == WeaponStatMode.Automatic ? 4f : f.Data.Mortar.MortarManualLevelRange);
+        float displacement = Vector3.ProjectOnPlane(Field<Vector3>(shell, "_target") - aim, Vector3.up).magnitude;
+        if (radius == 0f || mode == WeaponStatMode.Manual) Assert.That(displacement, Is.LessThan(0.0001f));
         else { Assert.That(displacement, Is.GreaterThan(0.01f)); Assert.That(displacement, Is.LessThanOrEqualTo(radius + 0.0001f)); }
         DestroyTransient<MortarShellImpact>(); Set(f.Weapon, "FireTimer", 0f);
         if (mode == WeaponStatMode.Automatic) { f.Runtime.State = WeaponState.Manual; f.Weapon.TickManual(0f, Vector3.forward, true); }
         else { f.Runtime.State = WeaponState.Automatic; f.Weapon.TickAutomatic(0f, Vector3.forward); }
         MortarShellImpact other = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
-        Vector3 otherAim = Vector3.forward * (mode == WeaponStatMode.Automatic ? f.Data.BaseRange : 4f);
-        Assert.That(Vector3.Distance(Field<Vector3>(other, "_target"), otherAim), Is.LessThan(0.0001f));
+        Vector3 otherAim = Vector3.forward * (mode == WeaponStatMode.Automatic ? f.Data.Mortar.MortarManualLevelRange : 4f);
+        Assert.That(Vector3.ProjectOnPlane(Field<Vector3>(other, "_target") - otherAim, Vector3.up).magnitude, Is.LessThan(0.0001f));
     }
 
     [TestCase(WeaponStatMode.Automatic, 0f, 100)] [TestCase(WeaponStatMode.Automatic, 1f, 50)]
@@ -1252,6 +1257,8 @@ public class CannonMortarStatConsumerTests
         Assert.That(target.TotalDamage - beforeAuthored, Is.EqualTo(23));
         f.Weapon.TickManual(0f, Vector3.forward, true);
         MortarShellImpact manual = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
+        target.transform.position = Field<Vector3>(manual, "_target");
+        Physics.SyncTransforms();
         Call(manual, "Detonate", Field<Vector3>(manual, "_target"));
         Assert.That(target.TotalDamage - beforeAuthored, Is.EqualTo(43));
     }
@@ -1351,21 +1358,21 @@ public class CannonMortarStatConsumerTests
         Field<Transform>(f.Weapon, "Owner").position = Vector3.up * 4f;
         f.Weapon.TickManual(0f, Vector3.forward, true);
         MortarShellImpact manual = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
-        Set(manual, "_elapsed", 0.1f - Time.deltaTime); Call(manual, "Update");
-        Assert.That(manual.transform.position.z, Is.EqualTo(f.Data.BaseRange * 0.1f / expectedDuration).Within(0.0001f));
+        AdvanceMortarTo(manual, 0.1f);
+        Assert.That(manual.transform.position.z, Is.EqualTo(f.Data.Mortar.MortarManualLevelRange * 0.1f / expectedDuration).Within(0.0001f));
         f.Weapon.TickManual(0.2f, Vector3.forward, true); Assert.That(LaunchCount(f), Is.EqualTo(1));
         DestroyTransient<MortarShellImpact>(); Set(f.Weapon, "FireTimer", 0f);
         Target(Vector3.up * 4f + Vector3.forward * 4f);
         f.Runtime.State = WeaponState.Automatic; f.Weapon.TickAutomatic(0f, Vector3.forward);
         MortarShellImpact automatic = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Single();
-        Set(automatic, "_elapsed", 0.1f - Time.deltaTime); Call(automatic, "Update");
+        AdvanceMortarTo(automatic, 0.1f);
         Assert.That(automatic.transform.position.z, Is.EqualTo(4f * 0.1f / 0.7f).Within(0.0001f));
     }
 
     private sealed class Fixture
     {
         public WeaponData Data; public WeaponStatLevelRow Row; public WeaponInstance Runtime;
-        public BasicProjectileWeapon Weapon; public ProjectilePool Pool; public Transform Container;
+        public BasicProjectileWeapon Weapon; public ProjectilePool Pool; public Transform Container; public Camera AimCamera;
     }
 
     private Fixture Create(WeaponType type, int level, WeaponUpgradePath path)
@@ -1417,7 +1424,20 @@ public class CannonMortarStatConsumerTests
             Call(f.Pool, "Awake");
             f.Weapon = new AutomaticCannonWeapon(new ConfiguredEnemyTargeting(), f.Pool, owner.transform);
         }
-        else f.Weapon = new MortarWeapon(null, null, owner.transform);
+        else
+        {
+            f.AimCamera = Keep(new GameObject("Stat mortar aim camera")).AddComponent<Camera>();
+            f.AimCamera.enabled = false;
+            Set(owner.AddComponent<ReticleAimProvider>(), "_aimCamera", f.AimCamera);
+            // Manual launch now requires terrain at the pitch-selected range. Keep this tile
+            // away from the 0-8m collision and ability fixtures unless they request Floor().
+            GameObject landing = Keep(GameObject.CreatePrimitive(PrimitiveType.Cube));
+            landing.name = "Stat manual landing terrain";
+            landing.transform.position = new Vector3(0f, -0.1f, data.Mortar.MortarManualLevelRange);
+            landing.transform.localScale = new Vector3(20f, 0.2f, 12f);
+            Physics.SyncTransforms();
+            f.Weapon = new MortarWeapon(null, null, owner.transform);
+        }
         f.Weapon.Setup(runtime, owner.transform, stats, null);
         return f;
     }
@@ -1488,6 +1508,8 @@ public class CannonMortarStatConsumerTests
         .Sections.Single(s => s.Name == section).Values.Single(v => v.Label == label).Value;
     private static int LaunchCount(Fixture f) => f.Pool != null ? f.Pool.ActiveLeasedCount
         : Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None).Length;
+    private static void AdvanceMortarTo(MortarShellImpact shell, float elapsed)
+        => Call(shell, "Tick", elapsed - Field<float>(shell, "_elapsed"));
     private static WeaponOptionalFloat F(float value) => new() { Enabled = true, Value = value };
     private static WeaponOptionalInt I(int value) => new() { Enabled = true, Value = value };
     private T Keep<T>(T value) where T : Object { _objects.Add(value); return value; }

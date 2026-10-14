@@ -247,13 +247,23 @@ public sealed partial class WeaponDataEditor : Editor
     private void DrawMortarFields()
     {
         EditorGUILayout.LabelField("Mortar", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Manual pitch to horizontal range", EditorStyles.boldLabel);
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualMinimumPitch), "Minimum Pitch (degrees)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualMinimumRange), "Minimum Range (m)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualLevelPitch), "Middle Pitch (degrees)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualLevelRange), "Middle Range (m)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualMaximumPitch), "Maximum Pitch (degrees)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualMaximumRange), "Maximum Range (m)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualSurfaceProbeAbove), "Surface Search Above (m)");
+        DrawSpecificProperty(nameof(MortarTuning.MortarManualSurfaceProbeBelow), "Surface Search Below (m)");
+        EditorGUILayout.Space();
         DrawSpecificProperty(nameof(MortarTuning.MortarAutoExplosionRadius), "Auto Explosion Radius");
         DrawSpecificProperty(nameof(MortarTuning.MortarManualExplosionRadius), "Manual Explosion Radius");
         DrawSpecificProperty(nameof(MortarTuning.MortarActiveExplosionRadius), "Active Explosion Radius");
 
         EditorGUILayout.Space();
         DrawSpecificProperty(nameof(MortarTuning.MortarAutoAccuracyRadius), "Auto Accuracy Radius");
-        DrawSpecificProperty(nameof(MortarTuning.MortarManualAccuracyRadius), "Manual Accuracy Radius");
+        // Retained in assets for compatibility; precision manual aiming has no random scatter.
         DrawSpecificProperty(nameof(MortarTuning.MortarBarrageRadius), "Barrage Radius");
 
         EditorGUILayout.Space();

@@ -3,7 +3,6 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class ReticleAimProvider : MonoBehaviour
 {
-    private const int MortarPredictionSegments = 64;
     private const int MortarHitBufferSize = 32;
 
     [SerializeField, Tooltip("Camera used for the center-screen reticle ray. Empty uses Camera.main.")]
@@ -121,25 +120,9 @@ public class ReticleAimProvider : MonoBehaviour
             return false;
 
         Vector3 target = origin + aimDirection.normalized * Mathf.Max(0f, range);
-        float maximumTime = MortarTrajectory.GetMaximumNormalizedTime(travelTime);
-        float predictionStep = maximumTime / MortarPredictionSegments;
-        float radius = Mathf.Max(0.01f, collisionRadius);
-        Vector3 previous = origin;
-
-        // Sweep chords along the same parabola as the live shell while ignoring enemy hits.
-        for (int i = 1; i <= MortarPredictionSegments; i++)
-        {
-            float t = predictionStep * i;
-            Vector3 next = MortarTrajectory.Evaluate(origin, target, arcHeight, t);
-            if (TryGetMortarSegmentHit(previous, next, radius, out terrainHit))
-                return true;
-
-            previous = next;
-        }
-
-        return false;
+        return MortarTrajectory.TryPredictTerrainCollision(origin, target, arcHeight, travelTime,
+            collisionRadius, _ignoredRoot, _mortarHitBuffer, out terrainHit);
     }
-
     public static bool IsValidMortarTerrainTransform(Transform candidate, Transform ignoredRoot)
     {
         if (candidate == null)
@@ -289,53 +272,6 @@ public class ReticleAimProvider : MonoBehaviour
         }
 
         return origin + ray.direction * distance;
-    }
-
-    private bool TryGetMortarSegmentHit(
-        Vector3 start,
-        Vector3 end,
-        float radius,
-        out RaycastHit terrainHit)
-    {
-        terrainHit = default;
-        Vector3 displacement = end - start;
-        float distance = displacement.magnitude;
-        if (distance <= 0.0001f)
-            return false;
-
-        int hitCount = Physics.SphereCastNonAlloc(
-            start,
-            radius,
-            displacement / distance,
-            _mortarHitBuffer,
-            distance,
-            _aimMask.value,
-            QueryTriggerInteraction.Ignore);
-
-        float closestDistance = float.PositiveInfinity;
-        bool found = false;
-        for (int i = 0; i < hitCount; i++)
-        {
-            RaycastHit hit = _mortarHitBuffer[i];
-            if (!IsValidMortarTerrainTransform(hit.transform, _ignoredRoot))
-                continue;
-
-            Rigidbody body = hit.rigidbody;
-            if (body != null
-                && !IsValidMortarTerrainTransform(body.transform, _ignoredRoot))
-            {
-                continue;
-            }
-
-            if (hit.distance >= closestDistance)
-                continue;
-
-            closestDistance = hit.distance;
-            terrainHit = hit;
-            found = true;
-        }
-
-        return found;
     }
 
     private bool IsIgnoredHit(RaycastHit hit)

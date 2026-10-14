@@ -3365,14 +3365,12 @@ public class WeaponUpgradeEffectTests
 
             Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1),
                 "The fixture starts with its parent shell only.");
-            // Update adds the Editor frame delta. Subtract it so a slow preceding test
-            // cannot advance the shell past the exact pre-airburst sample time.
-            SetPrivateField(shell, "_elapsed", 0.5f - Time.deltaTime);
-            InvokePrivate(shell, "Update");
+            // Advance the real runtime clock explicitly so Editor frame duration cannot
+            // advance the shell past the exact pre-airburst sample time.
+            InvokePrivate(shell, "Tick", 0.5f);
             Assert.That(Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
 
-            SetPrivateField(shell, "_elapsed", 0.75f - Time.deltaTime);
-            InvokePrivate(shell, "Update");
+            InvokePrivate(shell, "Tick", 0.25f);
             MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
             Assert.That(subShells, Has.Length.EqualTo(15));
             for (int i = 0; i < subShells.Length; i++)
@@ -3406,8 +3404,7 @@ public class WeaponUpgradeEffectTests
                 null,
                 new MortarUpgradePayload(true, 15, 70f, 0.5f, 1, 0f));
 
-            SetPrivateField(shell, "_elapsed", 0.9f);
-            InvokePrivate(shell, "Update");
+            InvokePrivate(shell, "Tick", 0.9f);
 
             MortarShellImpact[] subShells = Object.FindObjectsByType<MortarShellImpact>(FindObjectsSortMode.None);
             Assert.That(subShells, Has.Length.EqualTo(15));

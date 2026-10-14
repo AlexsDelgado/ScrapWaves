@@ -138,6 +138,18 @@ public sealed class MortarTuning : WeaponSpecificTuning
 {
     public static readonly MortarTuning Defaults = new();
 
+    [Tooltip("Camera pitch is positive upward. These control horizontal landing range, not launch angle.")]
+    public float MortarManualMinimumPitch = -20f;
+    public float MortarManualLevelPitch = 0f;
+    public float MortarManualMaximumPitch = 7.5f;
+    [Min(0f)] public float MortarManualMinimumRange = 5f;
+    [Min(0f)] public float MortarManualLevelRange = 18f;
+    [Min(0f)] public float MortarManualMaximumRange = 22f;
+    [Min(1f), Tooltip("Terrain search above the muzzle at the selected horizontal range.")]
+    public float MortarManualSurfaceProbeAbove = 32f;
+    [Min(1f), Tooltip("Terrain search below the muzzle. A miss hides the marker and does not spend ammo.")]
+    public float MortarManualSurfaceProbeBelow = 128f;
+
     [Min(0f)] public float MortarAutoExplosionRadius = 2.6f;
     [Min(0f)] public float MortarManualExplosionRadius = 2.9f;
     [Min(0f)] public float MortarActiveExplosionRadius = 3.2f;

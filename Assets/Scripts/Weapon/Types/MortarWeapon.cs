@@ -45,7 +45,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         float pelletScale = grapeshot ? GetUpgradePayloadForMode(false, WeaponStatMode.Automatic).GrapeshotDamageScale : 1f;
         var automatic = DiagnosticMode("Automatic", pelletScale, GetAutomaticFireInterval(), GetModeRange(WeaponStatMode.Automatic), 1, 0f,
             knockbackScale: grapeshot ? 0.2f : -1f);
-        var manual = DiagnosticMode("Manual", pelletScale, GetManualFireInterval(), GetModeRange(WeaponStatMode.Manual), 1, 1f,
+        var manual = DiagnosticMode("Manual", pelletScale, GetManualFireInterval(), ManualRange, 1, 1f,
             knockbackScale: grapeshot ? 0.2f : -1f);
         int count = IsGrapeshotPath() ? GetGrapeshotRainShellCount(t) : GetActiveShellCount(t);
         var active = DiagnosticMode("Active Ability", 1f, 0f, Runtime.Data.BaseRange,
@@ -55,7 +55,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             .Add("Travel time", t.MortarShellTravelTime, " s").Add("Accuracy radius", t.MortarAutoAccuracyRadius, " m");
         manual.Add(IsGrapeshotPath() ? "Grapeshot target spread" : "Explosion radius", ManualFootprintRadius, " m")
             .Add("Travel time", GetManualTravelTime(t), " s")
-            .Add("Accuracy radius", t.MortarManualAccuracyRadius, " m");
+            .Add("Minimum aim range", t.MortarManualMinimumRange, " m")
+            .Add("Level aim range", t.MortarManualLevelRange, " m")
+            .Add("Maximum aim range", t.MortarManualMaximumRange, " m");
         active.Add("Explosion radius", GetExplosionRadius(WeaponStatMode.Ability, t.MortarActiveExplosionRadius) * GetAreaSizeMultiplier(), " m")
             .Add("Barrage radius", GetBarrageRadius(t) * GetAreaSizeMultiplier(), " m")
             .Add("First shell travel time", GetActiveShellTravelTime(t, 0), " s")
@@ -88,8 +90,33 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
     private bool _presentationPoolPrepared;
     private readonly RaycastHit[] _barragePredictionHits = new RaycastHit[32];
     private readonly RaycastHit[] _presentationSupportHits = new RaycastHit[16];
+    private readonly RaycastHit[] _manualAimHits = new RaycastHit[32];
+    private ReticleAimProvider _manualAimProvider;
 
-    public float ManualRange => Runtime?.Data == null ? 0f : GetModeRange(WeaponStatMode.Manual);
+    public bool TryResolveManualAim(Vector3 fallbackDirection, out MortarManualAimSolution solution)
+    {
+        solution = default;
+        if (Runtime?.Data == null || Spawn == null) return false;
+        if (_manualAimProvider == null && Owner != null)
+            _manualAimProvider = Owner.GetComponent<ReticleAimProvider>();
+        Camera camera = _manualAimProvider != null ? _manualAimProvider.AimCamera : Camera.main;
+        Vector3 view = ReticleAimProvider.TryGetGameplayRay(camera, out Ray ray) ? ray.direction : fallbackDirection;
+        Vector3 horizontalFallback = Owner != null ? Owner.forward : Spawn.forward;
+        return MortarManualAim.TryResolve(Spawn.position, view, horizontalFallback,
+            Runtime.Data.Mortar, ShellCollisionRadius, Owner, _manualAimHits, out solution);
+    }
+
+    public bool TryGetManualTerrainImpact(Vector3 fallbackDirection, out RaycastHit hit)
+    {
+        hit = default;
+        return TryResolveManualAim(fallbackDirection, out MortarManualAimSolution solution)
+            && MortarTrajectory.TryPredictManualCollision(solution.Origin, solution.Target,
+                solution.ArcHeight, ManualTravelTime, ShellCollisionRadius, Owner, _manualAimHits,
+                GetUpgradePayloadForMode(false, WeaponStatMode.Manual), out hit, solution.SurfaceNormal);
+    }
+
+    public float ManualRange => Runtime?.Data == null ? 0f
+        : MortarManualAim.EvaluateDistance(90f, Runtime.Data.Mortar);
     public float ManualExplosionRadius => Runtime?.Data == null
         ? 0f
         : GetExplosionRadius(WeaponStatMode.Manual, Runtime.Data.Mortar.MortarManualExplosionRadius) * GetAreaSizeMultiplier();
@@ -172,7 +199,7 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         if (Spawn == null)
             return;
 
-        if (aimDirection.sqrMagnitude <= 0.0001f)
+        if (!TryResolveManualAim(aimDirection, out MortarManualAimSolution aim))
             return;
 
         if (!TrySpendManualAmmo(1f, requireFullAmount: false))
@@ -180,24 +207,25 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
 
         MortarTuning tuning = Runtime.Data.Mortar;
         FireTimer = GetManualFireInterval();
-        Vector3 impact = Spawn.position + aimDirection.normalized * GetModeRange(WeaponStatMode.Manual);
-        impact += RandomPlanarOffset(tuning.MortarManualAccuracyRadius);
+        // Manual pitch chooses a precise destination; heat changes only how quickly the shell gets there.
+        Vector3 impact = aim.Target;
         EmitLaunchFeedback(
             WeaponFeedbackMode.Manual,
-            Spawn.position,
+            aim.Origin,
             impact,
             GetExplosionRadius(WeaponStatMode.Manual, tuning.MortarManualExplosionRadius) * GetAreaSizeMultiplier(),
             false);
         FireShell(
-            Spawn.position,
+            aim.Origin,
             impact,
             1f,
             tuning.MortarManualExplosionRadius,
             tuning.MortarExplosionFalloff,
             GetManualTravelTime(tuning),
-            tuning.MortarArcHeight,
+            aim.ArcHeight,
             false,
-            WeaponFeedbackMode.Manual);
+            WeaponFeedbackMode.Manual,
+            manualLandingNormal: aim.SurfaceNormal);
     }
 
     public override void UseActiveAbility(Vector3 aimDirection)
@@ -428,7 +456,8 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
         int shellIndex = 0,
         int shellCount = 1,
         int actionSequenceId = 0,
-        bool manageSequenceLifecycle = true)
+        bool manageSequenceLifecycle = true,
+        Vector3 manualLandingNormal = default)
     {
         MortarTuning tuning = Runtime.Data.Mortar;
         float area = GetAreaSizeMultiplier();
@@ -483,7 +512,9 @@ public sealed class MortarWeapon : BasicProjectileWeapon, IMortarReticleStatus
             showLanding,
             Presentation,
             feedback,
-            completesSequenceContributor: sequenceId != 0);
+            completesSequenceContributor: sequenceId != 0,
+            manualTargeting: mode == WeaponFeedbackMode.Manual,
+            manualLandingNormal: manualLandingNormal);
 
         if (shell == null && sequenceId != 0)
         {

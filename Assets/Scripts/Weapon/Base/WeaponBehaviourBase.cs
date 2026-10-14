@@ -35,6 +35,7 @@ public interface IRocketReticleStatus
 
 public interface IMortarReticleStatus
 {
+    bool TryGetManualTerrainImpact(Vector3 fallbackDirection, out RaycastHit hit);
     float ManualRange { get; }
     float ManualExplosionRadius { get; }
     float ManualFootprintRadius { get; }

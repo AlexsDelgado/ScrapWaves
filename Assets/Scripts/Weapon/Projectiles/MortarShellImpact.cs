@@ -57,6 +57,9 @@ public sealed class MortarShellImpact : MonoBehaviour
     private float _knockback;
     private float _collisionRadius;
     private Transform _ignoredRoot;
+    private bool _manualTargeting;
+    private Vector3 _manualLandingTarget;
+    private Vector3 _manualLandingNormal = Vector3.up;
     private LineRenderer _line;
     private GameObject _shellVisual;
     private readonly Vector3[] _arcPoints = new Vector3[ArcSegments + 1];
@@ -205,10 +208,15 @@ public sealed class MortarShellImpact : MonoBehaviour
         bool showLandingIndicator,
         IWeaponPresentationSink presentationSink,
         WeaponFeedbackContext feedbackTemplate,
-        bool completesSequenceContributor = false)
+        bool completesSequenceContributor = false,
+        bool manualTargeting = false,
+        Vector3 manualLandingNormal = default)
     {
         MortarShellImpact shell = Acquire(authoredPrefab, poolCapacity);
         shell._payload = payload;
+        shell._manualTargeting = manualTargeting;
+        shell._manualLandingNormal = manualLandingNormal.sqrMagnitude > 0.0001f
+            ? manualLandingNormal.normalized : Vector3.up;
         shell._useGrapeshotVfx = useGrapeshotVfx || payload.UseGrapeshot;
         shell._weaponDamageContext = damageContext;
         shell._useWeaponDamageContext = damageContext.IsValid;
@@ -255,6 +263,7 @@ public sealed class MortarShellImpact : MonoBehaviour
     {
         _start = start;
         _target = target;
+        _manualLandingTarget = target;
         _travelTime = Mathf.Max(0.05f, travelTime);
         _arcHeight = Mathf.Max(0f, arcHeight);
         _damage = Mathf.Max(1, damage);
@@ -276,7 +285,10 @@ public sealed class MortarShellImpact : MonoBehaviour
         HasPredictedPresentationCollision = false;
         PredictedPresentationCollisionPoint = default;
         _grapeshotAirburstNormalizedTime = _payload.UseGrapeshot
-            ? CalculateGrapeshotAirburstNormalizedTime()
+            ? _manualTargeting
+                ? MortarTrajectory.GetManualGrapeshotAirburstTime(
+                    _start, _target, _arcHeight, _collisionRadius, _ignoredRoot, _predictionHits)
+                : CalculateGrapeshotAirburstNormalizedTime()
             : -1f;
         transform.position = _start;
         _authoredVfx ??= GetComponent<MortarShellVfx>();
@@ -290,7 +302,7 @@ public sealed class MortarShellImpact : MonoBehaviour
             RaycastHit predictedHit = default;
             bool showPredictedLanding = _showLandingIndicator
                 && !_payload.UseGrapeshot
-                && MortarTrajectory.TryPredictTerrainCollision(
+                && MortarTrajectory.TryPredictCollision(
                     _start,
                     _target,
                     _arcHeight,
@@ -298,18 +310,27 @@ public sealed class MortarShellImpact : MonoBehaviour
                     _collisionRadius,
                     _ignoredRoot,
                     _predictionHits,
+                    _payload.RepeatExplosionCount <= 1,
                     out predictedHit);
             Vector3 presentationTarget = _target;
             Vector3 presentationNormal = Vector3.up;
             if (showPredictedLanding)
             {
-                MortarPresentationSurface.Resolve(
-                    predictedHit,
-                    _explosionRadius,
-                    _ignoredRoot,
-                    _presentationSupportHits,
-                    out presentationTarget,
-                    out presentationNormal);
+                if (_manualTargeting)
+                {
+                    presentationTarget = predictedHit.point;
+                    presentationNormal = predictedHit.normal;
+                }
+                else
+                {
+                    MortarPresentationSurface.Resolve(
+                        predictedHit,
+                        _explosionRadius,
+                        _ignoredRoot,
+                        _presentationSupportHits,
+                        out presentationTarget,
+                        out presentationNormal);
+                }
             }
             HasPredictedPresentationCollision = showPredictedLanding;
             PredictedPresentationCollisionPoint = showPredictedLanding ? presentationTarget : default;
@@ -331,20 +352,39 @@ public sealed class MortarShellImpact : MonoBehaviour
         }
     }
 
-    private void Update()
+    private void Update() => Tick(Time.deltaTime);
+
+    private void Tick(float deltaTime)
     {
         TouchDamageSequence();
 
         if (_detonated)
         {
-            TickRepeatExplosions();
+            AdvanceRepeatExplosions(deltaTime);
             return;
         }
 
-        _elapsed += Time.deltaTime;
-        float t = _elapsed / _travelTime;
+        float previousT = _elapsed / _travelTime;
+        _elapsed += Mathf.Max(0f, deltaTime);
+        float t = Mathf.Min(_elapsed / _travelTime, MortarTrajectory.GetMaximumNormalizedTime(_travelTime));
         Vector3 previousPosition = transform.position;
         Vector3 nextPosition = GetArcPoint(t);
+
+        // Manual grapeshot still splits during descent, but must first clear
+        // every part of the arc traversed in this frame (including a long frame).
+        float collisionEnd = _payload.UseGrapeshot ? Mathf.Min(t, _grapeshotAirburstNormalizedTime) : t;
+        if ((!_payload.UseGrapeshot || _manualTargeting)
+            && TryGetFlightCollision(previousT, collisionEnd, out Vector3 collisionPoint))
+        {
+            if (_manualTargeting && _payload.UseGrapeshot)
+            {
+                _manualLandingNormal = _impactNormal;
+                _manualLandingTarget = collisionPoint + _impactNormal * _collisionRadius;
+            }
+            transform.position = collisionPoint;
+            Detonate(collisionPoint);
+            return;
+        }
 
         if (_payload.UseGrapeshot && t >= _grapeshotAirburstNormalizedTime)
         {
@@ -354,18 +394,25 @@ public sealed class MortarShellImpact : MonoBehaviour
             return;
         }
 
-        if (TryGetCollision(previousPosition, nextPosition, out Vector3 collisionPoint))
-        {
-            transform.position = collisionPoint;
-            Detonate(collisionPoint);
-            return;
-        }
-
         transform.position = nextPosition;
         if (_authoredVfx != null)
             _authoredVfx.UpdateFlight(nextPosition - previousPosition, Mathf.Clamp01(t));
         if (t >= MortarTrajectory.GetMaximumNormalizedTime(_travelTime))
             ReleaseShell();
+    }
+
+    private bool TryGetFlightCollision(float fromTime, float toTime, out Vector3 collisionPoint)
+    {
+        collisionPoint = GetArcPoint(toTime);
+        if (!MortarTrajectory.TryGetCollisionBetweenNormalizedTimes(
+                _start, _target, _arcHeight, _collisionRadius, _ignoredRoot,
+                _collisionHits, fromTime, toTime,
+                !_payload.UseGrapeshot && _payload.RepeatExplosionCount <= 1,
+                out RaycastHit hit))
+            return false;
+        collisionPoint = hit.point;
+        RecordCollision(hit);
+        return true;
     }
 
     // Sweeps the shell between frames so fast projectiles cannot tunnel through map geometry.
@@ -409,18 +456,31 @@ public sealed class MortarShellImpact : MonoBehaviour
             return false;
 
         collisionPoint = closestHit.point;
+        RecordCollision(closestHit);
+        return true;
+    }
+
+    private void RecordCollision(RaycastHit closestHit)
+    {
         _impactNormal = closestHit.normal.sqrMagnitude > 0.0001f ? closestHit.normal.normalized : Vector3.up;
         _impactCollider = closestHit.collider;
-        MortarPresentationSurface.Resolve(
-            closestHit,
-            _explosionRadius,
-            _ignoredRoot,
-            _presentationSupportHits,
-            out _presentationImpactPoint,
-            out _presentationImpactNormal);
+        if (_manualTargeting)
+        {
+            _presentationImpactPoint = closestHit.point;
+            _presentationImpactNormal = _impactNormal;
+        }
+        else
+        {
+            MortarPresentationSurface.Resolve(
+                closestHit,
+                _explosionRadius,
+                _ignoredRoot,
+                _presentationSupportHits,
+                out _presentationImpactPoint,
+                out _presentationImpactNormal);
+        }
         _hasPresentationImpactSurface = true;
         _authoredVfx?.SetImpactPoint(_presentationImpactPoint, _presentationImpactNormal);
-        return true;
     }
 
     private bool ShouldIgnoreCollision(RaycastHit hit)
@@ -432,10 +492,10 @@ public sealed class MortarShellImpact : MonoBehaviour
         if (hitTransform == transform || hitTransform.IsChildOf(transform))
             return true;
 
-        if (_payload.UseGrapeshot)
+        if (_payload.UseGrapeshot && !_manualTargeting)
             return true;
 
-        if (_payload.RepeatExplosionCount > 1
+        if ((_payload.UseGrapeshot || _payload.RepeatExplosionCount > 1)
             && hit.collider != null
             && hit.collider.GetComponentInParent<IDamageable>() != null)
             return true;
@@ -501,7 +561,9 @@ public sealed class MortarShellImpact : MonoBehaviour
 
     private Vector3 GetArcPoint(float t)
     {
-        return MortarTrajectory.Evaluate(_start, _target, _arcHeight, t);
+        return _payload.UseGrapeshot && !_manualTargeting
+            ? MortarTrajectory.Evaluate(_start, _target, _arcHeight, t)
+            : MortarTrajectory.EvaluateCollisionPath(_start, _target, _arcHeight, t);
     }
 
     private static Material GetShellMaterial(bool grapeshot, bool repeat)
@@ -579,7 +641,9 @@ public sealed class MortarShellImpact : MonoBehaviour
             ReleaseShell();
     }
 
-    private void TickRepeatExplosions()
+    private void TickRepeatExplosions() => AdvanceRepeatExplosions(Time.deltaTime);
+
+    private void AdvanceRepeatExplosions(float deltaTime)
     {
         if (_remainingRepeatExplosions <= 0)
         {
@@ -587,7 +651,7 @@ public sealed class MortarShellImpact : MonoBehaviour
             return;
         }
 
-        _repeatExplosionTimer -= Time.deltaTime;
+        _repeatExplosionTimer -= Mathf.Max(0f, deltaTime);
         _authoredVfx?.UpdateRepeatCountdown(_repeatExplosionTimer);
         if (_repeatExplosionTimer > 0f)
             return;
@@ -677,7 +741,11 @@ public sealed class MortarShellImpact : MonoBehaviour
         for (int i = 0; i < _payload.GrapeshotCount; i++)
         {
             Vector2 offset = Random.insideUnitCircle * spreadRadius;
-            Vector3 target = new(center.x + offset.x, center.y - fallDistance, center.z + offset.y);
+            Vector3 target = _manualTargeting
+                ? MortarTrajectory.GetManualGrapeshotTarget(
+                    _manualLandingTarget, _manualLandingNormal, _collisionRadius, subShellCollisionRadius)
+                    + new Vector3(offset.x, 0f, offset.y)
+                : new Vector3(center.x + offset.x, center.y - fallDistance, center.z + offset.y);
 
             WeaponFeedbackContext childFeedback = new(
                 _feedbackTemplate.Weapon,
@@ -712,7 +780,9 @@ public sealed class MortarShellImpact : MonoBehaviour
                 showLandingIndicator: false,
                 _presentationSink,
                 childFeedback,
-                completesSequenceContributor: grapeshotContext.ActionSequenceId != 0);
+                completesSequenceContributor: grapeshotContext.ActionSequenceId != 0,
+                manualTargeting: _manualTargeting,
+                manualLandingNormal: _manualLandingNormal);
             if (child == null && grapeshotContext.ActionSequenceId != 0)
                 DamageFeedbackSequenceRuntime.CompleteContributor(grapeshotContext.ActionSequenceId);
         }

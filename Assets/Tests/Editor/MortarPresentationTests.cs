@@ -209,8 +209,7 @@ public sealed class MortarPresentationTests
         try
         {
             shell = LaunchAuthored(profile, new Vector3(4f, 8f, 2f), MortarUpgradePayload.None, sink, feedback);
-            SetField(shell, "_elapsed", 10f);
-            Invoke(shell, "Update");
+            Invoke(shell, "Tick", 10f);
 
             Assert.That(shell.gameObject.activeSelf, Is.False);
             Assert.That(sink.Cues, Is.Empty);
