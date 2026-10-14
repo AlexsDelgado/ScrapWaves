@@ -53,6 +53,8 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField, Min(0.01f)] private float _airborneDashRegenTime = 4f;
     [SerializeField, Min(1f)] private float _slideStartSpeedMultiplier = 1.5f;
     [SerializeField, Min(0f)] private float _minSlideSpeed = 2f;
+    [SerializeField, Range(0.1f, 45f), Tooltip("Minimum downhill travel angle for a grounded slide below the normal entry speed. Uses actual momentum along the support surface.")]
+    private float _minimumDownhillSlideAngle = 5f;
     [SerializeField, Min(0f), Tooltip("Ground dash recovery braking relative to base friction. 3.5 gives 35 m/s squared at base friction 10.")]
     private float _postDashFrictionMultiplier = 3.5f;
     [SerializeField, Min(0f)] private float _postDashFrictionDuration = 0.18f;
@@ -86,8 +88,6 @@ public class PlayerMovement : MonoBehaviour
     private int _dashLaunchFrame = -1;
     private bool _jumpPressed;
     private bool _crouchHeld;
-    private bool _crouchPressed;
-    private bool _crouchReleased;
     private bool _dashPressed;
 
     private bool _isGrounded;
@@ -389,12 +389,9 @@ public class PlayerMovement : MonoBehaviour
                 _dashRequestTime = Time.unscaledTime;
                 _bufferedDashDirection = _moveDirectionWorld;
             }
-            if (_crouchPressed && Time.timeScale > 0f) TryStartCrouchOrSlide();
         }
 
         _jumpPressed = false;
-        _crouchPressed = false;
-        _crouchReleased = false;
         _dashPressed = false;
     }
 
@@ -406,6 +403,8 @@ public class PlayerMovement : MonoBehaviour
         UpdateGroundedState();
         if (!_crouchHeld) StopCrouchOrSlide();
         ConsumeBufferedActions();
+        // Resolve held crouch only with fresh support and after a buffered jump has consumed it.
+        if (_crouchHeld && !IsMovementInputLocked && !IsLaunching) TryStartCrouchOrSlide();
         if (!IsLaunching)
             HoldMomentumPreservingStun();
 
@@ -457,7 +456,7 @@ public class PlayerMovement : MonoBehaviour
             _moveInput = Vector2.zero;
             _moveDirectionWorld = Vector3.zero;
             _crouchHeld = false;
-            _jumpPressed = _dashPressed = _crouchPressed = _crouchReleased = false;
+            _jumpPressed = _dashPressed = false;
             return;
         }
 
@@ -472,10 +471,7 @@ public class PlayerMovement : MonoBehaviour
         _jumpPressed = keyboard.spaceKey.wasPressedThisFrame;
         _dashPressed = keyboard.leftShiftKey.wasPressedThisFrame || keyboard.rightShiftKey.wasPressedThisFrame;
 
-        bool crouchNowHeld = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
-        _crouchPressed = crouchNowHeld && !_crouchHeld;
-        _crouchReleased = !crouchNowHeld && _crouchHeld;
-        _crouchHeld = crouchNowHeld;
+        _crouchHeld = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
     }
 
     // Rotate through Rigidbody ownership and integrate the bounded planar motor.
@@ -536,7 +532,8 @@ public class PlayerMovement : MonoBehaviour
         Vector3 planar = Vector3.ProjectOnPlane(_rb.linearVelocity, Vector3.up);
         float scale = DebugSpeedTool.LocomotionScale;
         float maxSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * scale * GetSlowMultiplier());
-        if (_isCrouching) maxSpeed *= _crouchSpeedMultiplier;
+        bool groundedCrouch = _isGrounded && _isCrouching;
+        if (groundedCrouch) maxSpeed *= _crouchSpeedMultiplier;
         bool hasInput = allowInput && !_isSliding && _moveDirectionWorld.sqrMagnitude > 0.0001f;
         Vector3 target = hasInput ? _moveDirectionWorld * maxSpeed : Vector3.zero;
 
@@ -547,7 +544,7 @@ public class PlayerMovement : MonoBehaviour
             if (hasInput)
             {
                 float acceleration = _baseMoveAcceleration * scale * 0.35f;
-                if (_isCrouching) acceleration *= _crouchAccelerationMultiplier;
+                if (groundedCrouch) acceleration *= _crouchAccelerationMultiplier;
                 float inheritedLimit = Mathf.Max(planar.magnitude, maxSpeed);
                 planar = Vector3.ClampMagnitude(planar + _moveDirectionWorld * acceleration * Time.fixedDeltaTime, inheritedLimit);
             }
@@ -562,7 +559,7 @@ public class PlayerMovement : MonoBehaviour
 
         float rate = hasInput ? _baseMoveAcceleration : (_isGrounded ? _stoppingDeceleration : _baseFriction * _airFrictionMultiplier);
         if (hasInput && Vector3.Dot(planar, target) < 0f) rate = _reversalAcceleration;
-        if (_isCrouching && hasInput) rate *= _crouchAccelerationMultiplier;
+        if (groundedCrouch && hasInput) rate *= _crouchAccelerationMultiplier;
         if (planar.magnitude > maxSpeed + 0.001f) rate = _overspeedDeceleration;
         SetPlanarVelocity(Vector3.MoveTowards(planar, target, rate * scale * Time.fixedDeltaTime));
     }
@@ -712,10 +709,10 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    // Enter crouch, or slide when grounded speed is high enough.
+    // Reconcile held crouch in the physics loop, including landings and dash completion.
     private void TryStartCrouchOrSlide()
     {
-        if (_isDashing)
+        if (_isDashing || _isSliding)
         {
             return;
         }
@@ -781,10 +778,19 @@ public class PlayerMovement : MonoBehaviour
         if (crouchIfHeld && _crouchHeld) StartCrouch();
     }
 
-    // Check whether grounded speed passes movement-scaled slide threshold.
+    // Flat/uphill slides retain their momentum threshold. Downhill entry uses walking
+    // speed, keeping a gap above crouch/slide-exit speed to avoid repeated entry pulses.
     private bool CanStartSlide()
     {
-        return _isGrounded && CurrentPlanarSpeed() >= GetSlideStartSpeed();
+        if (!_isGrounded) return false;
+        Vector3 planar = Vector3.ProjectOnPlane(_rb.linearVelocity, Vector3.up);
+        if (planar.magnitude >= GetSlideStartSpeed()) return true;
+        float walkingSpeed = Mathf.Max(0.1f, _stats.GetMoveSpeed() * DebugSpeedTool.LocomotionScale * GetSlowMultiplier());
+        const float speedTolerance = 0.01f;
+        if (planar.magnitude < _minSlideSpeed || planar.magnitude + speedTolerance < walkingSpeed) return false;
+
+        Vector3 surfaceTravel = Vector3.ProjectOnPlane(planar, _groundNormal).normalized;
+        return surfaceTravel.y <= -Mathf.Sin(_minimumDownhillSlideAngle * Mathf.Deg2Rad);
     }
 
     // Calculate slide entry speed from current movement speed stat.
@@ -888,17 +894,12 @@ public class PlayerMovement : MonoBehaviour
         {
             _remainingAirJumps = Mathf.Max(0, _stats.GetStatInt(StatType.AirJumps));
             OnLanded?.Invoke();
-
-            if (_crouchHeld && !_isDashing && !IsLaunching && !IsMovementInputLocked && CanStartSlide())
-            {
-                StartSlide();
-                return;
-            }
         }
 
-        if (_isSliding && !_crouchHeld)
+        if (_isSliding && (!_crouchHeld || !_isGrounded))
         {
-            StopSlide(false);
+            // Air uses the ordinary motor and jump/fall presentation, without touching velocity.
+            StopSlide(_crouchHeld);
             return;
         }
 
@@ -907,8 +908,6 @@ public class PlayerMovement : MonoBehaviour
             StopSlide(true);
             return;
         }
-
-        if (!_isSliding && _crouchHeld && !_isDashing && !IsLaunching && !IsMovementInputLocked && CanStartSlide()) StartSlide();
     }
 
     // Probe the lower capsule sphere, qualifying support rather than treating any ray hit as ground.
