@@ -21,6 +21,7 @@ public class SimpleFollow : MonoBehaviour
     private float _difficultySpeedMultiplier = 1f;
     private Rigidbody _rb;
     private EnemyKnockbackReceiver _knockback;
+    private EnemyEmergence _emergence;
     private float _slotAngleDeg;
     private float _weavePhase;
     private int _sampleSeed;
@@ -29,6 +30,7 @@ public class SimpleFollow : MonoBehaviour
     {
         _rb = GetComponent<Rigidbody>();
         _knockback = GetComponent<EnemyKnockbackReceiver>();
+        _emergence = GetComponent<EnemyEmergence>();
         _baseSpeed = _speed;
         _sampleSeed = GetInstanceID();
         if (_target == null)
@@ -55,6 +57,7 @@ public class SimpleFollow : MonoBehaviour
 
     public void PrepareForSpawn()
     {
+        _emergence = GetComponent<EnemyEmergence>();
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
         _difficultySpeedMultiplier = 1f;
@@ -92,6 +95,11 @@ public class SimpleFollow : MonoBehaviour
 
     public void BrainFixedUpdate(float fixedDeltaTime)
     {
+        if (_emergence == null)
+            _emergence = GetComponent<EnemyEmergence>();
+        if (_emergence != null && _emergence.BlocksGameplayNow)
+            return;
+
         if (_rb == null)
             return;
 

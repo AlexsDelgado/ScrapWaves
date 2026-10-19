@@ -188,7 +188,7 @@ public class DestroyerBehavior : EnemyBehaviorBase
         for (int i = 0; i < count; i++)
         {
             Transform t = _swarmScratch[i];
-            if (t == null || t == transform || IsBossTransform(t))
+            if (t == null || t == transform || IsBossTransform(t) || EnemyEmergence.BlocksGameplay(t))
                 continue;
 
             Vector3 toMouth = mouthPos - t.position;

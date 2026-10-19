@@ -19,6 +19,7 @@ GameObject:
   - component: {fileID: 4619234061718998242}
   - component: {fileID: 9062782947206492887}
   - component: {fileID: 8899111108157587729}
+  - component: {fileID: 1178912744772326976}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -39,7 +40,7 @@ Transform:
   m_LocalScale: {x: 1.2, y: 1.2, z: 1.2}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 4801915618637577528}
+  - {fileID: 2484007577581310562}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &100006
@@ -84,8 +85,12 @@ MonoBehaviour:
   _minFollowDistance: 0.55
   _rotationSpeed: 540
   _gravity: -25
+  _orbitRadius: 1.8
+  _weaveAmplitude: 0.35
+  _weaveFrequency: 1.6
   _separationWeight: 0.76
   _separationRadius: 1.5
+  _maxSeparationSamples: 8
   _forwardRayDistance: 0.45
   _forwardRayHeight: 0.6
   _climbSpeed: 4.5
@@ -105,6 +110,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
   _maxHealth: 10
+  _damageTakenMultiplier: 1
 --- !u!114 &7140168115193157315
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -118,6 +124,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
   _contactDamage: 12
+  _contactPushForce: 3
   _logDebug: 0
 --- !u!114 &8019343433352162818
 MonoBehaviour:
@@ -224,6 +231,46 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyStatusFeedback
   _profile: {fileID: 0}
+--- !u!114 &1178912744772326976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 2484007577581310562}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &123065451151014424
 GameObject:
   m_ObjectHideFlags: 0
@@ -258,7 +305,7 @@ Transform:
   - {fileID: 6881979773927130394}
   - {fileID: 7698650720571301227}
   - {fileID: 453163623923836981}
-  m_Father: {fileID: 100001}
+  m_Father: {fileID: 2484007577581310562}
   m_LocalEulerAnglesHint: {x: 0, y: 90, z: 0}
 --- !u!33 &7704757526308356377
 MeshFilter:
@@ -499,6 +546,38 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &6432057470245500988
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2484007577581310562}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2484007577581310562
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6432057470245500988}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 4801915618637577528}
+  m_Father: {fileID: 100001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &9094342886547992035
 GameObject:
   m_ObjectHideFlags: 0

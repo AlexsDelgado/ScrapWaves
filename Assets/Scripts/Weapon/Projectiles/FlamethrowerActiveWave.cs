@@ -141,7 +141,8 @@ public sealed class FlamethrowerActiveWave : MonoBehaviour
         }
     }
 
-    static bool IsEligible(Transform root) => root != null && root.gameObject.activeInHierarchy && !EnemyVerticalEngagement.IsDisengaged(root);
+    static bool IsEligible(Transform root) => root != null && root.gameObject.activeInHierarchy
+        && !EnemyVerticalEngagement.IsDisengaged(root) && !EnemyEmergence.BlocksGameplay(root);
     static Vector2 Planar(Vector3 point) => new(point.x, point.z);
 
     // Solve |p0 + displacement*s| = r0 + radiusChange*s, including fast targets that cross and exit in one frame.

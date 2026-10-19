@@ -111,6 +111,9 @@ public static class TutorialAuthoring
         actor.SetActive(false);
         actor.transform.position=new Vector3(position.x,Ground(position)+1.1f,position.z);
         actor.transform.rotation=Quaternion.Euler(0,180,0);
+        // Keep future lesson copies compatible with the targeted emergence migration.
+        // This changes only the visual parent; stationary AI/physics overrides below remain authoritative.
+        EnemyEmergenceAuthoring.ConfigureActor(actor);
         foreach(var component in actor.GetComponentsInChildren<Component>(true))
         {
             if(component is EnemyMaterialDrop || component is EnemyDropExperience || component is EnemyScrapDrop || component is EnemyTemporaryPowerupDrop || component is SwarmPooledEnemy)

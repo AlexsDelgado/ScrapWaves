@@ -32,7 +32,49 @@ public static class SpawnGroundUtility
         float resolveStepOut,
         out Vector3 footWorldPosition)
     {
+        return TryResolveFootPosition(
+            candidateXZ,
+            spawnRoot,
+            characterController,
+            referenceYForRayStart,
+            maxAbsDeltaYFromReference,
+            primaryGroundRaycastMask,
+            fallbackGroundRaycastMask,
+            overlapSolidMask,
+            raycastStartHeight,
+            raycastMaxDistance,
+            surfaceSeparation,
+            maxProjectionIterations,
+            resolveStepUp,
+            resolveStepOut,
+            out footWorldPosition,
+            out _,
+            out _);
+    }
+
+    /// <summary>Also returns the selected ground hit before seating or depenetration moves the root.</summary>
+    public static bool TryResolveFootPosition(
+        Vector3 candidateXZ,
+        Transform spawnRoot,
+        CharacterController characterController,
+        float referenceYForRayStart,
+        float maxAbsDeltaYFromReference,
+        LayerMask primaryGroundRaycastMask,
+        LayerMask fallbackGroundRaycastMask,
+        LayerMask overlapSolidMask,
+        float raycastStartHeight,
+        float raycastMaxDistance,
+        float surfaceSeparation,
+        int maxProjectionIterations,
+        float resolveStepUp,
+        float resolveStepOut,
+        out Vector3 footWorldPosition,
+        out Vector3 groundPoint,
+        out Vector3 groundNormal)
+    {
         footWorldPosition = candidateXZ;
+        groundPoint = candidateXZ;
+        groundNormal = Vector3.up;
 
         if (spawnRoot == null || characterController == null)
             return false;
@@ -49,6 +91,8 @@ public static class SpawnGroundUtility
                 return false;
         }
 
+        groundPoint = groundHit.point;
+        groundNormal = groundHit.normal;
         footWorldPosition = groundHit.point + groundHit.normal * surfaceSeparation;
         spawnRoot.position = footWorldPosition;
         SeatAboveSurface(spawnRoot, footWorldPosition, surfaceSeparation);
@@ -153,7 +197,37 @@ public static class SpawnGroundUtility
         float surfaceSeparation,
         out Vector3 surfacePoint)
     {
+        return TrySampleGround(
+            candidateXZ,
+            referenceY,
+            maxAbsDeltaYFromReference,
+            primaryGroundRaycastMask,
+            fallbackGroundRaycastMask,
+            raycastStartHeight,
+            raycastMaxDistance,
+            surfaceSeparation,
+            out surfacePoint,
+            out _,
+            out _);
+    }
+
+    /// <summary>Also returns the selected ground hit without the surface-separation offset.</summary>
+    public static bool TrySampleGround(
+        Vector3 candidateXZ,
+        float referenceY,
+        float maxAbsDeltaYFromReference,
+        LayerMask primaryGroundRaycastMask,
+        LayerMask fallbackGroundRaycastMask,
+        float raycastStartHeight,
+        float raycastMaxDistance,
+        float surfaceSeparation,
+        out Vector3 surfacePoint,
+        out Vector3 groundPoint,
+        out Vector3 groundNormal)
+    {
         surfacePoint = candidateXZ;
+        groundPoint = candidateXZ;
+        groundNormal = Vector3.up;
         Vector3 xz = new Vector3(candidateXZ.x, 0f, candidateXZ.z);
         Vector3 rayOrigin = new Vector3(xz.x, referenceY + raycastStartHeight, xz.z);
 
@@ -166,6 +240,8 @@ public static class SpawnGroundUtility
                 return false;
         }
 
+        groundPoint = groundHit.point;
+        groundNormal = groundHit.normal;
         surfacePoint = groundHit.point + groundHit.normal * surfaceSeparation;
         return true;
     }

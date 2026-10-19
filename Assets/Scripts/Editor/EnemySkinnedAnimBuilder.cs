@@ -267,18 +267,28 @@ public static class EnemySkinnedAnimBuilder
         GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
         try
         {
-            if (rootLocalScale.HasValue)
+            // Emergence owns an independent, neutral parent. Keep current art tuning when
+            // rebuilding a migrated prefab instead of restoring the builder's old defaults.
+            Transform emergencePivot = root.transform.Find(EnemyEmergenceAuthoring.PivotName);
+            bool preserveEmergencePose = root.GetComponent<EnemyEmergence>() != null || emergencePivot != null;
+            if (rootLocalScale.HasValue && !preserveEmergencePose)
                 root.transform.localScale = rootLocalScale.Value;
 
-            Transform existing = root.GetComponentsInChildren<Transform>(true)
-                .FirstOrDefault(t => t.name == existingVisualName);
+            Transform visualParent = emergencePivot != null ? emergencePivot : root.transform;
+            // A skinned model can contain a mesh with the legacy visual's name.
+            // Replace only a top-level model, never a mesh or bone inside its rig.
+            Transform existing = visualParent.Cast<Transform>().FirstOrDefault(t => t.name == existingVisualName)
+                ?? visualParent.Cast<Transform>().FirstOrDefault(t => t.name == newVisualName);
+            if (preserveEmergencePose && existing == null)
+                throw new InvalidOperationException("Missing top-level emergence visual in " + prefabPath);
+            Quaternion? preservedRotation = preserveEmergencePose && existing != null ? existing.localRotation : null;
 
             VisualPose pose = defaultPose;
-            if (preserveExistingPose && existing != null)
+            if ((preserveExistingPose || preserveEmergencePose) && existing != null)
             {
                 pose = new VisualPose(
                     existing.localPosition,
-                    forceLocalEuler ?? existing.localEulerAngles,
+                    preserveEmergencePose ? existing.localEulerAngles : forceLocalEuler ?? existing.localEulerAngles,
                     existing.localScale);
             }
             else if (forceLocalEuler.HasValue)
@@ -307,21 +317,21 @@ public static class EnemySkinnedAnimBuilder
             if (existing != null)
                 UnityEngine.Object.DestroyImmediate(existing.gameObject);
 
-            foreach (Transform t in root.GetComponentsInChildren<Transform>(true)
+            foreach (Transform t in visualParent.Cast<Transform>()
                          .Where(t => t.name == newVisualName)
                          .ToArray())
             {
                 UnityEngine.Object.DestroyImmediate(t.gameObject);
             }
 
-            GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+            GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, visualParent);
             visual.name = newVisualName;
             visual.transform.localPosition = pose.LocalPosition;
-            visual.transform.localRotation = Quaternion.Euler(pose.LocalEuler);
+            visual.transform.localRotation = preservedRotation ?? Quaternion.Euler(pose.LocalEuler);
             visual.transform.localScale = pose.LocalScale;
             PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
 
-            if (preserveExistingPose)
+            if (preserveExistingPose || preserveEmergencePose)
             {
                 foreach (SkinnedMeshRenderer skin in visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
@@ -373,6 +383,7 @@ public static class EnemySkinnedAnimBuilder
                 }
             }
 
+            EnemyEmergenceAuthoring.ConfigureActor(root);
             PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             Debug.Log("Replaced skinned visual on " + prefabPath + " -> " + newVisualName
                       + " scale=" + pose.LocalScale + " euler=" + pose.LocalEuler

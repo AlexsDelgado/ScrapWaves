@@ -53,7 +53,7 @@ public sealed class RocketTargetMarkerVfx : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (_target == null || !_target.gameObject.activeInHierarchy)
+        if (_target == null || !_target.gameObject.activeInHierarchy || EnemyEmergence.BlocksGameplay(_target))
         {
             Destroy(gameObject);
             return;

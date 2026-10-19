@@ -78,6 +78,9 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
 
     private void Update()
     {
+        if (EmergenceBlocksGameplay)
+            return;
+
         if (Player == null)
             return;
 

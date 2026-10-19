@@ -84,6 +84,8 @@ public class SwarmPooledEnemy : MonoBehaviour
 
     private void ResetForPoolDespawn()
     {
+        // Unwind dormancy first so emergence never restores over dormant snapshots.
+        GetComponent<EnemyVerticalEngagement>()?.ExitDormancy();
         GetComponent<EnemyFollow>()?.OnDespawned();
         GetComponent<SimpleFollow>()?.OnDespawned();
 

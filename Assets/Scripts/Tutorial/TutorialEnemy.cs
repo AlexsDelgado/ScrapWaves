@@ -19,6 +19,7 @@ public sealed class TutorialEnemy : MonoBehaviour
     {
         _owner = owner; _spawn = transform.position; _died = false;
         gameObject.SetActive(true);
+        GetComponent<EnemyEmergence>()?.BeginAtCurrentPlacement();
     }
     private void Awake() => _health = GetComponent<EnemyHealth>();
     private void OnEnable()

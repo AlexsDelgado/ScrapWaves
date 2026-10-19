@@ -2973,6 +2973,7 @@ GameObject:
   - component: {fileID: 84458505}
   - component: {fileID: 84458504}
   - component: {fileID: 84458517}
+  - component: {fileID: 84458518}
   m_Layer: 3
   m_Name: 3 - Moving slime 1
   m_TagString: Untagged
@@ -2993,7 +2994,7 @@ Transform:
   m_LocalScale: {x: 2.4, y: 2.4, z: 2.4}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1427775084}
+  - {fileID: 1115559262}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &84458504
@@ -3272,6 +3273,46 @@ MonoBehaviour:
   - {fileID: 796464886}
   - {fileID: 1302085018}
   - {fileID: 1058753609}
+--- !u!114 &84458518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 84458502}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 1115559262}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &86250949
 GameObject:
   m_ObjectHideFlags: 0
@@ -6021,6 +6062,7 @@ GameObject:
   - component: {fileID: 142167024}
   - component: {fileID: 142167023}
   - component: {fileID: 142167036}
+  - component: {fileID: 142167037}
   m_Layer: 3
   m_Name: 2 - Charger
   m_TagString: Untagged
@@ -6042,7 +6084,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 541609606}
-  - {fileID: 1339668762}
+  - {fileID: 1432634208}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &142167023
@@ -6334,6 +6376,46 @@ MonoBehaviour:
   - {fileID: 1288056214}
   - {fileID: 2103071894}
   - {fileID: 949919632}
+--- !u!114 &142167037
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 142167021}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 1432634208}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &145274437
 GameObject:
   m_ObjectHideFlags: 0
@@ -7756,7 +7838,7 @@ Transform:
   m_Children:
   - {fileID: 16011085}
   - {fileID: 1877843206}
-  m_Father: {fileID: 2016452446}
+  m_Father: {fileID: 1029569294}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &178530188
 Animator:
@@ -9591,7 +9673,7 @@ Transform:
   m_Children:
   - {fileID: 952960888}
   - {fileID: 1782850231}
-  m_Father: {fileID: 606592985}
+  m_Father: {fileID: 259749816}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &228369944
 MonoBehaviour:
@@ -11477,6 +11559,38 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 255161129}
   m_CullTransparentMesh: 1
+--- !u!1 &255574858
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 255574859}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &255574859
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 255574858}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1793471714}
+  m_Father: {fileID: 763731697}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &256081836
 GameObject:
   m_ObjectHideFlags: 0
@@ -11870,6 +11984,38 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 259088449}
   m_CullTransparentMesh: 1
+--- !u!1 &259749815
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 259749816}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &259749816
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 259749815}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 228369943}
+  m_Father: {fileID: 606592985}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &263455696
 GameObject:
   m_ObjectHideFlags: 0
@@ -18411,6 +18557,7 @@ GameObject:
   - component: {fileID: 419976629}
   - component: {fileID: 419976628}
   - component: {fileID: 419976641}
+  - component: {fileID: 419976642}
   m_Layer: 3
   m_Name: 2 - Vigilance Drone
   m_TagString: Untagged
@@ -18432,7 +18579,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 91289943}
-  - {fileID: 1718558083}
+  - {fileID: 1529463128}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &419976628
@@ -18728,6 +18875,46 @@ MonoBehaviour:
   - {fileID: 1867385022}
   - {fileID: 1989398051}
   - {fileID: 1453956425}
+--- !u!114 &419976642
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 419976626}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 1529463128}
+  _minimumDuration: 0.8
+  _maximumDuration: 1.2
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &420224566
 GameObject:
   m_ObjectHideFlags: 0
@@ -22562,6 +22749,38 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4876252261270809814, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
   m_PrefabInstance: {fileID: 8930610363562363115}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &512828318
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 512828319}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &512828319
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 512828318}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1014657502}
+  m_Father: {fileID: 663577820}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &515064909
 GameObject:
   m_ObjectHideFlags: 0
@@ -26854,6 +27073,7 @@ GameObject:
   - component: {fileID: 606592987}
   - component: {fileID: 606592986}
   - component: {fileID: 606592999}
+  - component: {fileID: 606593000}
   m_Layer: 3
   m_Name: 3 - Moving slime 2
   m_TagString: Untagged
@@ -26874,7 +27094,7 @@ Transform:
   m_LocalScale: {x: 2.4, y: 2.4, z: 2.4}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 228369943}
+  - {fileID: 259749816}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &606592986
@@ -27153,6 +27373,46 @@ MonoBehaviour:
   - {fileID: 438524871}
   - {fileID: 1815680120}
   - {fileID: 1103338461}
+--- !u!114 &606593000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 606592984}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 259749816}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &608425344
 GameObject:
   m_ObjectHideFlags: 0
@@ -29140,6 +29400,7 @@ GameObject:
   - component: {fileID: 663577822}
   - component: {fileID: 663577821}
   - component: {fileID: 663577834}
+  - component: {fileID: 663577835}
   m_Layer: 3
   m_Name: 3 - Moving slime 4
   m_TagString: Untagged
@@ -29160,7 +29421,7 @@ Transform:
   m_LocalScale: {x: 2.4, y: 2.4, z: 2.4}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1014657502}
+  - {fileID: 512828319}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &663577821
@@ -29439,6 +29700,46 @@ MonoBehaviour:
   - {fileID: 1608634507}
   - {fileID: 313907023}
   - {fileID: 881252183}
+--- !u!114 &663577835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 663577819}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 512828319}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &674259222
 GameObject:
   m_ObjectHideFlags: 0
@@ -36873,6 +37174,7 @@ GameObject:
   - component: {fileID: 763731699}
   - component: {fileID: 763731698}
   - component: {fileID: 763731710}
+  - component: {fileID: 763731711}
   m_Layer: 3
   m_Name: 2 - Junk Slime
   m_TagString: Untagged
@@ -36893,7 +37195,7 @@ Transform:
   m_LocalScale: {x: 2.4, y: 2.4, z: 2.4}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1793471714}
+  - {fileID: 255574859}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &763731698
@@ -37157,6 +37459,46 @@ MonoBehaviour:
   - {fileID: 1744368909}
   - {fileID: 363977295}
   - {fileID: 1291278692}
+--- !u!114 &763731711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 763731696}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 255574859}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &766689549
 GameObject:
   m_ObjectHideFlags: 0
@@ -48136,6 +48478,7 @@ GameObject:
   - component: {fileID: 904420796}
   - component: {fileID: 904420795}
   - component: {fileID: 904420808}
+  - component: {fileID: 904420809}
   m_Layer: 3
   m_Name: 3 - Moving slime 3
   m_TagString: Untagged
@@ -48156,7 +48499,7 @@ Transform:
   m_LocalScale: {x: 2.4, y: 2.4, z: 2.4}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1231189527}
+  - {fileID: 1809622016}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &904420795
@@ -48435,6 +48778,46 @@ MonoBehaviour:
   - {fileID: 1669725288}
   - {fileID: 1096186638}
   - {fileID: 1646922974}
+--- !u!114 &904420809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 904420793}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 1809622016}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &904948127
 GameObject:
   m_ObjectHideFlags: 0
@@ -53020,7 +53403,7 @@ Transform:
   m_Children:
   - {fileID: 931370804}
   - {fileID: 861646950}
-  m_Father: {fileID: 663577820}
+  m_Father: {fileID: 512828319}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1014657503
 MonoBehaviour:
@@ -58855,6 +59238,38 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1028320217}
   m_Mesh: {fileID: -7765319295892598649, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
+--- !u!1 &1029569293
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1029569294}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1029569294
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1029569293}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 178530187}
+  m_Father: {fileID: 2016452446}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1029947333
 GameObject:
   m_ObjectHideFlags: 0
@@ -61524,6 +61939,38 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1111468119}
   m_Mesh: {fileID: -5973498724758551772, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
+--- !u!1 &1115559261
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1115559262}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1115559262
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1115559261}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1427775084}
+  m_Father: {fileID: 84458503}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1116512935
 GameObject:
   m_ObjectHideFlags: 0
@@ -66073,7 +66520,7 @@ Transform:
   m_Children:
   - {fileID: 97628358}
   - {fileID: 867821104}
-  m_Father: {fileID: 904420794}
+  m_Father: {fileID: 1809622016}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1231189528
 MonoBehaviour:
@@ -76009,7 +76456,7 @@ Transform:
   m_Children:
   - {fileID: 990704249}
   - {fileID: 747505613}
-  m_Father: {fileID: 142167022}
+  m_Father: {fileID: 1432634208}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &1339668763
 Animator:
@@ -79399,7 +79846,7 @@ Transform:
   m_Children:
   - {fileID: 35968607}
   - {fileID: 168981994}
-  m_Father: {fileID: 84458503}
+  m_Father: {fileID: 1115559262}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1427775085
 MonoBehaviour:
@@ -79714,6 +80161,38 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 8, y: 16, z: 4.602868}
   m_Center: {x: 0, y: 0, z: 1.698566}
+--- !u!1 &1432634207
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1432634208}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1432634208
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1432634207}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1339668762}
+  m_Father: {fileID: 142167022}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1437923415
 GameObject:
   m_ObjectHideFlags: 0
@@ -83991,6 +84470,38 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1527785881}
   m_CullTransparentMesh: 1
+--- !u!1 &1529463127
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1529463128}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1529463128
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1529463127}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1718558083}
+  m_Father: {fileID: 419976627}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1530878236
 GameObject:
   m_ObjectHideFlags: 0
@@ -97134,7 +97645,7 @@ Transform:
   m_Children:
   - {fileID: 587020946}
   - {fileID: 1708006483}
-  m_Father: {fileID: 419976627}
+  m_Father: {fileID: 1529463128}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &1718558084
 Animator:
@@ -99587,7 +100098,7 @@ Transform:
   m_Children:
   - {fileID: 574019353}
   - {fileID: 1081298195}
-  m_Father: {fileID: 763731697}
+  m_Father: {fileID: 255574859}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1793471715
 MonoBehaviour:
@@ -100176,6 +100687,38 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1806645907}
   m_Mesh: {fileID: 507037220870331331, guid: a4969bf48d82ed7498a996e284f63289, type: 3}
+--- !u!1 &1809622015
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1809622016}
+  m_Layer: 3
+  m_Name: EmergenceVisual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1809622016
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1809622015}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1231189527}
+  m_Father: {fileID: 904420794}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1814303971
 GameObject:
   m_ObjectHideFlags: 0
@@ -107292,6 +107835,7 @@ GameObject:
   - component: {fileID: 2016452448}
   - component: {fileID: 2016452447}
   - component: {fileID: 2016452460}
+  - component: {fileID: 2016452461}
   m_Layer: 3
   m_Name: 1 - Charger
   m_TagString: Untagged
@@ -107313,7 +107857,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1268878568}
-  - {fileID: 178530187}
+  - {fileID: 1029569294}
   m_Father: {fileID: 2140994060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2016452447
@@ -107605,6 +108149,46 @@ MonoBehaviour:
   - {fileID: 2043859041}
   - {fileID: 959959082}
   - {fileID: 1667156602}
+--- !u!114 &2016452461
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2016452445}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcaf312617bdd584dac59090d3b0a5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyEmergence
+  _visualPivot: {fileID: 1029569294}
+  _minimumDuration: 0.6
+  _maximumDuration: 1
+  _burialClearance: 0.15
+  _riseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &2018851977
 GameObject:
   m_ObjectHideFlags: 0

@@ -59,7 +59,7 @@ public static class EnemyRegistry
             // Los dormidos por altura siguen registrados (cuentan para el techo) pero no deben
             // participar de succión ni de separación: uno justo debajo empujaría para siempre
             // a los vivos de arriba, porque la separación anula la componente Y.
-            if (EnemyVerticalEngagement.IsDisengaged(t))
+            if (EnemyVerticalEngagement.IsDisengaged(t) || EnemyEmergence.BlocksGameplay(t))
                 continue;
 
             results.Add(t);
@@ -80,6 +80,9 @@ public static class EnemyRegistry
                 _activeEnemies.RemoveAt(i);
                 continue;
             }
+
+            if (EnemyEmergence.BlocksGameplay(enemy))
+                continue;
 
             _candidateColliders.Clear();
             enemy.GetComponentsInChildren(false, _candidateColliders);
@@ -437,7 +440,7 @@ public static class EnemyRegistry
             return false;
         }
 
-        return !EnemyVerticalEngagement.IsDisengaged(t);
+        return !EnemyVerticalEngagement.IsDisengaged(t) && !EnemyEmergence.BlocksGameplay(t);
     }
 
     // Fills results with the closest active enemies inside a horizontal aim cone.
@@ -474,7 +477,7 @@ public static class EnemyRegistry
                     continue;
                 }
 
-                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                if (EnemyVerticalEngagement.IsDisengaged(candidate) || EnemyEmergence.BlocksGameplay(candidate))
                     continue;
 
                 if (_excludeScratch.Contains(candidate))
@@ -529,7 +532,7 @@ public static class EnemyRegistry
                     continue;
                 }
 
-                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                if (EnemyVerticalEngagement.IsDisengaged(candidate) || EnemyEmergence.BlocksGameplay(candidate))
                     continue;
 
                 if (_excludeScratch.Contains(candidate))
@@ -590,7 +593,7 @@ public static class EnemyRegistry
                 if (_excludeScratch.Contains(candidate))
                     continue;
 
-                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                if (EnemyVerticalEngagement.IsDisengaged(candidate) || EnemyEmergence.BlocksGameplay(candidate))
                     continue;
 
                 Vector3 delta = candidate.position - from;
@@ -654,7 +657,7 @@ public static class EnemyRegistry
                 // Sin esto las armas de polilínea (cañón, lanzallamas, cuchillas) le pegarían a
                 // enemigos dormidos un piso más abajo: con los colliders apagados el cálculo cae
                 // en candidate.position y siguen contando como blanco.
-                if (EnemyVerticalEngagement.IsDisengaged(candidate))
+                if (EnemyVerticalEngagement.IsDisengaged(candidate) || EnemyEmergence.BlocksGameplay(candidate))
                     continue;
 
                 float distanceSqr = DistanceSqrToCandidate(candidate, points, pointCount, out Vector3 closestPoint);

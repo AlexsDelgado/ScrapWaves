@@ -166,9 +166,13 @@ public class SwarmSpawner : MonoBehaviour
 
             _difficultyManager?.ApplySpawnModifiers(enemy);
 
+            EnemyEmergence emergence = enemy.GetComponent<EnemyEmergence>();
+            emergence?.PrepareForPlacement();
             CharacterController cc = enemy.GetComponent<CharacterController>();
             bool placed;
             Vector3 foot = ringPos;
+            Vector3 groundPoint;
+            Vector3 groundNormal;
             if (cc != null && cc.enabled)
             {
                 placed = SpawnGroundUtility.TryResolveFootPosition(
@@ -186,7 +190,9 @@ public class SwarmSpawner : MonoBehaviour
                     _maxProjectionIterations,
                     _resolveStepUp,
                     _resolveStepOut,
-                    out foot);
+                    out foot,
+                    out groundPoint,
+                    out groundNormal);
             }
             else
             {
@@ -199,7 +205,9 @@ public class SwarmSpawner : MonoBehaviour
                     _raycastStartHeight,
                     _raycastMaxDistance,
                     _surfaceSeparation,
-                    out foot);
+                    out foot,
+                    out groundPoint,
+                    out groundNormal);
                 if (placed)
                 {
                     enemy.transform.SetPositionAndRotation(foot, Quaternion.identity);
@@ -211,6 +219,7 @@ public class SwarmSpawner : MonoBehaviour
 
             if (!placed)
             {
+                emergence?.CancelEmergence();
                 _pool.Release(enemy);
                 continue;
             }
@@ -222,6 +231,8 @@ public class SwarmSpawner : MonoBehaviour
             toPlayer.y = 0f;
             if (toPlayer.sqrMagnitude > 0.0001f)
                 enemy.transform.rotation = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
+
+            emergence?.BeginEmergence(groundPoint, groundNormal);
         }
     }
 }

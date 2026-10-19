@@ -84,6 +84,9 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
 
     private void Update()
     {
+        if (EmergenceBlocksGameplay)
+            return;
+
         Transform player = Player;
         if (player == null)
             return;
@@ -114,15 +117,24 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, _hoverRaycastUp * 2f, _groundMask, QueryTriggerInteraction.Ignore))
             groundY = hit.point.y;
 
-        float minClearanceY = groundY + 1f;
-        float targetY = groundY + _hoverHeight;
-        Transform player = Player;
-        if (player != null)
-            targetY = Mathf.Max(minClearanceY, player.position.y + _playerHoverOffset);
-
         Vector3 pos = transform.position;
-        pos.y = Mathf.Lerp(pos.y, targetY, 1f - Mathf.Exp(-6f * Time.deltaTime));
+        pos.y = Mathf.Lerp(pos.y, ResolveHoverTargetY(groundY), 1f - Mathf.Exp(-6f * Time.deltaTime));
         transform.position = pos;
+    }
+
+    public override Vector3 ResolveEmergenceRestPosition(Vector3 groundPoint)
+    {
+        Vector3 restPosition = transform.position;
+        restPosition.y = ResolveHoverTargetY(groundPoint.y);
+        return restPosition;
+    }
+
+    private float ResolveHoverTargetY(float groundY)
+    {
+        Transform player = Player;
+        return player != null
+            ? Mathf.Max(groundY + 1f, player.position.y + _playerHoverOffset)
+            : groundY + _hoverHeight;
     }
 
     private void TickApproaching()

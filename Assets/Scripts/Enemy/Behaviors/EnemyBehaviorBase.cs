@@ -12,12 +12,22 @@ public abstract class EnemyBehaviorBase : MonoBehaviour, IEnemySpawnLifecycle
     private Transform _player;
     private SimpleFollow _simpleFollow;
     private EnemyFollow _enemyFollow;
+    private EnemyEmergence _emergence;
     private bool _simpleFollowInitiallyEnabled;
     private bool _enemyFollowInitiallyEnabled;
     private bool _cachedFollowers;
 
     protected float SteeringSlotAngle { get; private set; }
     protected float SteeringWeavePhase { get; private set; }
+    protected bool EmergenceBlocksGameplay
+    {
+        get
+        {
+            if (_emergence == null)
+                _emergence = GetComponent<EnemyEmergence>();
+            return _emergence != null && _emergence.BlocksGameplayNow;
+        }
+    }
 
     /// <summary>Si es true, tras el spawn se aplica <see cref="ApproachMovementProfile"/> a los followers.</summary>
     protected virtual bool HasApproachMovementProfile => false;
@@ -38,6 +48,7 @@ public abstract class EnemyBehaviorBase : MonoBehaviour, IEnemySpawnLifecycle
 
     protected virtual void Awake()
     {
+        _emergence = GetComponent<EnemyEmergence>();
         CacheFollowers();
         RandomizeSteeringIdentity();
     }
@@ -49,6 +60,7 @@ public abstract class EnemyBehaviorBase : MonoBehaviour, IEnemySpawnLifecycle
 
     public virtual void OnPoolSpawn()
     {
+        _emergence = GetComponent<EnemyEmergence>();
         RandomizeSteeringIdentity();
         ApplyApproachMovementProfile();
     }
@@ -56,6 +68,8 @@ public abstract class EnemyBehaviorBase : MonoBehaviour, IEnemySpawnLifecycle
     public virtual void OnPoolDespawn()
     {
     }
+
+    public virtual Vector3 ResolveEmergenceRestPosition(Vector3 groundPoint) => transform.position;
 
     protected void RandomizeSteeringIdentity()
     {

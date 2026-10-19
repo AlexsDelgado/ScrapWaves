@@ -215,6 +215,7 @@ public class EnemyVerticalEngagement : MonoBehaviour, IEnemySpawnLifecycle
         if (_dormant || _exempt)
             return;
 
+        GetComponent<EnemyEmergence>()?.SuspendForDormancy();
         _dormant = true;
 
         // 1. Su Update sigue corriendo y al expirar llamaría SetMovement(true) sobre un dormido.
@@ -313,6 +314,7 @@ public class EnemyVerticalEngagement : MonoBehaviour, IEnemySpawnLifecycle
 
         _behaviors = null;
         _behaviorsWereEnabled = null;
+        GetComponent<EnemyEmergence>()?.ResumeAfterDormancy();
     }
 
     private void SetVisualsAndCollision(bool active)

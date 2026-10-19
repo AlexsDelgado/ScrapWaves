@@ -1586,6 +1586,9 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
 
     private void RefreshPendingLineBurstDirection()
     {
+        if (_lineBurstTrackingTarget != null && EnemyEmergence.BlocksGameplay(_lineBurstTrackingTarget))
+            _lineBurstTrackingTarget = null;
+
         Vector3 liveDirection;
         if (_lineBurstTrackingTarget != null)
         {

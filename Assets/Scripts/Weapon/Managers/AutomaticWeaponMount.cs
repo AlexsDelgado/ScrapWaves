@@ -161,6 +161,9 @@ public sealed class AutomaticWeaponMount : MonoBehaviour, IWeaponAimSink
         if (_aimPivot == null)
             return;
 
+        if (_target != null && EnemyEmergence.BlocksGameplay(_target))
+            ClearAim();
+
         Vector3 direction;
         if (_target != null)
             direction = EnemyRegistry.GetAimPoint(_target) - _aimPivot.position;

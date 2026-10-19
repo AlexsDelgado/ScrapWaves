@@ -48,6 +48,7 @@ public class EnemyFollow : MonoBehaviour
     private float _minFollowDistanceSqr;
     private CharacterController _characterController;
     private EnemyKnockbackReceiver _knockback;
+    private EnemyEmergence _emergence;
     private float _verticalVelocity;
     private float _slotAngleDeg;
     private float _weavePhase;
@@ -63,6 +64,7 @@ public class EnemyFollow : MonoBehaviour
             _target = PlayerMovement.PlayerTransform;
         _characterController = GetComponent<CharacterController>();
         _knockback = GetComponent<EnemyKnockbackReceiver>();
+        _emergence = GetComponent<EnemyEmergence>();
         EnemyMovementSteering.RandomizeIdentity(out _slotAngleDeg, out _weavePhase);
     }
 
@@ -83,6 +85,7 @@ public class EnemyFollow : MonoBehaviour
 
     public void PrepareForSpawn()
     {
+        _emergence = GetComponent<EnemyEmergence>();
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
         if (_pooled == null)
@@ -129,6 +132,11 @@ public class EnemyFollow : MonoBehaviour
 
     private void Update()
     {
+        if (_emergence == null)
+            _emergence = GetComponent<EnemyEmergence>();
+        if (_emergence != null && _emergence.BlocksGameplayNow)
+            return;
+
         if (_characterController == null)
             return;
 

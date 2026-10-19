@@ -76,7 +76,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     public void NotifyDamagedByWeapon(string weaponId)
     {
-        if (!string.IsNullOrEmpty(weaponId))
+        if (!string.IsNullOrEmpty(weaponId) && !EnemyEmergence.BlocksGameplay(this))
             _lastDamagingWeaponId = weaponId;
     }
 
@@ -129,6 +129,11 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         int healthBefore = Mathf.Max(0, _currentHealth);
         if (request.ModifiedDamage <= 0 || healthBefore <= 0)
             return DamageApplicationResult.Rejected(in request, healthBefore);
+
+        // Emergence is an independent all-channel immunity, including hit zones and DoT.
+        // Do not modify the invincibility flags owned by enemy combat behaviors.
+        if (EnemyEmergence.BlocksGameplay(this))
+            return DamageApplicationResult.BlockedResult(in request, healthBefore);
 
         bool blocked = request.Channel == DamageChannel.Direct
             ? _isInvincible
