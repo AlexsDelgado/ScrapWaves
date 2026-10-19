@@ -64,6 +64,7 @@ public class ObjectivesMenuUIPresenterTests
         PresenterFixture fixture = CreatePresenter(catalog);
 
         fixture.Presenter.Show();
+        fixture.Presenter.ShowObjectivesTab();
 
         Assert.That(fixture.Presenter.HasRequiredReferences, Is.True);
         Assert.That(fixture.Presenter.IsVisible, Is.True);
@@ -99,6 +100,41 @@ public class ObjectivesMenuUIPresenterTests
         Assert.That(fixture.UnlockStatusText.text, Is.EqualTo("INSUFFICIENT SCRAP"));
         Assert.That(fixture.PurchaseButton.interactable, Is.False);
         Assert.That(fixture.PurchaseButtonLabel.text, Is.EqualTo("NEED 50 SCRAP"));
+    }
+
+    [Test]
+    public void FirstShow_SelectsUpgradesPanelAndHighlight()
+    {
+        PresenterFixture fixture = CreatePresenter(CreateCatalog());
+
+        fixture.Presenter.Show();
+
+        Assert.That(fixture.Presenter.ActiveTab, Is.EqualTo(ObjectivesMenuTab.Upgrades));
+        Assert.That(fixture.UpgradesTabRoot.activeSelf, Is.True);
+        Assert.That(fixture.UpgradesTabSelected.activeSelf, Is.True);
+        Assert.That(fixture.ObjectivesTabRoot.activeSelf, Is.False);
+        Assert.That(fixture.ObjectivesTabSelected.activeSelf, Is.False);
+        Assert.That(fixture.UnlocksTabRoot.activeSelf, Is.False);
+        Assert.That(fixture.UnlocksTabSelected.activeSelf, Is.False);
+    }
+
+    [TestCase(true, ObjectivesMenuTab.Objectives)]
+    [TestCase(false, ObjectivesMenuTab.Upgrades)]
+    public void Reopening_RespectsSessionTabPreference(bool rememberLastTab, ObjectivesMenuTab expectedTab)
+    {
+        PresenterFixture fixture = CreatePresenter(CreateCatalog());
+        SetPrivate(fixture.Presenter, "_rememberLastTabForSession", rememberLastTab);
+        fixture.Presenter.Show();
+        fixture.Presenter.ShowObjectivesTab();
+        fixture.Presenter.Hide();
+
+        fixture.Presenter.Show();
+
+        Assert.That(fixture.Presenter.ActiveTab, Is.EqualTo(expectedTab));
+        Assert.That(fixture.ObjectivesTabRoot.activeSelf, Is.EqualTo(rememberLastTab));
+        Assert.That(fixture.ObjectivesTabSelected.activeSelf, Is.EqualTo(rememberLastTab));
+        Assert.That(fixture.UpgradesTabRoot.activeSelf, Is.EqualTo(!rememberLastTab));
+        Assert.That(fixture.UpgradesTabSelected.activeSelf, Is.EqualTo(!rememberLastTab));
     }
 
     [Test]
@@ -166,6 +202,7 @@ public class ObjectivesMenuUIPresenterTests
         LogAssert.Expect(LogType.Error, new Regex("missing authored references: .*_objectiveRowPrefab"));
 
         fixture.Presenter.Show();
+        fixture.Presenter.ShowObjectivesTab();
 
         Assert.That(fixture.Presenter.HasRequiredReferences, Is.False);
         Assert.That(fixture.ObjectivesContent.childCount, Is.Zero);
@@ -183,6 +220,7 @@ public class ObjectivesMenuUIPresenterTests
 
         PresenterFixture fixture = CreatePresenter(CreateCatalog());
         fixture.Presenter.Show();
+        fixture.Presenter.ShowObjectivesTab();
 
         ObjectiveRowView lastRow = fixture.ObjectivesContent
             .GetChild(fixture.ObjectivesContent.childCount - 1)
@@ -221,6 +259,7 @@ public class ObjectivesMenuUIPresenterTests
         GameObject screenRoot = Own(new GameObject("ObjectivesScreen"));
         GameObject objectivesTabRoot = CreateChild("ObjectivesTab", screenRoot.transform);
         GameObject unlocksTabRoot = CreateChild("UnlocksTab", screenRoot.transform);
+        GameObject upgradesTabRoot = CreateChild("UpgradesTab", screenRoot.transform);
         ScrollRect objectivesScrollRect = CreateScrollRect(
             "ObjectivesScroll",
             objectivesTabRoot.transform,
@@ -235,9 +274,11 @@ public class ObjectivesMenuUIPresenterTests
         Button backButton = CreateButton("Back", screenRoot.transform);
         Button objectivesTabButton = CreateButton("ObjectivesTabButton", screenRoot.transform);
         Button unlocksTabButton = CreateButton("UnlocksTabButton", screenRoot.transform);
+        Button upgradesTabButton = CreateButton("UpgradesTabButton", screenRoot.transform);
         TextMeshProUGUI scrapText = CreateText("Scrap", screenRoot.transform);
         GameObject objectivesTabSelected = CreateChild("ObjectivesTabSelected", screenRoot.transform);
         GameObject unlocksTabSelected = CreateChild("UnlocksTabSelected", screenRoot.transform);
+        GameObject upgradesTabSelected = CreateChild("UpgradesTabSelected", screenRoot.transform);
 
         GameObject objectivesEmpty = CreateChild("ObjectivesEmpty", objectivesTabRoot.transform);
         GameObject objectivesUnavailable = CreateChild("ObjectivesUnavailable", objectivesTabRoot.transform);
@@ -270,10 +311,13 @@ public class ObjectivesMenuUIPresenterTests
         SetPrivate(presenter, "_scrapText", scrapText);
         SetPrivate(presenter, "_objectivesTabButton", objectivesTabButton);
         SetPrivate(presenter, "_unlocksTabButton", unlocksTabButton);
+        SetPrivate(presenter, "_upgradesTabButton", upgradesTabButton);
         SetPrivate(presenter, "_objectivesTabSelectedState", objectivesTabSelected);
         SetPrivate(presenter, "_unlocksTabSelectedState", unlocksTabSelected);
+        SetPrivate(presenter, "_upgradesTabSelectedState", upgradesTabSelected);
         SetPrivate(presenter, "_objectivesTabRoot", objectivesTabRoot);
         SetPrivate(presenter, "_unlocksTabRoot", unlocksTabRoot);
+        SetPrivate(presenter, "_upgradesTabRoot", upgradesTabRoot);
         SetPrivate(presenter, "_objectivesScrollRect", objectivesScrollRect);
         SetPrivate(presenter, "_objectivesContent", objectivesContent);
         SetPrivate(presenter, "_objectiveRowPrefab", objectiveTemplate);
@@ -317,6 +361,10 @@ public class ObjectivesMenuUIPresenterTests
             ScreenRoot = screenRoot,
             ObjectivesTabRoot = objectivesTabRoot,
             UnlocksTabRoot = unlocksTabRoot,
+            UpgradesTabRoot = upgradesTabRoot,
+            ObjectivesTabSelected = objectivesTabSelected,
+            UnlocksTabSelected = unlocksTabSelected,
+            UpgradesTabSelected = upgradesTabSelected,
             ObjectivesScrollRect = objectivesScrollRect,
             UnlocksScrollRect = unlocksScrollRect,
             ObjectivesContent = objectivesContent,
@@ -528,6 +576,10 @@ public class ObjectivesMenuUIPresenterTests
         public GameObject ScreenRoot;
         public GameObject ObjectivesTabRoot;
         public GameObject UnlocksTabRoot;
+        public GameObject UpgradesTabRoot;
+        public GameObject ObjectivesTabSelected;
+        public GameObject UnlocksTabSelected;
+        public GameObject UpgradesTabSelected;
         public ScrollRect ObjectivesScrollRect;
         public ScrollRect UnlocksScrollRect;
         public RectTransform ObjectivesContent;

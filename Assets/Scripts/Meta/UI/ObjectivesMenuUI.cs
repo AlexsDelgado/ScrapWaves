@@ -98,7 +98,7 @@ public class ObjectivesMenuUI : MonoBehaviour
     private IUnlockable _armedPurchase;
     private string _selectedAchievementId;
     private string _selectedUnlockId;
-    private ObjectivesMenuTab _activeTab;
+    private ObjectivesMenuTab _activeTab = ObjectivesMenuTab.Upgrades;
     private bool _initialized;
     private bool _authoredReferencesReported;
     private bool _hasShown;
@@ -202,9 +202,9 @@ public class ObjectivesMenuUI : MonoBehaviour
     {
         return tab switch
         {
-            ObjectivesMenuTab.Objectives => ObjectivesMenuTab.Unlocks,
-            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Upgrades,
-            _ => ObjectivesMenuTab.Objectives
+            ObjectivesMenuTab.Upgrades => ObjectivesMenuTab.Unlocks,
+            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Objectives,
+            _ => ObjectivesMenuTab.Upgrades
         };
     }
 
@@ -212,8 +212,8 @@ public class ObjectivesMenuUI : MonoBehaviour
     {
         return tab switch
         {
-            ObjectivesMenuTab.Objectives => ObjectivesMenuTab.Upgrades,
-            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Objectives,
+            ObjectivesMenuTab.Upgrades => ObjectivesMenuTab.Objectives,
+            ObjectivesMenuTab.Unlocks => ObjectivesMenuTab.Upgrades,
             _ => ObjectivesMenuTab.Unlocks
         };
     }
@@ -233,7 +233,7 @@ public class ObjectivesMenuUI : MonoBehaviour
 
         ObjectivesMenuTab tab = _hasShown && _rememberLastTabForSession
             ? _activeTab
-            : ObjectivesMenuTab.Objectives;
+            : ObjectivesMenuTab.Upgrades;
         SetActiveTab(tab, false);
 
         _screenRoot.SetActive(true);
