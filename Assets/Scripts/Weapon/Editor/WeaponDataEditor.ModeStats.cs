@@ -92,6 +92,7 @@ public sealed partial class WeaponDataEditor
                 heading = true;
             }
             string label = ObjectNames.NicifyVariableName(field.name);
+            if (field.name == "AbilityWaveExpansionSpeedMetersPerSecond") label = "Wave expansion speed";
             string unit = WeaponStatInspectorPolicy.SpecificOverrideUnit(field.name);
             if (unit == null)
             {
@@ -121,6 +122,8 @@ public sealed partial class WeaponDataEditor
                 label = "Q hit radius (not diameter)";
             DrawOptional(payload, field.name, label, unit);
         }
+        if (SelectedAuthoringType == WeaponType.Flamethrower && SelectedRuntimeMode == WeaponStatMode.Ability)
+            EditorGUILayout.HelpBox("Inherit keeps the shared Q expansion time. Set wave speed in world meters per second: travel time = final radius / speed, including player area scaling. Range and damage stay independent. Visuals last at least travel time + 0.2 s; cooldown is unchanged.", MessageType.None);
         if (SelectedAuthoringType == WeaponType.RotatingBlade)
             EditorGUILayout.HelpBox("Orbit radius, contact radius, thrust length, and dash range are separate mechanics. These controls retain the current geometry and do not reinterpret orbit radius as physical blade length.", MessageType.None);
         if (SelectedAuthoringType == WeaponType.Mortar && _authoringLevel >= 6)

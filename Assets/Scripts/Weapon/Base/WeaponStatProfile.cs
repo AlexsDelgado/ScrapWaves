@@ -79,6 +79,7 @@ public sealed class WeaponStatProfile
             new(nameof(WeaponCannonStatOverrides.HeadHunterAbilityChargeSeconds), static value => ((WeaponCannonStatOverrides)value).HeadHunterAbilityChargeSeconds.Enabled),
             new(nameof(WeaponCannonStatOverrides.HeadHunterAbilityPierceRangeMeters), static value => ((WeaponCannonStatOverrides)value).HeadHunterAbilityPierceRangeMeters.Enabled)) },
         { typeof(WeaponFlameStatOverrides), GetOptionalFields(typeof(WeaponFlameStatOverrides),
+            new(nameof(WeaponFlameStatOverrides.AbilityWaveExpansionSpeedMetersPerSecond), static value => ((WeaponFlameStatOverrides)value).AbilityWaveExpansionSpeedMetersPerSecond.Enabled),
             new(nameof(WeaponFlameStatOverrides.ContactPuddleRadiusMeters), static value => ((WeaponFlameStatOverrides)value).ContactPuddleRadiusMeters.Enabled),
             new(nameof(WeaponFlameStatOverrides.ContactPuddleDurationSeconds), static value => ((WeaponFlameStatOverrides)value).ContactPuddleDurationSeconds.Enabled),
             new(nameof(WeaponFlameStatOverrides.AbilityPuddleRadiusMeters), static value => ((WeaponFlameStatOverrides)value).AbilityPuddleRadiusMeters.Enabled),

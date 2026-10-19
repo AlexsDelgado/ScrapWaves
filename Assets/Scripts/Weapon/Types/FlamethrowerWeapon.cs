@@ -60,7 +60,13 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
             .Add("Damage timing", "One shared tick; one contact hit per enemy across all areas")
             .Add("Ammo / second", t.FlameManualAmmoPerSecond)
             .Add("Ammo timing", "Continuous drain while held; ammo/action is per tick duration");
-        active.Add("Final wave radius", radius, " m").Add("Expansion duration", t.FlameActiveExpansionDuration, " s")
+        float? waveSpeed = GetActiveWaveExpansionSpeed();
+        float travelDuration = FlamethrowerActiveWave.ResolveExpansionDuration(radius, t.FlameActiveExpansionDuration, waveSpeed);
+        active.Add("Final wave radius", radius, " m")
+            .Add("Wave expansion speed", radius / travelDuration, " m/s")
+            .Add("Wave speed source", waveSpeed.HasValue ? "Set for this level and path" : "Inherited Q expansion time")
+            .Add("Expansion duration", travelDuration, " s")
+            .Add("Visual lifetime", Mathf.Max((waveSpeed.HasValue ? travelDuration : t.FlameActiveExpansionDuration) + .2f, t.FlameActiveVisualDuration), " s")
             .Add("Damage timing", "Once per receiver when the moving front crosses");
         foreach (var section in new[] { automatic, manual, active })
         {
@@ -217,19 +223,22 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         else Object.DestroyImmediate(_manualAreas.gameObject);
         _manualAreas = null;
     }
-    // A fixed-origin Q front reaches the existing final radius in the authored expansion time.
+    // A fixed-origin Q front uses an exact-row speed or the inherited expansion time.
     public override void UseActiveAbility(Vector3 aimDirection)
     {
         if (Owner == null || !CanBeginActiveAbility())
             return;
 
         FlamethrowerTuning tuning = Runtime.Data.Flamethrower;
+        float activeRadius = GetActiveRadius(tuning);
+        float? waveSpeed = GetActiveWaveExpansionSpeed();
+        // Reject an unrepresentable radius/speed pair before committing resources.
+        FlamethrowerActiveWave.ResolveExpansionDuration(activeRadius, tuning.FlameActiveExpansionDuration, waveSpeed);
         if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
             return;
 
         StopSustainedFeedback(aimDirection);
 
-        float activeRadius = GetActiveRadius(tuning);
         if (activeRadius <= 0f && WeaponStatAuthoringResolver.ResolveModeValue(Runtime,
             WeaponStatMode.Ability, WeaponStatField.ExplosionRadiusMeters, 0f).IsAuthored)
         {
@@ -249,7 +258,7 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         ActiveWave = root.AddComponent<FlamethrowerActiveWave>();
         ActiveWave.Initialize(Owner, Runtime, cast.Origin, activeRadius, tuning.FlameActiveExpansionDuration,
             tuning.FlameActiveVisualDuration, tuning.FlameMaxTargetsPerTick, target => ApplyActiveWaveHit(target, cast),
-            puddleSettings.x, fuel ? () => ActivateActiveFuelPuddle(cast, puddleSettings) : null);
+            puddleSettings.x, fuel ? () => ActivateActiveFuelPuddle(cast, puddleSettings) : null, waveSpeed);
         _activeWaves.RemoveAll(wave => wave == null);
         _activeWaves.Add(ActiveWave);
 
@@ -790,6 +799,12 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
     }
 
     private WeaponFlameStatOverrides GetFlameOverrides() => WeaponStatAuthoringResolver.GetLevelRow(SourceRuntime)?.Flame;
+
+    private float? GetActiveWaveExpansionSpeed()
+    {
+        WeaponOptionalFloat speed = GetFlameOverrides()?.AbilityWaveExpansionSpeedMetersPerSecond ?? default;
+        return speed.Enabled ? speed.Value : (float?)null;
+    }
 
     private float GetAbilityFreezeDuration() => IsLiquidNitrogenPath()
         ? WeaponStatAuthoringResolver.ResolveOptional(SourceRuntime,

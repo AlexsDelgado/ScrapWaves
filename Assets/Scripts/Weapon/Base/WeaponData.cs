@@ -123,7 +123,7 @@ public sealed class FlamethrowerTuning : WeaponSpecificTuning
     [Min(0f)] public float FlameBurnDamageScale = 0.5f;
 
     [Min(0f)] public float FlameActiveRadius = 6f;
-    [Min(0.01f), Tooltip("Seconds for Q's world-fixed damage and visual front to reach its final radius.")]
+    [Min(0.01f), Tooltip("Inherited seconds for Q's damage and visual front to reach its final radius. A level/path Q wave-speed override replaces this time with final radius / speed.")]
     public float FlameActiveExpansionDuration = 0.6f;
     [Min(0f)] public float FlameActiveDamageScale = 2f;
     [Min(0f)] public float FlameManualKnockbackScale = 0.25f;

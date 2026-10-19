@@ -47,10 +47,25 @@ public sealed class FlamethrowerActiveWave : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetClocks() => Clocks.Clear();
 
+    // Authored speed is measured after range/area scaling. Do not apply the legacy
+    // 10 ms floor to it: even a small, fast wave must keep its requested velocity.
+    public static float ResolveExpansionDuration(float radius, float inheritedDuration, float? expansionSpeedMetersPerSecond = null)
+    {
+        if (!expansionSpeedMetersPerSecond.HasValue) return Mathf.Max(.01f, inheritedDuration);
+        float speed = expansionSpeedMetersPerSecond.Value;
+        if (float.IsNaN(speed) || float.IsInfinity(speed) || speed <= 0f)
+            throw new InvalidOperationException("Flame Q wave expansion speed must be finite and greater than zero (m/s).");
+        float duration = radius > 0f ? radius / speed : .01f;
+        if (float.IsNaN(duration) || float.IsInfinity(duration) || duration <= 0f)
+            throw new InvalidOperationException("Flame Q radius / wave speed must produce a finite, positive travel time.");
+        return duration;
+    }
+
     public void Initialize(Transform owner, WeaponInstance weapon, Vector3 origin, float radius,
         float expansionDuration, float visualDuration, int maximumTargets, Action<Transform> applyHit,
-        float footprintRadius = 0f, Action activateFootprint = null)
+        float footprintRadius = 0f, Action activateFootprint = null, float? expansionSpeedMetersPerSecond = null)
     {
+        float travelDuration = ResolveExpansionDuration(radius, expansionDuration, expansionSpeedMetersPerSecond);
         _owner = owner;
         _weapon = weapon;
         _applyHit = applyHit;
@@ -58,8 +73,8 @@ public sealed class FlamethrowerActiveWave : MonoBehaviour
         _footprintRadius = Mathf.Clamp(footprintRadius, 0f, Mathf.Max(0f, radius));
         _activateFootprint = activateFootprint;
         Clock = new WaveClock { Origin = origin, FinalRadius = Mathf.Max(0f, radius),
-            ExpansionDuration = Mathf.Max(.01f, expansionDuration),
-            VisualDuration = Mathf.Max(expansionDuration + .2f, visualDuration) };
+            ExpansionDuration = travelDuration,
+            VisualDuration = Mathf.Max((expansionSpeedMetersPerSecond.HasValue ? travelDuration : expansionDuration) + .2f, visualDuration) };
         transform.SetPositionAndRotation(origin, Quaternion.identity);
         if (weapon != null) Clocks[weapon] = Clock;
         EnemyRegistry.CollectActive(_roots);

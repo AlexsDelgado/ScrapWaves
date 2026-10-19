@@ -182,6 +182,7 @@ public static class WeaponStatInspectorPolicy
     {
         switch (name)
         {
+            case "AbilityWaveExpansionSpeedMetersPerSecond": return "m/s";
             case "ContinuousAbilityBulletsPerSecond": return "bullets / s";
             case "ContinuousAbilityDurationSeconds":
             case "AutomaticProjectileLifetimeSeconds":

@@ -4,6 +4,7 @@ using System;
 [Serializable]
 public sealed class WeaponFlameStatOverrides
 {
+    public WeaponOptionalFloat AbilityWaveExpansionSpeedMetersPerSecond;
     public WeaponOptionalFloat ContactPuddleRadiusMeters;
     public WeaponOptionalFloat ContactPuddleDurationSeconds;
     public WeaponOptionalFloat AbilityPuddleRadiusMeters;
@@ -21,6 +22,13 @@ public sealed class WeaponFlameStatOverrides
 
     public bool TryValidate(out string error)
     {
+        if (AbilityWaveExpansionSpeedMetersPerSecond.Enabled
+            && (!WeaponStatProfile.ValidOptional(AbilityWaveExpansionSpeedMetersPerSecond, float.MaxValue)
+                || AbilityWaveExpansionSpeedMetersPerSecond.Value <= 0f))
+        {
+            error = "Flame Q wave expansion speed must be finite and greater than zero (m/s). Disable the override to inherit the expansion duration.";
+            return false;
+        }
         if (!WeaponStatProfile.ValidOptional(ContactPuddleRadiusMeters, float.MaxValue)
             || !WeaponStatProfile.ValidOptional(ContactPuddleDurationSeconds, float.MaxValue)
             || !WeaponStatProfile.ValidOptional(AbilityPuddleRadiusMeters, float.MaxValue)

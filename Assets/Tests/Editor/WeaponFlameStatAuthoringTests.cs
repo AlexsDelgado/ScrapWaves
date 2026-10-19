@@ -156,6 +156,191 @@ public sealed class WeaponFlameStatAuthoringTests
         Assert.That(inside.CurrentHealth, Is.EqualTo(InitialHealth - damage), "One Q wave must damage a receiver once.");
     }
 
+    [TestCase(WeaponUpgradePath.None, 3f, 1f)]
+    [TestCase(WeaponUpgradePath.None, 12f, 1.5f)]
+    [TestCase(WeaponUpgradePath.PathA, 3f, 1.5f)]
+    [TestCase(WeaponUpgradePath.PathA, 12f, 1f)]
+    [TestCase(WeaponUpgradePath.PathB, 3f, 1f)]
+    [TestCase(WeaponUpgradePath.PathB, 12f, 1.5f)]
+    public void Q_WaveSpeedChangesHitArrivalAndMatchingVisualsWithoutChangingRangeOrDamage(
+        WeaponUpgradePath path, float speed, float area)
+    {
+        var weapon = CreateWeapon(path, out var runtime, out var stats);
+        stats.AddModifier(new StatModifier(StatType.ProjectileAreaSize, area, StatUpgradeSource.TemporaryEffect,
+            modifierType: StatModifierType.Multiplicative));
+        var row = AddRow(runtime);
+        row.Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(speed);
+        row.Ability.Damage = Enabled(23f);
+        float pathScale = path == WeaponUpgradePath.PathA ? 1.2f : path == WeaponUpgradePath.PathB ? .9f : 1f;
+        float radius = 6f * pathScale * area;
+        float duration = radius / speed;
+        var midway = Target(Vector3.right * radius * .5f, register: true);
+        var edge = Target(Vector3.forward * (radius - .05f), register: true);
+        var outside = Target(Vector3.left * (radius + .05f), register: true);
+
+        weapon.UseActiveAbility(Vector3.forward);
+        var wave = weapon.ActiveWave;
+        var vfx = Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsSortMode.None)
+            .Single(cue => cue.UsesActiveRadialPlume);
+        Assert.That(wave.Clock.FinalRadius, Is.EqualTo(radius).Within(.0001f));
+        Assert.That(wave.Clock.ExpansionDuration, Is.EqualTo(duration).Within(.0001f));
+        Assert.That(wave.Clock.VisualDuration, Is.EqualTo(Mathf.Max(.85f, duration + .2f)).Within(.0001f));
+        Assert.That(vfx.ActiveMaximumRadius, Is.EqualTo(radius).Within(.0001f));
+        Assert.That(vfx.ActiveVisualLifetime, Is.EqualTo(wave.Clock.VisualDuration));
+        Assert.That(runtime.CurrentAmmo, Is.EqualTo(60f));
+        Assert.That(runtime.AbilityCooldownTimer, Is.EqualTo(14f));
+
+        wave.Simulate(duration * .4f);
+        vfx.SampleActive(100f); // Bound presentation must ignore a decorative sampling clock.
+        Assert.That(wave.Clock.Radius, Is.EqualTo(speed * duration * .4f).Within(.0001f));
+        Assert.That(vfx.ActiveDamageRadius, Is.EqualTo(wave.Clock.Radius).Within(.0001f));
+        Assert.That(midway.CurrentHealth, Is.EqualTo(InitialHealth), "Damage waits for the moving front.");
+        wave.Simulate(duration * .2f);
+        vfx.SampleActive(0f);
+        Assert.That(midway.CurrentHealth, Is.EqualTo(InitialHealth - 23));
+        Assert.That(edge.CurrentHealth, Is.EqualTo(InitialHealth));
+        Assert.That(vfx.ActiveDamageRadius, Is.EqualTo(wave.Clock.Radius).Within(.0001f));
+        wave.Simulate(duration * .5f);
+        vfx.SampleActive(0f);
+        Assert.That(wave.Clock.Radius, Is.EqualTo(radius).Within(.0001f));
+        Assert.That(vfx.ActiveDamageRadius, Is.EqualTo(radius).Within(.0001f));
+        Assert.That(edge.CurrentHealth, Is.EqualTo(InitialHealth - 23), "Slower travel still reaches the original edge.");
+        Assert.That(outside.CurrentHealth, Is.EqualTo(InitialHealth), "Speed cannot extend the final wave range.");
+        wave.Simulate(wave.Clock.VisualDuration);
+        Assert.That(midway.CurrentHealth, Is.EqualTo(InitialHealth - 23), "Speed cannot add repeat damage.");
+        Assert.That(edge.CurrentHealth, Is.EqualTo(InitialHealth - 23));
+    }
+
+    [TestCase(false, .6f)]
+    [TestCase(true, .6f)]
+    [TestCase(true, 1.2f)]
+    [TestCase(true, .001f)]
+    public void Q_InheritedOrDisabledWaveSpeedPreservesLegacyExpansionDuration(bool hasRow, float legacyDuration)
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var runtime, out var stats);
+        stats.AddModifier(new StatModifier(StatType.ProjectileAreaSize, 1.5f, StatUpgradeSource.TemporaryEffect,
+            modifierType: StatModifierType.Multiplicative));
+        runtime.Data.Flamethrower.FlameActiveExpansionDuration = legacyDuration;
+        if (hasRow)
+            AddRow(runtime).Flame.AbilityWaveExpansionSpeedMetersPerSecond.Value = float.NaN;
+        Assert.That(runtime.Data.StatProfile.TryValidate(out var error), Is.True, error);
+        var target = Target(Vector3.right * 4.5f, register: true);
+        weapon.UseActiveAbility(Vector3.forward);
+        float expectedDuration = Mathf.Max(.01f, legacyDuration);
+        Assert.That(weapon.ActiveWave.Clock.FinalRadius, Is.EqualTo(9f));
+        Assert.That(weapon.ActiveWave.Clock.ExpansionDuration, Is.EqualTo(expectedDuration));
+        weapon.ActiveWave.Simulate(expectedDuration * .4f);
+        Assert.That(target.CurrentHealth, Is.EqualTo(InitialHealth));
+        weapon.ActiveWave.Simulate(expectedDuration * .2f);
+        Assert.That(target.CurrentHealth, Is.EqualTo(InitialHealth - 20));
+    }
+
+    [TestCase(1, WeaponUpgradePath.None, 0f)]
+    [TestCase(5, WeaponUpgradePath.None, 3f)]
+    [TestCase(6, WeaponUpgradePath.PathA, 4f)]
+    [TestCase(6, WeaponUpgradePath.PathB, 5f)]
+    [TestCase(7, WeaponUpgradePath.PathA, 0f)]
+    public void Q_WaveSpeedUsesOnlyExactLevelAndPathAndIsCapturedAtCast(
+        int level, WeaponUpgradePath path, float authoredSpeed)
+    {
+        var weapon = CreateWeapon(path, out var runtime, out _);
+        runtime.Level = level;
+        AddRow(runtime, 5, WeaponUpgradePath.None).Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(3f);
+        AddRow(runtime, 6, WeaponUpgradePath.PathA).Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(4f);
+        AddRow(runtime, 6, WeaponUpgradePath.PathB).Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(5f);
+        weapon.UseActiveAbility(Vector3.forward);
+        var clock = weapon.ActiveWave.Clock;
+        float expectedDuration = authoredSpeed > 0f ? clock.FinalRadius / authoredSpeed : .6f;
+        Assert.That(clock.ExpansionDuration, Is.EqualTo(expectedDuration).Within(.0001f));
+        runtime.Level = 6;
+        runtime.SelectedPath = WeaponUpgradePath.PathB;
+        WeaponStatAuthoringResolver.GetLevelRow(runtime).Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(99f);
+        weapon.ActiveWave.Simulate(.1f);
+        Assert.That(clock.ExpansionDuration, Is.EqualTo(expectedDuration).Within(.0001f));
+        Assert.That(clock.Radius, Is.EqualTo(clock.FinalRadius * .1f / expectedDuration).Within(.0001f));
+    }
+
+    [TestCase(WeaponStatMode.Automatic, 4.2f)]
+    [TestCase(WeaponStatMode.Manual, 7f)]
+    public void Q_WaveSpeedDoesNotChangeOrdinaryFlameTravelOrDamage(WeaponStatMode mode, float expectedTravel)
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var runtime, out _);
+        AddRow(runtime).Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(.5f);
+        var target = Target(Vector3.zero);
+        Emit(weapon, runtime, mode);
+        weapon.ManualAreas.Simulate(.01f);
+        Assert.That(target.CurrentHealth, Is.EqualTo(InitialHealth - 10));
+        Assert.That(weapon.ActiveWave, Is.Null);
+        target.gameObject.SetActive(false);
+        weapon.ManualAreas.Simulate(.99f);
+        Assert.That(weapon.ManualAreas.GetCenter(0).z, Is.EqualTo(expectedTravel).Within(.004f));
+        Assert.That(weapon.ManualAreas.GetVelocity(0).magnitude, Is.LessThan(.002f));
+    }
+
+    [TestCase(0f)]
+    [TestCase(-1f)]
+    [TestCase(float.NaN)]
+    [TestCase(float.PositiveInfinity)]
+    [TestCase(float.NegativeInfinity)]
+    public void Q_InvalidWaveSpeedIsRejectedBeforeSpendingAmmoOrStartingCooldown(float speed)
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var runtime, out _);
+        AddRow(runtime).Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(speed);
+        Assert.That(runtime.Data.StatProfile.TryValidate(out var error), Is.False);
+        Assert.That(error, Is.Not.Empty);
+        Assert.Throws<InvalidOperationException>(() => weapon.UseActiveAbility(Vector3.forward));
+        Assert.That(runtime.CurrentAmmo, Is.EqualTo(100f));
+        Assert.That(runtime.AbilityCooldownTimer, Is.Zero);
+        Assert.That(weapon.ActiveWave, Is.Null);
+    }
+
+    [Test]
+    public void Q_UnrepresentableWaveTravelTimeIsRejectedBeforeCommittingResources()
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var runtime, out _);
+        var row = AddRow(runtime);
+        row.Ability.ExplosionRadiusMeters = Enabled(100f);
+        row.Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(1e-37f);
+        Assert.That(runtime.Data.StatProfile.TryValidate(out var error), Is.True, error);
+        Assert.Throws<InvalidOperationException>(() => weapon.UseActiveAbility(Vector3.forward));
+        Assert.That(runtime.CurrentAmmo, Is.EqualTo(100f));
+        Assert.That(runtime.AbilityCooldownTimer, Is.Zero);
+        Assert.That(weapon.ActiveWave, Is.Null);
+        Assert.That(Object.FindObjectsByType<FlamethrowerActiveWave>(FindObjectsSortMode.None), Is.Empty);
+        Assert.That(Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsSortMode.None), Is.Empty);
+    }
+
+    [Test]
+    public void Q_AuthoredWaveSpeedHonorsSubLegacyMinimumDurationAndStillSweepsHits()
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var runtime, out _);
+        var row = AddRow(runtime);
+        row.Ability.ExplosionRadiusMeters = Enabled(.02f);
+        row.Flame.AbilityWaveExpansionSpeedMetersPerSecond = Enabled(100f);
+        var inside = Target(Vector3.right * .015f, register: true);
+        var outside = Target(Vector3.forward * .021f, register: true);
+        weapon.UseActiveAbility(Vector3.forward);
+        Assert.That(weapon.ActiveWave.Clock.ExpansionDuration, Is.EqualTo(.0002f).Within(.0000001f));
+        weapon.ActiveWave.Simulate(.0001f);
+        Assert.That(weapon.ActiveWave.Clock.Radius, Is.EqualTo(.01f).Within(.000001f));
+        Assert.That(inside.CurrentHealth, Is.EqualTo(InitialHealth));
+        weapon.ActiveWave.Simulate(.00011f);
+        Assert.That(weapon.ActiveWave.Clock.Radius, Is.EqualTo(.02f).Within(.000001f));
+        Assert.That(inside.CurrentHealth, Is.EqualTo(InitialHealth - 20));
+        Assert.That(outside.CurrentHealth, Is.EqualTo(InitialHealth));
+    }
+
+    [Test]
+    public void Q_WaveSpeedCapabilityIsFlamethrowerAbilityOnlyWithExplicitUnits()
+    {
+        const string field = nameof(WeaponFlameStatOverrides.AbilityWaveExpansionSpeedMetersPerSecond);
+        foreach (WeaponType type in Enum.GetValues(typeof(WeaponType)))
+        foreach (WeaponStatMode mode in Enum.GetValues(typeof(WeaponStatMode)))
+            Assert.That(WeaponStatCapabilities.SupportsSpecificField(type, 1, WeaponUpgradePath.None, mode, field),
+                Is.EqualTo(type == WeaponType.Flamethrower && mode == WeaponStatMode.Ability), type + " / " + mode);
+        Assert.That(WeaponStatInspectorPolicy.SpecificOverrideUnit(field), Is.EqualTo("m/s"));
+    }
+
     [TestCase(0f, 31)]
     [TestCase(1f, 62)]
     public void Q_CriticalControlsChangeHpWithoutChangingBurnDamage(float chance, int directDamage)

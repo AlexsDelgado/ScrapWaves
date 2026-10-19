@@ -60,6 +60,7 @@ public static class WeaponStatCapabilities
             case WeaponType.Flamethrower:
                 switch (field)
                 {
+                    case "AbilityWaveExpansionSpeedMetersPerSecond": return q;
                     case "ContactPuddleRadiusMeters":
                     case "ContactPuddleDurationSeconds": return a;
                     case "AbilityPuddleRadiusMeters":
