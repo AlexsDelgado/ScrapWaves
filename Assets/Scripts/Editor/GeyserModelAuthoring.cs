@@ -46,8 +46,10 @@ public static class GeyserModelAuthoring
                 // Keep the full FBX transform hierarchy, matching the visual import basis exactly.
                 foreach (MeshFilter filter in colliderObject.GetComponentsInChildren<MeshFilter>())
                 {
+                    if (filter.sharedMesh == null || filter.GetComponent<MeshCollider>() != null) continue;
                     MeshCollider collider = filter.gameObject.AddComponent<MeshCollider>();
                     collider.sharedMesh = filter.sharedMesh; collider.convex = false;
+                    collider.sharedMaterial = WalkableMaterial();
                 }
                 foreach (Renderer renderer in colliderObject.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
                 var flow = new GameObject("UpdraftDirection"); flow.transform.SetParent(root.transform,false);
@@ -195,6 +197,21 @@ public static class GeyserModelAuthoring
             material.SetColor("_BaseColor",entry.color); material.SetFloat("_Metallic",entry.metal); material.SetFloat("_Smoothness",entry.smooth);
             EditorUtility.SetDirty(material);
         }
+    }
+
+    // Shared zero-friction surface so walkable mounds never grab or brake the movement capsule.
+    private static PhysicsMaterial WalkableMaterial()
+    {
+        const string path = Folder + "/Materials/WalkableMound.physicsMaterial";
+        PhysicsMaterial material = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
+        if (material != null) return material;
+        material = new PhysicsMaterial("WalkableMound")
+        {
+            dynamicFriction = 0f, staticFriction = 0f, bounciness = 0f,
+            frictionCombine = PhysicsMaterialCombine.Minimum, bounceCombine = PhysicsMaterialCombine.Minimum
+        };
+        AssetDatabase.CreateAsset(material, path);
+        return material;
     }
 
     private static GameObject ImportModel(string name, bool readable)

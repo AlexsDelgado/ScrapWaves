@@ -352,6 +352,47 @@ public sealed class MovementSlopeAirRuntimeTests
     }
 
     [UnityTest]
+    public IEnumerator NativeIdleOnWalkableSlope_DoesNotCreep()
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        yield return new EnterPlayMode();
+        foreach (float slope in new[] { 20f, -20f, 35f })
+        {
+            using (var rig = new Rig(new Vector3(0f, 1.25f, 0f)))
+            {
+                rig.Surface(slope, -.5f);
+                rig.Pump.Keys = Array.Empty<Key>();
+                yield return Ticks(rig, 25);
+                Assert.That(rig.Movement.IsGroundedOnSurface, Is.True, $"slope={slope}");
+                Vector3 settled = rig.Body.position;
+                yield return Ticks(rig, 50);
+                Assert.That(Vector3.Distance(settled, rig.Body.position), Is.LessThan(.05f), $"Idle capsule slid on slope={slope}.");
+                Assert.That(rig.Body.linearVelocity.magnitude, Is.LessThan(.2f), $"slope={slope}");
+            }
+        }
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
+    public IEnumerator NativeUphillWalk_ClimbsAtWalkSpeed()
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        yield return new EnterPlayMode();
+        using (var rig = new Rig(new Vector3(0f, 1.25f, 0f)))
+        {
+            rig.Surface(-30f, -.5f);
+            rig.Pump.Keys = new[] { Key.W };
+            yield return Wait(rig, () => rig.Probe.Samples.Exists(s => s.Grounded && PlanarSpeed(s.Velocity) >= rig.WalkSpeed - .05f), 3f);
+            float startHeight = rig.Body.position.y;
+            yield return Ticks(rig, 50);
+            Assert.That(rig.Movement.IsGroundedOnSurface, Is.True);
+            Assert.That(rig.Body.position.y, Is.GreaterThan(startHeight + .5f), "Walking uphill must gain height.");
+            Assert.That(rig.Movement.PlanarSpeed, Is.EqualTo(rig.WalkSpeed).Within(.1f));
+        }
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
     public IEnumerator NativeWalkingOnFlatAndUphill_RemainsCrouch()
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

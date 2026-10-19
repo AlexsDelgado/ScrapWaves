@@ -40,6 +40,8 @@ public class PlayerMovement : MonoBehaviour
     private float _overspeedDeceleration = 35f;
     [SerializeField, Range(0.05f, 1f)] private float _crouchSpeedMultiplier = 0.5f;
     [SerializeField, Range(0f, 89f)] private float _maximumGroundAngle = 50f;
+    [SerializeField, Min(0f), Tooltip("Planar speed under which slope-parallel gravity is cancelled while standing still.")]
+    private float _restingSlopeSpeedThreshold = 0.75f;
     [SerializeField, Min(0f)] private float _jumpBufferTime = 0.12f;
     [SerializeField, Min(0f)] private float _dashBufferTime = 0.12f;
     [SerializeField, Min(0f)] private float _coyoteTime = 0.1f;
@@ -426,6 +428,7 @@ public class PlayerMovement : MonoBehaviour
         else
         {
             HandleMovement();
+            CancelRestingSlopeGravity();
         }
 
         TickPostDashFrictionWindow();
@@ -521,9 +524,10 @@ public class PlayerMovement : MonoBehaviour
         return FlattenOnXZ(_movementCamera != null && _movementCamera.isActiveAndEnabled ? _movementCamera.GameplayForward : _cameraTransform.forward);
     }
 
-    private void SetPlanarVelocity(Vector3 planar)
+    private void SetPlanarVelocity(Vector3 planar, bool projectOnSlope = false)
     {
-        _rb.linearVelocity = new Vector3(planar.x, _rb.linearVelocity.y, planar.z);
+        float y = projectOnSlope && FollowsGroundSlope ? SlopeVerticalSpeed(planar) : _rb.linearVelocity.y;
+        _rb.linearVelocity = new Vector3(planar.x, y, planar.z);
     }
 
     // One bounded integration owns motor velocity. External impulses remain physics-owned.
@@ -561,7 +565,29 @@ public class PlayerMovement : MonoBehaviour
         if (hasInput && Vector3.Dot(planar, target) < 0f) rate = _reversalAcceleration;
         if (groundedCrouch && hasInput) rate *= _crouchAccelerationMultiplier;
         if (planar.magnitude > maxSpeed + 0.001f) rate = _overspeedDeceleration;
-        SetPlanarVelocity(Vector3.MoveTowards(planar, target, rate * scale * Time.fixedDeltaTime));
+        SetPlanarVelocity(Vector3.MoveTowards(planar, target, rate * scale * Time.fixedDeltaTime), true);
+    }
+
+    // True when the motor owns vertical velocity along a walkable slope (never during jump/launch/dash/slide/knockback).
+    private bool FollowsGroundSlope =>
+        _isGrounded && !_groundJumpConsumed && !_isSliding && !_isDashing && !IsLaunching &&
+        _knockbackTimer <= 0f && _groundNormal.y > 0.001f && _groundNormal.y < 0.9995f;
+
+    // Vertical speed that keeps a planar velocity tangent to the ground plane (planar speed stays unchanged).
+    private float SlopeVerticalSpeed(Vector3 planar)
+    {
+        return -(_groundNormal.x * planar.x + _groundNormal.z * planar.z) / _groundNormal.y;
+    }
+
+    // Cancel the slope-parallel part of gravity while standing still so the zero-friction capsule does not creep.
+    private void CancelRestingSlopeGravity()
+    {
+        if (!FollowsGroundSlope || IsMovementInputLocked || _moveDirectionWorld.sqrMagnitude > 0.0001f) return;
+        if (CurrentPlanarSpeed() > _restingSlopeSpeedThreshold) return;
+
+        Vector3 gravity = Physics.gravity;
+        Vector3 parallel = Vector3.ProjectOnPlane(gravity, _groundNormal);
+        _rb.AddForce(-parallel, ForceMode.Acceleration);
     }
 
     // Decrease post-dash friction grace timer used to preserve dash momentum.
