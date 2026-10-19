@@ -77,6 +77,9 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         Shader shader = authoredShader != null ? authoredShader : Shader.Find("ScrapWaves/GameFeel/Flamethrower Radial Ignition");
         if (shader == null) throw new InvalidOperationException("Flamethrower radial ignition shader is missing.");
         _material = new Material(shader) { name = "Q Radial Ignition (Runtime)", hideFlags = HideFlags.HideAndDontSave };
+        // Reuse the regular attack's authored detail without cloning its material or texture.
+        var regularFlame = Resources.Load<Material>("GameFeel/ManualFlame");
+        if (regularFlame != null) _material.mainTexture = regularFlame.mainTexture;
         Renderers = new Renderer[3];
         string[] names = { "Moving Fire Boundary", "Sharp Flame Tongues", "Short Embers" };
         for (int i = 0; i < 3; i++)
@@ -147,6 +150,7 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         _properties.SetFloat("_Opacity", opacity * Mathf.Clamp01(_intensity));
         _properties.SetFloat("_Emission", _emission * (layer == 0 ? _flash * .6f : 1f));
         _properties.SetFloat("_BurstTime", seconds);
+        _properties.SetFloat("_Layer", layer);
         Renderers[layer].SetPropertyBlock(_properties);
         Renderers[layer].enabled = opacity > .001f && _radius > 0f;
     }
@@ -172,10 +176,10 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
             {
                 int index = i * 6 + ring;
                 vertices[index] = axis * rings[ring] + Vector3.up * (ring < 4 ? .006f : .018f);
-                uv[index] = new Vector2(.5f, i/(float)count);
+                uv[index] = new Vector2(Mathf.InverseLerp(inner, 1f, rings[ring]), i/(float)count);
                 uv2[index] = new Vector2(ring >= 4 ? .55f : .16f, 0f);
                 // The annulus trails behind the leading edge. The cleared center never reads as a filled damage disc.
-                colors[index] = new Color(1f, 1f, 1f, ring == 0 ? .015f : ring == 1 ? .09f : ring < 4 ? .2f : .85f);
+                colors[index] = new Color(1f, 1f, 1f, ring == 0 ? .015f : ring == 1 ? .24f : ring < 4 ? .38f : .85f);
             }
             for (int band = 0; band < 3; band++)
             {
@@ -201,7 +205,9 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
                 for (int edge = 0; edge < 2; edge++)
                 {
                     int v=(strip*sections+section)*2+edge;
-                    uv[v]=new Vector2(edge,along); uv2[v]=new Vector2(flame ? Mathf.Lerp(.9f,.05f,along) : .85f,1f);
+                    // The crossed strip is a smaller hot fold inside the darker outer tongue.
+                    float heat = flame ? Mathf.Lerp(strip % 2 == 0 ? .65f : .95f, .05f, along) : .85f;
+                    uv[v]=new Vector2(edge,along); uv2[v]=new Vector2(heat,1f);
                     colors[v]=new Color(1f,1f,1f,flame ? Mathf.Lerp(.9f,.2f,along) : 1f);
                 }
                 if (section == sections-1) continue;
@@ -233,6 +239,7 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
                     + Mathf.Sin(along*8f-life*17f+seed*9f)*along*.025f;
                 Vector3 center=axis*Mathf.Lerp(start,reach,along)+tangent*curl+Vector3.up*height;
                 float width=(.12f+Mathf.Pow(Mathf.Max(0f,Mathf.Sin(along*Mathf.PI)),.8f))*(1f-along)*_settings.FlameWidthFraction*(.7f+seed*.6f);
+                width *= wing == 0 ? 1.45f : .65f;
                 Vector3 side=wing==0 ? tangent : (tangent*.3f+Vector3.up*.7f);
                 int v=((tongue*2+wing)*TongueSections+section)*2;
                 _flameVertices[v]=tongue<_tongues ? Clip(center-side*width) : Vector3.zero;

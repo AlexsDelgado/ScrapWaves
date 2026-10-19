@@ -56,8 +56,9 @@ public sealed class FlamethrowerRadialBurstTests
         weapon.UseActiveAbility(new Vector3(.3f,.8f,1f));
         Assert.That(sink.Shots,Is.EqualTo(1));
         Assert.That(sink.Shot.ExplosionRadius,Is.EqualTo(expectedRadius).Within(.0001f));
-        Assert.That(runtime.CurrentAmmo,Is.EqualTo(60f));
-        Assert.That(runtime.AbilityCooldownTimer,Is.EqualTo(14f).Within(.001f));
+        // This fixture uses the production asset, whose balance is authored independently of the VFX.
+        Assert.That(runtime.CurrentAmmo,Is.EqualTo(100f-data.ActiveAbilityAmmoCost));
+        Assert.That(runtime.AbilityCooldownTimer,Is.EqualTo(data.SkillCooldown).Within(.001f));
         var profile=data.PresentationProfile;
         Assert.That(profile.TryResolveCue(WeaponFeedbackEvent.ShotFired,in sink.Shot,out var cue),Is.True);
         var context=WeaponPresentationContext.FromFeedback(cue.Cue,in sink.Shot,profile,cue,GameFeelQualityLevel.High,false);
