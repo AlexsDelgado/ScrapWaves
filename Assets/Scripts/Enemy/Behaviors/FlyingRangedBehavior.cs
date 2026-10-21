@@ -15,8 +15,8 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
 
     [Header("Vuelo")]
     [SerializeField, Min(0f)] private float _hoverHeight = 3.5f;
-    [SerializeField, Min(0f), Tooltip("Offset sobre la Y del jugador al perseguir en pisos altos.")]
-    private float _playerHoverOffset = 1.25f;
+    [SerializeField, Min(0f), Tooltip("Velocidad vertical maxima de vuelo (unidades por segundo).")]
+    private float _maxVerticalSpeed = 3f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5f;
     public float AuthoredMoveSpeed => _moveSpeed;
     [SerializeField, Min(0f)] private float _rotationSpeed = 360f;
@@ -94,7 +94,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         if (EnemyVerticalEngagement.IsDisengaged(this))
             return;
 
-        MaintainHover();
+        MaintainHover(Time.deltaTime);
 
         switch (_state)
         {
@@ -110,7 +110,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         }
     }
 
-    private void MaintainHover()
+    private void MaintainHover(float deltaTime)
     {
         Vector3 origin = transform.position + Vector3.up * _hoverRaycastUp;
         float groundY = transform.position.y - _hoverHeight;
@@ -118,7 +118,8 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             groundY = hit.point.y;
 
         Vector3 pos = transform.position;
-        pos.y = Mathf.Lerp(pos.y, ResolveHoverTargetY(groundY), 1f - Mathf.Exp(-6f * Time.deltaTime));
+        float smoothedY = Mathf.Lerp(pos.y, ResolveHoverTargetY(groundY), 1f - Mathf.Exp(-6f * deltaTime));
+        pos.y = Mathf.MoveTowards(pos.y, smoothedY, _maxVerticalSpeed * deltaTime);
         transform.position = pos;
     }
 
@@ -131,10 +132,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
 
     private float ResolveHoverTargetY(float groundY)
     {
-        Transform player = Player;
-        return player != null
-            ? Mathf.Max(groundY + 1f, player.position.y + _playerHoverOffset)
-            : groundY + _hoverHeight;
+        return groundY + _hoverHeight;
     }
 
     private void TickApproaching()
