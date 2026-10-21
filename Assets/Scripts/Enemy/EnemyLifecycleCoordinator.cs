@@ -51,6 +51,12 @@ public static class EnemyLifecycleCoordinator
         for (int i = 0; i < elites.Length; i++)
             elites[i].ClearSpawned();
 
+        BossManager[] bosses = Object.FindObjectsByType<BossManager>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        for (int i = 0; i < bosses.Length; i++)
+            bosses[i].CancelPendingSpawnForQa();
+
         EnemyPoolProfiler.RefreshInactiveEnemyCount();
         EnemyPoolProfiler.ResetSessionCounters();
     }

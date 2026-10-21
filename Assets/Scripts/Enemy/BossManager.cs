@@ -68,11 +68,21 @@ public class BossManager : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Horizontal step per iteration.")]
     private float _resolveStepOut = 0.06f;
 
+    [SerializeField, Min(1), Tooltip("Bounded ground-placement attempts per boss. Failed slots are skipped rather than spawned in the void.")]
+    private int _placementAttemptsPerBoss = 8;
+
     private readonly List<EnemyHealth> _activeBosses = new List<EnemyHealth>(4);
     private readonly Dictionary<EnemyHealth, Action> _onBossDiedHandlers = new Dictionary<EnemyHealth, Action>();
 
     private int _overheatCycleIndex;
     private bool _exitPhaseActive;
+    private bool _spawnPending;
+    private bool _spawning;
+    private int _batchVersion;
+    private GameObject _pendingBossPrefab;
+    private int _pendingBossCount;
+    private PlayerPlatformState _pendingPlayerState;
+    private PlayerHealth _pendingPlayerHealth;
 
     /// <summary>Every time a boss is defeated (for global victory in <see cref="GameManager"/>).</summary>
     public event Action OnBossDefeated;
@@ -84,6 +94,7 @@ public class BossManager : MonoBehaviour
     public IReadOnlyList<EnemyHealth> ActiveBosses => _activeBosses;
 
     public bool HasActiveBosses => _activeBosses.Count > 0;
+    public bool IsWaitingForBase => _spawnPending;
 
     /// <summary>First living boss (health bar and offscreen arrow).</summary>
     public EnemyHealth PrimaryBoss
@@ -104,7 +115,12 @@ public class BossManager : MonoBehaviour
     /// <summary>Started Overheat cycles (1-based during the current phase after incrementing).</summary>
     public int CurrentOverheatCycle => _overheatCycleIndex;
 
-    public void SetExitPhaseActive(bool active) => _exitPhaseActive = active;
+    public void SetExitPhaseActive(bool active)
+    {
+        _exitPhaseActive = active;
+        if (active)
+            CancelPendingSpawn();
+    }
 
     public void CollectBossPrefabs(List<GameObject> destination)
     {
@@ -147,13 +163,23 @@ public class BossManager : MonoBehaviour
             _overheatManager.OnOverheatFinished -= OnOverheatFinished;
         }
 
+        bool hadObjective = _spawnPending || _spawning || HasActiveBosses;
         DespawnAllBossesImmediate();
+        if (hadObjective && !_exitPhaseActive && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
+            EndOverheatIfNoObjective();
     }
+
+    private void Update() => TryReleasePendingSpawn();
 
     private void OnOverheatStarted()
     {
         _overheatCycleIndex++;
         DespawnAllBossesImmediate();
+
+        // Another start listener may already have ended this phase. Still count the event
+        // above so the boss/elite parity counters cannot drift after a failed objective.
+        if (_overheatManager == null || !_overheatManager.IsOverheating || _overheatManager.IsPermanentOverheat)
+            return;
 
         if (_exitPhaseActive)
         {
@@ -171,10 +197,9 @@ public class BossManager : MonoBehaviour
         }
 
         GameObject bossPrefab = SelectBossPrefabForCurrentCycle();
-        if (bossPrefab == null)
+        if (bossPrefab == null || bossPrefab.GetComponent<EnemyHealth>() == null || bossPrefab.GetComponent<CharacterController>() == null)
         {
-            if (_logState)
-                Debug.LogWarning("BossManager: asigna prefab de boss.", this);
+            Debug.LogError("BossManager: a boss prefab with EnemyHealth and CharacterController is required.", this);
             EndOverheatIfNoObjective();
             return;
         }
@@ -188,16 +213,144 @@ public class BossManager : MonoBehaviour
             return;
         }
 
-        int count = GetBossSpawnCountForCurrentCycle();
+        PlayerPlatformState state = player.GetComponent<PlayerPlatformState>();
+        if (state == null || !state.isActiveAndEnabled || !state.IsConfigured)
+        {
+            Debug.LogError("BossManager: the player requires a configured, enabled PlayerPlatformState; ending the empty objective.", this);
+            EndOverheatIfNoObjective();
+            return;
+        }
+
+        if (!state.IsRunActive)
+        {
+            EndOverheatIfNoObjective();
+            return;
+        }
+
+        _pendingBossPrefab = bossPrefab;
+        _pendingBossCount = GetBossSpawnCountForCurrentCycle();
+        _pendingPlayerState = state;
+        _pendingPlayerHealth = player.GetComponent<PlayerHealth>();
+        if (_pendingPlayerHealth != null)
+        {
+            _pendingPlayerHealth.OnPlayerDied += CancelPendingSpawn;
+            _pendingPlayerHealth.OnReset += OnPlayerReset;
+        }
+        _spawnPending = true;
+        NotifyActiveBossesChanged();
+        TryReleasePendingSpawn();
+    }
+
+    private void TryReleasePendingSpawn()
+    {
+        if (!_spawnPending)
+            return;
+        if (!isActiveAndEnabled || _exitPhaseActive || _overheatManager == null || !_overheatManager.IsOverheating || _overheatManager.IsPermanentOverheat)
+        {
+            CancelPendingSpawn();
+            return;
+        }
+        if (_pendingPlayerState == null || !_pendingPlayerState.isActiveAndEnabled || !_pendingPlayerState.IsConfigured)
+        {
+            Debug.LogError("BossManager: PlayerPlatformState was lost while waiting; ending the empty objective.", this);
+            CancelPendingSpawn();
+            EndOverheatIfNoObjective();
+            return;
+        }
+        if (!_pendingPlayerState.IsRunActive)
+        {
+            CancelPendingSpawn();
+            EndOverheatIfNoObjective();
+            return;
+        }
+        if (!_pendingPlayerState.CanSpawnObjectives)
+            return;
+
+        PlayerPlatformState state = _pendingPlayerState;
+        GameObject prefab = _pendingBossPrefab;
+        int count = _pendingBossCount;
+        // Consume before calling any spawn/lifecycle code. A second landing cannot
+        // release the same batch, and callbacks cannot mistake it for an empty phase.
+        ClearPendingSpawn(keepHealthSubscription: true);
+        _spawning = true;
+        int version = _batchVersion;
+        try
+        {
+            SpawnBossBatch(state, prefab, count, version);
+        }
+        finally
+        {
+            if (version == _batchVersion)
+            {
+                _spawning = false;
+                ClearPendingSpawn();
+            }
+        }
+        NotifyActiveBossesChanged();
+        if (version == _batchVersion && state != null && state.IsRunActive)
+            EndOverheatIfNoObjective();
+    }
+
+    private void CancelPendingSpawn()
+    {
+        _batchVersion++;
+        _spawning = false;
+        bool wasWaiting = _spawnPending;
+        ClearPendingSpawn();
+        if (wasWaiting)
+            NotifyActiveBossesChanged();
+    }
+
+    private void OnPlayerReset()
+    {
+        CancelPendingSpawn();
+        EndOverheatIfNoObjective();
+    }
+
+    public void CancelPendingSpawnForQa()
+    {
+        if (!_spawnPending && !_spawning)
+            return;
+        CancelPendingSpawn();
+        EndOverheatIfNoObjective();
+    }
+
+    private void ClearPendingSpawn(bool keepHealthSubscription = false)
+    {
+        if (!keepHealthSubscription && _pendingPlayerHealth != null)
+        {
+            _pendingPlayerHealth.OnPlayerDied -= CancelPendingSpawn;
+            _pendingPlayerHealth.OnReset -= OnPlayerReset;
+        }
+        if (!keepHealthSubscription)
+            _pendingPlayerHealth = null;
+        _pendingPlayerState = null;
+        _pendingBossPrefab = null;
+        _pendingBossCount = 0;
+        _spawnPending = false;
+    }
+
+    private void SpawnBossBatch(PlayerPlatformState state, GameObject bossPrefab, int count, int version)
+    {
+        if (bossPrefab == null)
+            return;
+        Transform player = state.transform;
         float ringOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
 
         for (int i = 0; i < count; i++)
         {
+            if (!IsSpawnBatchCurrent(state, version))
+                break;
             float angle = ringOffset + (Mathf.PI * 2f * i) / Mathf.Max(1, count);
             Vector3 offset = new Vector3(Mathf.Cos(angle) * _spawnDistance, 0f, Mathf.Sin(angle) * _spawnDistance);
             Vector3 ringPos = player.position + offset;
 
             GameObject go = Instantiate(bossPrefab, ringPos, Quaternion.identity);
+            if (!IsSpawnBatchCurrent(state, version))
+            {
+                Destroy(go);
+                break;
+            }
             EnemyHealth health = go.GetComponent<EnemyHealth>();
             if (health == null)
             {
@@ -216,33 +369,20 @@ public class BossManager : MonoBehaviour
                 continue;
             }
 
-            if (!SpawnGroundUtility.TryResolveFootPosition(
-                    new Vector3(ringPos.x, 0f, ringPos.z),
-                    go.transform,
-                    cc,
-                    ringPos.y,
-                    _maxAbsSpawnSurfaceDeltaY,
-                    _groundRaycastMask,
-                    _fallbackGroundRaycastMask,
-                    _overlapSolidMask,
-                    _raycastStartHeight,
-                    _raycastMaxDistance,
-                    _surfaceSeparation,
-                    _maxProjectionIterations,
-                    _resolveStepUp,
-                    _resolveStepOut,
-                    out Vector3 foot))
+            if (!TryPlaceBoss(state, go.transform, cc, player.position, ringPos))
             {
                 if (_logState)
-                    Debug.LogWarning("BossManager: no se encontró suelo bajo el punto de spawn; se spawnea igual (sin snap a suelo).", this);
-
-                // Fallback al comportamiento anterior: no bloquear el spawn del boss si el suelo no está debajo
-                // (por ejemplo, anillo cae fuera del terreno o hay vacío bajo ese XZ).
-                go.transform.position = ringPos;
+                    Debug.LogWarning("BossManager: no valid ground after bounded placement attempts; skipping this boss.", this);
+                Destroy(go);
+                continue;
             }
-            else
+
+            if (!go.activeSelf)
+                go.SetActive(true);
+            if (!IsSpawnBatchCurrent(state, version))
             {
-                go.transform.position = foot;
+                Destroy(go);
+                break;
             }
 
             health.ApplyConfiguredMaxHealth(_bossMaxHealth);
@@ -267,9 +407,6 @@ public class BossManager : MonoBehaviour
             _onBossDiedHandlers[health] = handler;
             health.OnDied += handler;
 
-            if (!go.activeSelf)
-                go.SetActive(true);
-
             _activeBosses.Add(health);
 
             Vector3 toPlayer = player.position - go.transform.position;
@@ -281,11 +418,32 @@ public class BossManager : MonoBehaviour
         if (_logState && _activeBosses.Count > 0)
             Debug.Log($"Boss spawn x{_activeBosses.Count} (ciclo Overheat #{_overheatCycleIndex})", this);
 
-        NotifyActiveBossesChanged();
+    }
 
-        // Sin temporizador: si no se pudo spawnear ningún boss, no dejar el Overheat colgado.
-        if (_activeBosses.Count == 0)
-            EndOverheatIfNoObjective();
+    private bool IsSpawnBatchCurrent(PlayerPlatformState state, int version) =>
+        version == _batchVersion && isActiveAndEnabled && !_exitPhaseActive &&
+        _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPermanentOverheat &&
+        state != null && state.CanSpawnObjectives;
+
+    private bool TryPlaceBoss(PlayerPlatformState state, Transform boss, CharacterController controller, Vector3 playerPosition, Vector3 firstPosition)
+    {
+        for (int attempt = 0; attempt < Mathf.Max(1, _placementAttemptsPerBoss); attempt++)
+        {
+            float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+            Vector3 candidate = attempt == 0 ? firstPosition : playerPosition + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * _spawnDistance;
+            if (EnemySpawnBlockVolume.Blocks(candidate))
+                continue;
+            if (!SpawnGroundUtility.TryResolveFootPosition(
+                    new Vector3(candidate.x, 0f, candidate.z), boss, controller, playerPosition.y,
+                    _maxAbsSpawnSurfaceDeltaY, _groundRaycastMask, _fallbackGroundRaycastMask, _overlapSolidMask,
+                    _raycastStartHeight, _raycastMaxDistance, _surfaceSeparation, _maxProjectionIterations,
+                    _resolveStepUp, _resolveStepOut, out Vector3 foot, out Vector3 groundPoint, out _) ||
+                state.IsUpperPosition(groundPoint) || EnemySpawnBlockVolume.Blocks(foot))
+                continue;
+            boss.position = foot;
+            return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -294,6 +452,15 @@ public class BossManager : MonoBehaviour
     /// </summary>
     private void EndOverheatIfNoObjective()
     {
+        if (_spawnPending || _spawning || HasActiveBosses || _exitPhaseActive ||
+            (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+            return;
+        PlayerHealth playerHealth = PlayerMovement.PlayerTransform != null ? PlayerMovement.PlayerTransform.GetComponent<PlayerHealth>() : null;
+        if (playerHealth != null && !playerHealth.IsAlive)
+            return;
+        OverheatEliteWaveSpawner elites = FindAnyObjectByType<OverheatEliteWaveSpawner>();
+        if (elites != null && (elites.IsWaitingForBase || elites.IsEliteWaveActive))
+            return;
         if (_overheatManager != null && _overheatManager.IsOverheating)
             _overheatManager.NotifyOverheatObjectiveCleared();
     }
@@ -342,8 +509,7 @@ public class BossManager : MonoBehaviour
         if (health.gameObject != null)
             Destroy(health.gameObject, 0.05f);
 
-        if (_activeBosses.Count == 0 && _overheatManager != null && _overheatManager.IsOverheating)
-            _overheatManager.NotifyBossDefeatedEarly();
+        EndOverheatIfNoObjective();
 
         if (_logState)
             Debug.Log("Boss derrotado.", this);
@@ -359,6 +525,7 @@ public class BossManager : MonoBehaviour
 
     private void DespawnAllBossesImmediate()
     {
+        CancelPendingSpawn();
         for (int i = _activeBosses.Count - 1; i >= 0; i--)
         {
             EnemyHealth h = _activeBosses[i];
@@ -376,6 +543,7 @@ public class BossManager : MonoBehaviour
         }
 
         _activeBosses.Clear();
+        _onBossDiedHandlers.Clear();
         NotifyActiveBossesChanged();
     }
 
@@ -392,6 +560,7 @@ public class BossManager : MonoBehaviour
             _multiBossOverheatCycle = 1;
         if (_bossCountOnMultiCycle < 2)
             _bossCountOnMultiCycle = 2;
+        _placementAttemptsPerBoss = Mathf.Max(1, _placementAttemptsPerBoss);
     }
 #endif
 }

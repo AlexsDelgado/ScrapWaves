@@ -1,12 +1,13 @@
 using UnityEngine;
 
-/// <summary>Continuous, bounded presentation for an always-ready traversal opening.</summary>
+/// <summary>Continuous, bounded presentation for a traversal opening outside overheat.</summary>
 [DisallowMultipleComponent]
 public sealed class GeyserVfx : MonoBehaviour
 {
     public enum Kind { Trash, HotAir }
     [SerializeField] private Kind _kind;
     [SerializeField] private MapLaunchPad _launcher;
+    [SerializeField] private OverheatManager _overheatManager;
     [SerializeField] private ParticleSystem _updraft;
     [SerializeField] private ParticleSystem _debris;
     [SerializeField] private ParticleSystem _entryBurst;
@@ -35,6 +36,14 @@ public sealed class GeyserVfx : MonoBehaviour
 
     private MaterialPropertyBlock _heatProperties;
     private MapLaunchPad _subscribedLauncher;
+    private OverheatManager _subscribedOverheat;
+    private bool _overheatSuppressed;
+    private bool _resumeUpdraft;
+    private bool _resumeDebris;
+    private bool _updraftEmissionEnabled;
+    private bool _debrisEmissionEnabled;
+    private bool _entryEmissionEnabled;
+    private bool _shimmerEnabled;
     private float _accentRemaining;
     private float _flowTime;
     public Kind GeyserKind => _kind;
@@ -44,18 +53,26 @@ public sealed class GeyserVfx : MonoBehaviour
 
     private void OnEnable()
     {
-        ApplyTuning();
         BindLauncher(_launcher != null ? _launcher : GetComponentInParent<MapLaunchPad>());
-        if (_updraft != null) _updraft.Play();
-        if (_debris != null && _kind == Kind.Trash) _debris.Play();
+        // Retain a suppression snapshot across disable/enable. Re-tuning or
+        // starting loops here would overwrite a deliberately stopped effect.
+        if (!_overheatSuppressed)
+        {
+            ApplyTuning();
+            if (_updraft != null && _updraft.gameObject.activeInHierarchy) _updraft.Play();
+            if (_debris != null && _kind == Kind.Trash && _debris.gameObject.activeInHierarchy) _debris.Play();
+        }
+        BindOverheat();
+        RefreshOverheatSuppression();
     }
 
     private void OnDisable()
     {
         if (_subscribedLauncher != null) _subscribedLauncher.OnLaunched -= HandleLaunch;
         _subscribedLauncher = null;
-        foreach (ParticleSystem particles in new[] { _updraft, _debris, _entryBurst })
-            if (particles != null) particles.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
+        UnbindOverheat();
+        ClearParticles();
+        if (_heatShimmer != null) _heatShimmer.enabled = false;
     }
 
     public void BindLauncher(MapLaunchPad launcher)
@@ -70,13 +87,106 @@ public sealed class GeyserVfx : MonoBehaviour
 
     public void PlayEntryBurst()
     {
+        if (!isActiveAndEnabled)
+            return;
+        RefreshOverheatSuppression();
+        if (_overheatSuppressed)
+            return;
+
         _accentRemaining = _entryAccentSeconds;
         if (_entryBurst != null) { _entryBurst.Play(); _entryBurst.Emit(_entryParticleCount); }
         if (_kind == Kind.Trash && _debris != null) _debris.Emit(Mathf.Min(6, _debrisBudget));
         TickPresentation(0f);
     }
 
-    private void Update() => TickPresentation(Time.deltaTime);
+    private void Update()
+    {
+        // Also reconcile when enabled after a phase started, or after a manager
+        // is replaced. The ordinary-to-permanent transition need not emit an event.
+        if (_overheatManager == null) BindOverheat();
+        RefreshOverheatSuppression();
+        if (!_overheatSuppressed) TickPresentation(Time.deltaTime);
+    }
+
+    private void BindOverheat()
+    {
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
+        if (_subscribedOverheat == _overheatManager)
+            return;
+        UnbindOverheat();
+        _subscribedOverheat = _overheatManager;
+        if (_subscribedOverheat == null)
+            return;
+        _subscribedOverheat.OnOverheatStarted += RefreshOverheatSuppression;
+        _subscribedOverheat.OnOverheatFinished += HandleOverheatFinished;
+    }
+
+    private void UnbindOverheat()
+    {
+        if (_subscribedOverheat != null)
+        {
+            _subscribedOverheat.OnOverheatStarted -= RefreshOverheatSuppression;
+            _subscribedOverheat.OnOverheatFinished -= HandleOverheatFinished;
+        }
+        _subscribedOverheat = null;
+    }
+
+    private void HandleOverheatFinished(OverheatEndReason _) => RefreshOverheatSuppression();
+
+    private void RefreshOverheatSuppression()
+    {
+        bool suppressed = _overheatManager != null && _overheatManager.IsOverheating;
+        if (suppressed == _overheatSuppressed)
+            return;
+
+        _overheatSuppressed = suppressed;
+        if (suppressed)
+        {
+            _resumeUpdraft = _updraft != null && _updraft.isPlaying && _updraft.gameObject.activeInHierarchy;
+            _resumeDebris = _debris != null && _kind == Kind.Trash && _debris.isPlaying && _debris.gameObject.activeInHierarchy;
+            _updraftEmissionEnabled = _updraft != null && _updraft.emission.enabled;
+            _debrisEmissionEnabled = _debris != null && _debris.emission.enabled;
+            _entryEmissionEnabled = _entryBurst != null && _entryBurst.emission.enabled;
+            _shimmerEnabled = _heatShimmer != null && _heatShimmer.enabled;
+            SuppressEffects();
+            return;
+        }
+
+        SetEmission(_updraft, _updraftEmissionEnabled);
+        SetEmission(_debris, _debrisEmissionEnabled);
+        SetEmission(_entryBurst, _entryEmissionEnabled);
+        if (_heatShimmer != null) _heatShimmer.enabled = _shimmerEnabled;
+        if (!isActiveAndEnabled)
+            return;
+        if (_resumeUpdraft && _updraft != null && _updraft.gameObject.activeInHierarchy) _updraft.Play();
+        if (_resumeDebris && _debris != null && _debris.gameObject.activeInHierarchy) _debris.Play();
+        // Entry feedback is a one-shot: never replay it when a phase ends.
+    }
+
+    private void SuppressEffects()
+    {
+        _accentRemaining = 0f;
+        SetEmission(_updraft, false);
+        SetEmission(_debris, false);
+        SetEmission(_entryBurst, false);
+        ClearParticles();
+        if (_heatShimmer != null) _heatShimmer.enabled = false;
+    }
+
+    private void ClearParticles()
+    {
+        if (_updraft != null) _updraft.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (_debris != null) _debris.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (_entryBurst != null) _entryBurst.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    }
+
+    private static void SetEmission(ParticleSystem particles, bool enabled)
+    {
+        if (particles == null) return;
+        var emission = particles.emission;
+        emission.enabled = enabled;
+    }
 
     private void TickPresentation(float deltaTime)
     {
@@ -102,6 +212,8 @@ public sealed class GeyserVfx : MonoBehaviour
 
     public void ApplyTuning()
     {
+        // Runtime tuning must not restart emission or replace the pre-overheat snapshot.
+        if (_subscribedOverheat != null) RefreshOverheatSuppression();
         if (_updraft != null)
         {
             var main = _updraft.main;
@@ -136,6 +248,7 @@ public sealed class GeyserVfx : MonoBehaviour
             var emission = _entryBurst.emission; emission.rateOverTime = 0f;
         }
         if (_heatShimmer != null) _heatShimmer.enabled = _kind == Kind.HotAir && _heatDistortion > 0f;
+        if (_overheatSuppressed) SuppressEffects();
         TickPresentation(0f);
     }
 

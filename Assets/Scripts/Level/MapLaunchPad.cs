@@ -19,6 +19,9 @@ public sealed class MapLaunchPad : MonoBehaviour
     [SerializeField, Tooltip("Geysers launch immediately while the player occupies the opening trigger. Legacy pads retain top-surface contact activation.")]
     private bool _launchFromTrigger;
 
+    [SerializeField, Tooltip("Overheat disables new launches without changing the vent's model or collision.")]
+    private OverheatManager _overheatManager;
+
     public event Action<PlayerMovement> OnLaunched;
 
     private Collider _collider;
@@ -27,6 +30,8 @@ public sealed class MapLaunchPad : MonoBehaviour
     private void Awake()
     {
         _collider = GetComponent<Collider>();
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_landing == null)
             _landing = FindLanding(name, transform.position);
     }
@@ -49,7 +54,16 @@ public sealed class MapLaunchPad : MonoBehaviour
 
     private void TryLaunch(Collider contactingBody, bool requireTopContact)
     {
-        if (!TutorialDirector.AllowsLaunch(this) || _busy || _landing == null)
+        if (!isActiveAndEnabled || contactingBody == null)
+            return;
+
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
+
+        // Read the phase at the point of use, including permanent overheat and
+        // an overheat that begins while the player is already inside the opening.
+        if ((_overheatManager != null && _overheatManager.IsOverheating) ||
+            !TutorialDirector.AllowsLaunch(this) || _busy || _landing == null)
             return;
 
         PlayerMovement movement = contactingBody.GetComponentInParent<PlayerMovement>();

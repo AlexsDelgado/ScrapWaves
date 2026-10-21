@@ -74,6 +74,12 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     private int _cycleIndex;
     private bool _exitPhaseDisabled;
     private bool _clearing;
+    private bool _spawnPending;
+    private bool _spawning;
+    private int _batchVersion;
+    private readonly List<EliteEntry> _pendingEntries = new(3);
+    private PlayerPlatformState _pendingPlayerState;
+    private PlayerHealth _pendingPlayerHealth;
 
     private readonly struct TrackedElite
     {
@@ -92,6 +98,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     public int EliteWaveTotal { get; private set; }
     public int ElitesRemaining => _aliveEliteCount;
     public bool IsEliteWaveActive => _waveActive;
+    public bool IsWaitingForBase => _spawnPending;
 
     public void CollectElitePrefabs(System.Collections.Generic.List<GameObject> destination)
     {
@@ -108,7 +115,12 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
     public event Action OnEliteWaveProgressChanged;
 
-    public void SetExitPhaseDisabled(bool disabled) => _exitPhaseDisabled = disabled;
+    public void SetExitPhaseDisabled(bool disabled)
+    {
+        _exitPhaseDisabled = disabled;
+        if (disabled)
+            CancelPendingSpawn();
+    }
 
     private void Awake()
     {
@@ -155,6 +167,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
     private void Update()
     {
+        TryReleasePendingSpawn();
         if (!_waveActive || _aliveEliteCount <= 0)
             return;
 
@@ -205,6 +218,12 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     private void OnOverheatStarted()
     {
         _cycleIndex++;
+        CancelPendingSpawn();
+
+        // Count the event even when an earlier listener ended it, keeping parity
+        // aligned with BossManager; never start a batch after that phase has ended.
+        if (_overheatManager == null || !_overheatManager.IsOverheating || _overheatManager.IsPermanentOverheat)
+            return;
 
         if (_exitPhaseDisabled)
         {
@@ -217,7 +236,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         if (_cycleIndex % 2 == 0)
             return;
 
-        SpawnEliteWave();
+        QueueEliteWave();
     }
 
     private void OnOverheatFinished(OverheatEndReason reason)
@@ -225,7 +244,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         ClearSpawned();
     }
 
-    private void SpawnEliteWave()
+    private void QueueEliteWave()
     {
         Transform player = PlayerMovement.PlayerTransform;
         if (player == null)
@@ -238,8 +257,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
         if (_elites == null || _elites.Length == 0)
         {
-            if (_logState)
-                Debug.LogWarning("[EliteWave] No hay prefabs elite asignados.", this);
+            Debug.LogError("[EliteWave] At least one elite prefab is required.", this);
             EndOverheatIfNoObjective();
             return;
         }
@@ -249,35 +267,161 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         {
             if (entry == null || entry.Prefab == null || entry.Count <= 0)
                 continue;
+            if (entry.Prefab.GetComponent<EnemyHealth>() == null)
+            {
+                Debug.LogError("[EliteWave] Elite prefabs require EnemyHealth; skipping the invalid entry.", this);
+                continue;
+            }
             totalPlanned += entry.Count;
+            // Capture values, not mutable inspector entries, for this one cycle.
+            _pendingEntries.Add(new EliteEntry { Prefab = entry.Prefab, Count = entry.Count });
         }
 
-        EliteWaveTotal = totalPlanned;
-
-        int spawned = 0;
-        foreach (EliteEntry entry in _elites)
+        if (totalPlanned == 0)
         {
+            Debug.LogError("[EliteWave] No valid elite objective is configured.", this);
+            EndOverheatIfNoObjective();
+            return;
+        }
+
+        PlayerPlatformState state = player.GetComponent<PlayerPlatformState>();
+        if (state == null || !state.isActiveAndEnabled || !state.IsConfigured)
+        {
+            Debug.LogError("[EliteWave] The player requires a configured, enabled PlayerPlatformState; ending the empty objective.", this);
+            CancelPendingSpawn();
+            EndOverheatIfNoObjective();
+            return;
+        }
+        if (!state.IsRunActive)
+        {
+            CancelPendingSpawn();
+            EndOverheatIfNoObjective();
+            return;
+        }
+
+        _pendingPlayerState = state;
+        _pendingPlayerHealth = player.GetComponent<PlayerHealth>();
+        if (_pendingPlayerHealth != null)
+        {
+            _pendingPlayerHealth.OnPlayerDied += CancelPendingSpawn;
+            _pendingPlayerHealth.OnReset += OnPlayerReset;
+        }
+        EliteWaveTotal = totalPlanned;
+        _spawnPending = true;
+        NotifyEliteWaveProgressChanged();
+        TryReleasePendingSpawn();
+    }
+
+    private void TryReleasePendingSpawn()
+    {
+        if (!_spawnPending)
+            return;
+        if (!isActiveAndEnabled || _exitPhaseDisabled || _overheatManager == null || !_overheatManager.IsOverheating || _overheatManager.IsPermanentOverheat)
+        {
+            CancelPendingSpawn();
+            return;
+        }
+        if (_pendingPlayerState == null || !_pendingPlayerState.isActiveAndEnabled || !_pendingPlayerState.IsConfigured)
+        {
+            Debug.LogError("[EliteWave] PlayerPlatformState was lost while waiting; ending the empty objective.", this);
+            CancelPendingSpawn();
+            EndOverheatIfNoObjective();
+            return;
+        }
+        if (!_pendingPlayerState.IsRunActive)
+        {
+            CancelPendingSpawn();
+            EndOverheatIfNoObjective();
+            return;
+        }
+        if (!_pendingPlayerState.CanSpawnObjectives)
+            return;
+
+        PlayerPlatformState state = _pendingPlayerState;
+        EliteEntry[] entries = _pendingEntries.ToArray();
+        ClearPendingSpawn(keepHealthSubscription: true);
+        _spawning = true;
+        int version = _batchVersion;
+        try
+        {
+            SpawnEliteWave(state, entries, version);
+        }
+        finally
+        {
+            if (version == _batchVersion)
+            {
+                _spawning = false;
+                ClearPendingSpawn();
+            }
+        }
+        NotifyEliteWaveProgressChanged();
+        if (version == _batchVersion && state != null && state.IsRunActive)
+            EndOverheatIfNoObjective();
+    }
+
+    private void OnPlayerReset()
+    {
+        CancelPendingSpawn();
+        EndOverheatIfNoObjective();
+    }
+
+    private void CancelPendingSpawn()
+    {
+        _batchVersion++;
+        _spawning = false;
+        bool wasWaiting = _spawnPending;
+        ClearPendingSpawn();
+        if (wasWaiting)
+        {
+            EliteWaveTotal = 0;
+            NotifyEliteWaveProgressChanged();
+        }
+    }
+
+    private void ClearPendingSpawn(bool keepHealthSubscription = false)
+    {
+        if (!keepHealthSubscription && _pendingPlayerHealth != null)
+        {
+            _pendingPlayerHealth.OnPlayerDied -= CancelPendingSpawn;
+            _pendingPlayerHealth.OnReset -= OnPlayerReset;
+        }
+        if (!keepHealthSubscription)
+            _pendingPlayerHealth = null;
+        _pendingPlayerState = null;
+        _pendingEntries.Clear();
+        _spawnPending = false;
+    }
+
+    private void SpawnEliteWave(PlayerPlatformState state, EliteEntry[] entries, int version)
+    {
+        int spawned = 0;
+        foreach (EliteEntry entry in entries)
+        {
+            if (!IsSpawnBatchCurrent(state, version))
+                break;
             if (entry == null || entry.Prefab == null || entry.Count <= 0)
                 continue;
 
             for (int i = 0; i < entry.Count; i++)
             {
-                if (SpawnOneElite(player, entry.Prefab))
+                if (!IsSpawnBatchCurrent(state, version))
+                    break;
+                if (SpawnOneElite(state, entry.Prefab, version))
                     spawned++;
             }
         }
 
+        if (version != _batchVersion)
+            return;
+
+        // Failed placements are not credited as defeated enemies in the HUD.
+        EliteWaveTotal = spawned;
         // Solo gestionamos la condición de "derrotar a todos" si hay elites con vida.
         _waveActive = _aliveEliteCount > 0;
 
         if (_logState)
             Debug.Log($"[EliteWave] Overheat impar #{_cycleIndex}: spawneados {spawned} elites (vivos rastreados: {_aliveEliteCount}).", this);
 
-        NotifyEliteWaveProgressChanged();
-
-        // Sin temporizador: si no quedó ningún elite rastreable, no dejar el Overheat colgado.
-        if (!_waveActive)
-            EndOverheatIfNoObjective();
     }
 
     public IReadOnlyList<Transform> GetAliveEliteTransforms()
@@ -307,7 +451,12 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     /// Spawnea un elite solo si hay suelo bajo el punto. Sin piso no se instancia:
     /// un elite en el vacío no muere y deja el Overheat trabado.
     /// </summary>
-    private bool SpawnOneElite(Transform player, GameObject prefab)
+    private bool IsSpawnBatchCurrent(PlayerPlatformState state, int version) =>
+        version == _batchVersion && isActiveAndEnabled && !_exitPhaseDisabled &&
+        _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPermanentOverheat &&
+        state != null && state.CanSpawnObjectives;
+
+    private bool SpawnOneElite(PlayerPlatformState state, GameObject prefab, int version)
     {
         int attempts = Mathf.Max(1, _placementAttemptsPerElite);
         if (_guaranteeSpawn)
@@ -315,9 +464,11 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
         for (int a = 0; a < attempts; a++)
         {
+            if (!IsSpawnBatchCurrent(state, version))
+                return false;
             int dir = OrbitalSpawnPlacement.PickRandomDirectionIndex();
             if (OrbitalSpawnPlacement.TrySpawnAtOrbitalPoint(
-                    player,
+                    state.transform,
                     prefab,
                     dir,
                     _minSpawnRadius,
@@ -335,8 +486,22 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
                     _resolveStepOut,
                     out GameObject instance,
                     out _,
-                    out _))
+                    out _,
+                    acceptGround: point => !state.IsUpperPosition(point)))
             {
+                // Pool activation and difficulty callbacks may clear/finish the phase.
+                // Do not attach that late lease to an already cancelled objective.
+                if (!IsSpawnBatchCurrent(state, version))
+                {
+                    ReleaseUnregisteredElite(instance);
+                    return false;
+                }
+                _difficultyManager?.ApplySpawnModifiers(instance);
+                if (!IsSpawnBatchCurrent(state, version))
+                {
+                    ReleaseUnregisteredElite(instance);
+                    return false;
+                }
                 RegisterSpawned(instance);
                 return true;
             }
@@ -349,8 +514,6 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
     private void RegisterSpawned(GameObject instance)
     {
-        _difficultyManager?.ApplySpawnModifiers(instance);
-
         // Los elites son objetivo de progresión: nunca se duermen ni se despawnean por altura.
         // Se marca después de obtener la instancia, porque el reset del pool corre antes y
         // devolvería el exento a su valor de fábrica.
@@ -363,12 +526,34 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         TrackElite(instance);
     }
 
+    private static void ReleaseUnregisteredElite(GameObject instance)
+    {
+        if (instance == null)
+            return;
+        if (instance.TryGetComponent(out SwarmPooledEnemy pooled) && pooled.IsBound)
+            pooled.Despawn();
+        else
+        {
+            Destroy(instance);
+            EnemyPoolProfiler.RegisterDestroy();
+        }
+    }
+
     /// <summary>
     /// Anti-softlock: como el Overheat ya no termina por tiempo, si la oleada no generó
     /// elites rastreables, cierra el Overheat para no bloquear el loop.
     /// </summary>
     private void EndOverheatIfNoObjective()
     {
+        if (_spawnPending || _spawning || _aliveEliteCount > 0 || _exitPhaseDisabled ||
+            (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+            return;
+        PlayerHealth playerHealth = PlayerMovement.PlayerTransform != null ? PlayerMovement.PlayerTransform.GetComponent<PlayerHealth>() : null;
+        if (playerHealth != null && !playerHealth.IsAlive)
+            return;
+        BossManager bosses = FindAnyObjectByType<BossManager>();
+        if (bosses != null && (bosses.IsWaitingForBase || bosses.HasActiveBosses))
+            return;
         if (_overheatManager != null && _overheatManager.IsOverheating)
             _overheatManager.NotifyOverheatObjectiveCleared();
     }
@@ -445,7 +630,8 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
         _clearing = true;
         try
         {
-            bool hadActiveWave = _waveActive;
+            bool hadActiveWave = _waveActive || _spawnPending || _spawning;
+            CancelPendingSpawn();
 
             // Desengancharse de todo ANTES de liberar, así la limpieza no se avisa a sí misma.
             foreach (KeyValuePair<Transform, TrackedElite> kv in _tracked)
@@ -485,8 +671,8 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
             // QA limpiando en medio de un Overheat: sin esto la fase queda colgada con cero
             // objetivos. En la ruta normal EndOverheat ya apagó _isOverheating, así que es no-op.
-            if (hadActiveWave && _overheatManager != null && _overheatManager.IsOverheating)
-                _overheatManager.NotifyOverheatObjectiveCleared();
+            if (hadActiveWave && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
+                EndOverheatIfNoObjective();
         }
         finally
         {

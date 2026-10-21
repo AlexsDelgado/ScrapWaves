@@ -361,7 +361,7 @@ public sealed class PassiveItemTestingController : MonoBehaviour
 
     public void ResetScenario()
     {
-        _playerHealth?.FullHeal();
+        _playerHealth?.FullHeal(resetPhase: true);
         RechargeShield();
         _playerMovement?.RefreshPassiveResources();
         _sandbox?.RefillAllAmmo();

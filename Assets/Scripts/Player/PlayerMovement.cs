@@ -75,6 +75,7 @@ public class PlayerMovement : MonoBehaviour
     private ThirdPersonCamera _movementCamera;
     private readonly RaycastHit[] _groundHits = new RaycastHit[32];
     private Vector3 _groundNormal = Vector3.up;
+    private Collider _groundSupportCollider;
     private float _lastGroundedTime = float.NegativeInfinity;
     private float _jumpRequestTime = float.NegativeInfinity;
     private float _dashRequestTime = float.NegativeInfinity;
@@ -123,6 +124,31 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>El jugador está en contacto con el suelo (para detección de vibraciones enemigas).</summary>
     public bool IsGroundedOnSurface => _isGrounded;
     public Vector3 GroundNormal => _groundNormal;
+
+    /// <summary>Feet of the motor's own body, independent of animated bones or child triggers.</summary>
+    public Vector3 FeetPosition
+    {
+        get
+        {
+            if (_ownCollider == null || !_ownCollider.enabled) return transform.position;
+            Bounds bounds = _ownCollider.bounds;
+            return new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+        }
+    }
+
+    /// <summary>
+    /// Reuse the motor's support qualification at the current pose, including after a teleport.
+    /// This query does not consume buffered actions or change grounded transition events.
+    /// </summary>
+    public bool TryGetGroundSupport(out Collider support)
+    {
+        support = null;
+        if (!isActiveAndEnabled || _ownCollider == null || !_ownCollider.enabled || _launchGroundGrace > 0f)
+            return false;
+        if (!IsGrounded()) return false;
+        support = _groundSupportCollider;
+        return support != null;
+    }
 
     /// <summary>Synchronize an authored grounded placement without emitting a second landing event.</summary>
     public void SynchronizeGroundedPlacement()
@@ -913,6 +939,7 @@ public class PlayerMovement : MonoBehaviour
     // Probe the lower capsule sphere, qualifying support rather than treating any ray hit as ground.
     private bool IsGrounded()
     {
+        _groundSupportCollider = null;
         _groundNormal = Vector3.up;
         // Uphill contact naturally has positive Y velocity. Suppress re-grounding only after a jump/launch.
         if (_ownCollider == null || (_groundJumpConsumed && _rb != null && _rb.linearVelocity.y > 0.1f)) return false;
@@ -943,6 +970,7 @@ public class PlayerMovement : MonoBehaviour
                 hits[i].distance >= closest) continue;
             closest = hits[i].distance;
             _groundNormal = hits[i].normal;
+            _groundSupportCollider = surface;
         }
         return closest < float.PositiveInfinity;
     }

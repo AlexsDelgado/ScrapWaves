@@ -45,6 +45,9 @@ public class PlayerHealth : MonoBehaviour
     /// <summary>Se dispara una vez al llegar a 0 HP (para <see cref="GameManager"/>).</summary>
     public event System.Action OnPlayerDied;
 
+    /// <summary>Fresh player activation or explicit QA reset; cancels phase-local exposure and pending objectives.</summary>
+    public event Action OnReset;
+
     public bool IsInvulnerable => Time.time < _invulnerableUntil;
 
     public bool IsBurning => _burnRemaining > 0f;
@@ -157,6 +160,7 @@ public class PlayerHealth : MonoBehaviour
         ClearBurn();
         ClearEnemyCollisionIgnores();
         OnHealthChanged?.Invoke();
+        OnReset?.Invoke();
     }
 
     private void OnDisable()
@@ -269,7 +273,7 @@ public class PlayerHealth : MonoBehaviour
     }
 
     /// <summary>Restaura la vida al maximo (revive si estaba muerto). Util para QA.</summary>
-    public void FullHeal()
+    public void FullHeal(bool resetPhase = false)
     {
         _isDead = false;
         _currentHealth = _maxHealth;
@@ -278,6 +282,7 @@ public class PlayerHealth : MonoBehaviour
         _regenerationRemainder = 0f;
         ClearBurn();
         OnHealthChanged?.Invoke();
+        if (resetPhase) OnReset?.Invoke();
     }
 
     public void TakeDamage(int amount)

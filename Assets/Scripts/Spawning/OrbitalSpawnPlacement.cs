@@ -42,7 +42,8 @@ public static class OrbitalSpawnPlacement
         float resolveStepOut,
         out GameObject instance,
         out Vector3 spawnPosition,
-        out string placementLog)
+        out string placementLog,
+        System.Predicate<Vector3> acceptGround = null)
     {
         instance = null;
         spawnPosition = Vector3.zero;
@@ -80,7 +81,8 @@ public static class OrbitalSpawnPlacement
                     resolveStepOut,
                     player.position,
                     out instance,
-                    out spawnPosition))
+                    out spawnPosition,
+                    acceptGround))
             {
                 placementLog = "ground resolve failed";
                 return false;
@@ -139,7 +141,7 @@ public static class OrbitalSpawnPlacement
             out spawnPosition);
     }
 
-    /// <summary>Optionally faces a target after seating, before emergence measures the final model bounds.</summary>
+    /// <summary>Optionally filters the selected ground point, then faces a target before emergence measures the final model bounds.</summary>
     public static bool TrySpawnGrounded(
         GameObject prefab,
         Vector3 desiredPosition,
@@ -155,7 +157,8 @@ public static class OrbitalSpawnPlacement
         float resolveStepOut,
         Vector3? facingTargetPosition,
         out GameObject instance,
-        out Vector3 spawnPosition)
+        out Vector3 spawnPosition,
+        System.Predicate<Vector3> acceptGround = null)
     {
         instance = null;
         spawnPosition = desiredPosition;
@@ -199,7 +202,7 @@ public static class OrbitalSpawnPlacement
                     surfaceSeparation,
                     out Vector3 surface,
                     out groundPoint,
-                    out groundNormal))
+                    out groundNormal) || (acceptGround != null && !acceptGround(groundPoint)))
             {
                 ReleaseFailedSpawn(instance, fromPool);
                 instance = null;
@@ -231,7 +234,7 @@ public static class OrbitalSpawnPlacement
                 resolveStepOut,
                 out Vector3 foot,
                 out groundPoint,
-                out groundNormal))
+                out groundNormal) || (acceptGround != null && !acceptGround(groundPoint)))
         {
             ReleaseFailedSpawn(instance, fromPool);
             instance = null;

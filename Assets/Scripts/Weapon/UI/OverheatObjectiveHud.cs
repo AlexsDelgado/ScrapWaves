@@ -132,6 +132,13 @@ public class OverheatObjectiveHud : MonoBehaviour
         if (!show)
             return;
 
+        if ((_bossManager != null && _bossManager.IsWaitingForBase) ||
+            (_eliteSpawner != null && _eliteSpawner.IsWaitingForBase))
+        {
+            _objectiveText.text = "Bajá al suelo";
+            return;
+        }
+
         if (_bossManager != null && _bossManager.HasActiveBosses)
         {
             int alive = _bossManager.ActiveBosses.Count;
