@@ -190,6 +190,54 @@ public sealed class MortarGroundMarkerTests
             "Projection must remain on the ground below owner, target and trigger colliders.");
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Projection_RejectsNonFloorModelsInBothQueryPaths(bool meshFloor)
+    {
+        GameObject floor = GroundCube("Elevated floor", new Vector3(0f, 1.75f, 0f), new Vector3(12f, .5f, 12f));
+        if (meshFloor)
+        {
+            _ground.Remove(floor.GetComponent<Collider>());
+            Object.DestroyImmediate(floor.GetComponent<BoxCollider>());
+            var mesh = floor.AddComponent<MeshCollider>();
+            mesh.sharedMesh = floor.GetComponent<MeshFilter>().sharedMesh;
+            _ground.Add(mesh);
+        }
+        else
+        {
+            floor.AddComponent<Rigidbody>().isKinematic = true;
+        }
+        foreach (string kind in new[] { "enemy-layer", "dynamic", "station", "spawn-volume", "non-ground-layer" })
+        {
+            GameObject model = Cube(kind, new Vector3(0f, 2.3f, 0f), new Vector3(8f, .2f, 8f));
+            switch (kind)
+            {
+                case "enemy-layer":
+                    GameObject body = Keep(new GameObject("Body"));
+                    body.AddComponent<Rigidbody>().isKinematic = true;
+                    model.transform.SetParent(body.transform, true);
+                    model.layer = LayerMask.NameToLayer("Enemy");
+                    break;
+                case "dynamic": model.AddComponent<Rigidbody>().useGravity = false; break;
+                case "station": model.AddComponent<CraftingStation>(); break;
+                case "spawn-volume":
+                    model.AddComponent<EnemySpawnBlockVolume>();
+                    model.GetComponent<Collider>().isTrigger = false;
+                    break;
+                default: model.layer = LayerMask.NameToLayer("Ignore Raycast"); break;
+            }
+        }
+        Physics.SyncTransforms();
+        // Start closer to the props, so accepting any of them fails the geometry check.
+        MortarLandingIndicatorVfx marker = Marker(Anchor + Vector3.up * 2.4f, Vector3.up);
+        AssertSupportedTriangles(marker, Vector3.up, .025f);
+        Assert.That(RenderedVertices(marker).Max(p => p.y), Is.LessThan(Anchor.y + 2.025f));
+        floor.SetActive(false);
+        Physics.SyncTransforms();
+        marker.RefreshGroundGeometry();
+        Assert.That(Triangles(marker), Is.Empty, "Non-floor models alone must not support any marker geometry.");
+    }
+
     [Test]
     public void ReconfigureAndPulse_AlwaysProjectTheOriginalAuthoredGeometry()
     {

@@ -52,6 +52,12 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
     private bool _repeatCountdown;
     private bool _cached;
     private Color _styleColor;
+    private MortarGroundConformer _groundConformer;
+    private Transform _ignoredRoot;
+    private bool _hasGroundContact;
+    private bool _groundGeometryDirty;
+    private int _lastGroundRefreshFrame = -1;
+    private int _vertexJitterId;
 
     public int ShellRendererCount => _shellRenderers?.Length ?? 0;
     public bool HasLandingIndicator => _landingRoot != null;
@@ -72,7 +78,8 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         float travelTime,
         float normalizedHeat,
         bool detailed,
-        bool showLanding)
+        bool showLanding,
+        Transform ignoredRoot = null)
     {
         CacheLayers();
         _target = target;
@@ -80,6 +87,10 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         _travelTime = Mathf.Max(0.05f, travelTime);
         _heat = Mathf.Clamp01(normalizedHeat);
         _showLanding = showLanding;
+        _hasGroundContact = showLanding;
+        _ignoredRoot = ignoredRoot;
+        _groundGeometryDirty = true;
+        _lastGroundRefreshFrame = -1;
         _repeatCountdown = false;
         _spin = 0f;
         _styleColor = style switch
@@ -138,6 +149,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         }
         if (_landingCore != null)
             _landingCore.localScale = _coreBaseScale * Mathf.Lerp(0.72f, 1.18f, pulse);
+        _groundGeometryDirty = true;
         KeepIndicatorWorldAnchored();
     }
 
@@ -156,7 +168,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         if (_flightSmoke != null)
             _flightSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         if (_landingRoot != null)
-            _landingRoot.SetActive(keepChargedMarker);
+            _landingRoot.SetActive(keepChargedMarker && _hasGroundContact);
         _showLanding = keepChargedMarker;
         KeepIndicatorWorldAnchored();
     }
@@ -168,7 +180,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         _remainingRepeatTime = _repeatDelay;
         _showLanding = _repeatCountdown;
         if (_landingRoot != null)
-            _landingRoot.SetActive(_repeatCountdown);
+            _landingRoot.SetActive(_repeatCountdown && _hasGroundContact);
         ApplyColors(_chargedColor, 1.15f);
         KeepIndicatorWorldAnchored();
     }
@@ -188,6 +200,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         if (_landingCore != null)
             _landingCore.localScale = _coreBaseScale * Mathf.Lerp(0.8f, 1.35f, beat);
         ApplyColors(_chargedColor, Mathf.Lerp(1.1f, 2.1f, progress) * beat);
+        _groundGeometryDirty = true;
         KeepIndicatorWorldAnchored();
     }
 
@@ -198,13 +211,21 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         if (_landingCore != null)
             _landingCore.localScale = _coreBaseScale * 1.5f;
         if (_landingRoot != null)
-            _landingRoot.SetActive(_repeatCountdown);
+            _landingRoot.SetActive(_repeatCountdown && _hasGroundContact);
+        _groundGeometryDirty = true;
+        KeepIndicatorWorldAnchored();
     }
 
-    public void SetImpactPoint(Vector3 position, Vector3 normal)
+    public void SetImpactPoint(Vector3 position, Vector3 normal, bool hasGroundContact = true,
+        Transform ignoredRoot = null)
     {
         _target = position;
         _impactNormal = normal.sqrMagnitude > 0.0001f ? normal.normalized : Vector3.up;
+        _hasGroundContact = hasGroundContact;
+        _ignoredRoot = ignoredRoot;
+        _groundGeometryDirty = true;
+        if (_landingRoot != null)
+            _landingRoot.SetActive(_showLanding && _hasGroundContact);
         KeepIndicatorWorldAnchored();
     }
 
@@ -213,6 +234,11 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         CacheLayers();
         _showLanding = false;
         _repeatCountdown = false;
+        _hasGroundContact = false;
+        _ignoredRoot = null;
+        _groundConformer?.Restore();
+        _lastGroundRefreshFrame = -1;
+        _groundGeometryDirty = true;
         if (_trail != null)
         {
             _trail.emitting = false;
@@ -241,10 +267,24 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
             KeepIndicatorWorldAnchored();
     }
 
+    private void OnDisable()
+    {
+        _groundConformer?.Restore();
+        _lastGroundRefreshFrame = -1;
+        _groundGeometryDirty = true;
+    }
+
+    private void OnDestroy()
+    {
+        _groundConformer?.Dispose();
+        _groundConformer = null;
+    }
+
     private void OnValidate()
     {
         _surfaceOffset = Mathf.Max(0.001f, _surfaceOffset);
         _cached = false;
+        _groundGeometryDirty = true;
     }
 
     private void CacheLayers()
@@ -252,6 +292,10 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         if (_cached)
             return;
         _cached = true;
+        // Rebuild native mesh copies on the next main-thread use, never in OnValidate.
+        _groundConformer?.Dispose();
+        _groundConformer = null;
+        _vertexJitterId = Shader.PropertyToID("_VertexJitter");
         _propertyBlock ??= new MaterialPropertyBlock();
         _shellRenderers ??= System.Array.Empty<Renderer>();
         _indicatorRenderers ??= System.Array.Empty<Renderer>();
@@ -293,10 +337,10 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         ApplyColorTo(_shellRenderers, color, emission);
         Color indicator = color;
         indicator.a = 0.72f;
-        ApplyColorTo(_indicatorRenderers, indicator, emission * 0.82f);
+        ApplyColorTo(_indicatorRenderers, indicator, emission * 0.82f, groundIndicator: true);
     }
 
-    private void ApplyColorTo(Renderer[] renderers, Color color, float emission)
+    private void ApplyColorTo(Renderer[] renderers, Color color, float emission, bool groundIndicator = false)
     {
         for (int i = 0; i < renderers.Length; i++)
         {
@@ -311,16 +355,23 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
             _propertyBlock.SetFloat(HeatId, _heat);
             _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(emission / 3f));
             _propertyBlock.SetFloat(DissolveId, 0f);
+            if (groundIndicator) _propertyBlock.SetFloat(_vertexJitterId, 0f);
             renderer.SetPropertyBlock(_propertyBlock);
         }
     }
 
     private void KeepIndicatorWorldAnchored()
     {
-        if (_landingRoot == null || !_landingRoot.activeSelf)
+        if (_landingRoot == null || !_landingRoot.activeSelf || !_hasGroundContact)
             return;
         _landingRoot.transform.position = _target + _impactNormal * _surfaceOffset;
         _landingRoot.transform.rotation = Quaternion.FromToRotation(Vector3.up, _impactNormal);
+        if (!_groundGeometryDirty && _lastGroundRefreshFrame == Time.frameCount)
+            return;
+        _groundConformer ??= new MortarGroundConformer(_indicatorRenderers, _blastRadiusRing);
+        _groundConformer.Conform(_target, _impactNormal, _ignoredRoot, _surfaceOffset, 3f, .06f);
+        _lastGroundRefreshFrame = Time.frameCount;
+        _groundGeometryDirty = false;
     }
 
     private static Vector3 GetStableUp(Vector3 direction)

@@ -334,15 +334,22 @@ public sealed class MortarShellImpact : MonoBehaviour
             }
             HasPredictedPresentationCollision = showPredictedLanding;
             PredictedPresentationCollisionPoint = showPredictedLanding ? presentationTarget : default;
+            // The area marker belongs to supporting ground; the shell and impact
+            // cues retain their independently predicted physical collision.
+            RaycastHit landingHit = default;
+            bool showGroundLanding = showPredictedLanding
+                && MortarPresentationSurface.TryResolveGround(predictedHit, _ignoredRoot,
+                    _presentationSupportHits, out landingHit);
             _authoredVfx.Configure(
                 style,
-                presentationTarget,
-                presentationNormal,
+                showGroundLanding ? landingHit.point : presentationTarget,
+                showGroundLanding ? landingHit.normal : presentationNormal,
                 _payload.UseGrapeshot ? GetGrapeshotLandingSpread() : _explosionRadius,
                 _travelTime,
                 _feedbackTemplate.NormalizedHeat,
                 _detailedPresentation,
-                showPredictedLanding);
+                showGroundLanding,
+                _ignoredRoot);
         }
         else
         {
@@ -480,7 +487,14 @@ public sealed class MortarShellImpact : MonoBehaviour
                 out _presentationImpactNormal);
         }
         _hasPresentationImpactSurface = true;
-        _authoredVfx?.SetImpactPoint(_presentationImpactPoint, _presentationImpactNormal);
+        if (_authoredVfx != null)
+        {
+            RaycastHit landingHit = default;
+            bool hasGround = _showLandingIndicator
+                && MortarPresentationSurface.TryResolveGround(closestHit, _ignoredRoot,
+                    _presentationSupportHits, out landingHit);
+            _authoredVfx.SetImpactPoint(landingHit.point, landingHit.normal, hasGround, _ignoredRoot);
+        }
     }
 
     private bool ShouldIgnoreCollision(RaycastHit hit)
@@ -608,13 +622,10 @@ public sealed class MortarShellImpact : MonoBehaviour
     private void Detonate(Vector3 explosionCenter)
     {
         _target = explosionCenter;
-        Vector3 presentationPoint = _hasPresentationImpactSurface
-            ? _presentationImpactPoint
-            : explosionCenter;
-        Vector3 presentationNormal = _hasPresentationImpactSurface
-            ? _presentationImpactNormal
-            : _payload.UseGrapeshot ? Vector3.up : _impactNormal;
-        _authoredVfx?.SetImpactPoint(presentationPoint, presentationNormal);
+        // RecordCollision resolved the marker's supporting ground. Do not replace
+        // that contact with the physical hit when the shell starts its repeats.
+        if (!_hasPresentationImpactSurface)
+            _authoredVfx?.SetImpactPoint(explosionCenter, Vector3.up, false, _ignoredRoot);
         HideFlightVisuals(keepShellVisual: !_payload.UseGrapeshot && _payload.RepeatExplosionCount > 1);
         if (_payload.UseGrapeshot)
         {

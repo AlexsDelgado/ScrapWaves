@@ -109,6 +109,85 @@ public sealed class MortarManualAimTests
         AssertCollisionMatchesPrediction(solution, .55f, .04f);
     }
 
+    [TestCase("enemy-parent")]
+    [TestCase("enemy-child-body")]
+    [TestCase("dynamic-prop")]
+    [TestCase("crafting-station")]
+    [TestCase("spawn-volume")]
+    [TestCase("ignore-raycast")]
+    public void NonFloorModel_IsSkippedAndRequiresSupportingGround(string kind)
+    {
+        GameObject model = Cube("Nonfloor model", new Vector3(0f, 2f, 18f), new Vector3(4f, 1f, 4f));
+        GameObject root = Keep(new GameObject("Nonfloor model root"));
+        root.transform.position = model.transform.position;
+        model.transform.SetParent(root.transform, true);
+        switch (kind)
+        {
+            case "enemy-parent": root.layer = LayerMask.NameToLayer("Enemy"); break;
+            case "enemy-child-body":
+                model.layer = LayerMask.NameToLayer("Enemy");
+                root.AddComponent<Rigidbody>().isKinematic = true;
+                break;
+            case "dynamic-prop": root.AddComponent<Rigidbody>().useGravity = false; break;
+            case "crafting-station": root.AddComponent<CraftingStation>(); break;
+            case "spawn-volume":
+                model.AddComponent<EnemySpawnBlockVolume>();
+                model.GetComponent<Collider>().isTrigger = false;
+                break;
+            case "ignore-raycast": model.layer = LayerMask.NameToLayer("Ignore Raycast"); break;
+        }
+        Physics.SyncTransforms();
+        Assert.That(model.GetComponent<Collider>().Raycast(
+            new Ray(Anchor + new Vector3(0f, 10f, 18f), Vector3.down), out RaycastHit modelHit, 20f), Is.True);
+        Assert.That(modelHit.normal.y, Is.GreaterThan(.99f), "The excluded model has an upward face.");
+        if (kind == "enemy-child-body")
+            Assert.That(modelHit.transform, Is.SameAs(root.transform), "Inspect the collider layer, not the attached body transform.");
+        Assert.That(MortarManualAim.TryResolve(Origin, Vector3.forward, Vector3.forward,
+            _tuning, .18f, null, _hits, out _), Is.False, "A nonfloor model alone cannot supply a landing target.");
+
+        Flat();
+        MortarManualAimSolution solution = Resolve(0f);
+        Assert.That(solution.SurfacePoint.y, Is.EqualTo(Anchor.y).Within(.02f),
+            "Select the supporting floor beneath the model, never its upward face.");
+    }
+
+    [TestCase("Default", false)]
+    [TestCase("Default", true)]
+    [TestCase("Terrain", false)]
+    [TestCase("Terrain", true)]
+    public void ElevatedWalkablePlatform_RemainsSelected(string layerName, bool kinematic)
+    {
+        Flat();
+        GameObject platform = Cube("Elevated walkable surface", new Vector3(0f, 4f, 18f), new Vector3(8f, .5f, 8f));
+        platform.layer = LayerMask.NameToLayer(layerName);
+        if (kinematic) platform.AddComponent<Rigidbody>().isKinematic = true;
+
+        MortarManualAimSolution solution = Resolve(0f);
+        Assert.That(solution.SurfacePoint.y, Is.EqualTo(Anchor.y + 4.25f).Within(.02f),
+            "A valid platform must remain the landing surface above the lower floor.");
+        Assert.That(Vector3.Dot(solution.SurfaceNormal, Vector3.up), Is.GreaterThan(.999f));
+    }
+
+    [TestCase(45f, true)]
+    [TestCase(60f, false)]
+    public void SurfaceSlope_RequiresWalkableSupport(float slopeDegrees, bool walkable)
+    {
+        GameObject slope = Cube("Inclined surface", new Vector3(0f, 4f, 18f), new Vector3(8f, .5f, 8f));
+        slope.transform.rotation = Quaternion.Euler(-slopeDegrees, 0f, 0f);
+        Physics.SyncTransforms();
+        bool resolved = MortarManualAim.TryResolve(Origin, Vector3.forward, Vector3.forward,
+            _tuning, .18f, null, _hits, out var solution);
+        Assert.That(resolved, Is.EqualTo(walkable));
+        if (walkable)
+            Assert.That(Vector3.Angle(solution.SurfaceNormal, Vector3.up), Is.EqualTo(slopeDegrees).Within(.1f));
+        else
+        {
+            Flat();
+            Assert.That(Resolve(0f).SurfacePoint.y, Is.EqualTo(Anchor.y).Within(.02f),
+                "A steep model face must not hide valid ground beneath it.");
+        }
+    }
+
     [Test]
     public void Ledge_FindsLowerFloorAtSelectedRange()
     {

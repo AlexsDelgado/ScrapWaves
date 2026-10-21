@@ -521,30 +521,24 @@ public class ReticleHud : MonoBehaviour
         // Resolve from the current wearable muzzle every frame, just like manual fire.
         AimSolution aim = ResolveAimSolution();
         if (!aim.IsValid || aim.FrameNumber != Time.frameCount
-            || !mortar.TryGetManualTerrainImpact(aim.Direction, out RaycastHit terrainHit))
+            || !mortar.TryGetManualTerrainImpact(aim.Direction, out RaycastHit terrainHit)
+            || !MortarPresentationSurface.TryResolveGround(terrainHit, transform,
+                _mortarPresentationSupportHits, out RaycastHit groundHit))
         {
             SetMortarMarkerVisible(false);
             return;
         }
 
-        // Mark the actual first collision, including walls and undersides of ceilings.
-        Vector3 presentationPoint = terrainHit.point;
-        Vector3 normal = terrainHit.normal.sqrMagnitude > 0.0001f ? terrainHit.normal.normalized : Vector3.up;
+        // Keep the footprint on supporting ground even when the shot hits an actor or prop above it.
+        Vector3 presentationPoint = groundHit.point;
+        Vector3 normal = groundHit.normal;
         Vector3 markerPosition = presentationPoint + normal * _mortarSurfaceOffset;
         if (_authoredMortarMarker != null)
         {
             _authoredMortarMarker.gameObject.SetActive(true);
             WeaponUpgradePath path = runtime.HasAdvancedPath ? runtime.SelectedPath : WeaponUpgradePath.None;
-            bool ground = normal.y >= 0.2f
-                && ReticleAimProvider.IsValidMortarTerrainTransform(terrainHit.transform, transform)
-                && (terrainHit.rigidbody == null
-                    || ReticleAimProvider.IsValidMortarTerrainTransform(terrainHit.rigidbody.transform, transform));
-            if (ground)
-                _authoredMortarMarker.ConfigureGroundContact(presentationPoint, normal,
-                    Mathf.Max(0f, mortar.ManualFootprintRadius), mortar.ManualTravelTime, path, transform);
-            else
-                _authoredMortarMarker.Configure(markerPosition, normal,
-                    Mathf.Max(0f, mortar.ManualFootprintRadius), mortar.ManualTravelTime, path);
+            _authoredMortarMarker.ConfigureGroundContact(presentationPoint, normal,
+                Mathf.Max(0f, mortar.ManualFootprintRadius), mortar.ManualTravelTime, path, transform);
             if (_mortarMarkerRoot != null)
                 _mortarMarkerRoot.SetActive(false);
             return;

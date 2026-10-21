@@ -76,9 +76,7 @@ public static class MortarManualAim
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = candidates[i];
-            if (hit.normal.y < 0.2f || hit.distance >= nearest
-                || !ReticleAimProvider.IsValidMortarTerrainTransform(hit.transform, ignoredRoot)
-                || (hit.rigidbody != null && !ReticleAimProvider.IsValidMortarTerrainTransform(hit.rigidbody.transform, ignoredRoot)))
+            if (hit.distance >= nearest || !ReticleAimProvider.IsValidMortarGroundHit(hit, ignoredRoot))
                 continue;
             nearest = hit.distance;
             surface = hit;

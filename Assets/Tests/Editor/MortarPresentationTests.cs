@@ -138,6 +138,91 @@ public sealed class MortarPresentationTests
         }
     }
 
+    [TestCase("enemy", 0f)]
+    [TestCase("dynamic", 0f)]
+    [TestCase("station", 15f)]
+    public void FiredShellIndicator_ProjectsUnderModelsWithoutChangingCollision(string modelKind, float slope)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Vector3 anchor = new(6000f, 100f, 6000f);
+        GameObject floor = null, model = null;
+        MortarShellImpact shell = null;
+        try
+        {
+            floor = CreateMarkerSupport(anchor, slope);
+            model = CreateMarkerObstruction(anchor, modelKind);
+            Physics.SyncTransforms();
+            shell = LaunchManualMarkerShell(profile, anchor, MortarUpgradePayload.None);
+            MortarShellVfx vfx = shell.GetComponent<MortarShellVfx>();
+
+            Assert.That(shell.HasPredictedPresentationCollision, Is.True);
+            Assert.That(shell.PredictedPresentationCollisionPoint.y, Is.GreaterThan(anchor.y + .5f),
+                "Physical prediction must still hit the model above the floor.");
+            AssertGroundedShellIndicator(vfx, floor.GetComponent<Collider>(), model.GetComponent<Collider>());
+            vfx.UpdateFlight(Vector3.forward, .5f);
+            AssertGroundedShellIndicator(vfx, floor.GetComponent<Collider>(), model.GetComponent<Collider>());
+
+            AdvanceShellToImpact(shell);
+            Assert.That(GetField<Collider>(shell, "_impactCollider"), Is.SameAs(model.GetComponent<Collider>()));
+            Assert.That(GetField<Vector3>(shell, "_target").y, Is.GreaterThan(anchor.y + .5f),
+                "The visual ground projection must not relocate the physical explosion.");
+        }
+        finally
+        {
+            if (shell != null) Object.DestroyImmediate(shell.gameObject);
+            if (model != null) Object.DestroyImmediate(model);
+            if (floor != null) Object.DestroyImmediate(floor);
+        }
+    }
+
+    [Test]
+    public void RepeatedShellIndicator_StaysGroundedAndCannotReappearAfterPooledVoidLaunch()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Vector3 anchor = new(6100f, 100f, 6100f);
+        MortarUpgradePayload payload = new(false, 0, 0f, 0f, 3, 1f);
+        GameObject floor = null, model = null;
+        MortarShellImpact shell = null;
+        try
+        {
+            floor = CreateMarkerSupport(anchor, 0f);
+            model = CreateMarkerObstruction(anchor, "dynamic");
+            Physics.SyncTransforms();
+            shell = LaunchManualMarkerShell(profile, anchor, payload);
+            MortarShellVfx vfx = shell.GetComponent<MortarShellVfx>();
+            AdvanceShellToImpact(shell);
+            Assert.That(GetField<Collider>(shell, "_impactCollider"), Is.SameAs(model.GetComponent<Collider>()));
+            AssertGroundedShellIndicator(vfx, floor.GetComponent<Collider>(), model.GetComponent<Collider>());
+            vfx.UpdateRepeatCountdown(.5f);
+            Invoke(shell, "Tick", 1.01f);
+            AssertGroundedShellIndicator(vfx, floor.GetComponent<Collider>(), model.GetComponent<Collider>());
+
+            Invoke(shell, "ReleaseShell");
+            Assert.That(vfx.LandingIndicatorVisible, Is.False);
+            floor.SetActive(false);
+            Physics.SyncTransforms();
+            MortarShellImpact pooled = shell;
+            shell = LaunchManualMarkerShell(profile, anchor, payload);
+            Assert.That(shell, Is.SameAs(pooled));
+            vfx = shell.GetComponent<MortarShellVfx>();
+            Assert.That(shell.HasPredictedPresentationCollision, Is.True,
+                "A model still blocks the shot even when no valid ground exists beneath it.");
+            Assert.That(vfx.LandingIndicatorVisible, Is.False);
+            AdvanceShellToImpact(shell);
+            Assert.That(GetField<Collider>(shell, "_impactCollider"), Is.SameAs(model.GetComponent<Collider>()));
+            Assert.That(vfx.LandingIndicatorVisible, Is.False, "Impact/countdown must not revive a marker over void.");
+            vfx.UpdateRepeatCountdown(.5f);
+            Invoke(shell, "Tick", 1.01f);
+            Assert.That(vfx.LandingIndicatorVisible, Is.False, "Repeat pulses must preserve the missing-ground state.");
+        }
+        finally
+        {
+            if (shell != null) Object.DestroyImmediate(shell.gameObject);
+            if (model != null) Object.DestroyImmediate(model);
+            if (floor != null) Object.DestroyImmediate(floor);
+        }
+    }
+
     [Test]
     public void ShellLandingCountdown_RemainsAlignedToResolvedSurface()
     {
@@ -656,6 +741,91 @@ public sealed class MortarPresentationTests
         }
     }
 
+    private static GameObject CreateMarkerSupport(Vector3 anchor, float slope)
+    {
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        floor.transform.rotation = Quaternion.Euler(0f, 0f, slope);
+        floor.transform.position = anchor - floor.transform.up * .1f;
+        floor.transform.localScale = new Vector3(24f, .2f, 24f);
+        floor.AddComponent<Rigidbody>().isKinematic = true;
+        return floor;
+    }
+
+    private static GameObject CreateMarkerObstruction(Vector3 anchor, string kind)
+    {
+        GameObject model = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        model.transform.position = anchor + Vector3.up;
+        model.transform.localScale = Vector3.one * 2f;
+        if (kind == "enemy")
+        {
+            model.layer = LayerMask.NameToLayer("Enemy");
+            model.AddComponent<MortarPresentationTestDamageable>();
+        }
+        else if (kind == "dynamic")
+            model.AddComponent<Rigidbody>().useGravity = false;
+        else
+            model.AddComponent<CraftingStation>();
+        return model;
+    }
+
+    private static MortarShellImpact LaunchManualMarkerShell(
+        WeaponPresentationProfile profile, Vector3 anchor, MortarUpgradePayload payload)
+    {
+        Vector3 start = anchor + new Vector3(0f, 2f, -8f);
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Mortar.asset");
+        WeaponInstance weapon = new() { Data = data, Level = 1 };
+        WeaponFeedbackContext feedback = new(weapon, WeaponFeedbackMode.Manual, .5f,
+            start, Vector3.forward, explosionRadius: 2f);
+        return MortarShellImpact.LaunchAuthored(
+            start, anchor, .5f, 2f, 10, 2f, .5f, 0f, .12f, null, payload, false, default,
+            profile.Mortar.ShellPrefab, profile.Mortar.ShellPoolCapacity,
+            true, true, new RecordingPresentationSink(), feedback,
+            manualTargeting: true, manualLandingNormal: Vector3.up);
+    }
+
+    private static void AdvanceShellToImpact(MortarShellImpact shell)
+    {
+        for (int i = 0; i < 120 && !GetField<bool>(shell, "_detonated"); i++)
+            Invoke(shell, "Tick", .01f);
+        Assert.That(GetField<bool>(shell, "_detonated"), Is.True, "The actual flight must reach the obstruction.");
+    }
+
+    private static void AssertGroundedShellIndicator(MortarShellVfx vfx, Collider floor, Collider model)
+    {
+        Assert.That(vfx.LandingIndicatorVisible, Is.True);
+        Vector3 normal = floor.transform.up;
+        Assert.That(floor.Raycast(new Ray(vfx.LandingIndicatorPosition + normal, -normal),
+            out RaycastHit anchorHit, 2f), Is.True);
+        Assert.That(Vector3.Dot(vfx.LandingIndicatorPosition - anchorHit.point, normal),
+            Is.EqualTo(.035f).Within(.003f));
+        int renderedIndices = 0, underModel = 0;
+        float maximumRadius = 0f;
+        foreach (Renderer renderer in GetField<Renderer[]>(vfx, "_indicatorRenderers"))
+        {
+            if (renderer == null || !renderer.gameObject.activeInHierarchy) continue;
+            MeshFilter filter = renderer.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null) continue;
+            Mesh mesh = filter.sharedMesh;
+            Vector3[] vertices = mesh.vertices;
+            foreach (int index in mesh.triangles)
+            {
+                Vector3 world = filter.transform.TransformPoint(vertices[index]);
+                Assert.That(floor.Raycast(new Ray(world + normal, -normal), out RaycastHit hit, 2f), Is.True);
+                Assert.That(Vector3.Dot(world - hit.point, normal), Is.EqualTo(.035f).Within(.003f),
+                    "Every rendered marker vertex must lie on the floor, including beneath the model.");
+                maximumRadius = Mathf.Max(maximumRadius,
+                    Vector3.ProjectOnPlane(world - vfx.LandingIndicatorPosition, normal).magnitude);
+                Bounds bounds = model.bounds;
+                if (world.x > bounds.min.x + .02f && world.x < bounds.max.x - .02f
+                    && world.z > bounds.min.z + .02f && world.z < bounds.max.z - .02f) underModel++;
+                renderedIndices++;
+            }
+        }
+        Assert.That(renderedIndices, Is.GreaterThan(24), "Grounded marker geometry must remain visible.");
+        Assert.That(underModel, Is.GreaterThan(0), "The model must occlude ground geometry, not remove it.");
+        Assert.That(maximumRadius, Is.GreaterThan(1.5f), "The impact ring must extend visibly around the model footprint.");
+    }
+
     private static MortarShellImpact LaunchAuthored(
         WeaponPresentationProfile profile,
         Vector3 target,
@@ -739,4 +909,10 @@ public sealed class MortarPresentationTests
         Assert.That(field, Is.Not.Null, fieldName);
         return (T)field.GetValue(target);
     }
+}
+
+// Preserve damageable collision/filtering semantics without invoking progression in presentation fixtures.
+public sealed class MortarPresentationTestDamageable : MonoBehaviour, IDamageable
+{
+    public bool ApplyDamage(int amount) => false;
 }

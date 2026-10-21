@@ -140,6 +140,55 @@ public class ReticleAimProvider : MonoBehaviour
         return candidate.GetComponentInParent<EnemyRegistryMember>() == null;
     }
 
+    // Match the player's walkable slope and ground layers. Default is intentional:
+    // authored elevated pads and geyser walkable meshes also live on that layer.
+    public const float MortarGroundMinimumUpDot = 0.6427876f; // cos(50 degrees)
+    // MonoBehaviour types can first initialize on Unity's loading thread. Resolve
+    // layer names only when a physics query calls this property on the main thread.
+    private static int s_MortarGroundMask, s_MortarActorMask;
+    private static int MortarGroundMask
+    {
+        get
+        {
+            if (s_MortarGroundMask == 0)
+            {
+                s_MortarActorMask = LayerMask.GetMask("Enemy", "Player");
+                s_MortarGroundMask = LayerMask.GetMask("Default", "Terrain");
+            }
+            return s_MortarGroundMask;
+        }
+    }
+
+    public static bool IsValidMortarGroundHit(RaycastHit hit, Transform ignoredRoot)
+    {
+        return hit.normal.y >= MortarGroundMinimumUpDot
+            && IsValidMortarGroundCollider(hit.collider, ignoredRoot);
+    }
+
+    public static bool IsValidMortarGroundCollider(Collider candidate, Transform ignoredRoot)
+    {
+        if (candidate == null || candidate.isTrigger
+            || (MortarGroundMask & (1 << candidate.gameObject.layer)) == 0
+            || !IsValidMortarTerrainTransform(candidate.transform, ignoredRoot))
+            return false;
+
+        Rigidbody body = candidate.attachedRigidbody;
+        if (body != null && !body.isKinematic) return false;
+        // Inspect the collider hierarchy, not RaycastHit.transform (which can be
+        // the attached body's transform). Child hitboxes can have their own layer.
+        for (Transform current = candidate.transform; current != null; current = current.parent)
+        {
+            int layer = current.gameObject.layer;
+            if ((s_MortarActorMask & (1 << layer)) != 0)
+                return false;
+        }
+
+        // These authored colliders enclose interactive props or spawn exclusion
+        // volumes; an upward face does not make them a floor.
+        return candidate.GetComponentInParent<CraftingStation>() == null
+            && candidate.GetComponentInParent<EnemySpawnBlockVolume>() == null;
+    }
+
     private Camera ResolveCamera()
     {
         if (_aimCamera == null)

@@ -34,7 +34,7 @@ public sealed class MortarGroundConformer : IDisposable
     private readonly List<Layer> _layers = new();
     private readonly RaycastHit[] _hits = new RaycastHit[32];
     private readonly Collider[] _nearby = new Collider[32];
-    private readonly Dictionary<Transform, bool> _terrainValidity = new();
+    private readonly Dictionary<Collider, bool> _terrainValidity = new();
     private readonly bool _enableBoxFastPath;
     private BoxCollider _singleBox;
     private Vector3 _contact, _normal;
@@ -306,8 +306,7 @@ public sealed class MortarGroundConformer : IDisposable
         for (int i = 0; i < count; i++)
         {
             Collider candidate = _nearby[i];
-            if (candidate == null || !IsValidTerrain(candidate.transform)
-                || (candidate.attachedRigidbody != null && !IsValidTerrain(candidate.attachedRigidbody.transform)))
+            if (!IsValidTerrain(candidate))
                 continue;
             if (only != null) return;
             only = candidate;
@@ -346,7 +345,7 @@ public sealed class MortarGroundConformer : IDisposable
             BoxRaycastCount++;
 #endif
             if (!_singleBox.Raycast(new Ray(origin, -_normal), out RaycastHit hit, _probeDistance * 2f)
-                || hit.normal.y < .2f || Vector3.Dot(hit.normal, _normal) < .2f)
+                || hit.normal.y < ReticleAimProvider.MortarGroundMinimumUpDot || Vector3.Dot(hit.normal, _normal) < .2f)
                 return new Sample(false, default);
             Vector3 faceNormal = _singleBox.transform.InverseTransformDirection(hit.normal);
             int face = Mathf.Abs(faceNormal.x) > .999f ? (faceNormal.x > 0f ? 1 : 2)
@@ -371,9 +370,8 @@ public sealed class MortarGroundConformer : IDisposable
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = candidates[i];
-            if (hit.normal.y < 0.2f || Vector3.Dot(hit.normal, _normal) < 0.2f
-                || !IsValidTerrain(hit.transform)
-                || (hit.rigidbody != null && !IsValidTerrain(hit.rigidbody.transform)))
+            if (hit.normal.y < ReticleAimProvider.MortarGroundMinimumUpDot || Vector3.Dot(hit.normal, _normal) < 0.2f
+                || !IsValidTerrain(hit.collider))
                 continue;
             float distance = Mathf.Abs(Vector3.Dot(hit.point - tangentPoint, _normal));
             if (distance >= closest) continue;
@@ -383,11 +381,11 @@ public sealed class MortarGroundConformer : IDisposable
         return new Sample(!float.IsPositiveInfinity(closest), point);
     }
 
-    private bool IsValidTerrain(Transform candidate)
+    private bool IsValidTerrain(Collider candidate)
     {
         if (candidate == null) return false;
         if (_terrainValidity.TryGetValue(candidate, out bool valid)) return valid;
-        valid = ReticleAimProvider.IsValidMortarTerrainTransform(candidate, _ignoredRoot);
+        valid = ReticleAimProvider.IsValidMortarGroundCollider(candidate, _ignoredRoot);
         _terrainValidity.Add(candidate, valid);
         return valid;
     }
