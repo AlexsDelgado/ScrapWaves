@@ -2,6 +2,20 @@ using UnityEngine;
 
 public static class WeaponDamageApplier
 {
+    /// <summary>
+    /// Shared identity for per-attack/tick deduplication and status ownership. Keep
+    /// the original receiver when applying damage so a selected hit zone keeps its bonus.
+    /// </summary>
+    public static IDamageable GetDamageIdentity(IDamageable receiver)
+    {
+        if (receiver is Component component)
+        {
+            EnemyHealth health = component.GetComponentInParent<EnemyHealth>();
+            if (health != null) return health;
+        }
+        return receiver;
+    }
+
     /// <summary>WeaponId activo opcional para crédito de kill cuando el call site no lo pasa explícito.</summary>
     public static string PendingSourceWeaponId { get; set; }
 

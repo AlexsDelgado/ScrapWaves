@@ -35,7 +35,9 @@ public class BossKeyDrop : MonoBehaviour
         // Spawnea en la muerte; WorldPickup cae al suelo con PickupGroundFall.
         // No snappeamos con raycast aquí: el fallback ~0 podía golpear al boss (layer Enemy)
         // o dejar la llave flotando si el suelo no está en Terrain/Default.
-        Vector3 pos = transform.position + Vector3.up * 0.75f;
+        Vector3 anchor = TryGetComponent(out GigaWormBehavior worm)
+            ? worm.GetRewardDropPosition() : transform.position;
+        Vector3 pos = anchor + Vector3.up * 0.75f;
         Instantiate(prefab, pos, Quaternion.identity);
     }
 }

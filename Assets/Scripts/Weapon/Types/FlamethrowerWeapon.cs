@@ -543,7 +543,9 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
         if (tuning.FlameBurnDuration <= 0f && !HasAuthoredNitrogenControl(activeAbility)) return;
 
         IDamageable damageable = target.GetComponentInParent<IDamageable>();
-        if (damageable is not Component damageComponent)
+        // All hit zones refresh one burn on the health owner; changing touched
+        // segments must not create independent damage-over-time components.
+        if (WeaponDamageApplier.GetDamageIdentity(damageable) is not Component damageComponent)
             return;
 
         if (IsLiquidNitrogenPath())

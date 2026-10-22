@@ -41,12 +41,14 @@ public static class WeaponRadialDamage
             Collider hit = hits[i];
             if (hit == null)
                 continue;
-            IDamageable damageable = hit.GetComponentInParent<IDamageable>();
+            // Area damage belongs to the health owner, as with projectile explosions.
+            IDamageable damageable = WeaponDamageApplier.GetDamageIdentity(hit.GetComponentInParent<IDamageable>());
             if (damageable == null || s_damaged.Contains(damageable))
                 continue;
 
             s_damaged.Add(damageable);
-            float distance = Vector3.Distance(center, hit.transform.position);
+            Vector3 targetPosition = damageable is Component component ? component.transform.position : hit.transform.position;
+            float distance = Vector3.Distance(center, targetPosition);
             float t = Mathf.Clamp01(distance / radius);
             float falloffScale = Mathf.Lerp(1f, 1f - Mathf.Clamp01(falloff), t);
             int finalDamage = Mathf.Max(1, Mathf.RoundToInt(damage * falloffScale));
@@ -108,12 +110,13 @@ public static class WeaponRadialDamage
             Collider hit = hits[i];
             if (hit == null)
                 continue;
-            IDamageable damageable = hit.GetComponentInParent<IDamageable>();
+            IDamageable damageable = WeaponDamageApplier.GetDamageIdentity(hit.GetComponentInParent<IDamageable>());
             if (damageable == null || s_damaged.Contains(damageable))
                 continue;
 
             s_damaged.Add(damageable);
-            float distance = Vector3.Distance(center, hit.transform.position);
+            Vector3 targetPosition = damageable is Component component ? component.transform.position : hit.transform.position;
+            float distance = Vector3.Distance(center, targetPosition);
             float t = Mathf.Clamp01(distance / radius);
             float falloffScale = Mathf.Lerp(1f, 1f - Mathf.Clamp01(falloff), t);
             Transform target = damageable is Component damageComponent

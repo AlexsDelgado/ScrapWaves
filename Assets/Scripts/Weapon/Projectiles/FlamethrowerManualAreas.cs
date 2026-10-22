@@ -317,7 +317,7 @@ public sealed class FlamethrowerManualAreas : MonoBehaviour
                 Collider collider = _overlaps[i];
                 if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy
                     || (_owner != null && collider.transform.IsChildOf(_owner))) continue;
-                IDamageable receiver = collider.GetComponentInParent<IDamageable>();
+                IDamageable receiver = WeaponDamageApplier.GetDamageIdentity(collider.GetComponentInParent<IDamageable>());
                 if (receiver is not Component target || receiver is PlayerHealth) continue;
                 Vector3 point = collider.ClosestPoint(center);
                 // Reverse visibility also catches a center embedded by a moving obstacle.

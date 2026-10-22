@@ -706,7 +706,7 @@ public sealed class MortarShellImpact : MonoBehaviour
         Collider[] hits = Physics.OverlapSphere(explosionCenter, _explosionRadius);
         for (int i = 0; i < hits.Length; i++)
         {
-            IDamageable damageable = hits[i].GetComponentInParent<IDamageable>();
+            IDamageable damageable = WeaponDamageApplier.GetDamageIdentity(hits[i].GetComponentInParent<IDamageable>());
             if (damageable == null)
                 continue;
 
@@ -714,7 +714,8 @@ public sealed class MortarShellImpact : MonoBehaviour
                 continue;
 
             _damagedThisExplosion.Add(damageable);
-            float distance = Vector3.Distance(explosionCenter, hits[i].transform.position);
+            Vector3 targetPosition = damageable is Component component ? component.transform.position : hits[i].transform.position;
+            float distance = Vector3.Distance(explosionCenter, targetPosition);
             float t = _explosionRadius <= 0f ? 1f : Mathf.Clamp01(distance / _explosionRadius);
             float falloffScale = Mathf.Lerp(1f, 1f - _falloff, t);
             int finalDamage = ResolveDamage(damageable, hits[i], falloffScale);
