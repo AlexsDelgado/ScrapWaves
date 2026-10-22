@@ -152,6 +152,9 @@ public class ZoneSpawner : MonoBehaviour
                     out _))
             {
                 _difficultyManager?.ApplySpawnModifiers(instance);
+                // In-world ambushes stay independent of the orbital cycle cap, even when
+                // this pooled instance previously belonged to an orbital or objective spawn.
+                EnemySpawnPopulationMember.RecordSpawn(instance, EnemySpawnSource.InWorld);
                 _spawned.Add(instance);
             }
         }

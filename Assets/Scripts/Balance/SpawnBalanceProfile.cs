@@ -91,8 +91,12 @@ public class SpawnBalanceProfile : ScriptableObject
     [SerializeField, Min(0.05f), Tooltip("Intervalo base entre oleadas, antes de aplicar el escalado por heat.")]
     private float _spawnInterval = 5f;
 
-    [SerializeField, Min(1), Tooltip("Techo duro de enemigos activos simultáneos.")]
+    [SerializeField, Min(1), Tooltip("Compatibility ceiling for counted concurrent enemies. In-world spawns are excluded; required objectives may exceed this limit.")]
     private int _maxActiveEnemies = 300;
+
+    [Header("Concurrent enemy cap by Overheat cycle")]
+    [SerializeField, Min(1), Tooltip("Concurrent counted enemies, not a total spawn budget. Element 0 covers run start through the first Overheat; the index follows completed cycles. The last value repeats. Empty uses Max Active Enemies; entries are limited by that ceiling. In-world spawns never count. Required boss/elite objectives count but always bypass admission. Existing enemies are never culled.")]
+    private int[] _maxActiveEnemiesByCycle = System.Array.Empty<int>();
 
     public float ScalingStartDelaySeconds => _scalingStartDelaySeconds;
     public AnimationCurve IntensityOverMinutesAfterStart => _intensityOverMinutesAfterStart;
@@ -123,7 +127,17 @@ public class SpawnBalanceProfile : ScriptableObject
     public float PostOverheatDecayPerSecond => _postOverheatDecayPerSecond;
 
     public float SpawnInterval => _spawnInterval;
-    public int MaxActiveEnemies => _maxActiveEnemies;
+    public int MaxActiveEnemies => Mathf.Max(1, _maxActiveEnemies);
+
+    /// <summary>Zero-based completed-cycle index; legacy profiles retain their existing ceiling.</summary>
+    public int GetMaxActiveEnemiesForCycle(int completedCycles)
+    {
+        if (_maxActiveEnemiesByCycle == null || _maxActiveEnemiesByCycle.Length == 0)
+            return MaxActiveEnemies;
+
+        int index = Mathf.Clamp(completedCycles, 0, _maxActiveEnemiesByCycle.Length - 1);
+        return Mathf.Clamp(_maxActiveEnemiesByCycle[index], 1, MaxActiveEnemies);
+    }
 
     /// <summary>Misma forma que la curva serializada en GameplayScene: intensidad máxima a ~19.46 min.</summary>
     private static AnimationCurve DefaultIntensityCurve()
@@ -181,6 +195,11 @@ public class SpawnBalanceProfile : ScriptableObject
             _spawnInterval = 0.05f;
         if (_maxActiveEnemies < 1)
             _maxActiveEnemies = 1;
+        if (_maxActiveEnemiesByCycle != null)
+        {
+            for (int i = 0; i < _maxActiveEnemiesByCycle.Length; i++)
+                _maxActiveEnemiesByCycle[i] = Mathf.Max(1, _maxActiveEnemiesByCycle[i]);
+        }
     }
 #endif
 }

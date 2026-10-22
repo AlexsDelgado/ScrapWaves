@@ -524,6 +524,8 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
 
         _spawned.Add(instance);
         TrackElite(instance);
+        // Required objectives may exceed the cap; their pending/spawning state is unchanged.
+        EnemySpawnPopulationMember.RecordSpawn(instance, EnemySpawnSource.Objective);
     }
 
     private static void ReleaseUnregisteredElite(GameObject instance)

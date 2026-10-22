@@ -98,7 +98,20 @@ public class OrbitalSpawner : MonoBehaviour
     /// <summary>Intervalo antes de aplicar el escalado por heat.</summary>
     public float BaseSpawnInterval => _profile != null ? _profile.SpawnInterval : _spawnInterval;
 
-    public int MaxActiveEnemies => _profile != null ? _profile.MaxActiveEnemies : _maxActiveEnemies;
+    public int MaxActiveEnemies
+    {
+        get
+        {
+            if (_heatManager == null)
+                _heatManager = HeatManager.GetInstance();
+            int completedCycles = _heatManager != null ? _heatManager.CompletedOverheatCycles : 0;
+            return _profile != null
+                ? _profile.GetMaxActiveEnemiesForCycle(completedCycles)
+                : Mathf.Max(1, _maxActiveEnemies);
+        }
+    }
+
+    public int CappedActiveEnemies => EnemySpawnPopulationMember.ActiveCount;
 
     /// <summary>Intervalo real entre oleadas con el heat actual y los overheats ya terminados. Para readouts de QA y del hub de balance.</summary>
     public float CurrentSpawnInterval => EffectiveSpawnInterval();
@@ -229,7 +242,7 @@ public class OrbitalSpawner : MonoBehaviour
 
         for (int i = 0; i < batch; i++)
         {
-            if (EnemyRegistry.ActiveCount >= MaxActiveEnemies)
+            if (CappedActiveEnemies >= MaxActiveEnemies)
                 break;
 
             int dir = OrbitalSpawnPlacement.PickRandomDirectionIndex();
@@ -255,6 +268,7 @@ public class OrbitalSpawner : MonoBehaviour
                     out _))
             {
                 _difficultyManager?.ApplySpawnModifiers(instance);
+                EnemySpawnPopulationMember.RecordSpawn(instance, EnemySpawnSource.Orbital);
                 _spawned.Add(instance);
             }
         }

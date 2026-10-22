@@ -408,6 +408,8 @@ public class BossManager : MonoBehaviour
             health.OnDied += handler;
 
             _activeBosses.Add(health);
+            // Preserve objective occupancy without gating required objective admission.
+            EnemySpawnPopulationMember.RecordSpawn(go, EnemySpawnSource.Objective);
 
             Vector3 toPlayer = player.position - go.transform.position;
             toPlayer.y = 0f;
