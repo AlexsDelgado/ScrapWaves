@@ -193,6 +193,7 @@ public sealed class EnemyEmergence : MonoBehaviour, IEnemySpawnLifecycle
     public void BeginAtCurrentPlacement()
     {
         if (_excluded || _suspended || _phase != Phase.PendingPlacement) return;
+        EnemyStatRandomizer.BeginSpawn(gameObject);
         Vector3 originalPosition = transform.position;
         PrepareForPlacement();
         int mask = LayerMask.GetMask("Terrain", "Default");
@@ -201,6 +202,9 @@ public sealed class EnemyEmergence : MonoBehaviour, IEnemySpawnLifecycle
         bool found = SpawnGroundUtility.TrySampleGround(originalPosition, originalPosition.y, 0f, mask, mask, 3f, 100f, 0f,
             out _, out Vector3 groundPoint, out Vector3 groundNormal);
         RestoreCollisionAndPhysics();
+        EnemyStatRandomizer variation = GetComponent<EnemyStatRandomizer>();
+        if (found && variation != null && variation.HasSampledForSpawn && variation.SizeMultiplier != 1f)
+            SpawnGroundUtility.SeatAboveSurface(transform, groundPoint, 0f);
         if (!found)
         {
             groundPoint = originalPosition;

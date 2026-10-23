@@ -12,6 +12,7 @@ public class EnemyFollow : MonoBehaviour
     private float _baseMoveSpeed;
     public float AuthoredMoveSpeed => _moveSpeed;
     private float _difficultySpeedMultiplier = 1f;
+    private EnemyStatRandomizer _statRandomizer;
     private SwarmPooledEnemy _pooled;
 
     [SerializeField, Tooltip("Distancia mínima al jugador en XZ. Debe ser menor que el radio del hurtbox + collider del enemigo si quieres daño por contacto.")]
@@ -57,6 +58,7 @@ public class EnemyFollow : MonoBehaviour
     private void Awake()
     {
         _baseMoveSpeed = _moveSpeed;
+        _statRandomizer = GetComponent<EnemyStatRandomizer>();
         _pooled = GetComponent<SwarmPooledEnemy>();
         _sampleSeed = GetInstanceID();
         CacheDerived();
@@ -188,6 +190,7 @@ public class EnemyFollow : MonoBehaviour
 
         float speed = _baseMoveSpeed
             * _difficultySpeedMultiplier
+            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
             * WeaponMovementSlowStatus.GetSpeedMultiplier(transform)
             * DebugSpeedTool.EnemyScale;
         if (OverheatSwarmBoost.SpeedMultiplier > 1f)

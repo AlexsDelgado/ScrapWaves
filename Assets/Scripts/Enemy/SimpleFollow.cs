@@ -19,6 +19,7 @@ public class SimpleFollow : MonoBehaviour
 
     private float _baseSpeed;
     private float _difficultySpeedMultiplier = 1f;
+    private EnemyStatRandomizer _statRandomizer;
     private Rigidbody _rb;
     private EnemyKnockbackReceiver _knockback;
     private EnemyEmergence _emergence;
@@ -32,6 +33,7 @@ public class SimpleFollow : MonoBehaviour
         _knockback = GetComponent<EnemyKnockbackReceiver>();
         _emergence = GetComponent<EnemyEmergence>();
         _baseSpeed = _speed;
+        _statRandomizer = GetComponent<EnemyStatRandomizer>();
         _sampleSeed = GetInstanceID();
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
@@ -144,6 +146,7 @@ public class SimpleFollow : MonoBehaviour
 
         float speed = _baseSpeed
             * _difficultySpeedMultiplier
+            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
             * WeaponMovementSlowStatus.GetSpeedMultiplier(transform)
             * DebugSpeedTool.EnemyScale;
         Vector3 nextPos = transform.position + dir * speed * fixedDeltaTime + knockbackDisplacement;

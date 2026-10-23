@@ -164,6 +164,7 @@ public class SwarmSpawner : MonoBehaviour
             if (enemy == null)
                 break;
 
+            EnemyStatRandomizer.BeginSpawn(enemy);
             _difficultyManager?.ApplySpawnModifiers(enemy);
 
             EnemyEmergence emergence = enemy.GetComponent<EnemyEmergence>();

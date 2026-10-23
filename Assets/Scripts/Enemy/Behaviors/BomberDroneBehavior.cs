@@ -44,6 +44,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     [SerializeField, Min(0f)] private float _engageOrbitWeight = 0.32f;
     [SerializeField, Min(0f)] private float _droneOrbitWeight = 0.6f;
 
+    private EnemyStatRandomizer _statRandomizer;
     private State _state;
     private float _stateTimer;
     private int _dashesDone;
@@ -57,6 +58,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     protected override void Awake()
     {
         base.Awake();
+        _statRandomizer = GetComponent<EnemyStatRandomizer>();
         if (_groundMask.value == 0)
             _groundMask = LayerMask.GetMask("Terrain", "Default");
     }
@@ -267,7 +269,10 @@ public class BomberDroneBehavior : EnemyBehaviorBase
         planarDir.y = 0f;
         if (planarDir.sqrMagnitude < 0.0001f)
             return;
-        transform.position += planarDir.normalized * (_moveSpeed * DebugSpeedTool.EnemyScale * Time.deltaTime);
+        float speed = _moveSpeed
+            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
+            * DebugSpeedTool.EnemyScale;
+        transform.position += planarDir.normalized * (speed * Time.deltaTime);
     }
 
     private void DropBomb()

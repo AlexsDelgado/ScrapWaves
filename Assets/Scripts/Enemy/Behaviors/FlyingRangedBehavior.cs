@@ -50,11 +50,13 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     private float _stateTimer;
     private Vector3 _lockedTargetPosition;
     private Rigidbody _rb;
+    private EnemyStatRandomizer _statRandomizer;
     private float _orbitSign = 1f;
 
     protected override void Awake()
     {
         base.Awake();
+        _statRandomizer = GetComponent<EnemyStatRandomizer>();
         _rb = GetComponent<Rigidbody>();
         if (_groundMask.value == 0)
             _groundMask = LayerMask.GetMask("Terrain", "Default");
@@ -239,7 +241,11 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         planarDir.y = 0f;
         if (planarDir.sqrMagnitude < 0.0001f || speedScale <= 0f)
             return;
-        transform.position += planarDir.normalized * (_moveSpeed * speedScale * DebugSpeedTool.EnemyScale * Time.deltaTime);
+        float speed = _moveSpeed
+            * speedScale
+            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
+            * DebugSpeedTool.EnemyScale;
+        transform.position += planarDir.normalized * (speed * Time.deltaTime);
     }
 
     private void Fire()

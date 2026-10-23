@@ -5,6 +5,7 @@ public class SwarmPooledEnemy : MonoBehaviour
     private SwarmEnemyPool _legacyPool;
     private GameObject _sourcePrefab;
     private bool _registryBound;
+    private bool _spawnNotified;
 
     public GameObject SourcePrefab => _sourcePrefab != null ? _sourcePrefab : _legacyPool != null ? _legacyPool.EnemyPrefab : null;
     public bool IsBound => _legacyPool != null || _registryBound;
@@ -30,11 +31,14 @@ public class SwarmPooledEnemy : MonoBehaviour
 
     public void NotifySpawned()
     {
+        if (_spawnNotified) return;
+        _spawnNotified = true;
         ResetForPoolSpawn();
     }
 
     public void NotifyDespawned()
     {
+        _spawnNotified = false;
         ResetForPoolDespawn();
     }
 

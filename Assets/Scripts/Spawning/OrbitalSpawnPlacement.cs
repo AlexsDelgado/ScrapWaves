@@ -179,6 +179,7 @@ public static class OrbitalSpawnPlacement
             EnemyPoolProfiler.RegisterInstantiate();
         }
 
+        EnemyStatRandomizer.BeginSpawn(instance);
         EnemyEmergence emergence = instance.GetComponent<EnemyEmergence>();
         emergence?.PrepareForPlacement();
         Transform root = instance.transform;

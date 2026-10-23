@@ -25,6 +25,7 @@ GameObject:
   - component: {fileID: 2160020316859181946}
   - component: {fileID: 8899111108157587729}
   - component: {fileID: 3921951370235727771}
+  - component: {fileID: 7901609657024954300}
   m_Layer: 3
   m_Name: Slime_Elite
   m_TagString: Untagged
@@ -385,6 +386,21 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &7901609657024954300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d2b6e706e8343cea9f91bc089b01f6d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyStatRandomizer
+  _healthMultiplierRange: {x: 1, y: 1}
+  _sizeMultiplierRange: {x: 1, y: 1}
+  _movementSpeedMultiplierRange: {x: 1, y: 1}
 --- !u!1 &1960799549473059457
 GameObject:
   m_ObjectHideFlags: 0

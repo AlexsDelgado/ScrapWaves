@@ -6,6 +6,8 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     [SerializeField, Min(0f)] private float _damageTakenMultiplier = 1f;
 
     private int _prefabMaxHealth;
+    private float _spawnHealthMultiplier = 1f;
+    private float _difficultyHealthMultiplier = 1f;
     private int _currentHealth;
     private bool _isInvincible;
     private bool _blockDotWhileInvincible;
@@ -35,6 +37,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     public void ApplyConfiguredMaxHealth(int maxHealth)
     {
         _prefabMaxHealth = Mathf.Max(1, maxHealth);
+        _spawnHealthMultiplier = _difficultyHealthMultiplier = 1f;
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
     }
@@ -49,6 +52,10 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     private void OnEnable()
     {
+        // Re-enabling the same randomized life must not reset its health or variation.
+        if (TryGetComponent(out EnemyStatRandomizer variation) && variation.HasSampledForSpawn)
+            return;
+        _spawnHealthMultiplier = _difficultyHealthMultiplier = 1f;
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
         _isInvincible = false;
@@ -59,19 +66,33 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     /// <summary>Tras salir del pool; <see cref="DifficultyManager"/> ajusta vida según la partida.</summary>
     public void ConfigureDifficultyForSpawn(float healthMultiplier)
     {
-        int newMax = Mathf.Max(1, Mathf.RoundToInt(_prefabMaxHealth * healthMultiplier));
-        _maxHealth = newMax;
-        _currentHealth = newMax;
+        _difficultyHealthMultiplier = healthMultiplier;
+        RefillScaledHealth();
     }
 
     /// <summary>Reset de estado al reutilizar desde pool (antes de modifiers de dificultad).</summary>
     public void PrepareForPoolSpawn()
     {
+        _spawnHealthMultiplier = _difficultyHealthMultiplier = 1f;
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
         _isInvincible = false;
         _blockDotWhileInvincible = false;
         _lastDamagingWeaponId = null;
+    }
+
+    /// <summary>Spawn-only variation; leaves the authored HP and difficulty factor intact.</summary>
+    public void SetSpawnHealthMultiplier(float multiplier)
+    {
+        _spawnHealthMultiplier = float.IsNaN(multiplier) || float.IsInfinity(multiplier) || multiplier <= 0f
+            ? 1f : multiplier;
+        RefillScaledHealth();
+    }
+
+    private void RefillScaledHealth()
+    {
+        _maxHealth = Mathf.Max(1, Mathf.RoundToInt(_prefabMaxHealth * _difficultyHealthMultiplier * _spawnHealthMultiplier));
+        _currentHealth = _maxHealth;
     }
 
     public void NotifyDamagedByWeapon(string weaponId)
