@@ -201,7 +201,7 @@ public sealed class FlamethrowerBurnStatus : MonoBehaviour
             direction: Vector3.up,
             impactPosition: impactPosition,
             impactNormal: Vector3.down,
-            damageAmount: result.AppliedDamage,
+            damageAmount: result.ResolvedDamage,
             isKill: result.Killed,
             isAbilityDamage: _source.IsAbilityDamage,
             targetClass: _targetClass,

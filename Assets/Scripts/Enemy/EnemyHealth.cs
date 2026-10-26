@@ -174,7 +174,8 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
             in request,
             healthBefore,
-            healthAfter);
+            healthAfter,
+            resolvedDamage: scaledDamage);
 
         if (result.Killed)
         {

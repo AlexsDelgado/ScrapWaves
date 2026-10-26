@@ -668,7 +668,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             EmitImpactFeedback(
                 target,
                 impactOrigin,
-                result.AppliedDamage,
+                result.ResolvedDamage,
                 feedbackMode,
                 isAbilityDamage,
                 result.Killed,
