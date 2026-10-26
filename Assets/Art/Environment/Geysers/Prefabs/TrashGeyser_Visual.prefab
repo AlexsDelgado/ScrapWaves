@@ -9820,6 +9820,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GeyserVfx
   _kind: 0
   _launcher: {fileID: 0}
+  _overheatManager: {fileID: 0}
   _updraft: {fileID: 6042525127932769187}
   _debris: {fileID: 4938023230807323933}
   _entryBurst: {fileID: 8180550168287287996}
