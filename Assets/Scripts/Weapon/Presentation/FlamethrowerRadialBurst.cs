@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -10,6 +11,10 @@ public sealed class FlamethrowerRadialBurstSettings
     [Range(32, 96)] public int BoundarySegments = 64;
     [Range(8, 32)] public int FlameTongues = 20;
     [Range(0, 40)] public int Embers = 24;
+    [Tooltip("Billboard flames using the fired flame material. Instances follow the expanding Q front.")]
+    [Range(0, 64)] public int FlameInstances = 32;
+    [Range(.06f, .3f)] public float FlameInstanceSizeFraction = .18f;
+    [Range(0f, 1f)] public float FlameInstanceOpacity = .85f;
     [Tooltip("Width of the flame trail behind the leading boundary as a fraction of radius. The center stays clear.")]
     [Range(.15f, .45f)] public float ClearCenterFraction = .23f;
     [Range(.04f, .28f)] public float FlameHeightFraction = .17f;
@@ -30,6 +35,9 @@ public sealed class FlamethrowerRadialBurstSettings
         BoundarySegments = Mathf.Clamp(BoundarySegments, 32, 96);
         FlameTongues = Mathf.Clamp(FlameTongues, 8, 32);
         Embers = Mathf.Clamp(Embers, 0, 40);
+        FlameInstances = Mathf.Clamp(FlameInstances, 0, 64);
+        FlameInstanceSizeFraction = Mathf.Clamp(FlameInstanceSizeFraction, .06f, .3f);
+        FlameInstanceOpacity = Mathf.Clamp01(FlameInstanceOpacity);
         ClearCenterFraction = Mathf.Clamp(ClearCenterFraction, .15f, .45f);
         FlameHeightFraction = Mathf.Clamp(FlameHeightFraction, .04f, .28f);
         FlameWidthFraction = Mathf.Clamp(FlameWidthFraction, .02f, .1f);
@@ -41,10 +49,15 @@ public sealed class FlamethrowerRadialBurstSettings
     }
 }
 
-/// <summary>Three bounded mesh draws. Every horizontal vertex stays inside the event's actual damage disc.</summary>
+/// <summary>Three bounded mesh draws and one pooled flame batch, all driven by the damage wave clock.</summary>
 internal sealed class FlamethrowerRadialBurst : IDisposable
 {
     const int TongueSections = 6;
+    const int MaximumFlameInstances = 64;
+    readonly ParticleSystem.Particle[] _flameParticles = new ParticleSystem.Particle[MaximumFlameInstances];
+    readonly List<Vector4> _flameClipSpheres = new(MaximumFlameInstances);
+    readonly ParticleSystemRenderer _flameRenderer;
+    int _flameInstanceCount;
     const int MaximumTongues = 32, MaximumEmbers = 40;
     readonly Transform _root;
     readonly FlamethrowerRadialBurstSettings _settings;
@@ -60,6 +73,7 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
     Color _outer, _hot;
 
     public Renderer[] Renderers { get; }
+    public ParticleSystem FlameParticles { get; }
     public float Radius => _radius;
     public float MaximumRadius => _maximumRadius;
     public float Duration => _duration;
@@ -95,6 +109,42 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         BuildFootprint();
         _flameVertices = BuildStrips(_meshes[1], MaximumTongues * 2, TongueSections, true);
         _emberVertices = BuildStrips(_meshes[2], MaximumEmbers * 2, 2, false);
+
+        var flames = new GameObject("Moving Flame Wisps");
+        flames.transform.SetParent(_root, false);
+        FlameParticles = flames.AddComponent<ParticleSystem>();
+        var main = FlameParticles.main;
+        main.playOnAwake = false;
+        main.loop = false;
+        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+        main.maxParticles = MaximumFlameInstances;
+        main.startSpeed = 0f;
+        main.startSize3D = true;
+        main.gravityModifier = 0f;
+        var emission = FlameParticles.emission; emission.enabled = false;
+        var shape = FlameParticles.shape; shape.enabled = false;
+        FlameParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        FlameParticles.Pause();
+        _flameRenderer = flames.GetComponent<ParticleSystemRenderer>();
+        _flameRenderer.sharedMaterial = regularFlame;
+        // Match the fired flames' vertex contract: UV2 pads TEXCOORD0 before the clipping sphere.
+        _flameRenderer.SetActiveVertexStreams(new List<ParticleSystemVertexStream>
+        {
+            ParticleSystemVertexStream.Position, ParticleSystemVertexStream.Color,
+            ParticleSystemVertexStream.UV, ParticleSystemVertexStream.UV2,
+            ParticleSystemVertexStream.Custom1XYZW
+        });
+        _flameRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+        _flameRenderer.alignment = ParticleSystemRenderSpace.View;
+        _flameRenderer.sortMode = ParticleSystemSortMode.Distance;
+        _flameRenderer.minParticleSize = 0f;
+        _flameRenderer.maxParticleSize = 1f;
+        _flameRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        _flameRenderer.receiveShadows = false;
+        _flameRenderer.lightProbeUsage = LightProbeUsage.Off;
+        _flameRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        _flameRenderer.enabled = false;
     }
 
     public void Configure(in WeaponPresentationContext context, FlamethrowerCueStyle style,
@@ -117,6 +167,7 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         if (style == FlamethrowerCueStyle.JellifiedActiveBurst) _outer = Color.Lerp(_outer, primary, _settings.FuelTintFraction);
         float budget = context.Quality == GameFeelQualityLevel.Low ? .4f : context.Quality == GameFeelQualityLevel.Medium ? .7f : 1f;
         _tongues = Mathf.Max(4, Mathf.RoundToInt(_settings.FlameTongues * budget));
+        _flameInstanceCount = Mathf.Clamp(Mathf.RoundToInt(_settings.FlameInstances * budget), 0, MaximumFlameInstances);
         _embers = Mathf.Clamp(Mathf.RoundToInt(_settings.Embers * budget * context.HeatSparkMultiplier), 0, _settings.Embers);
     }
 
@@ -129,12 +180,13 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
         bool visible = seconds < _duration && _radius > 0f && !(_clock?.Cancelled ?? false);
         if (!visible)
         {
-            for (int layer=0; layer<3; layer++) SetFrame(layer,0f,seconds);
+            Hide();
             return;
         }
         float travel = Mathf.Clamp01(_settings.OutwardTravel.Evaluate(life));
         UpdateFlames(life, travel);
         UpdateEmbers(life);
+        UpdateFlameInstances(life, seconds);
         _meshes[1].vertices = _flameVertices;
         _meshes[2].vertices = _emberVertices;
         SetFrame(0, visible ? Mathf.Clamp01(_settings.IgnitionOpacity.Evaluate(life)) * _flash : 0f, seconds);
@@ -158,6 +210,52 @@ internal sealed class FlamethrowerRadialBurst : IDisposable
     public void Hide()
     {
         for (int layer = 0; layer < 3; layer++) SetFrame(layer, 0f, 0f);
+        FlameParticles.SetParticles(_flameParticles, 0);
+        _flameClipSpheres.Clear();
+        FlameParticles.SetCustomParticleData(_flameClipSpheres, ParticleSystemCustomData.Custom1);
+        _flameRenderer.enabled = false;
+    }
+
+    void UpdateFlameInstances(float life, float seconds)
+    {
+        // The pool starts all child systems on Play; Q owns their simulation clock instead.
+        FlameParticles.Pause();
+        _flameClipSpheres.Clear();
+        Vector3 origin = _root.position;
+        var clipSphere = new Vector4(origin.x, origin.y, origin.z, _radius);
+        float opacity = _settings.FlameInstanceOpacity * Mathf.Clamp01(_settings.FlameOpacity.Evaluate(life))
+            * Mathf.Clamp01(_intensity) * Mathf.Lerp(.55f, 1f, _flash);
+        for (int i = 0; i < _flameInstanceCount; i++)
+        {
+            float seed = Hash(i * 67 + 19);
+            float phase = seed * Mathf.PI * 2f;
+            float angle = (i + (seed - .5f) * .45f) / _flameInstanceCount * Mathf.PI * 2f;
+            float size = _settings.FlameInstanceSizeFraction * (.8f + seed * .4f);
+            float pulse = Mathf.Sin(seconds * 13f + phase);
+            // Local positions/sizes inherit the same radius as the ring. No freely emitted trail can lag behind it.
+            float radial = 1f - _settings.ClearCenterFraction * (.3f + seed * .4f);
+            Vector3 position = Axis(angle) * radial + Vector3.up * (size * (.32f + .06f * pulse));
+            Color color = Color.Lerp(_outer, _hot, .12f + seed * .28f);
+            color.a = opacity * (.75f + seed * .25f);
+            _flameParticles[i] = new ParticleSystem.Particle
+            {
+                position = position,
+                startSize3D = new Vector3(size, size * (1.35f + seed * .35f), size),
+                startColor = color,
+                rotation = (seed - .5f) * 36f + pulse * 8f,
+                startLifetime = 2f,
+                remainingLifetime = 2f,
+                randomSeed = (uint)(i + 1)
+            };
+            // The shared manual material clips/fades pixels at the wave's live radius.
+            _flameClipSpheres.Add(clipSphere);
+        }
+        FlameParticles.SetParticles(_flameParticles, _flameInstanceCount);
+        FlameParticles.SetCustomParticleData(_flameClipSpheres, ParticleSystemCustomData.Custom1);
+        _properties.Clear();
+        _properties.SetFloat("_CloudAge", seconds);
+        _flameRenderer.SetPropertyBlock(_properties);
+        _flameRenderer.enabled = _flameInstanceCount > 0 && opacity > .001f && _flameRenderer.sharedMaterial != null;
     }
 
     void BuildFootprint()
