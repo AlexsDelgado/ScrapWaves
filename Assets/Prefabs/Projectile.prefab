@@ -98,7 +98,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Projectile
   _damage: 5
-  _speed: 33
+  _speed: 70
   _maxLifetime: 3
 --- !u!114 &6184545135545223655
 MonoBehaviour:
