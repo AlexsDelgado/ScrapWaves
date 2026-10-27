@@ -119,5 +119,6 @@ MonoBehaviour:
   _heatPerKill: 1
   _postOverheatDecayPerSecond: 25
   _spawnInterval: 15
+  _wipeSpawnDelay: 3
   _maxActiveEnemies: 300
-  _maxActiveEnemiesByCycle: 2c010000
+  _maxActiveEnemiesByCycle: 3c00000078000000f00000002c010000
