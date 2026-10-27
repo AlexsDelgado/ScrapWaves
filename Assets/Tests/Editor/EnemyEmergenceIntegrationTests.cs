@@ -662,6 +662,132 @@ public sealed class EnemyEmergenceIntegrationTests
         }
     }
 
+    [TestCase(typeof(FlyingRangedBehavior))]
+    [TestCase(typeof(BomberDroneBehavior))]
+    public void FlyingHover_DescendsAfterASettledJumpWithoutWaitingForFiveUnits(Type behaviorType)
+    {
+        EnemyBehaviorBase behavior = NewHoveringDrone(behaviorType, out Transform player, out _);
+        SetField(behavior, "_hoverHeight", 4f);
+        SetField(behavior, "_moveSpeed", 5f);
+        behavior.transform.position = behavior.ResolveEmergenceRestPosition(new Vector3(10000f, 0f, 10000f));
+        player.position = new Vector3(10010f, 6f, 10000f);
+        for (int i = 0; i < 100; i++) InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(10f).Within(0.001f));
+
+        // The first jump ended high enough to settle. Falling only three units must still
+        // pull the drone down, unlike the old symmetric five-unit activation threshold.
+        player.position = new Vector3(10010f, 3f, 10000f);
+        float beforeDescent = behavior.transform.position.y;
+        InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(beforeDescent - 0.75f).Within(0.0001f),
+            "A sub-five-unit descent starts immediately at the existing 150% speed cap.");
+
+        // While correcting, continue tracking a moving target even inside the upward zone.
+        player.position = new Vector3(10010f, 4f, 10000f);
+        for (int i = 0; i < 100; i++) InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(8f).Within(0.001f));
+        float settledY = behavior.transform.position.y;
+        for (int i = 0; i < 100; i++)
+        {
+            player.position = new Vector3(10010f, 4f + (i % 2 == 0 ? 0.04f : -0.04f), 10000f);
+            InvokeHover(behavior, 0.1f);
+            Assert.That(behavior.transform.position.y, Is.EqualTo(settledY).Within(0.001f),
+                "Tiny target jitter must not repeatedly restart vertical pursuit.");
+        }
+    }
+
+    [TestCase(typeof(FlyingRangedBehavior))]
+    [TestCase(typeof(BomberDroneBehavior))]
+    public void FlyingHover_UsesIndependentDownwardThresholdAndProtectsSettleTolerance(Type behaviorType)
+    {
+        EnemyBehaviorBase behavior = NewHoveringDrone(behaviorType, out Transform player, out _);
+        SetField(behavior, "_hoverHeight", 4f);
+        SetField(behavior, "_downwardDeadZone", 2f);
+        behavior.transform.position = behavior.ResolveEmergenceRestPosition(new Vector3(10000f, 4f, 10000f));
+        player.position = new Vector3(10010f, 3f, 10000f);
+        for (int i = 0; i < 10; i++) InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(8f),
+            "The designer's two-unit downward threshold holds a one-unit altitude error.");
+
+        player.position = new Vector3(10010f, 1f, 10000f);
+        InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.LessThan(8f));
+        for (int i = 0; i < 100; i++) InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(5f).Within(0.001f),
+            "Once started, descent settles at the target rather than stopping two units above it.");
+
+        // Old or programmatic data may bypass Inspector Min: it must not create a trigger
+        // smaller than the existing settle tolerance and restart correction every frame.
+        behavior.OnPoolSpawn();
+        SetField(behavior, "_downwardDeadZone", 0f);
+        behavior.transform.position = behavior.ResolveEmergenceRestPosition(new Vector3(10000f, 4f, 10000f));
+        player.position = new Vector3(10010f, 3.95f, 10000f);
+        for (int i = 0; i < 30; i++) InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(8f),
+            "An invalid zero threshold still respects the 0.1-unit anti-jitter floor.");
+        player.position = new Vector3(10010f, 3.8f, 10000f);
+        InvokeHover(behavior, 0.1f);
+        Assert.That(behavior.transform.position.y, Is.LessThan(8f),
+            "The anti-jitter floor must not suppress a real 0.2-unit downward error.");
+    }
+
+    [TestCase("Assets/Prefabs/Drone.prefab")]
+    [TestCase("Assets/Prefabs/Drone (variant).prefab")]
+    [TestCase("Assets/Prefabs/Drone_Elite.prefab")]
+    public void FlyingHover_PrefabsKeepAsymmetricDefaultsAndIndividualOffsets(string path)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        Assert.That(prefab, Is.Not.Null, path);
+        EnemyBehaviorBase behavior = prefab.GetComponent<FlyingRangedBehavior>();
+        if (behavior == null) behavior = prefab.GetComponent<BomberDroneBehavior>();
+        Assert.That(behavior, Is.Not.Null, path);
+        var serialized = new SerializedObject(behavior);
+        Assert.That(serialized.FindProperty("_upwardDeadZone").floatValue, Is.EqualTo(5f), path);
+        Assert.That(serialized.FindProperty("_downwardDeadZone").floatValue, Is.EqualTo(0.1f), path);
+        Assert.That(serialized.FindProperty("_verticalFollowSpeedRatio").floatValue, Is.EqualTo(1.5f), path);
+        EnemyStatRandomizer randomizer = prefab.GetComponent<EnemyStatRandomizer>();
+        Assert.That(randomizer, Is.Not.Null, path);
+        var serializedRandomizer = new SerializedObject(randomizer);
+        Assert.That(serializedRandomizer.FindProperty("_droneHoverHeightMultiplierRange").vector2Value,
+            Is.EqualTo(new Vector2(0.8f, 1.2f)), path);
+    }
+
+    [TestCase("Assets/Prefabs/Drone.prefab")]
+    [TestCase("Assets/Prefabs/Drone (variant).prefab")]
+    public void FlyingHover_LegacySerializedThresholdMigratesOnlyUpward(string sourcePath)
+    {
+        // Exercise Unity's actual asset deserializer, including initialization of a new
+        // missing field. A reflection check of FormerlySerializedAs alone would not do that.
+        string source = System.IO.File.ReadAllText(sourcePath);
+        const string upwardPattern = @"(?m)^  _upwardDeadZone: [^\r\n]+";
+        Assert.That(System.Text.RegularExpressions.Regex.IsMatch(source, upwardPattern), Is.True);
+        string legacy = System.Text.RegularExpressions.Regex.Replace(source, upwardPattern, "  _verticalDeadZone: 7");
+        legacy = System.Text.RegularExpressions.Regex.Replace(legacy, @"(?m)^  _downwardDeadZone: [^\r\n]+\r?\n", "");
+        string temporaryPath = "Assets/__DroneHoverMigrationTest_" + Guid.NewGuid().ToString("N") + ".prefab";
+        try
+        {
+            System.IO.File.WriteAllText(temporaryPath, legacy);
+            AssetDatabase.ImportAsset(temporaryPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            GameObject migrated = AssetDatabase.LoadAssetAtPath<GameObject>(temporaryPath);
+            Assert.That(migrated, Is.Not.Null);
+            EnemyBehaviorBase behavior = migrated.GetComponent<FlyingRangedBehavior>();
+            if (behavior == null) behavior = migrated.GetComponent<BomberDroneBehavior>();
+            Assert.That(behavior, Is.Not.Null);
+            var serialized = new SerializedObject(behavior);
+            Assert.That(serialized.FindProperty("_upwardDeadZone").floatValue, Is.EqualTo(7f),
+                "Keep a designer's pre-existing override instead of replacing it with the default five.");
+            Assert.That(serialized.FindProperty("_downwardDeadZone").floatValue, Is.EqualTo(0.1f),
+                "The old shared threshold must not migrate into downward correction.");
+        }
+        finally
+        {
+            AssetDatabase.DeleteAsset(temporaryPath);
+            if (System.IO.File.Exists(temporaryPath)) System.IO.File.Delete(temporaryPath);
+            if (System.IO.File.Exists(temporaryPath + ".meta")) System.IO.File.Delete(temporaryPath + ".meta");
+        }
+    }
+
+
     private EnemyBehaviorBase NewHoveringDrone(Type behaviorType, out Transform player, out BoxCollider ground)
     {
         typeof(DebugSpeedTool).GetField("<Active>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
