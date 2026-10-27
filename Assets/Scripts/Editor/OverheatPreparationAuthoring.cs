@@ -33,6 +33,7 @@ public static class OverheatPreparationAuthoring
         OverheatObjectiveHud objective = Find<OverheatObjectiveHud>(scene).Single();
         OverheatWarningHud legacyPresenter = objective.GetComponent<OverheatWarningHud>();
         Transform root = objective.transform.Find("OverheatWarning");
+        bool createdView = root == null;
         if (root == null)
         {
             GameObject view = new("OverheatWarning", typeof(RectTransform));
@@ -51,14 +52,14 @@ public static class OverheatPreparationAuthoring
                 "OVERHEAT EVENT STARTING - GET TO GROUND LEVEL", 28f, TextAlignmentOptions.Center);
             label.fontStyle = FontStyles.Bold;
             label.color = new Color(.47f, .025f, .035f, 1f);
-            label.enableAutoSizing = true;
+            label.enableAutoSizing = false;
             label.fontSizeMin = 20f;
             label.fontSizeMax = 28f;
             label.margin = new Vector4(18f, 6f, 18f, 6f);
             label.raycastTarget = false;
         }
         // Keep the controller on the warning UI object itself. Its CanvasGroup hides the
-        // graphics while the active controller remembers an exhausted display budget.
+        // graphics while the active controller observes the authoritative preparation state.
         OverheatWarningHud presenter = root.GetComponent<OverheatWarningHud>();
         bool migrated = presenter == null;
         if (migrated)
@@ -76,10 +77,28 @@ public static class OverheatPreparationAuthoring
         Set(presenter, "_overheatManager", manager);
         Set(presenter, "_playerPlatformState", platform);
         Set(presenter, "_root", root.gameObject);
-        Set(presenter, "_text", root.GetComponentInChildren<TextMeshProUGUI>(true));
+        TextMeshProUGUI primary = root.Find("Text")?.GetComponent<TextMeshProUGUI>()
+            ?? root.GetComponentInChildren<TextMeshProUGUI>(true);
+        TextMeshProUGUI repeat = root.Find("TextRepeat")?.GetComponent<TextMeshProUGUI>();
+        if (repeat == null)
+        {
+            repeat = Object.Instantiate(primary.gameObject, root, false).GetComponent<TextMeshProUGUI>();
+            repeat.name = "TextRepeat";
+        }
+        Set(presenter, "_text", primary);
+        Set(presenter, "_repeatText", repeat);
         Set(presenter, "_visibility", visibility);
-        Set(presenter, "_motion", root.GetComponentInChildren<TextMeshProUGUI>(true).rectTransform);
-        StyleWarning(root);
+        Set(presenter, "_motion", primary.rectTransform);
+        if (createdView)
+        {
+            Set(presenter, "_scrollSpeed", 180f);
+            Set(presenter, "_fontSize", 96f);
+            Set(presenter, "_barHeight", 160f);
+            Set(presenter, "_messageGap", 120f);
+        }
+        StyleWarning(root, presenter, createdView);
+        presenter.PreviewAt(0f, false);
+        visibility.alpha = 0f;
         root.gameObject.SetActive(true);
         EditorSceneManager.MarkSceneDirty(scene);
         if (!EditorSceneManager.SaveScene(scene)) throw new InvalidOperationException("Could not save Overheat scene wiring.");
@@ -93,21 +112,32 @@ public static class OverheatPreparationAuthoring
         OverheatWarningPreview.Capture();
     }
 
-    private static void StyleWarning(Transform root)
+    private static void StyleWarning(Transform root, OverheatWarningHud presenter, bool createdView)
     {
         var rect = (RectTransform)root;
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -96f);
-        rect.sizeDelta = new Vector2(0f, 112f);
-        root.GetComponent<Image>().color = new Color(.025f, .005f, .01f, .78f);
+        if (createdView)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -96f);
+            root.GetComponent<Image>().color = new Color(.025f, .005f, .01f, .78f);
+        }
+        rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, presenter.BarHeight);
         var label = root.GetComponentInChildren<TextMeshProUGUI>(true);
-        label.fontSize = label.fontSizeMax = 44f;
-        label.fontSizeMin = 24f;
-        label.color = new Color(.61f, .055f, .075f, 1f);
-        label.margin = new Vector4(32f, 12f, 32f, 12f);
-        label.extraPadding = true;
+        foreach (TextMeshProUGUI text in root.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            text.fontSize = presenter.FontSize;
+            text.enableAutoSizing = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
+            text.raycastTarget = false;
+            if (!createdView) continue;
+            text.color = new Color(.61f, .055f, .075f, 1f);
+            text.margin = new Vector4(32f, 12f, 32f, 12f);
+            text.extraPadding = true;
+        }
         const string folder = "Assets/Art/UI/Authored/";
         const string materialPath = folder + "OverheatWarningText.mat";
         Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
@@ -119,15 +149,19 @@ public static class OverheatPreparationAuthoring
             material.EnableKeyword("OUTLINE_ON");
             AssetDatabase.CreateAsset(material, materialPath);
         }
-        label.fontSharedMaterial = material;
+        if (createdView)
+            foreach (TextMeshProUGUI text in root.GetComponentsInChildren<TextMeshProUGUI>(true))
+                text.fontSharedMaterial = material;
         foreach (string name in new[] { "TopRule", "BottomRule" })
         {
             Transform rule = root.Find(name);
-            if (rule == null)
+            bool createdRule = rule == null;
+            if (createdRule)
             {
                 rule = new GameObject(name, typeof(RectTransform), typeof(Image)).transform;
                 rule.SetParent(root, false);
             }
+            if (!createdRule && !createdView) continue;
             var ruleRect = (RectTransform)rule;
             float y = name == "TopRule" ? 1f : 0f;
             ruleRect.anchorMin = new Vector2(0f, y);
@@ -169,9 +203,12 @@ public static class OverheatPreparationAuthoring
         }
         Animator animator = root.GetComponent<Animator>();
         if (animator == null) animator = root.gameObject.AddComponent<Animator>();
-        animator.runtimeAnimatorController = controller;
-        animator.updateMode = AnimatorUpdateMode.Normal;
-        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        if (animator.runtimeAnimatorController == null)
+        {
+            animator.runtimeAnimatorController = controller;
+            animator.updateMode = AnimatorUpdateMode.Normal;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        }
     }
 
     private static T[] Find<T>(Scene scene) where T : Component => scene.GetRootGameObjects()
@@ -180,6 +217,14 @@ public static class OverheatPreparationAuthoring
     {
         var serialized = new SerializedObject(target);
         serialized.FindProperty(field).objectReferenceValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(target);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(target);
+    }
+    private static void Set(Object target, string field, float value)
+    {
+        var serialized = new SerializedObject(target);
+        serialized.FindProperty(field).floatValue = value;
         serialized.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(target);
         PrefabUtility.RecordPrefabInstancePropertyModifications(target);

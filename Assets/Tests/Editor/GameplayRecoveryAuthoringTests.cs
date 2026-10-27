@@ -5,13 +5,14 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 /// <summary>Checks saved assets affected by the GameplayScene merge recovery.</summary>
 public sealed class GameplayRecoveryAuthoringTests
 {
     [Test]
-    public void GameplayScene_HasWiredHazardPreparationAndTwoCycleWarning()
+    public void GameplayScene_HasWiredHazardPreparationAndContinuousReadableWarning()
     {
         Scene previousActive = SceneManager.GetActiveScene();
         Scene preview = EditorSceneManager.OpenPreviewScene("Assets/Scenes/GameplayScene.unity");
@@ -34,19 +35,57 @@ public sealed class GameplayRecoveryAuthoringTests
             Assert.That(Reference<PlayerPlatformState>(warning, "_playerPlatformState"), Is.SameAs(platform));
             GameObject root = Reference<GameObject>(warning, "_root");
             TextMeshProUGUI text = Reference<TextMeshProUGUI>(warning, "_text");
+            TextMeshProUGUI repeat = Reference<TextMeshProUGUI>(warning, "_repeatText");
             CanvasGroup visibility = Reference<CanvasGroup>(warning, "_visibility");
             RectTransform motion = Reference<RectTransform>(warning, "_motion");
             Assert.That(root, Is.SameAs(warning.gameObject));
             Assert.That(visibility.gameObject, Is.SameAs(root));
             Assert.That(text.transform.IsChildOf(root.transform), Is.True);
+            Assert.That(repeat.transform.IsChildOf(root.transform), Is.True);
+            Assert.That(repeat, Is.Not.SameAs(text), "A second saved text object provides seamless repeated motion.");
             Assert.That(motion, Is.SameAs(text.rectTransform));
+            Assert.That(root.GetComponent<RectMask2D>(), Is.Not.Null, "Oversized text must remain clipped to the band.");
 
             var serializedWarning = new SerializedObject(warning);
-            Assert.That(Property(serializedWarning, "_lifetimeMode").intValue,
-                Is.EqualTo((int)OverheatWarningLifetimeMode.Cycles));
-            Assert.That(Property(serializedWarning, "_cycleCount").intValue, Is.EqualTo(2));
-            Assert.That(warning.CycleSeconds, Is.EqualTo(2.4f).Within(.0001f));
-            Assert.That(warning.DisplayBudgetSeconds, Is.EqualTo(4.8f).Within(.0001f));
+            Assert.That(Property(serializedWarning, "_scrollSpeed").floatValue, Is.EqualTo(180f));
+            Assert.That(Property(serializedWarning, "_fontSize").floatValue, Is.EqualTo(96f));
+            Assert.That(Property(serializedWarning, "_barHeight").floatValue, Is.EqualTo(160f));
+            Assert.That(serializedWarning.FindProperty("_lifetimeMode"), Is.Null);
+            Assert.That(serializedWarning.FindProperty("_cycleCount"), Is.Null);
+            Assert.That(serializedWarning.FindProperty("_durationSeconds"), Is.Null);
+            // Headless preview scenes have no display size. Resolve the saved anchored layout
+            // against the same 1920x1080 Canvas reference used by the native UI preview.
+            Canvas canvas = text.GetComponentsInParent<Canvas>(true).Last();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var scaler = canvas.GetComponent<CanvasScaler>();
+            if (scaler != null) scaler.enabled = false;
+            ((RectTransform)canvas.transform).SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 1920f);
+            ((RectTransform)canvas.transform).SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 1080f);
+            for (Transform ancestor = root.transform; ancestor != null; ancestor = ancestor.parent)
+                ancestor.gameObject.SetActive(true);
+            Canvas.ForceUpdateCanvases();
+            foreach (bool onGround in new[] { false, true })
+            {
+                warning.PreviewAt(0f, onGround);
+                float viewportWidth = ((RectTransform)root.transform).rect.width;
+                Assert.That(viewportWidth, Is.GreaterThan(0f));
+                Assert.That(text.GetPreferredValues(text.text).x, Is.GreaterThan(viewportWidth),
+                    "The default message itself must be wider than the viewport, rather than shrinking to fit.");
+                Assert.That(repeat.text, Is.EqualTo(text.text));
+                foreach (TextMeshProUGUI label in new[] { text, repeat })
+                {
+                    Assert.That(label.fontSize, Is.EqualTo(96f));
+                    Assert.That(label.enableAutoSizing, Is.False);
+                    Assert.That(label.textWrappingMode, Is.EqualTo(TextWrappingModes.NoWrap));
+                    Assert.That(label.raycastTarget, Is.False);
+                    Assert.That(label.color.r, Is.InRange(.5f, .8f));
+                    Assert.That(label.color.g, Is.LessThan(.1f));
+                    Assert.That(label.color.b, Is.LessThan(.15f));
+                }
+            }
+            Assert.That(((RectTransform)root.transform).rect.height, Is.EqualTo(160f).Within(.001f));
+            Assert.That(visibility.blocksRaycasts, Is.False);
+            Assert.That(visibility.interactable, Is.False);
         }
         finally
         {

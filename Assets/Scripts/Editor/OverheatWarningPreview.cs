@@ -73,8 +73,11 @@ public static class OverheatWarningPreview
             var fields = new SerializedObject(warning);
             GameObject root = fields.FindProperty("_root").objectReferenceValue as GameObject;
             TextMeshProUGUI text = fields.FindProperty("_text").objectReferenceValue as TextMeshProUGUI;
-            if (root == null || text == null || !root.transform.IsChildOf(hud.transform))
+            TextMeshProUGUI repeat = fields.FindProperty("_repeatText").objectReferenceValue as TextMeshProUGUI;
+            if (root == null || text == null || repeat == null || !root.transform.IsChildOf(hud.transform))
                 throw new InvalidOperationException("The saved warning references are incomplete or outside its HUD.");
+            if (root.GetComponent<RectMask2D>() == null)
+                throw new InvalidOperationException("The saved warning must clip its scrolling labels.");
             // The live presenter hides the objective during preparation. Mirror only that view state.
             OverheatObjectiveHud objective = hud.GetComponentInChildren<OverheatObjectiveHud>(true);
             if (objective != null)
@@ -93,24 +96,29 @@ public static class OverheatWarningPreview
             evidence.AppendLine("Saved scene: " + source.path);
             evidence.AppendLine("Saved warning/controller: " + Hierarchy(saved.transform));
             evidence.AppendLine("1920 x 1080 editor renders of saved UI; no full gameplay verification.");
-            evidence.AppendLine("Cycle seconds=" + warning.CycleSeconds + "; display budget=" + warning.DisplayBudgetSeconds + "; all warning graphics non-raycast.");
-            float cycle = warning.CycleSeconds;
-            CaptureFrame(false, "motion-01-entering.png", cycle * .25f);
+            evidence.AppendLine("Scroll speed=" + warning.ScrollSpeed + "; font size=" + warning.FontSize +
+                "; bar height=" + warning.BarHeight + "; all warning graphics non-raycast.");
+            evidence.AppendLine("Two authored labels repeat without a display budget. Real lifetime follows manager preparation and is covered by lifecycle tests.");
+            CaptureFrame(false, "motion-01-upstairs-start.png", 0f);
             float right = text.rectTransform.anchoredPosition.x;
-            CaptureFrame(false, "motion-02-centered.png", cycle * .5f);
+            CaptureFrame(false, "motion-02-upstairs-one-second.png", 1f);
             float center = text.rectTransform.anchoredPosition.x;
-            CaptureFrame(false, "motion-03-exiting.png", cycle * .75f);
+            CaptureFrame(false, "motion-03-upstairs-two-seconds.png", 2f);
             float left = text.rectTransform.anchoredPosition.x;
             if (!(right > center && center > left)) throw new InvalidOperationException("Saved text must travel right to left.");
-            CaptureFrame(true, "motion-04-second-cycle-ground.png", cycle * 1.5f);
-            CaptureFrame(false, "motion-05-budget-expired.png", warning.DisplayBudgetSeconds);
+            CaptureFrame(false, "motion-04-upstairs-after-one-minute.png", 60f);
             CanvasGroup visibility = fields.FindProperty("_visibility").objectReferenceValue as CanvasGroup;
-            if (visibility == null || visibility.alpha != 0f) throw new InvalidOperationException("Warning did not hide at its saved budget.");
-            warning.PreviewAt(warning.DisplayBudgetSeconds + cycle, false);
-            if (visibility.alpha != 0f) throw new InvalidOperationException("Exhausted preview reappeared.");
-            evidence.AppendLine("Horizontal positions=" + right + ", " + center + ", " + left + "; hidden at/after budget.");
+            if (visibility == null || visibility.alpha != 1f) throw new InvalidOperationException("Pending upstairs preview must not expire.");
+            CaptureFrame(true, "motion-05-ground-message-start.png", 0f);
+            OverheatManager manager = fields.FindProperty("_overheatManager").objectReferenceValue as OverheatManager;
+            float preparation = manager != null ? manager.ConfiguredPreparationDuration : 0f;
+            CaptureFrame(true, "motion-06-ground-message-before-encounter.png", Mathf.Max(0f, preparation - .1f));
+            CaptureFrame(true, "motion-07-encounter-hidden.png", -1f);
+            if (visibility.alpha != 0f) throw new InvalidOperationException("Explicit hidden preview remained visible.");
+            evidence.AppendLine("Horizontal positions=" + right + ", " + center + ", " + left +
+                "; upstairs still visible at 60 seconds; ground samples use manager duration=" + preparation + ".");
             File.WriteAllText(Path.Combine(output, "overheat-warning-motion-preview.txt"), evidence.ToString());
-            Debug.Log("OVERHEAT_WARNING_MOTION_PREVIEW: " + output + "; moving text, second cycle, both messages and budget expiry rendered; no text overflow or input blockers.");
+            Debug.Log("OVERHEAT_WARNING_MOTION_PREVIEW: " + output + "; continuous upstairs marquee, larger clipped text and ground preparation message rendered; no input blockers.");
 
             void CaptureFrame(bool onGround, string filename, float sampleTime)
             {
@@ -119,7 +127,12 @@ public static class OverheatWarningPreview
                 foreach (TMP_Text label in hud.GetComponentsInChildren<TMP_Text>(false)) label.ForceMeshUpdate();
                 Canvas.ForceUpdateCanvases();
                 text.ForceMeshUpdate();
-                if (text.isTextOverflowing) throw new InvalidOperationException("Warning text overflows its moving rect: " + text.text);
+                if (text.enableAutoSizing || repeat.enableAutoSizing)
+                    throw new InvalidOperationException("Warning labels must retain their readable authored font size.");
+                if (text.textWrappingMode != TextWrappingModes.NoWrap || repeat.textWrappingMode != TextWrappingModes.NoWrap)
+                    throw new InvalidOperationException("Warning labels must remain on one scrolling line.");
+                if (sampleTime >= 0f && text.preferredWidth <= ((RectTransform)root.transform).rect.width)
+                    throw new InvalidOperationException("The default warning message should be wider than its viewport.");
 
                 camera.Render();
                 RenderTexture.active = target;
@@ -131,7 +144,9 @@ public static class OverheatWarningPreview
                     File.WriteAllBytes(Path.Combine(output, filename), image.EncodeToPNG());
                 }
                 finally { Object.DestroyImmediate(image); RenderTexture.active = previousTarget; }
-                evidence.AppendLine(filename + ": " + text.text + "; fontSize=" + text.fontSize + "; rect=" + text.rectTransform.rect + "; overflow=false.");
+                evidence.AppendLine(filename + ": " + text.text + "; fontSize=" + text.fontSize +
+                    "; rect=" + text.rectTransform.rect + "; preferred width=" + text.preferredWidth +
+                    "; viewport=" + ((RectTransform)root.transform).rect + "; intentionally clipped, auto-size=false.");
             }
         }
         finally
