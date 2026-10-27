@@ -131,7 +131,8 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         float duration,
         Color bladeColor,
         float normalizedHeat,
-        bool exactHitEnvelope = false)
+        bool exactHitEnvelope = false,
+        int totalBladeCount = 1)
     {
         Initialize();
         BeginOrbitFrame();
@@ -144,6 +145,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             return;
 
         float heat = Mathf.Clamp01(normalizedHeat);
+        float glowScale = Mathf.Min(1f, 2f / Mathf.Max(1, totalBladeCount));
         _orbitTimer = _orbitDuration = Mathf.Max(0.01f, duration);
         _orbitColor = WithAlpha(bladeColor, _orbitGuideAlpha);
         _bladeColor = WithAlpha(bladeColor, BladeColor.a);
@@ -184,8 +186,8 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             exactHitEnvelope ? hitRadius * .38f : Mathf.Clamp(hitRadius * 0.38f, 0.14f, 0.7f),
             bladeLength * 0.5f);
         SetBladeVisualEnabled(physicalBlade, true);
-        ApplyBladeProperties(physicalBlade, bladeColor, heat);
-        ConfigureTrail(physicalBlade.Trail, bladeColor, hitRadius, heat);
+        ApplyBladeProperties(physicalBlade, bladeColor, heat, glowScale);
+        ConfigureTrail(physicalBlade.Trail, bladeColor, hitRadius, heat, glowScale);
         DisableUnusedPhysicalBlades();
 
         SetLineColor(_orbitLine, _orbitColor, 1f);
@@ -418,7 +420,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             blade.Trail.emitting = enabled;
     }
 
-    private void ApplyBladeProperties(BladeVisual blade, Color color, float heat)
+    private void ApplyBladeProperties(BladeVisual blade, Color color, float heat, float glowScale)
     {
         float emission = Mathf.Lerp(1.4f, 4.8f, heat);
         for (int i = 0; i < blade.Renderers.Length; i++)
@@ -426,10 +428,14 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             Renderer renderer = blade.Renderers[i];
             if (renderer == null || renderer is TrailRenderer)
                 continue;
+            Material material = renderer.sharedMaterial;
+            bool additiveGlow = material != null && material.shader != null
+                && material.shader.name == "ScrapWaves/GameFeel/Scrap VFX";
             renderer.GetPropertyBlock(_propertyBlock);
             _propertyBlock.SetColor(BaseColorId, color);
-            _propertyBlock.SetColor(EmissionColorId, color * emission);
-            _propertyBlock.SetFloat(EmissionIntensityId, emission);
+            // Scrap VFX multiplies color by intensity; keep the opaque body unchanged.
+            _propertyBlock.SetColor(EmissionColorId, additiveGlow ? color : color * emission);
+            _propertyBlock.SetFloat(EmissionIntensityId, additiveGlow ? emission * glowScale : emission);
             _propertyBlock.SetFloat(HeatId, heat);
             _propertyBlock.SetFloat(PulseId, 0.72f + heat * 0.28f);
             _propertyBlock.SetFloat(DissolveId, 0f);
@@ -437,7 +443,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         }
     }
 
-    private void ConfigureTrail(TrailRenderer trail, Color color, float hitRadius, float heat)
+    private void ConfigureTrail(TrailRenderer trail, Color color, float hitRadius, float heat, float glowScale)
     {
         if (trail == null)
             return;
@@ -452,7 +458,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         Color hot = Color.Lerp(color, Color.white, 0.28f + heat * 0.32f);
         gradient.SetKeys(
             new[] { new GradientColorKey(hot, 0f), new GradientColorKey(color, 1f) },
-            new[] { new GradientAlphaKey(0.82f, 0f), new GradientAlphaKey(0f, 1f) });
+            new[] { new GradientAlphaKey(0.82f * glowScale, 0f), new GradientAlphaKey(0f, 1f) });
         trail.colorGradient = gradient;
     }
 
