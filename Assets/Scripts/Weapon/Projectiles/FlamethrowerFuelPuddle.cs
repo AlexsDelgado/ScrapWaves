@@ -336,7 +336,7 @@ public sealed class FlamethrowerFuelPuddle : MonoBehaviour, IWeaponRadialDamageO
             direction: direction,
             impactPosition: impactPosition,
             impactNormal: -direction.normalized,
-            damageAmount: result.ResolvedDamage,
+            damageAmount: result.AppliedDamage,
             isCritical: damageContext.IsCritical,
             isKill: result.Killed,
             isAbilityDamage: damageContext.IsAbilityDamage,

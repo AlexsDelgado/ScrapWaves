@@ -144,7 +144,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         for (int bladeIndex = 0; bladeIndex < bladeCount; bladeIndex++)
         {
             Vector3 bladeCenter = GetBladeCenter(tuning, bladeIndex, bladeCount);
-            ShowOrbit(bladeCenter, hitRadius, tuning, bladeCount);
+            ShowOrbit(bladeCenter, hitRadius, tuning);
 
             if (!shouldDamage)
                 continue;
@@ -668,7 +668,7 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
             EmitImpactFeedback(
                 target,
                 impactOrigin,
-                result.ResolvedDamage,
+                result.AppliedDamage,
                 feedbackMode,
                 isAbilityDamage,
                 result.Killed,
@@ -991,18 +991,18 @@ public sealed class RotatingBladeWeapon : BasicProjectileWeapon
         return frame * (Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward);
     }
 
-    private void ShowOrbit(Vector3 bladeCenter, float hitRadius, RotatingBladeTuning tuning, int bladeCount)
+    private void ShowOrbit(Vector3 bladeCenter, float hitRadius, RotatingBladeTuning tuning)
     {
         if (Owner == null)
             return;
 
         EnsureVfx();
         if (IsMultiBladePath())
-            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, MultiBladeVfxColor, GetNormalizedHeat(), BladeOverrides?.AutomaticHitRadiusMeters.Enabled ?? false, totalBladeCount: bladeCount);
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, MultiBladeVfxColor, GetNormalizedHeat(), BladeOverrides?.AutomaticHitRadiusMeters.Enabled ?? false);
         else if (IsAtomicSharpnessPath())
-            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, AtomicSharpnessVfxColor, GetNormalizedHeat(), BladeOverrides?.AutomaticHitRadiusMeters.Enabled ?? false, totalBladeCount: bladeCount);
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, AtomicSharpnessVfxColor, GetNormalizedHeat(), BladeOverrides?.AutomaticHitRadiusMeters.Enabled ?? false);
         else
-            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, new Color(0.7f, 1f, 1f, 0.95f), GetNormalizedHeat(), BladeOverrides?.AutomaticHitRadiusMeters.Enabled ?? false, totalBladeCount: bladeCount);
+            _vfx.ShowOrbit(GetOwnerOrigin(), bladeCenter, hitRadius, tuning.BladeVisualDuration, new Color(0.7f, 1f, 1f, 0.95f), GetNormalizedHeat(), BladeOverrides?.AutomaticHitRadiusMeters.Enabled ?? false);
     }
 
     private void ShowSlash(Vector3 origin, Vector3 direction, float range, RotatingBladeTuning tuning)

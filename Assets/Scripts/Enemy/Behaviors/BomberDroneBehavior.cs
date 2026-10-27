@@ -14,10 +14,8 @@ public class BomberDroneBehavior : EnemyBehaviorBase
 
     [Header("Vuelo")]
     [SerializeField, Min(0f)] private float _hoverHeight = 3.5f;
-    [SerializeField, Min(0f), Tooltip("Vertical pursuit speed as a fraction of ordinary movement speed.")]
-    private float _verticalFollowSpeedRatio = 1.5f;
-    [SerializeField, Min(0f), Tooltip("Height error beyond the individual hover offset required to start following. Once started, settles at that offset.")]
-    private float _verticalDeadZone = 5f;
+    [SerializeField, Min(0f), Tooltip("Velocidad vertical maxima de vuelo (unidades por segundo).")]
+    private float _maxVerticalSpeed = 3f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5.5f;
     public float AuthoredMoveSpeed => _moveSpeed;
     [SerializeField, Min(60f)] private float _rotationSpeed = 360f;
@@ -47,9 +45,6 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     [SerializeField, Min(0f)] private float _droneOrbitWeight = 0.6f;
 
     private EnemyStatRandomizer _statRandomizer;
-    private DroneHoverMotion _hoverMotion;
-    private float HoverHeight => _hoverHeight
-        * (_statRandomizer != null ? _statRandomizer.DroneHoverHeightMultiplier : 1f);
     private State _state;
     private float _stateTimer;
     private int _dashesDone;
@@ -82,7 +77,6 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     public override void OnPoolSpawn()
     {
         base.OnPoolSpawn();
-        _hoverMotion = default;
         _orbitSign = Random.value < 0.5f ? -1f : 1f;
     }
 
@@ -123,33 +117,27 @@ public class BomberDroneBehavior : EnemyBehaviorBase
 
     private void MaintainHover(float deltaTime)
     {
-        Transform player = Player;
-        if (player == null)
-            return;
-
-        float hoverHeight = HoverHeight;
-        Vector3 pos = transform.position;
-        Vector3 origin = pos + Vector3.up * _hoverRaycastUp;
-        // A missed probe must not become a floor at the current altitude: island drops
-        // can put the ground outside the probe's range while the drone descends.
-        float minimumY = float.NegativeInfinity;
+        Vector3 origin = transform.position + Vector3.up * _hoverRaycastUp;
+        float groundY = transform.position.y - _hoverHeight;
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, _hoverRaycastUp * 2f, _groundMask, QueryTriggerInteraction.Ignore))
-            minimumY = hit.point.y + hoverHeight;
+            groundY = hit.point.y;
 
-        float verticalSpeed = _moveSpeed * _verticalFollowSpeedRatio
-            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
-            * DebugSpeedTool.EnemyScale;
-        pos.y = _hoverMotion.Step(pos.y, player.position.y + hoverHeight, minimumY,
-            _verticalDeadZone, verticalSpeed, deltaTime);
+        Vector3 pos = transform.position;
+        float smoothedY = Mathf.Lerp(pos.y, ResolveHoverTargetY(groundY), 1f - Mathf.Exp(-6f * deltaTime));
+        pos.y = Mathf.MoveTowards(pos.y, smoothedY, _maxVerticalSpeed * deltaTime);
         transform.position = pos;
     }
 
     public override Vector3 ResolveEmergenceRestPosition(Vector3 groundPoint)
     {
         Vector3 restPosition = transform.position;
-        restPosition.y = groundPoint.y + HoverHeight;
-        _hoverMotion.SetHeight(restPosition.y);
+        restPosition.y = ResolveHoverTargetY(groundPoint.y);
         return restPosition;
+    }
+
+    private float ResolveHoverTargetY(float groundY)
+    {
+        return groundY + _hoverHeight;
     }
 
     private void TickEngage()

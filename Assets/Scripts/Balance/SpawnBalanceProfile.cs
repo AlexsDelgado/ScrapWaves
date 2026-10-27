@@ -91,9 +91,6 @@ public class SpawnBalanceProfile : ScriptableObject
     [SerializeField, Min(0.05f), Tooltip("Intervalo base entre oleadas, antes de aplicar el escalado por heat.")]
     private float _spawnInterval = 5f;
 
-    [SerializeField, Min(0f), Tooltip("Delay after the last living enemy dies before one extra batch. Does not change the normal spawn schedule.")]
-    private float _wipeSpawnDelay = 3f;
-
     [SerializeField, Min(1), Tooltip("Compatibility ceiling for counted concurrent enemies. In-world spawns are excluded; required objectives may exceed this limit.")]
     private int _maxActiveEnemies = 300;
 
@@ -130,7 +127,6 @@ public class SpawnBalanceProfile : ScriptableObject
     public float PostOverheatDecayPerSecond => _postOverheatDecayPerSecond;
 
     public float SpawnInterval => _spawnInterval;
-    public float WipeSpawnDelay => Mathf.Max(0f, _wipeSpawnDelay);
     public int MaxActiveEnemies => Mathf.Max(1, _maxActiveEnemies);
 
     /// <summary>Zero-based completed-cycle index; legacy profiles retain their existing ceiling.</summary>
@@ -197,8 +193,6 @@ public class SpawnBalanceProfile : ScriptableObject
             _escalationPerOverheatCycle = 1.001f;
         if (_spawnInterval < 0.05f)
             _spawnInterval = 0.05f;
-        if (_wipeSpawnDelay < 0f)
-            _wipeSpawnDelay = 0f;
         if (_maxActiveEnemies < 1)
             _maxActiveEnemies = 1;
         if (_maxActiveEnemiesByCycle != null)

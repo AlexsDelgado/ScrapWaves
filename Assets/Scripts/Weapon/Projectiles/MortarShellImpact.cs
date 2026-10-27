@@ -1038,7 +1038,7 @@ public sealed class MortarShellImpact : MonoBehaviour
         WeaponFeedbackContext feedback = _feedbackTemplate.WithImpact(
             impactPosition,
             impactPosition - explosionCenter,
-            result.ResolvedDamage,
+            result.AppliedDamage,
             _useWeaponDamageContext && _weaponDamageContext.IsCritical,
             false,
             result.Killed,

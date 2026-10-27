@@ -493,14 +493,14 @@ public sealed class FlamethrowerWeapon : BasicProjectileWeapon
                 impactOrigin,
                 direction,
                 impactPosition: target.position,
-                damageAmount: result.ResolvedDamage,
+                damageAmount: result.AppliedDamage,
                 target: target,
                 anchor: target,
                 isAbilityDamage: activeAbility);
             feedback = feedback.WithImpact(
                 target.position,
                 direction.sqrMagnitude > 0.0001f ? -direction.normalized : Vector3.back,
-                result.ResolvedDamage,
+                result.AppliedDamage,
                 damageContext.IsCritical,
                 false,
                 result.Killed,

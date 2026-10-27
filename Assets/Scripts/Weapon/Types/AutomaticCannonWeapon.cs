@@ -1289,7 +1289,7 @@ public sealed class AutomaticCannonWeapon : BasicProjectileWeapon
                 WeaponFeedbackContext feedback = baseFeedback.WithImpact(
                     impact.ImpactPosition,
                     -impact.Direction,
-                    result.ResolvedDamage,
+                    result.AppliedDamage,
                     impact.CriticalHit,
                     impact.WeakPointHit,
                     result.Killed,

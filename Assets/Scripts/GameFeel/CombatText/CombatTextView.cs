@@ -293,7 +293,7 @@ public sealed class CombatTextView : MonoBehaviour
             _text.fontSharedMaterial = sharedMaterial;
         _text.fontSize = style.FontSize;
         _text.fontStyle = style.FontStyle;
-        _styleColor = CombatTextStyleResolver.ResolveColor(styleId);
+        _styleColor = style.TextColor;
         SetTextAlpha(_renderAlpha);
     }
 

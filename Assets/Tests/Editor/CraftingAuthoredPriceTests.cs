@@ -166,7 +166,8 @@ public sealed class CraftingAuthoredPriceTests
     [TestCase(3, 19, 37)]
     public void AuthoredAdvancedPrices_FollowAdvancedCountAndSurviveDeclineAndReopen(int advancedIndex, int firstPrice, int retryPrice)
     {
-        // Only the number of other advanced weapons changes; equipped slot/count cannot set this price.
+        // Always three equipped weapons and always select slot one. Only the number
+        // of other advanced weapons changes, so inventory slot/count cannot set this price.
         Harness h = CreateHarness(5, 4, 4);
         AuthorDistinctPrices(h.Balance);
         for (int i = 1; i < advancedIndex; i++)
@@ -179,25 +180,19 @@ public sealed class CraftingAuthoredPriceTests
         Open(h);
         Assert.That(h.View.AdvancedPanel.activeSelf, Is.True);
         AssertCosts(h.Service.GetAdvancedTinkeringCost(target.Data), Rare, firstPrice);
-        Assert.That(h.View.AdvancedPurchaseCostText.text, Does.Contain(CostText(Rare, firstPrice)));
-        Assert.That(h.View.AdvancedPurchaseNoticeText.text, Does.Not.Contain("50%"));
+        Assert.That(h.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: " + CostText(Rare, firstPrice)));
+        Assert.That(h.View.AdvancedNoticeText.text, Does.Not.Contain("50%"), "An independently authored retry price need not be a 50% increase.");
         AssertReadout(h.View.AdvancedReadout, h.Inventory, Rare, firstPrice);
-        Assert.That(h.View.AdvancedPurchaseButton.interactable, Is.False);
+        Assert.That(h.View.AcceptButton.interactable, Is.False);
         Assert.That(h.Service.GetAvailableAction(target), Is.Null);
-        Assert.That(h.Service.TryGetAdvancedOffer(target.Data, out _), Is.False);
+        Assert.That(h.Service.TryGetAdvancedOffer(target.Data, out WeaponUpgradePath initial), Is.True);
 
         Add(h, Rare, firstPrice);
-        AssertEveryRareThreshold(h, target, firstPrice);
+        AssertEveryRareThreshold(h, target, initial, firstPrice);
         int transactions = 0;
-        h.Inventory.OnMaterialsSpent += () => transactions++;
-        h.View.AdvancedPurchaseButton.onClick.Invoke();
-        Assert.That(transactions, Is.EqualTo(1));
-        Assert.That(h.Service.TryGetAdvancedOffer(target.Data, out WeaponUpgradePath initial), Is.True);
-        Assert.That(h.View.AdvancedCostText.text, Does.Contain(CostText(Rare, firstPrice)));
-        Assert.That(h.View.AdvancedNoticeText.text, Does.Not.Contain("50%"), "An independently authored retry price need not be a 50% increase.");
-        AssertAmounts(h.Inventory, Rare, 0);
+        h.Inventory.OnInventoryChanged += () => transactions++;
         h.View.DeclineButton.onClick.Invoke();
-        Assert.That(transactions, Is.EqualTo(1), "Decline uses the price already paid.");
+        Assert.That(transactions, Is.EqualTo(1));
         Assert.That(target.Level, Is.EqualTo(5));
         Assert.That(target.SelectedPath, Is.EqualTo(WeaponUpgradePath.None));
         AssertAmounts(h.Inventory, Rare, 0);
@@ -205,26 +200,23 @@ public sealed class CraftingAuthoredPriceTests
         Assert.That(h.Service.TryGetGuaranteedPath(target.Data, out WeaponUpgradePath alternate), Is.True);
         Assert.That(alternate, Is.Not.EqualTo(initial));
         AssertCosts(h.Service.GetAdvancedTinkeringCost(target.Data), Rare, retryPrice);
-        Assert.That(h.View.AdvancedPurchaseCostText.text, Does.Contain(CostText(Rare, retryPrice)));
-        Assert.That(h.View.AdvancedChoicePanel.activeSelf, Is.False);
-        Assert.That(h.View.AdvancedPurchaseButton.interactable, Is.False);
+        Assert.That(h.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: " + CostText(Rare, retryPrice)));
+        Assert.That(h.View.AdvancedNoticeText.text, Does.Not.Contain("50%"));
+        Assert.That(h.View.DeclineButton.interactable, Is.False);
+        Assert.That(h.View.AcceptButton.interactable, Is.False);
         AssertReadout(h.View.AdvancedReadout, h.Inventory, Rare, retryPrice);
 
         h.View.CloseButton.onClick.Invoke();
         Open(h);
-        Assert.That(h.View.AdvancedPurchaseCostText.text, Does.Contain(CostText(Rare, retryPrice)));
-        Assert.That(h.View.AdvancedPurchaseNoticeText.text, Does.Not.Contain("50%"));
-        Assert.That(h.Service.TryGetAdvancedOffer(target.Data, out _), Is.False);
+        Assert.That(h.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: " + CostText(Rare, retryPrice)));
+        Assert.That(h.View.AdvancedNoticeText.text, Does.Not.Contain("50%"));
         Assert.That(h.Service.TryGetGuaranteedPath(target.Data, out WeaponUpgradePath reopened), Is.True);
         Assert.That(reopened, Is.EqualTo(alternate));
         Add(h, Rare, retryPrice);
-        AssertEveryRareThreshold(h, target, retryPrice);
-        int beforePurchase = transactions;
-        h.View.AdvancedPurchaseButton.onClick.Invoke();
-        Assert.That(transactions, Is.EqualTo(beforePurchase + 1));
-        Assert.That(h.View.DeclineButton.interactable, Is.False);
+        AssertEveryRareThreshold(h, target, alternate, retryPrice);
+        int beforeAccept = transactions;
         h.View.AcceptButton.onClick.Invoke();
-        Assert.That(transactions, Is.EqualTo(beforePurchase + 1));
+        Assert.That(transactions, Is.EqualTo(beforeAccept + 1));
         Assert.That(target.Level, Is.EqualTo(6));
         Assert.That(target.SelectedPath, Is.EqualTo(alternate));
         AssertAmounts(h.Inventory, Rare, 0);
@@ -286,32 +278,26 @@ public sealed class CraftingAuthoredPriceTests
 
     [TestCase(0)]
     [TestCase(-6)]
-    public void FreeOrNegativeAdvancedPrices_StillRequirePurchaseThenOneResolution(int authored)
+    public void FreeOrNegativeAdvancedPrices_KeepDeclineAndAcceptanceAvailableWithoutMaterials(int authored)
     {
         Harness h = CreateHarness(5);
         SetPrice(h.Balance, "_advancedFirstWeaponCost", authored);
         SetPrice(h.Balance, "_rejectedFirstWeaponCost", authored);
         Open(h);
-        Assert.That(h.View.AdvancedPurchaseCostText.text, Does.Contain("Free"));
+        Assert.That(h.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: Free"));
         AssertReadout(h.View.AdvancedReadout, h.Inventory, Rare, 0);
         Assert.That(h.Service.GetAvailableAction(h.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
-        Assert.That(h.View.AdvancedPurchaseButton.interactable, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out _), Is.False);
-        int spent = 0;
-        h.Inventory.OnMaterialsSpent += () => spent++;
-        h.View.AdvancedPurchaseButton.onClick.Invoke();
-        Assert.That(h.View.AdvancedChoicePanel.activeSelf, Is.True);
         Assert.That(h.View.AcceptButton.interactable, Is.True);
         Assert.That(h.View.DeclineButton.interactable, Is.True);
+        int spent = 0;
+        h.Inventory.OnMaterialsSpent += () => spent++;
         h.View.DeclineButton.onClick.Invoke();
         Assert.That(h.Weapons[0].Level, Is.EqualTo(5));
-        Assert.That(h.View.AdvancedChoicePanel.activeSelf, Is.False);
-        Assert.That(h.View.AdvancedPurchaseButton.interactable, Is.True);
-        Assert.That(h.View.AdvancedPurchaseCostText.text, Does.Contain("Free"));
+        Assert.That(h.View.DeclineButton.interactable, Is.False);
+        Assert.That(h.View.AcceptButton.interactable, Is.True);
+        Assert.That(h.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: Free"));
         AssertReadout(h.View.AdvancedReadout, h.Inventory, Rare, 0);
         Assert.That(h.Service.TryGetGuaranteedPath(h.Weapons[0].Data, out WeaponUpgradePath alternate), Is.True);
-        h.View.AdvancedPurchaseButton.onClick.Invoke();
-        Assert.That(h.View.DeclineButton.interactable, Is.False);
         h.View.AcceptButton.onClick.Invoke();
         Assert.That(h.Weapons[0].Level, Is.EqualTo(6));
         Assert.That(h.Weapons[0].SelectedPath, Is.EqualTo(alternate));
@@ -414,32 +400,27 @@ public sealed class CraftingAuthoredPriceTests
         AssertCosts(h.Service.GetTinkeringCost(2), Common, 5);
         AssertCosts(h.Service.GetTinkeringCost(3), Common, 15);
         AssertCosts(h.Service.GetAdvancedTinkeringCost(h.Weapons[0].Data), Rare, 5);
-        Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out _), Is.False);
-        Add(h, Rare, 5);
-        Assert.That(h.Service.TryBeginAdvancedTinkering(h.Weapons[0].Data).Success, Is.True);
         Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out WeaponUpgradePath offer), Is.True);
+        Add(h, Rare, 5);
         Assert.That(h.Service.TryAdvancedTinkering(h.Weapons[0].Data, offer, false).Success, Is.True);
         AssertCosts(h.Service.GetAdvancedTinkeringCost(h.Weapons[0].Data), Rare, 8);
     }
 
-    private static void AssertEveryRareThreshold(Harness h, WeaponInstance weapon, int price)
+    private static void AssertEveryRareThreshold(Harness h, WeaponInstance weapon, WeaponUpgradePath offer, int price)
     {
         foreach (MaterialType material in Rare)
         {
             Assert.That(h.Inventory.TrySpend(new[] { new MaterialCost(material, 1) }), Is.True);
             Assert.That(h.Service.GetAvailableAction(weapon), Is.Null, material + " must independently meet the configured price.");
-            Assert.That(h.View.AdvancedPurchaseButton.interactable, Is.False);
+            Assert.That(h.View.AcceptButton.interactable, Is.False);
             Assert.That(h.View.Slots[0].Availability.Glow.gameObject.activeSelf, Is.False);
             AssertReadout(h.View.AdvancedReadout, h.Inventory, Rare, price);
-            Random.State before = Random.state;
-            Assert.That(h.Service.TryBeginAdvancedTinkering(weapon.Data).Success, Is.False);
-            Assert.That(h.Service.TryGetAdvancedOffer(weapon.Data, out _), Is.False);
-            Assert.That(Random.state, Is.EqualTo(before));
+            Assert.That(h.Service.TryAdvancedTinkering(weapon.Data, offer, true).Success, Is.False);
             Assert.That(weapon.Level, Is.EqualTo(5));
             h.Inventory.Add(material, 1);
         }
         Assert.That(h.Service.GetAvailableAction(weapon), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
-        Assert.That(h.View.AdvancedPurchaseButton.interactable, Is.True);
+        Assert.That(h.View.AcceptButton.interactable, Is.True);
         Assert.That(h.View.Slots[0].Availability.Glow.gameObject.activeSelf, Is.True);
         AssertReadout(h.View.AdvancedReadout, h.Inventory, Rare, price);
     }

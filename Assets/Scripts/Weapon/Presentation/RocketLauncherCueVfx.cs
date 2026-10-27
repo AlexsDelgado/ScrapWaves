@@ -316,8 +316,6 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             : Color.Lerp(_primaryColor, _coreColor, Mathf.Clamp01(1f - normalizedLife) * 0.45f);
         float emission = _baseEmission * Mathf.Max(0f, _emissionOverLife.Evaluate(normalizedLife)) *
                          _emissionMultiplier * _intensity * flashScale;
-        if (_style == RocketLauncherVfxStyle.KineticImpact)
-            emission = Mathf.Min(emission, 2.5f);
         float dissolve = Mathf.Clamp01(_dissolveOverLife.Evaluate(normalizedLife));
 
         for (int i = 0; i < _meshLayers.Length; i++)
@@ -327,8 +325,7 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
                 continue;
             renderer.GetPropertyBlock(_propertyBlock);
             _propertyBlock.SetColor(BaseColorId, color);
-            _propertyBlock.SetColor(EmissionColorId,
-                _style == RocketLauncherVfxStyle.KineticImpact ? color : color * emission);
+            _propertyBlock.SetColor(EmissionColorId, color * emission);
             _propertyBlock.SetFloat(EmissionIntensityId, emission);
             _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(_intensity * (1f - normalizedLife)) * flashScale);
             _propertyBlock.SetFloat(DissolveId, dissolve);

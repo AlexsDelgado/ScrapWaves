@@ -114,7 +114,7 @@ public static class RotatingBladeAssetBuilder
                 vfxShader,
                 new Color(0.24f, 0.78f, 0.9f, 0.52f),
                 new Color(0.38f, 0.92f, 1f),
-                1.2f,
+                2.2f,
                 6f,
                 3.2f),
             MultiBlade = CreateVfxMaterial(

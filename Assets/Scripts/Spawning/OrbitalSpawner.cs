@@ -38,9 +38,6 @@ public class OrbitalSpawner : MonoBehaviour
     [SerializeField, Min(0.05f), Tooltip("Fallback: se usa si no hay profile asignado.")]
     private float _spawnInterval = 1.5f;
 
-    [SerializeField, Min(0f), Tooltip("Fallback delay for one extra batch after a wipe. The normal spawn schedule is unchanged; an assigned profile takes precedence.")]
-    private float _wipeSpawnDelay = 3f;
-
     [SerializeField, Tooltip("Empieza a spawnear apenas arranca la escena.")]
     private bool _spawnOnStart = true;
 
@@ -81,7 +78,6 @@ public class OrbitalSpawner : MonoBehaviour
 
     private EnemySpawnRoulette _roulette;
     private float _nextSpawnTime;
-    private float _wipeSpawnTime = float.PositiveInfinity;
     private float _runStartTime;
     private readonly List<GameObject> _spawned = new(256);
 
@@ -101,8 +97,6 @@ public class OrbitalSpawner : MonoBehaviour
 
     /// <summary>Intervalo antes de aplicar el escalado por heat.</summary>
     public float BaseSpawnInterval => _profile != null ? _profile.SpawnInterval : _spawnInterval;
-
-    public float WipeSpawnDelay => _profile != null ? _profile.WipeSpawnDelay : Mathf.Max(0f, _wipeSpawnDelay);
 
     public int MaxActiveEnemies
     {
@@ -157,24 +151,10 @@ public class OrbitalSpawner : MonoBehaviour
             _heatManager = HeatManager.GetInstance();
 
         _nextSpawnTime = _spawnOnStart ? 0f : Time.time + EffectiveSpawnInterval();
-        CancelWipeSpawn();
-        EnemyHealth.AnyDied += OnEnemyDied;
-        if (_overheatManager != null)
-        {
-            _overheatManager.OnOverheatStarted += CancelWipeSpawn;
-            _overheatManager.OnOverheatFinished += OnOverheatFinished;
-        }
     }
 
     private void OnDisable()
     {
-        EnemyHealth.AnyDied -= OnEnemyDied;
-        if (_overheatManager != null)
-        {
-            _overheatManager.OnOverheatStarted -= CancelWipeSpawn;
-            _overheatManager.OnOverheatFinished -= OnOverheatFinished;
-        }
-        CancelWipeSpawn();
     }
 
     private void OnValidate()
@@ -185,89 +165,29 @@ public class OrbitalSpawner : MonoBehaviour
         }
     }
 
-    private void Update() => TickSpawning(Time.time);
-
-    private void TickSpawning(float now)
+    private void Update()
     {
-        if (!CanSpawn())
-        {
-            CancelWipeSpawn();
-            return;
-        }
-
-        // Ordinary batches keep their existing Overheat behavior; only wipe bonuses are excluded.
-        if (_overheatManager != null && _overheatManager.IsOverheating)
-            CancelWipeSpawn();
-
-        // A normal batch gets priority when both deadlines fall in the same frame.
-        if (now >= _nextSpawnTime)
-        {
-            _nextSpawnTime = now + EffectiveSpawnInterval();
-            if (SpawnRouletteWave())
-                CancelWipeSpawn();
-        }
-
-        if (now < _wipeSpawnTime)
-            return;
-
-        // Consume before attempting placement: an empty/blocked scene must never self-rearm.
-        CancelWipeSpawn();
-        if (!HasLivingEnemies())
-            SpawnRouletteWave();
-    }
-
-    private bool CanSpawn()
-    {
-        if (!isActiveAndEnabled || EntranceCinematic.StartupHeld || TutorialDirector.IsActive)
-            return false;
+        if (EntranceCinematic.StartupHeld || TutorialDirector.IsActive) return;
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
-            return false;
-
-        if (_overheatManager != null && _overheatManager.IsPreparing)
-            return false;
+            return;
 
         if (_roulette == null || _config == null)
-            return false;
+            return;
 
         if (_player == null)
             _player = PlayerMovement.PlayerTransform;
         if (_player == null)
-            return false;
-
-        return CanSpawnByHeat();
-    }
-
-    private void OnEnemyDied(EnemyHealth enemy)
-    {
-        if (!CanSpawn() || (_overheatManager != null && _overheatManager.IsOverheating))
             return;
 
-        // AnyDied fires once per life. A fresh wipe (e.g. an intervening ambush) gets its own
-        // full delay rather than inheriting the earlier wipe's nearly expired deadline.
-        if (!HasLivingEnemies())
-            _wipeSpawnTime = Time.time + WipeSpawnDelay;
+        if (!CanSpawnByHeat())
+            return;
+
+        if (Time.time < _nextSpawnTime)
+            return;
+
+        _nextSpawnTime = Time.time + EffectiveSpawnInterval();
+        SpawnRouletteWave();
     }
-
-    private static bool HasLivingEnemies()
-    {
-        // Fast path for ordinary placed leases; unlike targeting this includes emergence/dormancy.
-        if (EnemySpawnPopulationMember.ActiveCount > 0)
-            return true;
-
-        // Ambushes and authored enemies do not all consume the ordinary cap. Count their health
-        // too, even when disabled/burrowed/untargetable. Inactive pool stock is excluded.
-        // Ordinary placement is synchronous, so there is no pending ordinary batch to reserve.
-        foreach (EnemyHealth health in FindObjectsByType<EnemyHealth>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-        {
-            if (health.CurrentHealth > 0)
-                return true;
-        }
-        return false;
-    }
-
-    private void CancelWipeSpawn() => _wipeSpawnTime = float.PositiveInfinity;
-
-    private void OnOverheatFinished(OverheatEndReason reason) => CancelWipeSpawn();
 
     /// <summary>
     /// Tras Overheat el heat queda residual y decae; no spawneamos hasta bajar del primer tramo.
@@ -306,11 +226,11 @@ public class OrbitalSpawner : MonoBehaviour
 
     private float RunTimeSeconds => RunSessionStats.ElapsedSeconds;
 
-    private bool SpawnRouletteWave()
+    private void SpawnRouletteWave()
     {
         EnemySpawnRollResult roll = _roulette.Roll(RunTimeSeconds, ResolvePlayerStats());
         if (roll.Prefab == null)
-            return false;
+            return;
 
         float diffCount = _difficultyManager != null ? _difficultyManager.GetSpawnCountMultiplier() : 1f;
         float heatCount = _heatManager != null ? _heatManager.GetSpawnCountMultiplier() : 1f;
@@ -319,7 +239,6 @@ public class OrbitalSpawner : MonoBehaviour
         // OverheatSwarmBoost.SpeedMultiplier, multiplicarlos duplicaría la ráfaga en la fase de escape.
         float pressure = Mathf.Max(heatCount, OverheatSwarmBoost.ExitPressureSpawnMultiplier);
         int batch = Mathf.Max(1, Mathf.RoundToInt(roll.BatchSize * diffCount * pressure * cycleBatch));
-        bool spawnedAny = false;
 
         for (int i = 0; i < batch; i++)
         {
@@ -351,16 +270,13 @@ public class OrbitalSpawner : MonoBehaviour
                 _difficultyManager?.ApplySpawnModifiers(instance);
                 EnemySpawnPopulationMember.RecordSpawn(instance, EnemySpawnSource.Orbital);
                 _spawned.Add(instance);
-                spawnedAny = true;
             }
         }
-        return spawnedAny;
     }
 
     /// <summary>Devuelve al pool o destruye enemigos rastreados (QA / fin de Overheat).</summary>
     public void ClearSpawned()
     {
-        CancelWipeSpawn();
         if (EnemyPoolRegistry.UseEnemyPool && EnemyPoolRegistry.Instance != null)
         {
             for (int i = _spawned.Count - 1; i >= 0; i--)

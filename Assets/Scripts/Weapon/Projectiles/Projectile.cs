@@ -564,7 +564,7 @@ public class Projectile : MonoBehaviour
                     damageable,
                     worldImpact: false,
                     impactPosition,
-                    result.ResolvedDamage,
+                    result.AppliedDamage,
                     result.IsAuthoritative && result.AppliedDamage > 0,
                     result.Killed);
                 EmitPresentationImpact(other, damageable, worldImpact: false, impactPosition);
@@ -686,7 +686,7 @@ public class Projectile : MonoBehaviour
                         damageable,
                         worldImpact: false,
                         closestImpactPoint,
-                        result.ResolvedDamage,
+                        result.AppliedDamage,
                         result.IsAuthoritative && result.AppliedDamage > 0,
                         result.Killed);
                     EmitPresentationImpact(closestCollider, damageable, worldImpact: false, closestImpactPoint);
@@ -792,7 +792,7 @@ public class Projectile : MonoBehaviour
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage, falloffScale));
-                totalDamage += result.ResolvedDamage;
+                totalDamage += result.AppliedDamage;
                 anyDamageApplied = true;
                 anyKill |= result.Killed;
                 feedbackDamageable ??= damageable;
@@ -939,7 +939,7 @@ public class Projectile : MonoBehaviour
             (impactPosition - transform.position).sqrMagnitude > 0.0001f
                 ? (impactPosition - transform.position).normalized
                 : -_direction,
-            result.ResolvedDamage,
+            result.AppliedDamage,
             _useWeaponDamageContext && _weaponDamageContext.IsCritical,
             false,
             result.Killed,
@@ -947,7 +947,7 @@ public class Projectile : MonoBehaviour
             WeaponEnemyClassifier.GetKind(target),
             ImpactSurfaceResolver.Resolve(hitCollider, damageable));
         context = context.WithDamageMetadata(
-            ResolveReferenceDamage(result.ResolvedDamage),
+            ResolveReferenceDamage(result.AppliedDamage),
             _useWeaponDamageContext ? _weaponDamageContext.ActionSequenceId : _feedbackTemplate.ActionSequenceId,
             damageKind,
             _feedbackTemplate.StatusInstanceId,

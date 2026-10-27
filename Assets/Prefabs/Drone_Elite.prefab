@@ -253,8 +253,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BomberDroneBehavior
   _hoverHeight: 3.5
-  _verticalFollowSpeedRatio: 1.5
-  _verticalDeadZone: 5
+  _playerHoverOffset: 1.25
   _moveSpeed: 5.5
   _rotationSpeed: 360
   _groundMask:
@@ -407,12 +406,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9d2b6e706e8343cea9f91bc089b01f6d, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyStatRandomizer
   _healthMultiplierRange: {x: 1, y: 1}
   _sizeMultiplierRange: {x: 1, y: 1}
   _movementSpeedMultiplierRange: {x: 1, y: 1}
-  _droneHoverHeightMultiplierRange: {x: 0.8, y: 1.2}
 --- !u!1 &6469779007441651627
 GameObject:
   m_ObjectHideFlags: 0

@@ -108,13 +108,13 @@ public sealed class CraftingAvailabilityFeedbackTests
         Assert.That(indicator.Glow.gameObject.activeSelf, Is.False, "Every material must meet the price.");
         harness.Inventory.Add(costs[costs.Count - 1].Material, 1);
         Assert.That(indicator.Glow.gameObject.activeSelf, Is.True);
-        Assert.That((level == 5 ? harness.View.AdvancedPurchaseButton : harness.View.UpgradeButton).interactable, Is.True);
+        Assert.That((level == 5 ? harness.View.AcceptButton : harness.View.UpgradeButton).interactable, Is.True);
         foreach (MaterialCost cost in costs)
         {
             Assert.That(harness.Inventory.TrySpend(new[] { new MaterialCost(cost.Material, 1) }), Is.True);
             Assert.That(indicator.Glow.gameObject.activeSelf, Is.False, cost.Material + " must independently meet the price.");
             Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
-            Assert.That((level == 5 ? harness.View.AdvancedPurchaseButton : harness.View.UpgradeButton).interactable, Is.False);
+            Assert.That((level == 5 ? harness.View.AcceptButton : harness.View.UpgradeButton).interactable, Is.False);
             harness.Inventory.Add(cost.Material, 1);
             Assert.That(indicator.Glow.gameObject.activeSelf, Is.True);
         }

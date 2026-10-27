@@ -55,7 +55,6 @@ public class ZoneSpawner : MonoBehaviour
     [SerializeField, Min(0f)] private float _resolveStepOut = 0.06f;
 
     private bool _armed = true;
-    private readonly HashSet<Collider> _preparationEntries = new();
     private readonly List<GameObject> _spawned = new(16);
 
     public bool IsArmed => _armed;
@@ -78,22 +77,22 @@ public class ZoneSpawner : MonoBehaviour
 
     private void OnEnable()
     {
+        if (!_rearmOnOverheat)
+            return;
+
         if (_overheatManager == null)
             _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_overheatManager != null)
         {
-            if (_rearmOnOverheat) _overheatManager.OnOverheatStarted += Rearm;
-            _overheatManager.OnOverheatFinished += ClearPreparationEntries;
+            _overheatManager.OnOverheatStarted += Rearm;
         }
     }
 
     private void OnDisable()
     {
-        _preparationEntries.Clear();
         if (_overheatManager != null)
         {
             _overheatManager.OnOverheatStarted -= Rearm;
-            _overheatManager.OnOverheatFinished -= ClearPreparationEntries;
         }
     }
 
@@ -103,29 +102,12 @@ public class ZoneSpawner : MonoBehaviour
         if (!_armed)
             return;
 
-        PlayerHealth health = other.GetComponentInParent<PlayerHealth>();
-        if (health == null) return;
-        if (!health.IsAlive || (GameManager.Instance != null && !GameManager.Instance.IsPlaying)) return;
-        if (_overheatManager != null && _overheatManager.IsPreparing)
-        {
-            _preparationEntries.Add(other);
+        if (other.GetComponentInParent<PlayerHealth>() == null)
             return;
-        }
-        if (Time.timeScale <= 0f || GameplayPause.IsUiPaused) return;
-        _preparationEntries.Clear();
-        _armed = false;
+
         SpawnAmbush();
+        _armed = false;
     }
-
-    private void ClearPreparationEntries(OverheatEndReason reason) => _preparationEntries.Clear();
-
-    private void OnTriggerStay(Collider other)
-    {
-        // Only retry entries held by preparation; ordinary rearming behavior is unchanged.
-        if (_preparationEntries.Contains(other)) OnTriggerEnter(other);
-    }
-
-    private void OnTriggerExit(Collider other) => _preparationEntries.Remove(other);
 
     private void SpawnAmbush()
     {

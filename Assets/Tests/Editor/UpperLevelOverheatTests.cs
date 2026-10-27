@@ -87,7 +87,6 @@ public sealed class UpperLevelOverheatTests
         // Explicit lifecycle setup is needed for edit-mode components without ExecuteAlways.
         Call(_hazard, "OnDisable");
         Set(_hazard, "_platformState", _state);
-        Set(_hazard, "_upperLevelVolume", _volume);
         Set(_hazard, "_health", _health);
         Set(_hazard, "_overheatManager", _overheat);
         Set(_hazard, "_effects", new[] { _effect });
@@ -185,40 +184,16 @@ public sealed class UpperLevelOverheatTests
     }
 
     [Test]
-    public void Damage_DefaultGraceAndCadenceRetainFractionalGrowth()
+    public void Damage_DefaultGraceAndCadenceDealFivePerTick()
     {
         Tick(1.5f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Tick(.5f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
         Tick(1.9f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
         Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(98));
-        Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(96), "The third hit rounds 1.69 to 2 instead of multiplying a rounded 1 forever.");
-        Tick(2f);
-        Tick(2f);
-        Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(87), "Default unmitigated hits are 1, 1, 2, 2, 3, 4.");
-    }
-
-    [Test]
-    public void GroundReentry_RestartsGraceButRetainsEventDamageEscalation()
-    {
-        Tick(2f);
-        Tick(2f);
-        Move(new Vector3(0f, 1.01f, 0f));
-        Tick(100f);
-        Move(new Vector3(0f, 12f, 0f));
-        Tick(1.9f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(98));
-        Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(96), "Landing must not reset the next hit to starting damage.");
-        Call(_overheat, "EndOverheat", OverheatEndReason.Interrupted);
-        Call(_overheat, "OnMaxHeatReached");
-        Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(95), "A new phase starts at 1 again.");
+        Assert.That(_health.CurrentHealth, Is.EqualTo(90));
     }
 
     [Test]
@@ -228,7 +203,7 @@ public sealed class UpperLevelOverheatTests
         Move(new Vector3(0f, 17f, 0f));
         Assert.That(_state.IsBaseSupported, Is.False);
         Tick(.75f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
@@ -245,7 +220,7 @@ public sealed class UpperLevelOverheatTests
         Assert.That(_state.CanSpawnObjectives, Is.False);
         Move(new Vector3(0f, 12f, 0f));
         Tick(.75f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
@@ -255,10 +230,10 @@ public sealed class UpperLevelOverheatTests
         Tick(1.9f);
         Move(new Vector3(30f, 12f, 0f));
         Tick(100f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
         Move(new Vector3(0f, 12f, 0f));
         Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(98));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(90));
     }
 
     [Test]
@@ -272,7 +247,7 @@ public sealed class UpperLevelOverheatTests
         Tick(1.9f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [TestCase("ui")]
@@ -297,18 +272,18 @@ public sealed class UpperLevelOverheatTests
         SetStartupHeld(false);
         Move(new Vector3(0f, 12f, 0f));
         Tick(.5f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
     public void LongFrame_DealsAtMostOneHitAndDoesNotCarryCatchupDebt()
     {
         Tick(100f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
         Tick(0f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
         Tick(100f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(98));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(90));
     }
 
     [Test]
@@ -323,7 +298,7 @@ public sealed class UpperLevelOverheatTests
         Tick(1.9f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
@@ -335,22 +310,19 @@ public sealed class UpperLevelOverheatTests
         Assert.That(_overheat.IsPermanentOverheat, Is.True);
         Assert.That(_overheat.IsOverheating, Is.True);
         Tick(1f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
     public void Damage_UsesShieldThenOrdinaryResistance()
     {
-        Set(_volume, "_startingDamage", 10f);
-        Set(_volume, "_damageMultiplier", 1.3f);
-        Call(_hazard, "ResetHazard");
         Set(_health, "_shieldCharges", 1);
         Tick(2f);
         Assert.That(_health.ShieldCharges, Is.Zero);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         _stats.AddModifier(new StatModifier(StatType.DamageResistance, .4f, StatUpgradeSource.LevelUp));
         Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(92), "Shield absorbs the first hit; the next raw 13 hit retains ordinary 40% resistance rounding.");
+        Assert.That(_health.CurrentHealth, Is.EqualTo(97));
         Assert.That(_health.IsBurning, Is.False);
     }
 
@@ -362,7 +334,7 @@ public sealed class UpperLevelOverheatTests
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Set(_health, "_invulnerableUntil", -1f);
         Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
@@ -375,7 +347,7 @@ public sealed class UpperLevelOverheatTests
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Set(powerup, "_invulnEndsAt", -1f);
         Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
@@ -388,13 +360,13 @@ public sealed class UpperLevelOverheatTests
         Assert.That(_effect.isPlaying, Is.False);
         _box.enabled = true;
         Tick(1f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
     public void DeathAndExplicitHealthReset_ClearEffectsAndRestartGrace()
     {
-        Set(_health, "_currentHealth", 1);
+        Set(_health, "_currentHealth", 5);
         Tick(2f);
         Assert.That(_health.IsAlive, Is.False);
         Assert.That(_effect.isPlaying, Is.False);
@@ -407,7 +379,7 @@ public sealed class UpperLevelOverheatTests
         Tick(1.9f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]
@@ -416,7 +388,7 @@ public sealed class UpperLevelOverheatTests
         Tick(1.5f);
         _health.FullHeal();
         Tick(.5f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99), "Healing or debug infinite health must not reset the phase clock.");
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95), "Healing or debug infinite health must not reset the phase clock.");
     }
 
     [Test]
@@ -431,7 +403,7 @@ public sealed class UpperLevelOverheatTests
         Tick(1.9f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         Tick(.11f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
     }
 
     [Test]

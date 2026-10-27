@@ -8,15 +8,6 @@ public sealed class UpperLevelVolume : MonoBehaviour
     [SerializeField, Tooltip("Terrain and other genuine base support roots. Never assign the shared map root or upper geometry.")]
     private Transform[] _baseSurfaceRoots = System.Array.Empty<Transform>();
 
-    [Header("Overheat damage")]
-    [SerializeField, Min(1f), Tooltip("Raw damage of the first upper-level hit in each Overheat event, before normal player mitigation.")]
-    private float _startingDamage = 1f;
-    [SerializeField, Min(1f), Tooltip("Multiplies unrounded damage after each hazard tick. Leaving and re-entering the volume does not reset escalation during the same event.")]
-    private float _damageMultiplier = 1.3f;
-
-    public float StartingDamage => Mathf.Max(1f, _startingDamage);
-    public float DamageMultiplier => Mathf.Max(1f, _damageMultiplier);
-
     private BoxCollider _box;
     private BoxCollider Box => _box != null ? _box : (_box = GetComponent<BoxCollider>());
     public bool IsConfigured => Box != null && _baseSurfaceRoots != null &&

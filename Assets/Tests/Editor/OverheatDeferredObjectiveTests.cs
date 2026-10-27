@@ -143,10 +143,6 @@ public sealed class OverheatDeferredObjectiveTests
         TickPending();
         Assert.That(_pool.TotalLeased, Is.Zero);
         GameplayPause.Pop();
-        TickPreparation(4f);
-        TickPending();
-        Assert.That(_pool.TotalLeased, Is.Zero, "Landing starts a full five gameplay seconds.");
-        TickPreparation(1f);
         TickPending();
         Assert.That(_elites.IsWaitingForBase, Is.False);
         Assert.That(_elites.EliteWaveTotal, Is.EqualTo(1));
@@ -168,7 +164,6 @@ public sealed class OverheatDeferredObjectiveTests
     {
         MovePlayer(1.02f);
         StartOverheat();
-        CompletePreparation();
         Assert.That(_elites.GetAliveEliteTransforms().Count, Is.EqualTo(1));
         Transform first = _elites.GetAliveEliteTransforms()[0];
         first.GetComponent<EnemyHealth>().ForceKill();
@@ -188,7 +183,6 @@ public sealed class OverheatDeferredObjectiveTests
         StartOverheat(); // Next even cycle.
         _overheat.NotifyOverheatObjectiveCleared();
         StartOverheat();
-        CompletePreparation();
         Assert.That(_elites.GetAliveEliteTransforms().Count, Is.EqualTo(1));
         Assert.That(_elites.GetAliveEliteTransforms()[0], Is.SameAs(first));
         Assert.That(_elites.ElitesRemaining, Is.EqualTo(1));
@@ -216,7 +210,6 @@ public sealed class OverheatDeferredObjectiveTests
         MovePlayer(1.02f);
         DeferredObjectivePoolResetProbe.OnSpawn = () => _health.FullHeal(resetPhase: true);
         StartOverheat();
-        CompletePreparation();
         Assert.That(_overheat.IsOverheating, Is.False);
         Assert.That(_elites.IsWaitingForBase, Is.False);
         Assert.That(_elites.ElitesRemaining, Is.Zero);
@@ -244,7 +237,6 @@ public sealed class OverheatDeferredObjectiveTests
         Set(_elites, "_groundRaycastMask", (LayerMask)(1 << 30));
         Set(_elites, "_fallbackGroundRaycastMask", (LayerMask)(1 << 30));
         StartOverheat();
-        CompletePreparation();
         Assert.That(_elites.IsWaitingForBase, Is.False);
         Assert.That(_elites.IsEliteWaveActive, Is.False);
         Assert.That(_overheat.IsOverheating, Is.False);
@@ -345,178 +337,6 @@ public sealed class OverheatDeferredObjectiveTests
         Assert.That(placed, Is.False, "Exhausting bounded ground probes must not accept a void position.");
     }
 
-    [TestCase(false)]
-    [TestCase(true)]
-    public void Preparation_BothStartingLocations_PauseAndGroundExitSuspend_AndDuplicateTriggersDoNotRestart(bool startAbove)
-    {
-        MovePlayer(startAbove ? 11f : 1.02f);
-        int readyEvents = 0;
-        _overheat.OnPreparationFinished += () => readyEvents++;
-        StartOverheat();
-        Assert.That(_overheat.IsPreparing, Is.True);
-        Assert.That(_pool.TotalLeased, Is.Zero);
-        if (startAbove)
-        {
-            TickPreparation(20f);
-            MovePlayer(4f);
-            TickPreparation(20f);
-            Assert.That(_overheat.PreparationTimeRemaining, Is.EqualTo(5f), "Descent is not Base support.");
-            MovePlayer(1.02f);
-        }
-        TickPreparation(2f);
-        Assert.That(_overheat.PreparationTimeRemaining, Is.EqualTo(3f));
-        StartOverheat();
-        Assert.That(_overheat.PreparationTimeRemaining, Is.EqualTo(3f), "Duplicate heat notification cannot reset the gate.");
-        Assert.That(Get<int>(_elites, "_cycleIndex"), Is.EqualTo(1));
-        GameplayPause.Push();
-        TickPreparation(20f);
-        GameplayPause.Pop();
-        Time.timeScale = 0f;
-        TickPreparation(20f);
-        Time.timeScale = 1f;
-        MovePlayer(11f);
-        TickPreparation(20f);
-        Assert.That(_overheat.PreparationTimeRemaining, Is.EqualTo(3f));
-        MovePlayer(1.02f);
-        TickPreparation(2f);
-        TickPending();
-        Assert.That(_pool.TotalLeased, Is.Zero);
-        TickPreparation(1f);
-        TickPending();
-        TickPreparation(20f);
-        TickPending();
-        Assert.That(_overheat.AreEncountersReady, Is.True);
-        Assert.That(_pool.TotalLeased, Is.EqualTo(1));
-        Assert.That(readyEvents, Is.EqualTo(1));
-    }
-
-    [Test]
-    public void DeathCancelsPreparation_ExplicitReviveAndNewEventGetFreshCountdown()
-    {
-        MovePlayer(1.02f);
-        StartOverheat();
-        TickPreparation(4f);
-        // EditMode does not call Awake on ChallengeProgressTracker.EnsureExists().
-        // Supply the same isolated tracker used by the other damage integration fixtures.
-        ChallengeProgressTracker previousTracker = ChallengeProgressTracker.Instance;
-        ChallengeProgressTracker tracker = NewObject("Preparation death challenge tracker").AddComponent<ChallengeProgressTracker>();
-        PropertyInfo trackerInstance = typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance));
-        trackerInstance.SetValue(null, tracker);
-        try { _health.TakeDamage(1000); }
-        finally { trackerInstance.SetValue(null, previousTracker); }
-        Assert.That(_overheat.IsOverheating, Is.False);
-        Assert.That(_overheat.IsPreparing, Is.False);
-        TickPreparation(10f);
-        TickPending();
-        Assert.That(_pool.TotalLeased, Is.Zero);
-        _health.FullHeal(resetPhase: true);
-        StartOverheat();
-        Assert.That(_overheat.IsPreparing, Is.True);
-        Assert.That(_overheat.PreparationTimeRemaining, Is.EqualTo(5f));
-    }
-
-    [TestCase(2, 1, false)]
-    [TestCase(4, 1, true)]
-    [TestCase(6, 2, false)]
-    public void BossRoutes_FirstSecondAndMultipleBosses_UseSamePreparationGate(int cycle, int count, bool secondPrefab)
-    {
-        MovePlayer(1.02f);
-        GameObject first = NewObject("Boss one");
-        first.AddComponent<CharacterController>();
-        first.AddComponent<EnemyHealth>();
-        GameObject second = NewObject("Boss two");
-        second.AddComponent<CharacterController>();
-        second.AddComponent<EnemyHealth>();
-        GameObject root = NewObject("Boss routes");
-        BossManager bosses = root.AddComponent<BossManager>();
-        Set(bosses, "_overheatManager", _overheat);
-        Set(bosses, "_bossPrefab", first);
-        Set(bosses, "_secondBossPrefab", second);
-        Set(bosses, "_overheatCycleIndex", cycle - 1);
-        Set(bosses, "_multiBossOverheatCycle", 6);
-        Set(bosses, "_groundRaycastMask", (LayerMask)1);
-        Set(bosses, "_fallbackGroundRaycastMask", (LayerMask)1);
-        Set(bosses, "_overlapSolidMask", (LayerMask)1);
-        Set(_elites, "_cycleIndex", cycle - 1);
-        _lifecycle.SetActive(root, true);
-        StartOverheat();
-        Assert.That(Get<GameObject>(bosses, "_pendingBossPrefab"), Is.SameAs(secondPrefab ? second : first));
-        Assert.That(Get<int>(bosses, "_pendingBossCount"), Is.EqualTo(count));
-        TickPreparation(4f);
-        Invoke(bosses, "TryReleasePendingSpawn");
-        Assert.That(bosses.HasActiveBosses, Is.False);
-        TickPreparation(1f);
-        Invoke(bosses, "TryReleasePendingSpawn");
-        foreach (EnemyHealth boss in bosses.ActiveBosses) _created.Add(boss.gameObject);
-        Assert.That(bosses.ActiveBosses.Count, Is.EqualTo(count));
-        Invoke(bosses, "TryReleasePendingSpawn");
-        Assert.That(bosses.ActiveBosses.Count, Is.EqualTo(count), "A repeated release must not instantiate another batch.");
-        Assert.That(_elites.ElitesRemaining, Is.Zero);
-    }
-
-    [Test]
-    public void PermanentEvent_UsesGroundPreparation_WithoutEnablingObjectiveWaves()
-    {
-        _overheat.EnterPermanentOverheat();
-        TickPreparation(20f);
-        Assert.That(_overheat.IsAwaitingGround, Is.True);
-        Assert.That(_overheat.PreparationTimeRemaining, Is.EqualTo(5f));
-        MovePlayer(1.02f);
-        TickPreparation(4f);
-        Assert.That(_overheat.AreEncountersReady, Is.False);
-        TickPreparation(1f);
-        Assert.That(_overheat.AreEncountersReady, Is.True);
-        Assert.That(_overheat.IsPermanentOverheat, Is.True);
-        Assert.That(_elites.IsWaitingForBase, Is.False);
-        Assert.That(_pool.TotalLeased, Is.Zero);
-    }
-
-    [Test]
-    public void OrbitalAndAmbushRoutes_AreHeldByPreparation_AndNormalOrbitalDeadlineIsPreserved()
-    {
-        MovePlayer(1.02f);
-        Set(_elites, "_cycleIndex", 1); // An even cycle leaves the pool free for the ambush.
-        EnemySpawnRouletteConfig config = ScriptableObject.CreateInstance<EnemySpawnRouletteConfig>();
-        try
-        {
-            GameObject orbitalRoot = NewObject("Orbital gate");
-            OrbitalSpawner orbital = orbitalRoot.AddComponent<OrbitalSpawner>();
-            Set(orbital, "_overheatManager", _overheat);
-            Set(orbital, "_config", config);
-            Set(orbital, "_roulette", new EnemySpawnRoulette(config));
-            Set(orbital, "_player", _player.transform);
-            _lifecycle.SetActive(orbitalRoot, true);
-            Set(orbital, "_nextSpawnTime", 123f);
-            GameObject zoneRoot = NewObject("Ambush gate");
-            zoneRoot.AddComponent<BoxCollider>();
-            ZoneSpawner zone = zoneRoot.AddComponent<ZoneSpawner>();
-            Set(zone, "_overheatManager", _overheat);
-            Set(zone, "_enemyPrefab", _prefab);
-            Set(zone, "_spawnCount", 1);
-            Set(zone, "_groundRaycastMask", (LayerMask)1);
-            Set(zone, "_fallbackGroundRaycastMask", (LayerMask)1);
-            Set(zone, "_overlapSolidMask", (LayerMask)1);
-            _lifecycle.SetActive(zoneRoot, true);
-            Collider playerCollider = _player.GetComponent<Collider>();
-            StartOverheat();
-            Invoke(zone, "OnTriggerEnter", playerCollider);
-            Invoke(orbital, "TickSpawning", 200f);
-            Assert.That((bool)Invoke(orbital, "CanSpawn"), Is.False);
-            Assert.That(zone.IsArmed, Is.True);
-            Assert.That(Get<float>(orbital, "_nextSpawnTime"), Is.EqualTo(123f));
-            Assert.That(_pool.TotalLeased, Is.Zero);
-            TickPreparation(5f);
-            Assert.That((bool)Invoke(orbital, "CanSpawn"), Is.True);
-            Invoke(zone, "OnTriggerStay", playerCollider);
-            Assert.That(zone.IsArmed, Is.False);
-            Assert.That(_pool.TotalLeased, Is.EqualTo(1));
-            Invoke(zone, "OnTriggerStay", playerCollider);
-            Assert.That(_pool.TotalLeased, Is.EqualTo(1));
-            zone.ClearSpawned();
-        }
-        finally { Object.DestroyImmediate(config); }
-    }
-
     private void ConfigureLowUpperBoundary()
     {
         // Match the map's narrow gap: upper begins above the player's feet but below its root.
@@ -531,8 +351,6 @@ public sealed class OverheatDeferredObjectiveTests
 
     private void StartOverheat() => Invoke(_overheat, "OnMaxHeatReached");
     private void TickPending() => Invoke(_elites, "TryReleasePendingSpawn");
-    private void TickPreparation(float elapsed) => Invoke(_overheat, "TickPreparation", elapsed);
-    private void CompletePreparation() { TickPreparation(5f); TickPending(); }
     private void MovePlayer(float y)
     {
         _player.transform.position = new Vector3(0f, y, 0f);

@@ -17,7 +17,6 @@ public class DialogueDirector : MonoBehaviour
     [SerializeField] private OverheatManager _overheatManager;
     [SerializeField] private BossManager _bossManager;
     [SerializeField] private CraftingStation _craftingStation;
-    [SerializeField] private WeaponCraftingService _crafting;
 
     [Tooltip("Las guías por inactividad no interrumpen: solo suenan si no hay nada en pantalla ni en cola.")]
     [SerializeField, Min(0f)] private float _guideGapSeconds = 8f;
@@ -107,7 +106,6 @@ public class DialogueDirector : MonoBehaviour
     private void Update()
     {
         BindExitObjective();
-        RefreshCraftingHint();
         if (TutorialDirector.IsActive || !IsGameRunning())
             return;
 
@@ -237,7 +235,7 @@ public class DialogueDirector : MonoBehaviour
 
     private void EvaluateGuides()
     {
-        if (_set == null || _box == null || _box.IsShowing || _queue.Exists(p => CanShow(p.Entry))
+        if (_set == null || _box == null || _box.IsShowing || _queue.Count > 0
             || _runTime - _lastDialogueEndedAt < _guideGapSeconds)
             return;
         foreach (DialogueEntry entry in _set.Entries)
@@ -260,30 +258,8 @@ public class DialogueDirector : MonoBehaviour
         }
     }
 
-    private static bool IsCraftingHint(DialogueEntry entry) => entry != null
-        && (entry.ShowsCraftingGuide || entry.Trigger is DialogueTrigger.CraftingNotVisitedFor or DialogueTrigger.NoCraftingFor);
-
-    private bool CanShow(DialogueEntry entry)
-    {
-        if (!IsCraftingHint(entry)) return true;
-        if (_crafting == null && _weaponManager != null)
-            _crafting = _weaponManager.GetComponent<WeaponCraftingService>();
-        if (_crafting == null) _crafting = FindAnyObjectByType<WeaponCraftingService>();
-        return _crafting != null && _crafting.HasAnyAvailableCraftingAction();
-    }
-
-    private void RefreshCraftingHint()
-    {
-        // Poll eligibility as well as resources: equipment, slots and unlocks can change independently.
-        if (_box == null || !IsCraftingHint(_box.CurrentEntry) || CanShow(_box.CurrentEntry)) return;
-        _box.Dismiss();
-        _lastDialogueEndedAt = _runTime;
-    }
-
     private bool CanPlay(DialogueEntry entry)
     {
-        if (!CanShow(entry))
-            return false;
         if (entry.OncePerRun && _played.Contains(entry))
             return false;
         if (_lastPlayedAt.TryGetValue(entry, out float last) && _runTime - last < entry.RepeatCooldown)
@@ -308,7 +284,7 @@ public class DialogueDirector : MonoBehaviour
     {
         if (_box == null || _box.IsShowing || _queue.Count == 0)
             return;
-        int index = _queue.FindIndex(p => p.ReadyAt <= _runTime && CanShow(p.Entry));
+        int index = _queue.FindIndex(p => p.ReadyAt <= _runTime);
         if (index < 0)
             return;
         DialogueEntry entry = _queue[index].Entry;

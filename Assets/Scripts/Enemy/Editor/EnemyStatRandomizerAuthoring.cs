@@ -51,8 +51,6 @@ public static class EnemyStatRandomizerAuthoring
                 serialized.FindProperty("_healthMultiplierRange").vector2Value = Vector2.one;
                 serialized.FindProperty("_sizeMultiplierRange").vector2Value = Vector2.one;
                 serialized.FindProperty("_movementSpeedMultiplierRange").vector2Value = Vector2.one;
-                if (root.GetComponent<FlyingRangedBehavior>() != null || root.GetComponent<BomberDroneBehavior>() != null)
-                    serialized.FindProperty("_droneHoverHeightMultiplierRange").vector2Value = new Vector2(0.8f, 1.2f);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 PrefabUtility.SaveAsPrefabAsset(root, path, out bool saved);
                 if (!saved) throw new InvalidOperationException("Could not save " + path);
@@ -83,8 +81,6 @@ public static class EnemyStatRandomizerAuthoring
             ValidateRange(serialized, "_healthMultiplierRange", path);
             ValidateRange(serialized, "_sizeMultiplierRange", path);
             ValidateRange(serialized, "_movementSpeedMultiplierRange", path);
-            if (prefab.GetComponent<FlyingRangedBehavior>() != null || prefab.GetComponent<BomberDroneBehavior>() != null)
-                ValidateRange(serialized, "_droneHoverHeightMultiplierRange", path);
             report.AppendLine("PASS " + path);
         }
         ValidateBossExclusions();

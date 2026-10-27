@@ -18,62 +18,6 @@ public sealed class CombatTextPresentationCoreTests
         Object.DestroyImmediate(_profile);
     }
 
-    [TestCase(DamageFeedbackKind.Direct, false, false, false, false, CombatTextStyleId.Normal)]
-    [TestCase(DamageFeedbackKind.Direct, true, true, false, false, CombatTextStyleId.CriticalWeakPoint)]
-    [TestCase(DamageFeedbackKind.Burn, true, true, false, true, CombatTextStyleId.Burn)]
-    [TestCase(DamageFeedbackKind.JellifiedBurn, true, false, false, true, CombatTextStyleId.JellifiedBurn)]
-    [TestCase(DamageFeedbackKind.Burn, true, true, true, true, CombatTextStyleId.Kill)]
-    [TestCase(DamageFeedbackKind.Direct, true, true, true, true, CombatTextStyleId.Kill)]
-    public void PalettePriorityIsKillThenDotThenCriticalThenNormal(
-        DamageFeedbackKind kind, bool critical, bool weakPoint, bool kill, bool ability, CombatTextStyleId expected)
-    {
-        CombatTextEvent hit = CombatTextAggregateCoreTests.CreateEvent(
-            100, kind: kind, critical: critical, weakPoint: weakPoint, kill: kill, ability: ability);
-        CombatTextAggregate aggregate = new(in hit, 0f);
-        Assert.That(CombatTextStyleResolver.ResolveStyle(in hit), Is.EqualTo(expected));
-        Assert.That(CombatTextStyleResolver.ResolveStyle(in aggregate), Is.EqualTo(expected));
-    }
-
-    [Test]
-    public void PaletteUsesExactlyFourColorsEvenWithLegacyAuthoredTints()
-    {
-        GameObject prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(
-            "Assets/GameFeel/Prefabs/CombatText/CombatTextView.prefab");
-        Assert.That(prefab, Is.Not.Null);
-        GameObject instance = Object.Instantiate(prefab);
-        try
-        {
-            CombatTextView view = instance.GetComponent<CombatTextView>();
-            view.Initialize(_profile);
-            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-            typeof(CombatTextView).GetField("_renderAlpha", flags).SetValue(view, 1f);
-            var applyStyle = typeof(CombatTextView).GetMethod("ApplyStyle", flags);
-            var text = view.GetComponentInChildren<TMPro.TextMeshPro>(true);
-            var colors = new System.Collections.Generic.HashSet<Color>();
-            foreach (CombatTextStyleId style in System.Enum.GetValues(typeof(CombatTextStyleId)))
-            {
-                _profile.GetStyle(style).TextColor = Color.magenta;
-                Color expected = style switch
-                {
-                    CombatTextStyleId.Kill => Color.red,
-                    CombatTextStyleId.Burn or CombatTextStyleId.JellifiedBurn => new Color(1f, 0.5f, 0f),
-                    CombatTextStyleId.Critical or CombatTextStyleId.CriticalWeakPoint => Color.yellow,
-                    _ => Color.white
-                };
-                applyStyle.Invoke(view, new object[] { style });
-                Assert.That(text.color, Is.EqualTo(expected), style.ToString());
-                Assert.That(_profile.GetStyle(style).TextColor, Is.EqualTo(Color.magenta),
-                    "Rendering must not mutate the shared authored profile.");
-                colors.Add(text.color);
-            }
-            Assert.That(colors.Count, Is.EqualTo(4));
-        }
-        finally
-        {
-            Object.DestroyImmediate(instance);
-        }
-    }
-
     [Test]
     public void StyleResolutionCannotBeDowngradedByLaterRoutineHits()
     {

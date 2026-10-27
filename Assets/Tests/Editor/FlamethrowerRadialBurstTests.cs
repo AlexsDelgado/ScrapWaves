@@ -125,8 +125,6 @@ public sealed class FlamethrowerRadialBurstTests
         var pooled=Create(cue.VfxPrefab); var vfx=pooled.GetComponent<FlamethrowerCueVfx>();
         var high=new WeaponPresentationContext(cue.Cue,null,Vector3.zero,Vector3.forward,explosionRadius:9f);
         pooled.Play(in high,cue.Duration,0f,false); int tongues=vfx.ActiveTongueCount,embers=vfx.ActiveEmberCount;
-        vfx.SampleActive(.3f);
-        int flameInstances = pooled.GetComponentInChildren<ParticleSystem>().particleCount;
         pooled.Release();
         var low=new WeaponPresentationContext(cue.Cue,null,Vector3.zero,Vector3.forward,explosionRadius:9f,
             quality:GameFeelQualityLevel.Low,reducedFlash:true,reducedFlashIntensity:0f);
@@ -134,8 +132,7 @@ public sealed class FlamethrowerRadialBurstTests
         vfx.SampleActive(.6f);
         AssertFootprint(vfx,Vector3.zero,9f);
         Assert.That(vfx.ActiveTongueCount,Is.LessThan(tongues)); Assert.That(vfx.ActiveEmberCount,Is.LessThan(embers));
-        Assert.That(pooled.GetComponentsInChildren<ParticleSystem>(), Has.Length.EqualTo(1));
-        Assert.That(pooled.GetComponentInChildren<ParticleSystem>().particleCount, Is.LessThan(flameInstances).And.GreaterThan(0));
+        Assert.That(pooled.GetComponentsInChildren<ParticleSystem>(),Is.Empty);
         Assert.That(pooled.GetComponentsInChildren<Renderer>()[0].enabled,Is.True);
     }
 

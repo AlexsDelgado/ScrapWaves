@@ -37,224 +37,133 @@ public sealed class AdvancedTinkeringTests
     }
 
     [Test]
-    public void UnpaidOffer_IsHiddenAndAvailabilityNeverRolls()
-    {
-        Harness h = CreateHarness();
-        Random.State before = Random.state;
-        for (int i = 0; i < 3; i++)
-        {
-            Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out WeaponUpgradePath path), Is.False);
-            Assert.That(path, Is.EqualTo(WeaponUpgradePath.None));
-            Assert.That(h.Service.GetAvailableAction(h.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
-            Assert.That(h.Service.HasAnyAvailableCraftingAction(), Is.True);
-        }
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.False);
-        Assert.That(h.Service.PendingAdvancedWeapon, Is.Null);
-        Assert.That(h.Service.GetPendingAdvancedCost(), Is.Empty);
-        Assert.That(h.Service.CanRejectAdvancedOffer(h.Weapons[0].Data), Is.False);
-        Assert.That(Random.state, Is.EqualTo(before));
-        AssertRareAmounts(h, 100);
-    }
-
-    [Test]
-    public void Purchase_SpendsBeforeRevealingWithoutApplyingUpgrade()
-    {
-        Harness h = CreateHarness();
-        WeaponData weapon = h.Weapons[0].Data;
-        Random.State before = Random.state;
-        int spent = 0;
-        h.Inventory.OnMaterialsSpent += () =>
-        {
-            spent++;
-            AssertRareAmounts(h, 95);
-            Assert.That(h.Service.TryGetAdvancedOffer(weapon, out _), Is.False);
-            Assert.That(Random.state, Is.EqualTo(before), "Payment must finish before the random draw.");
-            Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.False, "Payment callbacks cannot reenter.");
-            Assert.That(h.Service.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathA, true).Success, Is.False);
-        };
-
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(spent, Is.EqualTo(1));
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.True);
-        Assert.That(h.Service.PendingAdvancedWeapon, Is.SameAs(weapon));
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath offered), Is.True);
-        Assert.That(offered, Is.Not.EqualTo(WeaponUpgradePath.None));
-        AssertRareCost(h.Service.GetPendingAdvancedCost(), 5);
-        AssertUnadvanced(h.Weapons[0]);
-    }
-
-    [Test]
-    public void PaidOffer_ReopeningAndRepeatedPurchaseDoNotChargeOrReroll()
-    {
-        Harness h = CreateHarness();
-        WeaponData weapon = h.Weapons[0].Data;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath first), Is.True);
-        Random.State after = Random.state;
-        int changes = 0;
-        h.Inventory.OnInventoryChanged += () => changes++;
-        h.Service.enabled = false;
-        h.Service.enabled = true;
-        for (int i = 0; i < 3; i++)
-        {
-            Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-            Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath repeated), Is.True);
-            Assert.That(repeated, Is.EqualTo(first));
-        }
-        Assert.That(Random.state, Is.EqualTo(after));
-        Assert.That(changes, Is.Zero);
-        AssertRareAmounts(h, 95);
-        AssertUnadvanced(h.Weapons[0]);
-    }
-
-    [Test]
-    public void Purchase_CanChooseEitherUnlockedPath()
+    public void Offer_CanChooseEitherUnlockedPath()
     {
         var offeredPaths = new HashSet<WeaponUpgradePath>();
         for (int seed = 0; seed < 32 && offeredPaths.Count < 2; seed++)
         {
             Random.InitState(seed);
-            Harness h = CreateHarness();
-            Assert.That(h.Service.TryBeginAdvancedTinkering(h.Weapons[0].Data).Success, Is.True);
-            Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out WeaponUpgradePath path), Is.True);
+            Harness harness = CreateHarness();
+            Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out WeaponUpgradePath path), Is.True);
             offeredPaths.Add(path);
         }
+
         Assert.That(offeredPaths, Is.EquivalentTo(new[] { WeaponUpgradePath.PathA, WeaponUpgradePath.PathB }));
+    }
+
+    [Test]
+    public void Offer_ReopeningPreservesPathRandomStateAndInventory()
+    {
+        Harness harness = CreateHarness();
+        WeaponData weapon = harness.Weapons[0].Data;
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath first), Is.True);
+        Random.State afterOffer = Random.state;
+        int inventoryChanges = 0;
+        harness.Inventory.OnInventoryChanged += () => inventoryChanges++;
+
+        for (int i = 0; i < 10; i++)
+        {
+            Assert.That(harness.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath reopened), Is.True);
+            Assert.That(reopened, Is.EqualTo(first));
+        }
+
+        Assert.That(Random.state, Is.EqualTo(afterOffer));
+        AssertRareAmounts(harness, 100);
+        Assert.That(inventoryChanges, Is.Zero);
+        Assert.That(harness.Service.CanRejectAdvancedOffer(weapon), Is.True);
     }
 
     [TestCase(4, WeaponUpgradePath.None)]
     [TestCase(6, WeaponUpgradePath.None)]
     [TestCase(10, WeaponUpgradePath.PathA)]
     [TestCase(5, WeaponUpgradePath.PathA)]
-    public void Purchase_RejectsIneligibleRuntimeWithoutRollingOrSpending(int level, WeaponUpgradePath selectedPath)
+    public void Offer_RejectsIneligibleRuntimeWithoutRolling(int level, WeaponUpgradePath selectedPath)
     {
-        Harness h = CreateHarness();
-        h.Weapons[0].Level = level;
-        h.Weapons[0].SelectedPath = selectedPath;
+        Harness harness = CreateHarness();
+        WeaponInstance weapon = harness.Weapons[0];
+        weapon.Level = level;
+        weapon.SelectedPath = selectedPath;
         Random.State before = Random.state;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(h.Weapons[0].Data).Success, Is.False);
-        Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out _), Is.False);
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.False);
+
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out _), Is.False);
+        Assert.That(harness.Service.CanRejectAdvancedOffer(weapon.Data), Is.False);
         Assert.That(Random.state, Is.EqualTo(before));
-        AssertRareAmounts(h, 100);
+        AssertRareAmounts(harness, 100);
     }
 
     [Test]
-    public void Purchase_RejectsNullUnequippedAndUnaffordableWithoutReveal()
+    public void Offer_RejectsNullAndUnequippedWeapons()
     {
-        Harness h = CreateHarness(1, 4);
-        h.Inventory.Add(MaterialType.JellifiedFuel, 96);
-        h.Inventory.Add(MaterialType.PlasticExplosive, 96);
-        Random.State before = Random.state;
-        int changes = 0;
-        h.Inventory.OnInventoryChanged += () => changes++;
-        foreach (WeaponData weapon in new[] { null, CreateWeapon("Unequipped"), h.Weapons[0].Data })
-        {
-            Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.False);
-            Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath path), Is.False);
-            Assert.That(path, Is.EqualTo(WeaponUpgradePath.None));
-        }
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.False);
-        Assert.That(Random.state, Is.EqualTo(before));
-        Assert.That(changes, Is.Zero);
-        Assert.That(h.Inventory.GetAmount(MaterialType.JellifiedFuel), Is.EqualTo(100));
-        Assert.That(h.Inventory.GetAmount(MaterialType.PlasticExplosive), Is.EqualTo(100));
-        Assert.That(h.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(4));
-        AssertUnadvanced(h.Weapons[0]);
-    }
-
-    [TestCase(WeaponUpgradePath.None)]
-    [TestCase(WeaponUpgradePath.PathA)]
-    [TestCase(WeaponUpgradePath.PathB)]
-    public void Resolution_RequiresPaidMatchingOffer(WeaponUpgradePath path)
-    {
-        Harness h = CreateHarness();
-        WeaponData weapon = h.Weapons[0].Data;
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, true).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, false).Success, Is.False);
-        AssertRareAmounts(h, 100);
-        AssertUnadvanced(h.Weapons[0]);
-        Assert.That(h.Service.WasAdvancedRejected(weapon), Is.False);
-    }
-
-    [Test]
-    public void Accept_ResolvesOnceWithoutFurtherPaymentAndRejectsWrongPath()
-    {
-        Harness h = CreateHarness(1, 5);
-        WeaponData weapon = h.Weapons[0].Data;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath path), Is.True);
-        WeaponUpgradePath other = h.Service.GetGuaranteedAlternatePath(weapon, path);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, other, true).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, other, false).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, WeaponUpgradePath.None, true).Success, Is.False);
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.True);
-        int changes = 0;
-        h.Inventory.OnInventoryChanged += () => changes++;
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, true).Success, Is.True);
-        Assert.That(h.Weapons[0].Level, Is.EqualTo(6));
-        Assert.That(h.Weapons[0].SelectedPath, Is.EqualTo(path));
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, true).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, false).Success, Is.False);
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.False);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out _), Is.False);
-        Assert.That(changes, Is.Zero);
-        AssertRareAmounts(h, 0);
-    }
-
-    [TestCase(WeaponUpgradePath.PathA, WeaponUpgradePath.PathB)]
-    [TestCase(WeaponUpgradePath.PathB, WeaponUpgradePath.PathA)]
-    public void Decline_ConsumesPaidAttemptAndNextPurchaseGuaranteesOppositeOnce(WeaponUpgradePath first, WeaponUpgradePath alternate)
-    {
-        Harness h = CreateHarnessOffering(first);
-        WeaponData weapon = h.Weapons[0].Data;
-        int changes = 0;
-        h.Inventory.OnInventoryChanged += () => changes++;
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, first, false).Success, Is.True);
-        AssertRareAmounts(h, 95);
-        AssertUnadvanced(h.Weapons[0]);
-        Assert.That(changes, Is.Zero, "Decline neither refunds nor charges again.");
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.False);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out _), Is.False, "The retry stays hidden until purchased.");
-        Assert.That(h.Service.WasAdvancedRejected(weapon), Is.True);
-        Assert.That(h.Service.TryGetGuaranteedPath(weapon, out WeaponUpgradePath guaranteed), Is.True);
-        Assert.That(guaranteed, Is.EqualTo(alternate));
-        AssertRareCost(h.Service.GetAdvancedTinkeringCost(weapon), 8);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, first, false).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, alternate, true).Success, Is.False);
-        Random.State before = Random.state;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath next), Is.True);
-        Assert.That(next, Is.EqualTo(alternate));
-        Assert.That(Random.state, Is.EqualTo(before));
-        Assert.That(h.Service.CanRejectAdvancedOffer(weapon), Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, next, false).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, first, true).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, next, true).Success, Is.True);
-        AssertRareAmounts(h, 87);
-        Assert.That(changes, Is.EqualTo(1), "Only the second purchase spends again.");
-        Assert.That(h.Weapons[0].SelectedPath, Is.EqualTo(alternate));
-        Assert.That(h.Service.WasAdvancedRejected(weapon), Is.False);
-        Assert.That(h.Service.TryGetGuaranteedPath(weapon, out _), Is.False);
+        Harness harness = CreateHarness();
+        WeaponData unequipped = CreateWeapon("Unequipped");
+        Assert.That(harness.Service.TryGetAdvancedOffer(null, out _), Is.False);
+        Assert.That(harness.Service.TryGetAdvancedOffer(unequipped, out _), Is.False);
+        Assert.That(harness.Service.CanRejectAdvancedOffer(null), Is.False);
+        Assert.That(harness.Service.CanRejectAdvancedOffer(unequipped), Is.False);
     }
 
     [Test]
     public void Price_TracksAdvancementOrderInsteadOfEquipmentSlot()
     {
-        Harness h = CreateHarness(3);
-        int[] order = { 2, 0, 1 }, costs = { 5, 15, 30 };
+        Harness harness = CreateHarness(3);
+        int[] order = { 2, 0, 1 };
+        int[] costs = { 5, 15, 30 };
         int remaining = 100;
+
         for (int i = 0; i < order.Length; i++)
         {
-            WeaponInstance weapon = h.Weapons[order[i]];
-            AssertRareCost(h.Service.GetAdvancedTinkeringCost(weapon.Data), costs[i]);
-            Assert.That(h.Service.TryBeginAdvancedTinkering(weapon.Data).Success, Is.True);
-            Assert.That(h.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath path), Is.True);
-            Assert.That(h.Service.TryAdvancedTinkering(weapon.Data, path, true).Success, Is.True);
+            WeaponInstance weapon = harness.Weapons[order[i]];
+            AssertRareCost(harness.Service.GetAdvancedTinkeringCost(weapon.Data), costs[i]);
+            Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath path), Is.True);
+            Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, path, true).Success, Is.True);
             remaining -= costs[i];
-            AssertRareAmounts(h, remaining);
+            AssertRareAmounts(harness, remaining);
+            Assert.That(weapon.Level, Is.EqualTo(6));
+            Assert.That(weapon.SelectedPath, Is.EqualTo(path));
         }
+    }
+
+    [Test]
+    public void Price_DoesNotCountLevelSixWithoutAnAdvancedPath()
+    {
+        Harness harness = CreateHarness(2);
+        harness.Weapons[0].Level = 6;
+        harness.Weapons[0].SelectedPath = WeaponUpgradePath.None;
+
+        AssertRareCost(harness.Service.GetAdvancedTinkeringCost(harness.Weapons[1].Data), 5);
+    }
+
+    [TestCase(WeaponUpgradePath.PathA, WeaponUpgradePath.PathB)]
+    [TestCase(WeaponUpgradePath.PathB, WeaponUpgradePath.PathA)]
+    public void Reject_GuaranteesActualOppositeAndChargesEachActionOnce(
+        WeaponUpgradePath first, WeaponUpgradePath alternate)
+    {
+        Harness harness = CreateHarnessOffering(first);
+        WeaponInstance weapon = harness.Weapons[0];
+        int inventoryChanges = 0;
+        harness.Inventory.OnInventoryChanged += () => inventoryChanges++;
+
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, first, false).Success, Is.True);
+        AssertRareAmounts(harness, 95);
+        AssertUnadvanced(weapon);
+        Assert.That(harness.Service.WasAdvancedRejected(weapon.Data), Is.True);
+        Assert.That(harness.Service.TryGetGuaranteedPath(weapon.Data, out WeaponUpgradePath guaranteed), Is.True);
+        Assert.That(guaranteed, Is.EqualTo(alternate));
+        AssertRareCost(harness.Service.GetAdvancedTinkeringCost(weapon.Data), 8);
+
+        Random.State afterRejection = Random.state;
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath next), Is.True);
+        Assert.That(next, Is.EqualTo(alternate));
+        Assert.That(Random.state, Is.EqualTo(afterRejection));
+        Assert.That(harness.Service.CanRejectAdvancedOffer(weapon.Data), Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, next, true).Success, Is.True);
+
+        AssertRareAmounts(harness, 87);
+        Assert.That(inventoryChanges, Is.EqualTo(2));
+        Assert.That(weapon.Level, Is.EqualTo(6));
+        Assert.That(weapon.SelectedPath, Is.EqualTo(alternate));
+        Assert.That(harness.Service.WasAdvancedRejected(weapon.Data), Is.False);
+        Assert.That(harness.Service.TryGetGuaranteedPath(weapon.Data, out _), Is.False);
     }
 
     [TestCase(0, 5, 8)]
@@ -262,96 +171,175 @@ public sealed class AdvancedTinkeringTests
     [TestCase(2, 30, 45)]
     public void RejectedPrice_UsesNumberOfAdvancedWeapons(int advancedCount, int normalPrice, int rejectedPrice)
     {
-        Harness h = CreateHarness(3);
+        Harness harness = CreateHarness(3);
         for (int i = 0; i < advancedCount; i++)
         {
-            h.Weapons[i].Level = 6;
-            h.Weapons[i].SelectedPath = WeaponUpgradePath.PathA;
+            harness.Weapons[i].Level = 6;
+            harness.Weapons[i].SelectedPath = WeaponUpgradePath.PathA;
         }
-        WeaponData weapon = h.Weapons[2].Data;
-        AssertRareCost(h.Service.GetAdvancedTinkeringCost(weapon), normalPrice);
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath path), Is.True);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, false).Success, Is.True);
-        AssertRareCost(h.Service.GetAdvancedTinkeringCost(weapon), rejectedPrice);
-        AssertRareAmounts(h, 100 - normalPrice);
+
+        WeaponData weapon = harness.Weapons[2].Data;
+        AssertRareCost(harness.Service.GetAdvancedTinkeringCost(weapon), normalPrice);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath offered), Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon, offered, false).Success, Is.True);
+        AssertRareCost(harness.Service.GetAdvancedTinkeringCost(weapon), rejectedPrice);
+        AssertRareAmounts(harness, 100 - normalPrice);
+    }
+
+    [TestCase(false, 15, 80)]
+    [TestCase(true, 22, 68)]
+    public void PendingOffer_RepricesWhenAnotherWeaponAdvances(bool rejectFirst, int updatedPrice, int remaining)
+    {
+        Harness harness = CreateHarness(2);
+        WeaponData pending = harness.Weapons[0].Data;
+        WeaponData other = harness.Weapons[1].Data;
+        Assert.That(harness.Service.TryGetAdvancedOffer(pending, out WeaponUpgradePath pendingPath), Is.True);
+        if (rejectFirst)
+        {
+            Assert.That(harness.Service.TryAdvancedTinkering(pending, pendingPath, false).Success, Is.True);
+            Assert.That(harness.Service.TryGetAdvancedOffer(pending, out pendingPath), Is.True);
+        }
+
+        Assert.That(harness.Service.TryGetAdvancedOffer(other, out WeaponUpgradePath otherPath), Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(other, otherPath, true).Success, Is.True);
+
+        AssertRareCost(harness.Service.GetAdvancedTinkeringCost(pending), updatedPrice);
+        Assert.That(harness.Service.TryGetAdvancedOffer(pending, out WeaponUpgradePath stillOffered), Is.True);
+        Assert.That(stillOffered, Is.EqualTo(pendingPath));
+        Assert.That(harness.Service.TryAdvancedTinkering(pending, pendingPath, true).Success, Is.True);
+        AssertRareAmounts(harness, remaining);
+    }
+
+    [TestCase(WeaponUpgradePath.None)]
+    [TestCase(WeaponUpgradePath.PathA)]
+    [TestCase(WeaponUpgradePath.PathB)]
+    public void Action_RequiresAnExistingOfferBeforeSpending(WeaponUpgradePath path)
+    {
+        Harness harness = CreateHarness();
+        WeaponInstance weapon = harness.Weapons[0];
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, path, true).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, path, false).Success, Is.False);
+        AssertRareAmounts(harness, 100);
+        AssertUnadvanced(weapon);
+        Assert.That(harness.Service.WasAdvancedRejected(weapon.Data), Is.False);
     }
 
     [Test]
-    public void PaidOffer_BlocksOtherCraftingAndKeepsReservedPrice()
+    public void Action_RejectsUnOfferedPathWithoutSpendingOrChangingOffer()
     {
-        Harness h = CreateHarness(2);
-        MaterialUsageBalanceSO balance = Track(ScriptableObject.CreateInstance<MaterialUsageBalanceSO>());
-        h.Service.SetMaterialBalance(balance);
-        SetField(h.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") });
-        foreach (MaterialType material in new[] { MaterialType.SheetMetal, MaterialType.MetalPipe, MaterialType.Gears }) h.Inventory.Add(material, 100);
-        Assert.That(h.Service.TryBeginAdvancedTinkering(h.Weapons[0].Data).Success, Is.True);
-        SetField(balance, "_advancedFirstWeaponCost", 50);
-        AssertRareCost(h.Service.GetPendingAdvancedCost(), 5);
-        Assert.That(h.Service.TryBeginAdvancedTinkering(h.Weapons[1].Data).Success, Is.False);
-        Assert.That(h.Service.TryBeginTinkering().Success, Is.False);
-        Assert.That(h.Service.CanTinkerNewWeapon(), Is.False);
-        Assert.That(h.Service.GetTinkeringOffer(), Is.Empty);
-        Assert.That(h.Service.GetAvailableAction(h.Weapons[1]), Is.Null);
-        Assert.That(h.Service.TryUpgradeWeapon(h.Weapons[1].Data, 7).Success, Is.False);
-        Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out WeaponUpgradePath path), Is.True);
-        Assert.That(h.Service.TryAdvancedTinkering(h.Weapons[0].Data, path, true).Success, Is.True);
-        AssertRareAmounts(h, 95);
+        Harness harness = CreateHarness();
+        WeaponInstance weapon = harness.Weapons[0];
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath offered), Is.True);
+        WeaponUpgradePath other = offered == WeaponUpgradePath.PathA ? WeaponUpgradePath.PathB : WeaponUpgradePath.PathA;
+
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, other, true).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, other, false).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, WeaponUpgradePath.None, true).Success, Is.False);
+        AssertRareAmounts(harness, 100);
+        AssertUnadvanced(weapon);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath retained), Is.True);
+        Assert.That(retained, Is.EqualTo(offered));
     }
 
     [Test]
-    public void PaidBasicChoice_BlocksAdvancedPurchaseWithoutRolling()
+    public void GuaranteedOffer_CannotBeRejectedAgainOrAcceptPreviouslyRejectedPath()
     {
-        Harness h = CreateHarness();
-        SetField(h.Service, "_weaponPool", new List<WeaponData> { CreateWeapon("A"), CreateWeapon("B") });
-        foreach (MaterialType material in new[] { MaterialType.SheetMetal, MaterialType.MetalPipe, MaterialType.Gears }) h.Inventory.Add(material, 5);
-        Assert.That(h.Service.TryBeginTinkering().Success, Is.True);
-        Random.State before = Random.state;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(h.Weapons[0].Data).Success, Is.False);
-        Assert.That(h.Service.TryGetAdvancedOffer(h.Weapons[0].Data, out _), Is.False);
-        Assert.That(Random.state, Is.EqualTo(before));
-        AssertRareAmounts(h, 100);
+        Harness harness = CreateHarness();
+        WeaponInstance weapon = harness.Weapons[0];
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath first), Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, first, false).Success, Is.True);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath alternate), Is.True);
+
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, alternate, false).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, first, false).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, first, true).Success, Is.False);
+        AssertRareAmounts(harness, 95);
+        AssertUnadvanced(weapon);
+        Assert.That(harness.Service.TryGetGuaranteedPath(weapon.Data, out WeaponUpgradePath retained), Is.True);
+        Assert.That(retained, Is.EqualTo(alternate));
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void InsufficientMaterials_PreserveAllAmountsAndOfferState(bool accept)
+    {
+        Harness harness = CreateHarness(1, 4);
+        harness.Inventory.Add(MaterialType.JellifiedFuel, 96);
+        harness.Inventory.Add(MaterialType.PlasticExplosive, 96);
+        WeaponInstance weapon = harness.Weapons[0];
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath offered), Is.True);
+        int inventoryChanges = 0;
+        harness.Inventory.OnInventoryChanged += () => inventoryChanges++;
+
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, offered, accept).Success, Is.False);
+        Assert.That(harness.Inventory.GetAmount(MaterialType.JellifiedFuel), Is.EqualTo(100));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.PlasticExplosive), Is.EqualTo(100));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(4));
+        Assert.That(inventoryChanges, Is.Zero);
+        AssertUnadvanced(weapon);
+        Assert.That(harness.Service.WasAdvancedRejected(weapon.Data), Is.False);
+        Assert.That(harness.Service.TryGetGuaranteedPath(weapon.Data, out _), Is.False);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath retained), Is.True);
+        Assert.That(retained, Is.EqualTo(offered));
+    }
+
+    [Test]
+    public void AcceptedOffer_CannotBeChargedAgain()
+    {
+        Harness harness = CreateHarness();
+        WeaponData weapon = harness.Weapons[0].Data;
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath offered), Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon, offered, true).Success, Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon, offered, true).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon, offered, false).Success, Is.False);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon, out _), Is.False);
+        AssertRareAmounts(harness, 95);
     }
 
     [Test]
     public void LockedPathB_OnlyOffersAAndDisablesRejection()
     {
         CreateSaveManager();
-        Harness h = CreateHarness();
-        WeaponData weapon = h.Weapons[0].Data;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath path), Is.True);
-        Assert.That(path, Is.EqualTo(WeaponUpgradePath.PathA));
-        Assert.That(h.Service.CanRejectAdvancedOffer(weapon), Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, false).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, WeaponUpgradePath.PathB, true).Success, Is.False);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, true).Success, Is.True);
-        AssertRareAmounts(h, 95);
+        Harness harness = CreateHarness();
+        WeaponInstance weapon = harness.Weapons[0];
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath offered), Is.True);
+        Assert.That(offered, Is.EqualTo(WeaponUpgradePath.PathA));
+        Assert.That(harness.Service.CanRejectAdvancedOffer(weapon.Data), Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, offered, false).Success, Is.False);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, WeaponUpgradePath.PathB, true).Success, Is.False);
+        AssertRareAmounts(harness, 100);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, offered, true).Success, Is.True);
+        Assert.That(weapon.SelectedPath, Is.EqualTo(WeaponUpgradePath.PathA));
+        AssertRareAmounts(harness, 95);
     }
 
     [Test]
-    public void PathLockedAfterPayment_PreservesPaidChoiceWithoutApplyingOrChargingAgain()
+    public void PathLockedAfterOffer_CannotBeAcceptedOrCharged()
     {
-        Harness h = CreateHarnessOffering(WeaponUpgradePath.PathB);
+        Harness harness = CreateHarnessOffering(WeaponUpgradePath.PathB);
+        WeaponInstance weapon = harness.Weapons[0];
         CreateSaveManager();
-        Assert.That(h.Service.TryAdvancedTinkering(h.Weapons[0].Data, WeaponUpgradePath.PathB, true).Success, Is.False);
-        Assert.That(h.Service.HasPendingAdvancedChoice, Is.True);
-        AssertRareAmounts(h, 95);
-        AssertUnadvanced(h.Weapons[0]);
+        Assert.That(harness.Service.TryAdvancedTinkering(weapon.Data, WeaponUpgradePath.PathB, true).Success, Is.False);
+        AssertRareAmounts(harness, 100);
+        AssertUnadvanced(weapon);
     }
 
     [Test]
-    public void Availability_RefreshesAfterDeclineAndRetryMaterials()
+    public void Availability_DoesNotRollOffersAndRefreshesAfterDecline()
     {
-        Harness h = CreateHarness(1, 5);
-        WeaponData weapon = h.Weapons[0].Data;
-        Assert.That(h.Service.TryBeginAdvancedTinkering(weapon).Success, Is.True);
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out WeaponUpgradePath path), Is.True);
-        Assert.That(h.Service.TryAdvancedTinkering(weapon, path, false).Success, Is.True);
-        Assert.That(h.Service.GetAvailableAction(h.Weapons[0]), Is.Null);
-        foreach (MaterialType material in RareMaterials) h.Inventory.Add(material, 8);
-        Assert.That(h.Service.GetAvailableAction(h.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
-        Assert.That(h.Service.TryGetAdvancedOffer(weapon, out _), Is.False);
+        Harness harness = CreateHarness(1, 5);
+        Random.State before = Random.state;
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
+        Assert.That(harness.Service.HasAnyAvailableCraftingAction(), Is.True);
+        Assert.That(Random.state, Is.EqualTo(before));
+        Assert.That(((Dictionary<string, WeaponUpgradePath>)typeof(WeaponCraftingService).GetField("_advancedOffers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(harness.Service)).Count, Is.Zero);
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out WeaponUpgradePath offered), Is.True);
+        Assert.That(harness.Service.TryAdvancedTinkering(harness.Weapons[0].Data, offered, false).Success, Is.True);
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.Null);
+        foreach (MaterialType material in RareMaterials) harness.Inventory.Add(material, 8);
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.EqualTo(CraftingActionKind.AdvancedTinkering));
+        harness.Weapons[0].Level = 10;
+        Assert.That(harness.Service.GetAvailableAction(harness.Weapons[0]), Is.Null);
     }
 
     [Test]
@@ -449,8 +437,7 @@ public sealed class AdvancedTinkeringTests
         readout.Bind(harness.Inventory,new MaterialCost[0],"No further upgrades");Assert.That(readout.Notice.text,Is.EqualTo("No further upgrades"));
         Assert.That(clone.GetComponentsInChildren<Transform>(true).Length,Is.EqualTo(before));
         foreach(var field in view.Materials)Assert.That(field.NameText.gameObject.activeSelf,Is.False);
-        Assert.That(view.AdvancedPurchaseCostText.gameObject.activeSelf,Is.False);
-        Assert.That(view.AdvancedCostText.gameObject.activeSelf,Is.True);
+        Assert.That(view.AdvancedCostText.gameObject.activeSelf,Is.False);
     }
 
     [Test]
@@ -480,7 +467,6 @@ public sealed class AdvancedTinkeringTests
         {
             Random.InitState(seed);
             Harness harness = CreateHarness();
-            Assert.That(harness.Service.TryBeginAdvancedTinkering(harness.Weapons[0].Data).Success, Is.True);
             Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out WeaponUpgradePath offered), Is.True);
             if (offered == desired)
                 return harness;

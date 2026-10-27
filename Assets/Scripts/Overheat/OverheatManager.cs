@@ -47,27 +47,8 @@ public class OverheatManager : MonoBehaviour
     [SerializeField, Tooltip("Common enemy pool; empty = FindAnyObjectByType when Overheat ends.")]
     private SwarmEnemyPool _swarmEnemyPool;
 
-    [Header("Ground preparation")]
-    [SerializeField, Min(0f), Tooltip("Gameplay seconds on Base before any Overheat encounter can spawn. Leaving Base or pausing suspends the remaining time.")]
-    private float _preparationDuration = 5f;
-
-    [SerializeField, Tooltip("Player platform state used by the shared preparation gate.")]
-    private PlayerPlatformState _playerPlatformState;
-
     private bool _isOverheating;
     private bool _permanentOverheat;
-    private bool _isPreparing;
-    private float _preparationRemaining;
-    private PlayerHealth _preparationHealth;
-
-    public bool IsPreparing => _isOverheating && _isPreparing;
-    public bool IsAwaitingGround => IsPreparing && (_playerPlatformState == null || !_playerPlatformState.IsBaseSupported);
-    public float PreparationTimeRemaining => IsPreparing ? _preparationRemaining : 0f;
-    public bool AreEncountersReady => _isOverheating && !_isPreparing;
-    public float ConfiguredPreparationDuration => _preparationDuration;
-
-    /// <summary>The shared ground countdown completed; pending encounter batches may dispatch.</summary>
-    public event Action OnPreparationFinished;
 
     public bool IsOverheating => _isOverheating;
     public bool IsPermanentOverheat => _permanentOverheat;
@@ -81,7 +62,7 @@ public class OverheatManager : MonoBehaviour
     /// <summary>Configured duration (deprecated: there is no timer anymore).</summary>
     public float ConfiguredOverheatDuration => _overheatDuration;
 
-    /// <summary>When Overheat becomes due: buff and upper hazard start; encounters wait for ground preparation.</summary>
+    /// <summary>When entering Overheat (buff active and timer started).</summary>
     public event Action OnOverheatStarted;
 
     /// <summary>When leaving Overheat; includes boss success, time expired, or interruption.</summary>
@@ -139,7 +120,6 @@ public class OverheatManager : MonoBehaviour
             return;
 
         _isOverheating = true;
-        BeginPreparation();
         OverheatSwarmBoost.SetIntensity(false);
         if (_heatManager != null)
         {
@@ -166,7 +146,6 @@ public class OverheatManager : MonoBehaviour
             return;
 
         _isOverheating = true;
-        BeginPreparation();
         OverheatSwarmBoost.SetIntensity(false);
         if (_heatManager != null)
         {
@@ -186,60 +165,6 @@ public class OverheatManager : MonoBehaviour
         OnOverheatStarted?.Invoke();
     }
 
-    private void Update() => TickPreparation(Time.deltaTime);
-
-    private void BeginPreparation()
-    {
-        ClearPreparation();
-        if (_playerPlatformState == null)
-        {
-            Transform player = PlayerMovement.PlayerTransform;
-            _playerPlatformState = player != null ? player.GetComponent<PlayerPlatformState>() : FindAnyObjectByType<PlayerPlatformState>();
-        }
-        _isPreparing = true;
-        _preparationRemaining = Mathf.Max(0f, _preparationDuration);
-        _preparationHealth = _playerPlatformState != null ? _playerPlatformState.GetComponent<PlayerHealth>() : null;
-        if (_preparationHealth != null)
-        {
-            _preparationHealth.OnPlayerDied += InterruptOverheat;
-            _preparationHealth.OnReset += InterruptOverheat;
-        }
-    }
-
-    private void TickPreparation(float deltaTime)
-    {
-        if (!IsPreparing) return;
-        if (_playerPlatformState == null || !_playerPlatformState.IsRunActive)
-        {
-            InterruptOverheat();
-            return;
-        }
-        // Positive Base support is required throughout the countdown. A jump or ascent
-        // suspends progress; landing resumes the same remainder, never another event.
-        if (!_playerPlatformState.CanSpawnObjectives) return;
-        _preparationRemaining = Mathf.Max(0f, _preparationRemaining - Mathf.Max(0f, deltaTime));
-        if (_preparationRemaining > 0f) return;
-        _isPreparing = false;
-        OnPreparationFinished?.Invoke();
-    }
-
-    private void InterruptOverheat()
-    {
-        if (_isOverheating) EndOverheat(OverheatEndReason.Interrupted);
-    }
-
-    private void ClearPreparation()
-    {
-        _isPreparing = false;
-        _preparationRemaining = 0f;
-        if (_preparationHealth != null)
-        {
-            _preparationHealth.OnPlayerDied -= InterruptOverheat;
-            _preparationHealth.OnReset -= InterruptOverheat;
-        }
-        _preparationHealth = null;
-    }
-
     private void EndOverheat(OverheatEndReason reason)
     {
         if (_permanentOverheat && reason != OverheatEndReason.Interrupted)
@@ -247,7 +172,6 @@ public class OverheatManager : MonoBehaviour
 
         _isOverheating = false;
         _permanentOverheat = false;
-        ClearPreparation();
         OverheatSwarmBoost.SetIntensity(false);
 
         if (_swarmEnemyPool == null)
@@ -285,7 +209,6 @@ public class OverheatManager : MonoBehaviour
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        _preparationDuration = Mathf.Max(0f, _preparationDuration);
         if (_overheatDuration < 0.1f)
             _overheatDuration = 0.1f;
         if (_fireRateMultiplier < 0.01f)

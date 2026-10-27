@@ -45,13 +45,11 @@ public class OverheatObjectiveHud : MonoBehaviour
             if (subscribe)
             {
                 _overheatManager.OnOverheatStarted += Refresh;
-                _overheatManager.OnPreparationFinished += Refresh;
                 _overheatManager.OnOverheatFinished += OnOverheatFinished;
             }
             else
             {
                 _overheatManager.OnOverheatStarted -= Refresh;
-                _overheatManager.OnPreparationFinished -= Refresh;
                 _overheatManager.OnOverheatFinished -= OnOverheatFinished;
             }
         }
@@ -129,7 +127,7 @@ public class OverheatObjectiveHud : MonoBehaviour
             return;
         }
 
-        bool show = _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPreparing;
+        bool show = _overheatManager != null && _overheatManager.IsOverheating;
         _root.SetActive(show);
         if (!show)
             return;

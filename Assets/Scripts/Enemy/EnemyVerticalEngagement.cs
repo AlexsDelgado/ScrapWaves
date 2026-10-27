@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Ground enemies sleep when far below the player; drones use a finite 3D pursuit radius.
-/// Out-of-reach enemies stop engaging immediately, then become dormant after a delay.
-/// Dormant enemies stay in the world until the shared dormant population cap evicts them.
+/// Engagement vertical asimétrico: si el enemigo queda claramente DEBAJO del jugador,
+/// entra en sleep (sin chase / daño planar / auto-target) y tras un tiempo vuelve al pool.
+/// Si está arriba o en el mismo piso, permanece engaged (puede caer hacia el jugador).
 /// </summary>
 [DisallowMultipleComponent]
 public class EnemyVerticalEngagement : MonoBehaviour, IEnemySpawnLifecycle
@@ -28,16 +28,12 @@ public class EnemyVerticalEngagement : MonoBehaviour, IEnemySpawnLifecycle
     [SerializeField, Min(0.5f), Tooltip("Si player.y - enemy.y supera esto, el enemigo está demasiado abajo. Pisos ~50u → usar ~40.")]
     private float _belowThreshold = 40f;
 
-    [SerializeField, Min(0.5f), Tooltip("Drones use full 3D distance instead of the ground-enemy floor cutoff. 400 covers the gameplay islands and jump arcs; farther drones still sleep.")]
-    private float _dronePursuitDistance = 400f;
-
     [SerializeField, Min(0.5f), Tooltip("Segundos en sleep debajo antes de entrar en dormancia (congelado y oculto, NO se borra).")]
     private float _dormancyAfterSeconds = 10f;
 
     [SerializeField, Tooltip("Si true, no aplica (p. ej. Stalker/GigaWorm, elites y bosses de objetivo).")]
     private bool _exempt;
 
-    private bool _isDrone;
     private float _sleepElapsed;
     private bool _disengaged;
     private int _instanceId;
@@ -111,8 +107,6 @@ public class EnemyVerticalEngagement : MonoBehaviour, IEnemySpawnLifecycle
     private void Awake()
     {
         _instanceId = transform.GetInstanceID();
-        // Cache the type, not enabled state: dormancy temporarily disables behaviors.
-        _isDrone = GetComponent<FlyingRangedBehavior>() != null || GetComponent<BomberDroneBehavior>() != null;
         if (GetComponent<GigaWormBehavior>() != null)
             _exempt = true;
 
@@ -172,11 +166,8 @@ public class EnemyVerticalEngagement : MonoBehaviour, IEnemySpawnLifecycle
             return;
         }
 
-        Vector3 toPlayer = player.position - transform.position;
-        bool outOfReach = _isDrone
-            ? toPlayer.sqrMagnitude > _dronePursuitDistance * _dronePursuitDistance
-            : toPlayer.y > _belowThreshold;
-        if (outOfReach)
+        float deltaBelow = player.position.y - transform.position.y;
+        if (deltaBelow > _belowThreshold)
         {
             SetDisengaged(true);
             if (_dormant)

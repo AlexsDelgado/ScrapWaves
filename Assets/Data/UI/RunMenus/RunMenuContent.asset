@@ -14,43 +14,27 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RunMenuContent
   Weapons:
   - Weapon: {fileID: 11400000, guid: 9d5f6ee1a7b946c490f7773a86f0a31c, type: 2}
-    Summary: 
-    Description: 
-    PathADescription: Hits leave burning fuel puddles, and manual fire burns enemies
-      for longer. The ability leaves a large, lingering pool beneath you.
-    PathBDescription: Replaces burning with chilling attacks that slow enemies. Sustained
-      manual fire strengthens the slow, while the ability freezes enemies before
-      leaving them heavily slowed.
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
   - Weapon: {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
-    Summary: 
-    Description: 
-    PathADescription: Replaces bursts with continuous fire that accelerates as heat
-      rises. Manual fire gains a larger magazine, while the ability unleashes a sustained
-      barrage.
-    PathBDescription: Fires powerful piercing rounds that excel against elites and
-      bosses. Manual shots reward weak-point hits, while the ability charges a devastating
-      piercing shot.
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
   - Weapon: {fileID: 11400000, guid: 06695e9a9e2d050489bea57d214585ff, type: 2}
-    Summary: 
-    Description: 
-    PathADescription: Regular rockets produce wider blasts with stronger knockback.
-      Enemies caught in explosions temporarily take more damage from all sources.
-    PathBDescription: Trades blast size and knockback for a forward spray of fragments
-      that can hit alongside the explosion. The ability launches a massive rocket
-      that bursts into smaller rockets.
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
   - Weapon: {fileID: 11400000, guid: 95e4ff2de6a64faba44ee0ca803ef37b, type: 2}
-    Summary: 
-    Description: 
-    PathADescription: Shells burst in midair, scattering projectiles across a wide
-      area. Multiple fragments can hit one target, while the ability rains projectiles
-      over the selected area.
-    PathBDescription: Shells pass through enemies, land, and explode repeatedly.
-      The ability drops a barrage whose shells detonate together in successive waves.
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:
   - Weapon: {fileID: 11400000, guid: 125e543fc3a34c17bca6d9436a372ad3, type: 2}
-    Summary: 
-    Description: 
-    PathADescription: Adds blades as the weapon levels up. They orbit you in automatic
-      mode, strike rapidly in manual mode, and add extra thrusts to the ability.
-    PathBDescription: Trades knockback for harder-hitting attacks and a faster orbit.
-      The ability becomes an invulnerable damaging dash that extends whenever you
-      hit another target.
+    Summary:
+    Description:
+    PathADescription:
+    PathBDescription:

@@ -147,9 +147,6 @@ MonoBehaviour:
     VisualDuration: 0.85
     BoundarySegments: 64
     FlameTongues: 20
-    FlameInstances: 32
-    FlameInstanceSizeFraction: 0.18
-    FlameInstanceOpacity: 0.85
     Embers: 24
     ClearCenterFraction: 0.23
     FlameHeightFraction: 0.08

@@ -215,7 +215,7 @@ public sealed class FlamethrowerPresentationTests
     }
 
     [Test]
-    public void ActiveIgnition_UsesThreeBoundedMeshesAndSharedFlameBillboardsForEveryPath()
+    public void ActiveIgnition_UsesThreeBoundedMeshesAndNoSphereParticlesForEveryPath()
     {
         WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
         foreach (var activeCue in new[] { WeaponPresentationCue.FlamethrowerActiveBurst,
@@ -228,12 +228,7 @@ public sealed class FlamethrowerPresentationTests
                 var vfx = instance.GetComponent<FlamethrowerCueVfx>(); vfx.Prewarm();
                 Assert.That(vfx.UsesActiveRadialPlume, Is.True);
                 Assert.That(vfx.RuntimeMeshLayerCount, Is.EqualTo(3));
-                Assert.That(instance.GetComponentsInChildren<ParticleSystem>(), Has.Length.EqualTo(1));
-                var flames = instance.GetComponentInChildren<ParticleSystem>();
-                Assert.That(flames.GetComponent<ParticleSystemRenderer>().sharedMaterial,
-                    Is.SameAs(Resources.Load<Material>("GameFeel/ManualFlame")));
-                Assert.That(flames.main.simulationSpace, Is.EqualTo(ParticleSystemSimulationSpace.Local));
-                Assert.That(flames.emission.enabled, Is.False);
+                Assert.That(instance.GetComponentsInChildren<ParticleSystem>(), Is.Empty);
                 Assert.That(vfx.ActiveBoundaryMesh, Is.Not.Null);
                 Assert.That(new SerializedObject(vfx).FindProperty("_activeBurstShader").objectReferenceValue, Is.Not.Null,
                     "The dedicated Q shader must be referenced by the prefab so it survives player-build stripping.");

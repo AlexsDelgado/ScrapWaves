@@ -228,7 +228,6 @@ public static class RunMenuPrefabBuilder
         Bottom(view.StatusText.rectTransform, 44f, 1652f, 19f, 32f);
         CraftingReadoutAuthoring.AuthorMenu(view);
         AuthorTinkeringPopup(view);
-        AuthorAdvancedTinkeringPopup(view);
         return canvas.gameObject;
     }
 
@@ -463,120 +462,6 @@ public static class RunMenuPrefabBuilder
                 if (changed) EditorSceneManager.SaveScene(scene);
             }
             finally { EditorSceneManager.CloseScene(scene, true); }
-        }
-    }
-
-    [MenuItem("ScrapWaves/UI/Author Advanced Tinkering Popup")]
-    public static void AuthorAdvancedTinkeringPopup()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Author outside Play Mode.");
-        var stage = PrefabStageUtility.GetCurrentPrefabStage();
-        if (stage != null && stage.assetPath == CraftingPrefabPath && stage.scene.isDirty)
-            throw new InvalidOperationException("The crafting prefab has unsaved edits; preserve them before authoring the popup.");
-        GameObject root = PrefabUtility.LoadPrefabContents(CraftingPrefabPath);
-        try
-        {
-            CraftingMenuView view = root.GetComponent<CraftingMenuView>();
-            if (view.AdvancedChoicePanel != null) return;
-            AuthorAdvancedTinkeringPopup(view);
-            PrefabUtility.SaveAsPrefabAsset(root, CraftingPrefabPath);
-        }
-        finally { PrefabUtility.UnloadPrefabContents(root); }
-    }
-
-    // One-time authoring only: runtime code binds these saved objects and never constructs the popup.
-    public static void AuthorAdvancedTinkeringPopup(CraftingMenuView view)
-    {
-        if (view.AdvancedChoicePanel != null) return;
-        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
-        RectTransform purchase = (RectTransform)view.AdvancedPanel.transform;
-        view.AdvancedPurchaseNoticeText = Label(purchase, "PurchaseNotice",
-            "Purchase an upgrade offer, then accept it or decline it. Materials are consumed when you buy; declining does not refund them.",
-            25f, FontStyles.Normal, TextAlignmentOptions.TopLeft);
-        AcrossTop(view.AdvancedPurchaseNoticeText.rectTransform, 0f, 116f, 120f);
-        TMP_Text costHeading = Label(purchase, "PurchaseCostHeading", "PURCHASE COST", 19f, FontStyles.Bold);
-        AcrossTop(costHeading.rectTransform, 0f, 272f, 26f);
-        view.AdvancedPurchaseCostText = Label(purchase, "PurchaseCost", "-", 25f, FontStyles.Bold);
-        AcrossTop(view.AdvancedPurchaseCostText.rectTransform, 0f, 329f, 44f);
-        view.AdvancedPurchaseCostText.gameObject.SetActive(view.AdvancedReadout == null);
-        view.AdvancedPurchaseButton = Button(purchase, "AdvancedPurchaseButton", "ADVANCED TINKERING", true, out _);
-        AcrossBottom((RectTransform)view.AdvancedPurchaseButton.transform, 0f, 0f, 54f);
-
-        RectTransform overlay = Rect(view.Canvas.transform, "AdvancedTinkeringChoice");
-        Stretch(overlay);
-        ImageGraphic(overlay, new Color(0.018f, 0.026f, 0.022f, 0.88f), true);
-        view.AdvancedChoicePanel = overlay.gameObject;
-        RectTransform window = CreateWindow(overlay, new Vector2(1400f, 760f));
-        TMP_Text title = Label(window, "Title", "ADVANCED TINKERING OFFER", 38f, FontStyles.Bold, TextAlignmentOptions.Center);
-        Top(title.rectTransform, 44f, 1312f, 34f, 54f);
-        view.AdvancedChoiceNameText = Label(window, "WeaponName", "Weapon", 29f, FontStyles.Bold, TextAlignmentOptions.Center);
-        Top(view.AdvancedChoiceNameText.rectTransform, 44f, 1312f, 102f, 40f);
-        view.AdvancedChoiceLevelText = Label(window, "Level", "LV 5 → 6", 25f,
-            FontStyles.Normal, TextAlignmentOptions.Center, MutedSteel);
-        Top(view.AdvancedChoiceLevelText.rectTransform, 44f, 1312f, 146f, 36f);
-
-        view.AdvancedPathText.transform.SetParent(window, false);
-        view.AdvancedPathText.text = string.Empty;
-        view.AdvancedPathText.alignment = TextAlignmentOptions.Center;
-        Top(view.AdvancedPathText.rectTransform, 44f, 1312f, 208f, 44f);
-        view.AdvancedDescriptionText.transform.SetParent(window, false);
-        view.AdvancedDescriptionText.text = string.Empty;
-        view.AdvancedDescriptionText.alignment = TextAlignmentOptions.TopLeft;
-        Top(view.AdvancedDescriptionText.rectTransform, 44f, 1312f, 274f, 100f);
-        Rule(window, "CostRule", 44f, 1312f, 390f);
-        view.AdvancedCostText.transform.SetParent(window, false);
-        view.AdvancedCostText.gameObject.SetActive(true);
-        view.AdvancedCostText.text = "Cost paid";
-        view.AdvancedCostText.alignment = TextAlignmentOptions.TopLeft;
-        Top(view.AdvancedCostText.rectTransform, 44f, 1312f, 410f, 62f);
-        view.AdvancedNoticeText.transform.SetParent(window, false);
-        view.AdvancedNoticeText.text = "Accept applies the upgrade. Decline keeps the weapon unchanged. Materials already spent are not refunded.";
-        view.AdvancedNoticeText.alignment = TextAlignmentOptions.TopLeft;
-        Top(view.AdvancedNoticeText.rectTransform, 44f, 1312f, 486f, 146f);
-
-        RectTransform actions = (RectTransform)view.AcceptButton.transform.parent;
-        actions.SetParent(window, false);
-        Bottom(actions, 44f, 1312f, 40f, 56f);
-        Navigation acceptNavigation = new Navigation { mode = Navigation.Mode.Explicit,
-            selectOnLeft = view.DeclineButton, selectOnRight = view.DeclineButton,
-            selectOnUp = view.AcceptButton, selectOnDown = view.AcceptButton };
-        Navigation declineNavigation = new Navigation { mode = Navigation.Mode.Explicit,
-            selectOnLeft = view.AcceptButton, selectOnRight = view.AcceptButton,
-            selectOnUp = view.DeclineButton, selectOnDown = view.DeclineButton };
-        view.AcceptButton.navigation = acceptNavigation;
-        view.DeclineButton.navigation = declineNavigation;
-        overlay.gameObject.SetActive(false);
-        EditorUtility.SetDirty(view);
-    }
-
-    [MenuItem("ScrapWaves/UI/Author Advanced Tinkering Popup In Scene Menus")]
-    public static void AuthorAdvancedTinkeringPopupInScenes()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Author outside Play Mode.");
-        // GameplayScene inherits the production prefab. These older menus are independent scene objects.
-        string[] paths = { "Assets/Scenes/SampleScene.unity", "Assets/Scenes/Testing/WeaponTestingSandbox.unity",
-            "Assets/Scenes/Testing/WeaponTestingSandbox_GameFeel.unity", "Assets/Scenes/Testing/test_balance.unity",
-            "Assets/Scenes/Testing/enemiesTesting.unity" };
-        foreach (string path in paths)
-        {
-            Scene existing = SceneManager.GetSceneByPath(path);
-            if (existing.IsValid() && existing.isLoaded && existing.isDirty)
-                throw new InvalidOperationException($"Scene has unsaved edits; preserve them before authoring: {path}");
-        }
-        foreach (string path in paths)
-        {
-            Scene scene = SceneManager.GetSceneByPath(path);
-            bool opened = !scene.IsValid() || !scene.isLoaded;
-            if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-            try
-            {
-                bool changed = false;
-                foreach (GameObject root in scene.GetRootGameObjects())
-                foreach (CraftingMenuView view in root.GetComponentsInChildren<CraftingMenuView>(true))
-                    if (view.AdvancedChoicePanel == null) { AuthorAdvancedTinkeringPopup(view); changed = true; }
-                if (changed) EditorSceneManager.SaveScene(scene);
-            }
-            finally { if (opened) EditorSceneManager.CloseScene(scene, true); }
         }
     }
 
