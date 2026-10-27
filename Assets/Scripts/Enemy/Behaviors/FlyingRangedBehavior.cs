@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// Vigilance Drone. Unidad voladora que NO persigue para golpear: mantiene altura
@@ -17,8 +18,11 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     [SerializeField, Min(0f)] private float _hoverHeight = 3.5f;
     [SerializeField, Min(0f), Tooltip("Vertical pursuit speed as a fraction of ordinary movement speed.")]
     private float _verticalFollowSpeedRatio = 1.5f;
-    [SerializeField, Min(0f), Tooltip("Height error beyond the individual hover offset required to start following. Once started, settles at that offset.")]
-    private float _verticalDeadZone = 5f;
+    [FormerlySerializedAs("_verticalDeadZone")]
+    [SerializeField, Min(0f), Tooltip("Height above the current flight plane that the desired hover altitude must exceed before ascending. Once started, follows until settled.")]
+    private float _upwardDeadZone = 5f;
+    [SerializeField, Min(0.1f), Tooltip("Height above the desired reachable hover altitude allowed before descending. Minimum 0.1 matches the settling tolerance and prevents jitter.")]
+    private float _downwardDeadZone = 0.1f;
     [SerializeField, Min(0f)] private float _moveSpeed = 5f;
     public float AuthoredMoveSpeed => _moveSpeed;
     [SerializeField, Min(0f)] private float _rotationSpeed = 360f;
@@ -137,7 +141,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
             * DebugSpeedTool.EnemyScale;
         pos.y = _hoverMotion.Step(pos.y, player.position.y + hoverHeight, minimumY,
-            _verticalDeadZone, verticalSpeed, deltaTime);
+            _upwardDeadZone, _downwardDeadZone, verticalSpeed, deltaTime);
         transform.position = pos;
     }
 

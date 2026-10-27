@@ -253,7 +253,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BomberDroneBehavior
   _hoverHeight: 3.5
-  _maxVerticalSpeed: 3
+  _verticalFollowSpeedRatio: 1.5
+  _upwardDeadZone: 5
+  _downwardDeadZone: 0.1
   _moveSpeed: 5.5
   _rotationSpeed: 360
   _groundMask:

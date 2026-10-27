@@ -1,6 +1,6 @@
 using UnityEngine;
 
-/// <summary>Holds a flight plane through small jumps, then settles after a meaningful height change.</summary>
+/// <summary>Holds a flight plane through small upward jumps and promptly settles after the player descends.</summary>
 internal struct DroneHoverMotion
 {
     private const float SettleDistance = 0.1f;
@@ -16,7 +16,7 @@ internal struct DroneHoverMotion
     }
 
     public float Step(float currentY, float playerTargetY, float minimumY,
-        float deadZone, float speed, float deltaTime)
+        float upwardDeadZone, float downwardDeadZone, float speed, float deltaTime)
     {
         if (deltaTime <= 0f)
             return currentY;
@@ -25,7 +25,12 @@ internal struct DroneHoverMotion
 
         // Use the reachable height so a platform cannot keep the pursuit latch active.
         float reachableTargetY = Mathf.Max(playerTargetY, minimumY);
-        if (!_followingPlayer && Mathf.Abs(reachableTargetY - currentY) > Mathf.Max(0f, deadZone))
+        float heightError = reachableTargetY - currentY;
+        // The downward trigger cannot sit inside the settle tolerance: that would
+        // repeatedly release and reacquire pursuit before it can settle.
+        bool shouldFollow = heightError > Mathf.Max(0f, upwardDeadZone)
+            || heightError < -Mathf.Max(SettleDistance, downwardDeadZone);
+        if (!_followingPlayer && shouldFollow)
             _followingPlayer = true;
         if (_followingPlayer)
             _targetY = reachableTargetY;
