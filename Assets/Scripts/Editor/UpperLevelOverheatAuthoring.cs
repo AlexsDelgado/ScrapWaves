@@ -52,6 +52,7 @@ public static class UpperLevelOverheatAuthoring
         bool newHazard = hazard == null;
         if (newHazard) hazard = player.gameObject.AddComponent<PlayerUpperLevelOverheat>();
         SetReference(hazard, "_platformState", state);
+        SetReference(hazard, "_upperLevelVolume", volume);
         SetReference(hazard, "_overheatManager", overheat);
         SetReference(hazard, "_health", player.GetComponent<PlayerHealth>());
         Transform effects = player.transform.Find("UpperLevelOverheatVfx");
@@ -72,7 +73,6 @@ public static class UpperLevelOverheatAuthoring
         if (newHazard)
         {
             serialized.FindProperty("_graceSeconds").floatValue = 2f;
-            serialized.FindProperty("_damagePerTick").intValue = 5;
             serialized.FindProperty("_tickInterval").floatValue = 2f;
         }
         serialized.ApplyModifiedPropertiesWithoutUndo();
@@ -180,7 +180,7 @@ public static class UpperLevelOverheatAuthoring
         PlayerUpperLevelOverheat hazard = player.GetComponent<PlayerUpperLevelOverheat>();
         if (hazard == null || player.GetComponent<PlayerPlatformState>() == null) throw new InvalidOperationException("Missing player upper-level components.");
         var fields = new SerializedObject(hazard);
-        foreach (string field in new[] { "_platformState", "_overheatManager", "_health" })
+        foreach (string field in new[] { "_platformState", "_overheatManager", "_health", "_upperLevelVolume" })
             if (fields.FindProperty(field).objectReferenceValue == null) throw new InvalidOperationException("Missing hazard reference: " + field);
         SerializedProperty effects = fields.FindProperty("_effects");
         if (effects.arraySize != 2) throw new InvalidOperationException("Player hazard requires authored fire and smoke.");

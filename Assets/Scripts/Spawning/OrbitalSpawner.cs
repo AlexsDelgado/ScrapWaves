@@ -223,6 +223,9 @@ public class OrbitalSpawner : MonoBehaviour
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return false;
 
+        if (_overheatManager != null && _overheatManager.IsPreparing)
+            return false;
+
         if (_roulette == null || _config == null)
             return false;
 

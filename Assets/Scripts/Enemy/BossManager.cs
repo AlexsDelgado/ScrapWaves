@@ -263,7 +263,7 @@ public class BossManager : MonoBehaviour
             EndOverheatIfNoObjective();
             return;
         }
-        if (!_pendingPlayerState.CanSpawnObjectives)
+        if (!_overheatManager.AreEncountersReady || !_pendingPlayerState.CanSpawnObjectives)
             return;
 
         PlayerPlatformState state = _pendingPlayerState;
@@ -425,7 +425,7 @@ public class BossManager : MonoBehaviour
     private bool IsSpawnBatchCurrent(PlayerPlatformState state, int version) =>
         version == _batchVersion && isActiveAndEnabled && !_exitPhaseActive &&
         _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPermanentOverheat &&
-        state != null && state.CanSpawnObjectives;
+        _overheatManager.AreEncountersReady && state != null && state.CanSpawnObjectives;
 
     private bool TryPlaceBoss(PlayerPlatformState state, Transform boss, CharacterController controller, Vector3 playerPosition, Vector3 firstPosition)
     {
