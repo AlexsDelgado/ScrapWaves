@@ -408,6 +408,7 @@ MonoBehaviour:
   _healthMultiplierRange: {x: 0.95, y: 1.05}
   _sizeMultiplierRange: {x: 0.8, y: 1.2}
   _movementSpeedMultiplierRange: {x: 0.8, y: 1.2}
+  _droneHoverHeightMultiplierRange: {x: 0.8, y: 1.2}
 --- !u!1 &5616991293731240567
 GameObject:
   m_ObjectHideFlags: 0
