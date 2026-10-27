@@ -9,8 +9,12 @@ public sealed class EnemyStatRandomizer : MonoBehaviour, IEnemySpawnLifecycle
     private Vector2 _healthMultiplierRange = Vector2.one;
     [SerializeField, Tooltip("Uniform body and hitbox scale relative to the authored root. Does not change attack ranges or rewards.")]
     private Vector2 _sizeMultiplierRange = Vector2.one;
-    [SerializeField, Tooltip("Ordinary movement only. Does not affect attack dashes, launches, projectiles, climbing, hover, or knockback.")]
+    [SerializeField, Tooltip("Ordinary movement only. Includes slow drone height pursuit. Does not affect attack dashes, launches, projectiles, climbing, or knockback.")]
     private Vector2 _movementSpeedMultiplierRange = Vector2.one;
+
+    [Header("Drones only (X = minimum, Y = maximum)")]
+    [SerializeField, Tooltip("Multiplies the drone's authored hover height above the player and ground. Rolled once per life; ignored by other enemies. 1 / 1 is unchanged.")]
+    private Vector2 _droneHoverHeightMultiplierRange = Vector2.one;
 
     private Vector3 _authoredRootScale;
     private bool _hasAuthoredRootScale;
@@ -19,6 +23,7 @@ public sealed class EnemyStatRandomizer : MonoBehaviour, IEnemySpawnLifecycle
     public float HealthMultiplier { get; private set; } = 1f;
     public float SizeMultiplier { get; private set; } = 1f;
     public float MovementSpeedMultiplier { get; private set; } = 1f;
+    public float DroneHoverHeightMultiplier { get; private set; } = 1f;
 
     /// <summary>Called explicitly after pool resets and before placement measures the body.</summary>
     public static void BeginSpawn(GameObject enemy)
@@ -41,6 +46,9 @@ public sealed class EnemyStatRandomizer : MonoBehaviour, IEnemySpawnLifecycle
         HealthMultiplier = Sample(_healthMultiplierRange);
         SizeMultiplier = Sample(_sizeMultiplierRange);
         MovementSpeedMultiplier = Sample(_movementSpeedMultiplierRange);
+        DroneHoverHeightMultiplier = GetComponent<FlyingRangedBehavior>() != null
+            || GetComponent<BomberDroneBehavior>() != null
+            ? Sample(_droneHoverHeightMultiplierRange) : 1f;
         HasSampledForSpawn = true;
         transform.localScale = _authoredRootScale * SizeMultiplier;
         GetComponent<EnemyHealth>()?.SetSpawnHealthMultiplier(HealthMultiplier);
@@ -57,7 +65,7 @@ public sealed class EnemyStatRandomizer : MonoBehaviour, IEnemySpawnLifecycle
         if (_hasAuthoredRootScale)
             transform.localScale = _authoredRootScale;
         HasSampledForSpawn = false;
-        HealthMultiplier = SizeMultiplier = MovementSpeedMultiplier = 1f;
+        HealthMultiplier = SizeMultiplier = MovementSpeedMultiplier = DroneHoverHeightMultiplier = 1f;
         // Health is reset at the next checkout. Never heal a dying enemy during death callbacks.
     }
 
@@ -86,5 +94,6 @@ public sealed class EnemyStatRandomizer : MonoBehaviour, IEnemySpawnLifecycle
         _healthMultiplierRange = ValidateRange(_healthMultiplierRange);
         _sizeMultiplierRange = ValidateRange(_sizeMultiplierRange);
         _movementSpeedMultiplierRange = ValidateRange(_movementSpeedMultiplierRange);
+        _droneHoverHeightMultiplierRange = ValidateRange(_droneHoverHeightMultiplierRange);
     }
 }

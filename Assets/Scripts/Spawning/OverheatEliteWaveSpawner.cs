@@ -334,7 +334,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
             EndOverheatIfNoObjective();
             return;
         }
-        if (!_pendingPlayerState.CanSpawnObjectives)
+        if (!_overheatManager.AreEncountersReady || !_pendingPlayerState.CanSpawnObjectives)
             return;
 
         PlayerPlatformState state = _pendingPlayerState;
@@ -454,7 +454,7 @@ public class OverheatEliteWaveSpawner : MonoBehaviour
     private bool IsSpawnBatchCurrent(PlayerPlatformState state, int version) =>
         version == _batchVersion && isActiveAndEnabled && !_exitPhaseDisabled &&
         _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPermanentOverheat &&
-        state != null && state.CanSpawnObjectives;
+        _overheatManager.AreEncountersReady && state != null && state.CanSpawnObjectives;
 
     private bool SpawnOneElite(PlayerPlatformState state, GameObject prefab, int version)
     {

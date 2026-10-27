@@ -119,6 +119,83 @@ public class ManualProjectileTargetDamageTests
         Assert.That(damageable.TotalDamage, Is.EqualTo(20));
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Projectile_LethalHitReportsFullResolvedDamageAndKillColor(bool critical)
+    {
+        GameObject owner = new("Overkill Projectile Owner");
+        GameObject target = new("Overkill Target");
+        GameObject shot = new("Overkill Projectile");
+        WeaponData data = ScriptableObject.CreateInstance<WeaponData>();
+        CombatTextProfile profile = ScriptableObject.CreateInstance<CombatTextProfile>();
+        _cleanup.AddRange(new Object[] { owner, target, shot, data, profile });
+
+        PlayerStats stats = owner.AddComponent<PlayerStats>();
+        List<StatDefinition> definitions = CreateDefaultStatDefinitions();
+        foreach (StatDefinition definition in definitions)
+        {
+            _cleanup.Add(definition);
+            if (definition.StatType == StatType.CriticalChance)
+                SetPrivateField(definition, "<BaseValue>k__BackingField", 1f);
+        }
+        SetPrivateField(stats, "_statDefinitions", definitions);
+        InvokePrivate(stats, "Awake");
+        data.BaseDamage = 200f;
+        WeaponInstance weapon = new() { Data = data, Level = 1, State = WeaponState.Manual };
+        WeaponDamageContext damageContext = new(stats, weapon, canCrit: critical,
+            critMultiplierOverride: 1f, damageScale: 1f, isAbilityDamage: false, knockbackScale: 0f);
+
+        EnemyHealth health = target.AddComponent<EnemyHealth>();
+        health.ApplyConfiguredMaxHealth(5);
+        SetPrivateField(health, "_damageTakenMultiplier", 0.5f);
+        Collider targetCollider = target.AddComponent<BoxCollider>();
+        Projectile projectile = shot.AddComponent<Projectile>();
+        InvokePrivate(projectile, "Awake");
+        projectile.ConfigureWeaponDamage(damageContext);
+        DamageFeedbackRecorder sink = new();
+        WeaponFeedbackContext template = new(weapon, WeaponFeedbackMode.Manual, 0f,
+            Vector3.zero, Vector3.forward);
+        projectile.ConfigureFeedback(sink, in template);
+
+        typeof(Projectile).GetMethod("OnTriggerEnter", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(projectile, new object[] { targetCollider });
+
+        Assert.That(health.CurrentHealth, Is.Zero);
+        Assert.That(sink.DamageEvents.Count, Is.EqualTo(1));
+        WeaponFeedbackContext feedback = sink.DamageEvents[0];
+        Assert.That(feedback.DamageAmount, Is.EqualTo(critical ? 200 : 100),
+            "Display the full post-mitigation hit, not the five HP removed.");
+        Assert.That(feedback.IsCritical, Is.EqualTo(critical));
+        Assert.That(feedback.IsKill, Is.True);
+        CombatTextEvent text = CombatTextEvent.FromFeedback(in feedback);
+        Assert.That(text.AppliedDamage, Is.EqualTo(feedback.DamageAmount));
+        CombatTextStyleId style = CombatTextStyleResolver.ResolveStyle(in text);
+        Assert.That(style, Is.EqualTo(CombatTextStyleId.Kill));
+        Assert.That(CombatTextStyleResolver.ResolveColor(style), Is.EqualTo(Color.red));
+    }
+
+    private sealed class DamageFeedbackRecorder : IWeaponFeedbackSink
+    {
+        public readonly List<WeaponFeedbackContext> DamageEvents = new();
+        public void OnDamageConfirmed(in WeaponFeedbackContext context) => DamageEvents.Add(context);
+        public void OnChargeStarted(in WeaponFeedbackContext context) { }
+        public void OnChargeUpdated(in WeaponFeedbackContext context, float normalizedProgress) { }
+        public void OnChargeCancelled(in WeaponFeedbackContext context) { }
+        public void OnShotFired(in WeaponFeedbackContext context) { }
+        public void OnSustainedFireStarted(in WeaponFeedbackContext context) { }
+        public void OnSustainedFireStopped(in WeaponFeedbackContext context) { }
+        public void OnProjectileImpact(in WeaponFeedbackContext context) { }
+        public void OnStatusApplied(in WeaponFeedbackContext context) { }
+        public void OnAmmoEmpty(in WeaponFeedbackContext context) { }
+        public void OnHeatThresholdCrossed(in WeaponFeedbackContext context, float normalizedThreshold) { }
+        public void ConfigureProjectile(Projectile projectile, ProjectilePresentationArchetypeId archetype,
+            in WeaponFeedbackContext context) { }
+        public void Emit(in WeaponPresentationContext context) { }
+        public WeaponPresentationLoopHandle BeginLoop(in WeaponPresentationContext context) => default;
+        public void UpdateLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
+        public void EndLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
+    }
+
     private sealed class TestDamageable : MonoBehaviour, IDamageable
     {
         public int TotalDamage { get; private set; }

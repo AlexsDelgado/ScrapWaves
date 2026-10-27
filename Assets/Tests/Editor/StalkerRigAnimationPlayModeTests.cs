@@ -44,6 +44,89 @@ public sealed class StalkerRigAnimationPlayModeTests
         yield return RunDeepReburrowDeath();
     }
 
+    [UnityTest]
+    public IEnumerator ActualBoss_OverheatSpawnStaysAliveThroughEmergenceAndEndsOnlyOnDeath()
+    {
+        SaveAndClearScene();
+        yield return new EnterPlayMode();
+        yield return RunOverheatSpawn();
+    }
+
+    private IEnumerator RunOverheatSpawn()
+    {
+        Transform target = CreateScene();
+        GameObject ground = GameObject.Find("Stalker rig test ground");
+        GameObject region = new GameObject("Upper region");
+        region.transform.position = Vector3.up * 50f;
+        BoxCollider volume = region.AddComponent<BoxCollider>();
+        volume.isTrigger = true;
+        volume.size = new Vector3(400f, 10f, 400f);
+        UpperLevelVolume upper = region.AddComponent<UpperLevelVolume>();
+        typeof(UpperLevelVolume).GetField("_baseSurfaceRoots", PrivateInstance)
+            .SetValue(upper, new[] { ground.transform });
+
+        target.gameObject.SetActive(false);
+        target.gameObject.layer = LayerMask.NameToLayer("Player");
+        target.position = new Vector3(30f, 1.02f, 0f);
+        CapsuleCollider capsule = target.gameObject.AddComponent<CapsuleCollider>();
+        capsule.height = 2f;
+        capsule.radius = 0.5f;
+        target.gameObject.AddComponent<Rigidbody>().useGravity = false;
+        target.gameObject.AddComponent<PlayerMovement>();
+        target.gameObject.AddComponent<PlayerHealth>();
+        PlayerPlatformState platform = target.gameObject.AddComponent<PlayerPlatformState>();
+        typeof(PlayerPlatformState).GetField("_upperLevelVolume", PrivateInstance).SetValue(platform, upper);
+        target.gameObject.SetActive(true);
+        Physics.SyncTransforms();
+        yield return null;
+        Assert.That(platform.CanSpawnObjectives, Is.True);
+
+        OverheatManager overheat = new GameObject("Overheat").AddComponent<OverheatManager>();
+        GameObject managerRoot = new GameObject("Boss manager");
+        managerRoot.SetActive(false);
+        BossManager manager = managerRoot.AddComponent<BossManager>();
+        typeof(BossManager).GetField("_overheatManager", PrivateInstance).SetValue(manager, overheat);
+        typeof(BossManager).GetField("_bossPrefab", PrivateInstance)
+            .SetValue(manager, AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath));
+        // Match GameplayScene's first boss appearance, HP and spawn distance.
+        typeof(BossManager).GetField("_overheatCycleIndex", PrivateInstance).SetValue(manager, 1);
+        typeof(BossManager).GetField("_bossMaxHealth", PrivateInstance).SetValue(manager, 1500);
+        typeof(BossManager).GetField("_spawnDistance", PrivateInstance).SetValue(manager, 35f);
+        managerRoot.SetActive(true);
+        int defeats = 0;
+        manager.OnBossDefeated += () => defeats++;
+        typeof(OverheatManager).GetMethod("OnMaxHeatReached", PrivateInstance).Invoke(overheat, null);
+
+        Assert.That(manager.CurrentOverheatCycle, Is.EqualTo(2));
+        Assert.That(manager.ActiveBosses.Count, Is.EqualTo(1),
+            "The actual burrowing prefab must pass placement instead of clearing an empty Overheat.");
+        EnemyHealth health = manager.PrimaryBoss;
+        Assert.That(health, Is.Not.Null);
+        Assert.That(health.CurrentHealth, Is.EqualTo(1500));
+        Assert.That(health.MaxHealth, Is.EqualTo(1500));
+        StalkerRigAnimation rig = health.GetComponent<StalkerRigAnimation>();
+        yield return null;
+        Assert.That(overheat.IsOverheating, Is.True);
+        Assert.That(rig.CurrentPhase, Is.EqualTo(StalkerRigAnimation.Phase.Hidden));
+        Assert.That(health.GetComponent<CharacterController>().enabled, Is.False);
+        Assert.That(health.GetComponentsInChildren<Collider>().All(c => !c.enabled), Is.True);
+        Assert.That(health.IsInvincible, Is.True);
+
+        for (int frame = 0; frame < 360 && rig.CurrentPhase == StalkerRigAnimation.Phase.Hidden; frame++)
+            yield return null;
+        Assert.That(rig.CurrentPhase, Is.EqualTo(StalkerRigAnimation.Phase.Emergence));
+        Assert.That(health.CurrentHealth, Is.EqualTo(1500));
+        Assert.That(health.GetComponentInChildren<SkinnedMeshRenderer>().enabled, Is.True);
+        Assert.That(overheat.IsOverheating, Is.True);
+        Assert.That(defeats, Is.Zero);
+
+        // The authored body takes only 20% damage; this hit must still be lethal.
+        Assert.That(health.ApplyDamage(health.MaxHealth * 10), Is.True);
+        Assert.That(defeats, Is.EqualTo(1));
+        Assert.That(manager.HasActiveBosses, Is.False);
+        Assert.That(overheat.IsOverheating, Is.False);
+    }
+
     private IEnumerator RunRepeatedJumps()
     {
         Transform target = CreateScene();

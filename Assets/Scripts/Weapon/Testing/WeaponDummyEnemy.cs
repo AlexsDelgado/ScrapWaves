@@ -173,7 +173,8 @@ public sealed class WeaponDummyEnemy : MonoBehaviour, IAuthoritativeDamageable, 
         DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
             in request,
             healthBefore,
-            healthAfter);
+            healthAfter,
+            resolvedDamage: targetAdjustedDamage);
         _lastDamageReceived = result.AppliedDamage;
         _metrics?.RecordDamage(result.AppliedDamage);
 

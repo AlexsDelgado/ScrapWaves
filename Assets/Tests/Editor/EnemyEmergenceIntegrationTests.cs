@@ -15,12 +15,14 @@ public sealed class EnemyEmergenceIntegrationTests
     private readonly EnemyEmergenceTestLifecycle _lifecycle = new();
     private UnityEngine.Random.State _randomState;
     private int _pauseLocks;
+    private DebugSpeedTool _previousDebugSpeed;
 
     [SetUp]
     public void SetUp()
     {
         _randomState = UnityEngine.Random.state;
         _pauseLocks = GameplayPause.LockCount;
+        _previousDebugSpeed = DebugSpeedTool.Active;
         GameplayPause.Reset();
     }
 
@@ -37,6 +39,8 @@ public sealed class EnemyEmergenceIntegrationTests
         }
         _created.Clear();
         UnityEngine.Random.state = _randomState;
+        typeof(DebugSpeedTool).GetField("<Active>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
+            .SetValue(null, _previousDebugSpeed);
         GameplayPause.Reset();
         for (int i = 0; i < _pauseLocks; i++) GameplayPause.Push();
     }
@@ -486,7 +490,7 @@ public sealed class EnemyEmergenceIntegrationTests
 
     [TestCase(typeof(FlyingRangedBehavior))]
     [TestCase(typeof(BomberDroneBehavior))]
-    public void FlyingHover_IgnoresPlayerJumpAndHoldsAltitudeWithoutGround(Type behaviorType)
+    public void FlyingHover_IgnoresSmallJumpsAndTriggerVolumes(Type behaviorType)
     {
         EnemyBehaviorBase behavior = NewHoveringDrone(behaviorType, out Transform player, out BoxCollider ground);
         SetField(behavior, "_hoverHeight", 4f);
@@ -498,53 +502,173 @@ public sealed class EnemyEmergenceIntegrationTests
         trigger.gameObject.layer = ground.gameObject.layer;
         Physics.SyncTransforms();
 
-        foreach (float playerY in new[] { 0f, 12f, 3f, 0f })
+        foreach (float playerY in new[] { 0f, 3f, 4f, 0f })
         {
             player.position = new Vector3(10010f, playerY, 10000f);
             InvokeHover(behavior, 0.1f);
             Assert.That(behavior.transform.position, Is.EqualTo(rest),
-                "Player jumping and trigger volumes must not change ground-relative altitude.");
+                "Ordinary jumps and trigger volumes must not move the flight plane.");
         }
 
         ground.enabled = false;
         Physics.SyncTransforms();
         InvokeHover(behavior, 0.5f);
-        Assert.That(behavior.transform.position, Is.EqualTo(rest), "A missed ground probe must hold altitude.");
+        Assert.That(behavior.transform.position, Is.EqualTo(rest), "No ground alone must not change the flight plane.");
     }
 
     [TestCase(typeof(FlyingRangedBehavior))]
     [TestCase(typeof(BomberDroneBehavior))]
-    public void FlyingHover_CapsAscentAndDescentOverPlatformsWithoutOvershoot(Type behaviorType)
+    public void FlyingHover_FollowsLargeHeightChangesSlowlyAndSettlesPastDeadZone(Type behaviorType)
     {
-        EnemyBehaviorBase behavior = NewHoveringDrone(behaviorType, out _, out BoxCollider ground);
-        SetField(behavior, "_maxVerticalSpeed", 2f);
+        EnemyBehaviorBase behavior = NewHoveringDrone(behaviorType, out Transform player, out BoxCollider ground);
+        SetField(behavior, "_hoverHeight", 4f);
+        SetField(behavior, "_moveSpeed", 5f);
+        behavior.transform.position = behavior.ResolveEmergenceRestPosition(new Vector3(10000f, 0f, 10000f));
         Vector3 start = behavior.transform.position;
-        ground.transform.position += Vector3.up * 10f;
-        Physics.SyncTransforms();
+        player.position = new Vector3(10010f, 12f, 10000f);
+        float step = 5f * 1.5f * DebugSpeedTool.EnemyScale * 0.2f;
         InvokeHover(behavior, 0.2f);
-        Assert.That(behavior.transform.position.y, Is.EqualTo(start.y + 0.4f).Within(0.0001f));
+        Assert.That(behavior.transform.position.y, Is.EqualTo(start.y + step).Within(0.0001f));
         Assert.That(behavior.transform.position.x, Is.EqualTo(start.x));
         Assert.That(behavior.transform.position.z, Is.EqualTo(start.z));
+        for (int i = 0; i < 80; i++) InvokeHover(behavior, 0.2f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(16f).Within(0.1f),
+            "Correction must reach the intended hover offset instead of stopping five units short.");
+        player.position += Vector3.up * 4f;
+        for (int i = 0; i < 10; i++) InvokeHover(behavior, 0.2f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(16f).Within(0.1f),
+            "A settled drone must ignore another ordinary jump.");
 
-        ground.transform.position -= Vector3.up * 20f;
+        // More than the 40-unit probe depth below the drone: a raycast miss must not block descent.
+        ground.enabled = false;
         Physics.SyncTransforms();
+        player.position = new Vector3(10010f, -45f, 10000f);
+        float beforeDescent = behavior.transform.position.y;
         InvokeHover(behavior, 0.2f);
-        Assert.That(behavior.transform.position.y, Is.EqualTo(start.y).Within(0.0001f));
+        Assert.That(behavior.transform.position.y, Is.EqualTo(beforeDescent - step).Within(0.0001f));
+        float pausedY = behavior.transform.position.y;
         InvokeHover(behavior, 0f);
-        Assert.That(behavior.transform.position.y, Is.EqualTo(start.y).Within(0.0001f));
+        Assert.That(behavior.transform.position.y, Is.EqualTo(pausedY));
 
-        ground.transform.position += Vector3.up * 10f;
-        behavior.transform.position = start - Vector3.up * 0.1f;
+        // Reacquire a lower island while descending; the player is below its safe hover plane.
+        ground.transform.position = new Vector3(10000f, -30.5f, 10000f);
+        ground.enabled = true;
         Physics.SyncTransforms();
+        for (int i = 0; i < 150; i++)
+        {
+            InvokeHover(behavior, 0.2f);
+            Assert.That(behavior.transform.position.y, Is.GreaterThanOrEqualTo(-26.0001f),
+                "Descent must preserve the ground-relative hover clearance.");
+        }
+        Assert.That(behavior.transform.position.y, Is.EqualTo(-26f).Within(0.1f));
+    }
+
+    [TestCase(typeof(FlyingRangedBehavior))]
+    [TestCase(typeof(BomberDroneBehavior))]
+    public void FlyingHover_UsesStableSpawnOffsetAndResetsPursuitForNextLife(Type behaviorType)
+    {
+        EnemyBehaviorBase behavior = NewHoveringDrone(behaviorType, out Transform player, out _);
+        EnemyStatRandomizer randomizer = behavior.GetComponent<EnemyStatRandomizer>();
+        SetField(behavior, "_hoverHeight", 4f);
+        SetField(behavior, "_moveSpeed", 5f);
+        SetField(randomizer, "_droneHoverHeightMultiplierRange", Vector2.one * 1.2f);
+        SetField(randomizer, "_movementSpeedMultiplierRange", Vector2.one * 1.5f);
+        randomizer.BeginSpawn();
+        behavior.transform.position = behavior.ResolveEmergenceRestPosition(new Vector3(10000f, 0f, 10000f));
+        Assert.That(behavior.transform.position.y, Is.EqualTo(4.8f).Within(0.0001f));
+        player.position = new Vector3(10010f, 4.5f, 10000f);
         InvokeHover(behavior, 0.2f);
-        Assert.That(behavior.transform.position.y, Is.InRange(start.y - 0.1f, start.y));
-        Assert.That(behavior.transform.position.y, Is.GreaterThan(start.y - 0.1f));
+        Assert.That(behavior.transform.position.y, Is.EqualTo(4.8f).Within(0.0001f),
+            "The dead zone must measure from this drone's individual intended offset.");
+        player.position = new Vector3(10010f, 10f, 10000f);
+        InvokeHover(behavior, 0.2f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(4.8f + 2.25f * DebugSpeedTool.EnemyScale).Within(0.0001f),
+            "Vertical pursuit uses 150% of the independently randomized normal movement speed.");
+        randomizer.BeginSpawn();
+        Assert.That(randomizer.DroneHoverHeightMultiplier, Is.EqualTo(1.2f));
+
+        randomizer.OnPoolDespawn();
+        behavior.OnPoolDespawn();
+        behavior.OnPoolSpawn();
+        SetField(randomizer, "_droneHoverHeightMultiplierRange", Vector2.one * 0.8f);
+        randomizer.BeginSpawn();
+        // Placement without an emergence component must also forget the old pursuit latch.
+        behavior.transform.position = new Vector3(10000f, 3.2f, 10000f);
+        player.position = new Vector3(10010f, 3f, 10000f);
+        InvokeHover(behavior, 0.2f);
+        Assert.That(behavior.transform.position.y, Is.EqualTo(3.2f).Within(0.0001f),
+            "The next lifetime must hold its new flight plane instead of continuing the old ascent.");
+        Assert.That(randomizer.DroneHoverHeightMultiplier, Is.EqualTo(0.8f));
+    }
+
+    [Test]
+    public void DroneEngagement_CrossesIslandGapButKeepsDistantAndGroundEnemySleep()
+    {
+        FieldInfo playerInstance = typeof(PlayerMovement).GetField("s_Instance", BindingFlags.Static | BindingFlags.NonPublic);
+        object previousPlayer = playerInstance.GetValue(null);
+        try
+        {
+            // GameplayScene has lower launch points near Y=22 and islands near Y=290.
+            // Exercise a full 300-unit gap, beyond the ground enemy's 40-unit cutoff.
+            foreach (Type behaviorType in new[] { typeof(FlyingRangedBehavior), typeof(BomberDroneBehavior) })
+            {
+                EnemyBehaviorBase drone = NewHoveringDrone(behaviorType, out Transform player, out BoxCollider ground);
+                ground.enabled = false;
+                SetField(drone, "_groundMask", (LayerMask)0);
+                SetField(drone, "_moveSpeed", 5f);
+                player.position = new Vector3(10000f, 303.5f, 10000f);
+                playerInstance.SetValue(null, player.gameObject.AddComponent<PlayerMovement>());
+
+                EnemyVerticalEngagement engagement = drone.gameObject.AddComponent<EnemyVerticalEngagement>();
+                _lifecycle.SetActive(drone.gameObject, true);
+                SetField(engagement, "_sleepElapsed", 11f);
+                InvokeUpdate(engagement);
+                Assert.That(engagement.IsVerticallyDisengaged, Is.False, behaviorType.Name);
+                Assert.That(engagement.IsDormant, Is.False, "Cross-floor pursuit must not enter dormancy.");
+                Assert.That(EnemyVerticalEngagement.IsDisengaged(drone), Is.False);
+                float initialY = drone.transform.position.y;
+                InvokeHover(drone, 0.2f);
+                Assert.That(drone.transform.position.y, Is.EqualTo(initialY + 1.5f).Within(0.0001f),
+                    "An engaged drone can keep ascending at 150% speed across the island gap.");
+
+                GameObject groundEnemy = NewObject("Ground enemy below island");
+                groundEnemy.transform.position = drone.transform.position;
+                EnemyVerticalEngagement grounded = groundEnemy.AddComponent<EnemyVerticalEngagement>();
+                _lifecycle.SetActive(groundEnemy, true);
+                player.position = groundEnemy.transform.position + Vector3.up * 41f;
+                SetField(grounded, "_sleepElapsed", 11f);
+                InvokeUpdate(grounded);
+                Assert.That(grounded.IsVerticallyDisengaged, Is.True, "Ground enemy cutoff remains 40 units.");
+                Assert.That(grounded.IsDormant, Is.True, "The existing dormancy delay still applies.");
+
+                // A finite 3D boundary still culls drones that are genuinely far away.
+                player.position = drone.transform.position + new Vector3(350f, 300f, 0f);
+                SetField(engagement, "_sleepElapsed", 11f);
+                InvokeUpdate(engagement);
+                Assert.That(engagement.IsVerticallyDisengaged, Is.True);
+                Assert.That(engagement.IsDormant, Is.True);
+
+                // Detection must survive disabled flight behavior while dormant.
+                player.position = drone.transform.position + Vector3.up * 300f;
+                InvokeUpdate(engagement);
+                Assert.That(engagement.IsDormant, Is.False);
+                Assert.That(EnemyVerticalEngagement.IsDisengaged(drone), Is.False);
+                Assert.That(drone.enabled, Is.True);
+            }
+        }
+        finally
+        {
+            playerInstance.SetValue(null, previousPlayer);
+        }
     }
 
     private EnemyBehaviorBase NewHoveringDrone(Type behaviorType, out Transform player, out BoxCollider ground)
     {
+        typeof(DebugSpeedTool).GetField("<Active>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
+            .SetValue(null, null);
         GameObject enemy = NewObject("Hover test drone");
         enemy.SetActive(false);
+        enemy.AddComponent<EnemyStatRandomizer>();
         EnemyBehaviorBase behavior = (EnemyBehaviorBase)enemy.AddComponent(behaviorType);
         _lifecycle.SetActive(enemy, true);
         enemy.transform.position = new Vector3(10000f, 3.5f, 10000f);

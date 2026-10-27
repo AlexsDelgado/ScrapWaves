@@ -70,6 +70,7 @@ public sealed class UpperLevelOverheatRuntimeTests
             var main = effect.main; main.playOnAwake = false; main.loop = true; main.maxParticles = 12;
             var hazard = player.AddComponent<PlayerUpperLevelOverheat>();
             Set(hazard, "_platformState", state); Set(hazard, "_health", health);
+            Set(hazard, "_upperLevelVolume", volume);
             Set(hazard, "_overheatManager", overheat); Set(hazard, "_effects", new[] { effect });
             managerObject.SetActive(true);
             player.SetActive(true);
@@ -84,7 +85,7 @@ public sealed class UpperLevelOverheatRuntimeTests
             Assert.That(health.CurrentHealth, Is.EqualTo(100), "The initial grace must run in the native Update loop.");
             Assert.That(effect.isPlaying, Is.True);
             yield return Wait(() => health.CurrentHealth < 100, "first native hazard hit");
-            Assert.That(health.CurrentHealth, Is.EqualTo(95));
+            Assert.That(health.CurrentHealth, Is.EqualTo(99));
 
             upper.enabled = false; // Begin an ordinary physics fall; no manual Tick or Physics.Simulate.
             yield return Wait(() => !state.IsInsideUpper, "leave the upper volume on descent");
@@ -96,14 +97,14 @@ public sealed class UpperLevelOverheatRuntimeTests
             float deadline = Time.realtimeSinceStartup + 15f;
             while (!state.CanSpawnObjectives && Time.realtimeSinceStartup < deadline)
             {
-                Assert.That(health.CurrentHealth, Is.EqualTo(95), "Airborne descent outside the volume must stay safe.");
+                Assert.That(health.CurrentHealth, Is.EqualTo(99), "Airborne descent outside the volume must stay safe.");
                 yield return null;
             }
             Assert.That(state.CanSpawnObjectives, Is.True, "The real motor must eventually identify authored Base support.");
             Assert.That(Time.time - safeSince, Is.GreaterThan(2f), "The descent crossed a full damage interval before landing.");
             Assert.That(movement.TryGetGroundSupport(out Collider support), Is.True);
             Assert.That(support, Is.SameAs(ground));
-            Assert.That(health.CurrentHealth, Is.EqualTo(95));
+            Assert.That(health.CurrentHealth, Is.EqualTo(99));
             overheat.NotifyOverheatObjectiveCleared();
             yield return null;
             Assert.That(overheat.IsOverheating, Is.False);

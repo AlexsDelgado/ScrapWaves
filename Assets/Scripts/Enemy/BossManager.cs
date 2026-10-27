@@ -263,7 +263,7 @@ public class BossManager : MonoBehaviour
             EndOverheatIfNoObjective();
             return;
         }
-        if (!_pendingPlayerState.CanSpawnObjectives)
+        if (!_overheatManager.AreEncountersReady || !_pendingPlayerState.CanSpawnObjectives)
             return;
 
         PlayerPlatformState state = _pendingPlayerState;
@@ -425,22 +425,34 @@ public class BossManager : MonoBehaviour
     private bool IsSpawnBatchCurrent(PlayerPlatformState state, int version) =>
         version == _batchVersion && isActiveAndEnabled && !_exitPhaseActive &&
         _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPermanentOverheat &&
-        state != null && state.CanSpawnObjectives;
+        _overheatManager.AreEncountersReady && state != null && state.CanSpawnObjectives;
 
     private bool TryPlaceBoss(PlayerPlatformState state, Transform boss, CharacterController controller, Vector3 playerPosition, Vector3 firstPosition)
     {
+        bool burrowsOnSpawn = boss.GetComponent<GigaWormBehavior>() != null;
         for (int attempt = 0; attempt < Mathf.Max(1, _placementAttemptsPerBoss); attempt++)
         {
             float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
             Vector3 candidate = attempt == 0 ? firstPosition : playerPosition + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * _spawnDistance;
             if (EnemySpawnBlockVolume.Blocks(candidate))
                 continue;
-            if (!SpawnGroundUtility.TryResolveFootPosition(
+
+            // The worm disables its colliders in OnEnable and starts below the surface.
+            // Seating that disabled, centered capsule leaves it intersecting the floor;
+            // above-ground clearance would reject every valid burrow spawn.
+            Vector3 foot, groundPoint;
+            bool placed = burrowsOnSpawn
+                ? SpawnGroundUtility.TrySampleGround(
+                    candidate, playerPosition.y, _maxAbsSpawnSurfaceDeltaY,
+                    _groundRaycastMask, _fallbackGroundRaycastMask,
+                    _raycastStartHeight, _raycastMaxDistance, _surfaceSeparation,
+                    out foot, out groundPoint, out _)
+                : SpawnGroundUtility.TryResolveFootPosition(
                     new Vector3(candidate.x, 0f, candidate.z), boss, controller, playerPosition.y,
                     _maxAbsSpawnSurfaceDeltaY, _groundRaycastMask, _fallbackGroundRaycastMask, _overlapSolidMask,
                     _raycastStartHeight, _raycastMaxDistance, _surfaceSeparation, _maxProjectionIterations,
-                    _resolveStepUp, _resolveStepOut, out Vector3 foot, out Vector3 groundPoint, out _) ||
-                state.IsUpperPosition(groundPoint) || EnemySpawnBlockVolume.Blocks(foot))
+                    _resolveStepUp, _resolveStepOut, out foot, out groundPoint, out _);
+            if (!placed || state.IsUpperPosition(groundPoint) || EnemySpawnBlockVolume.Blocks(foot))
                 continue;
             boss.position = foot;
             return true;

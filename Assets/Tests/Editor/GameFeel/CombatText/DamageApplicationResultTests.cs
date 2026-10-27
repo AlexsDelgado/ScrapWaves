@@ -50,13 +50,14 @@ public sealed class DamageApplicationResultTests
         Assert.That(result.RequestedDamage, Is.EqualTo(10));
         Assert.That(result.ModifiedDamage, Is.EqualTo(15));
         Assert.That(result.AppliedDamage, Is.EqualTo(15));
+        Assert.That(result.ResolvedDamage, Is.EqualTo(15));
         Assert.That(result.HealthBefore, Is.EqualTo(100));
         Assert.That(result.HealthAfter, Is.EqualTo(85));
         Assert.That(health.CurrentHealth, Is.EqualTo(85));
     }
 
     [Test]
-    public void EnemyHealth_OverkillReportsRemainingHealthAndAuthoritativeKill()
+    public void EnemyHealth_OverkillReportsFullDamageSeparatelyFromHealthRemoved()
     {
         EnemyHealth health = CreateEnemyHealth(3);
 
@@ -75,6 +76,7 @@ public sealed class DamageApplicationResultTests
         Assert.That(killingResult.Applied, Is.True);
         Assert.That(killingResult.Killed, Is.True);
         Assert.That(killingResult.AppliedDamage, Is.EqualTo(3));
+        Assert.That(killingResult.ResolvedDamage, Is.EqualTo(100));
         Assert.That(killingResult.HealthBefore, Is.EqualTo(3));
         Assert.That(killingResult.HealthAfter, Is.Zero);
 
@@ -83,6 +85,7 @@ public sealed class DamageApplicationResultTests
         Assert.That(deadTargetResult.Blocked, Is.False);
         Assert.That(deadTargetResult.Killed, Is.False);
         Assert.That(deadTargetResult.AppliedDamage, Is.Zero);
+        Assert.That(deadTargetResult.ResolvedDamage, Is.Zero);
         Assert.That(deadTargetResult.HealthBefore, Is.Zero);
         Assert.That(deadTargetResult.HealthAfter, Is.Zero);
     }
@@ -131,6 +134,7 @@ public sealed class DamageApplicationResultTests
         Assert.That(blockedStatus.Applied, Is.False);
         Assert.That(blockedStatus.Blocked, Is.True);
         Assert.That(blockedStatus.AppliedDamage, Is.Zero);
+        Assert.That(blockedStatus.ResolvedDamage, Is.Zero);
         Assert.That(blockedStatus.HealthBefore, Is.EqualTo(90));
         Assert.That(blockedStatus.HealthAfter, Is.EqualTo(90));
     }
@@ -178,6 +182,7 @@ public sealed class DamageApplicationResultTests
             channel: DamageChannel.Direct);
 
         Assert.That(result.AppliedDamage, Is.EqualTo(4));
+        Assert.That(result.ResolvedDamage, Is.EqualTo(40));
         Assert.That(result.Killed, Is.True);
         Assert.That(playerHealth.CurrentHealth, Is.EqualTo(52));
     }
@@ -198,10 +203,43 @@ public sealed class DamageApplicationResultTests
 
         Assert.That(result.IsAuthoritative, Is.True);
         Assert.That(result.AppliedDamage, Is.EqualTo(80));
+        Assert.That(result.ResolvedDamage, Is.EqualTo(100));
         Assert.That(result.HealthBefore, Is.EqualTo(80));
         Assert.That(result.HealthAfter, Is.Zero);
         Assert.That(result.Killed, Is.True);
         Assert.That(target.activeSelf, Is.False);
+    }
+
+    [TestCase(DamageChannel.Direct)]
+    [TestCase(DamageChannel.Status)]
+    public void EnemyHealth_OverkillIncludesAmplificationAndTargetMitigation(DamageChannel channel)
+    {
+        EnemyHealth health = CreateEnemyHealth(5);
+        health.gameObject.AddComponent<WeaponDamageAmplifierStatus>().Refresh(1.5f, 3f);
+        SetPrivateField(health, "_damageTakenMultiplier", 0.5f);
+
+        DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
+            health, 100, channel, canTriggerLifesteal: false);
+
+        Assert.That(result.ModifiedDamage, Is.EqualTo(150));
+        Assert.That(result.ResolvedDamage, Is.EqualTo(75));
+        Assert.That(result.AppliedDamage, Is.EqualTo(5));
+        Assert.That(result.Killed, Is.True);
+        Assert.That(health.CurrentHealth, Is.Zero);
+    }
+
+    [Test]
+    public void EnemyHealth_HitZoneOverkillUsesZoneMultiplierForDisplay()
+    {
+        EnemyHealth health = CreateEnemyHealth(5);
+        SetPrivateField(health, "_damageTakenMultiplier", 0.5f);
+        DamageRequest request = new(100, 150, DamageChannel.Direct);
+
+        DamageApplicationResult result = health.ApplyHitZoneDamage(in request, 2f);
+
+        Assert.That(result.ResolvedDamage, Is.EqualTo(300));
+        Assert.That(result.AppliedDamage, Is.EqualTo(5));
+        Assert.That(result.Killed, Is.True);
     }
 
     private EnemyHealth CreateEnemyHealth(int maxHealth)
