@@ -45,6 +45,12 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     /// <summary>Se invoca una vez al pasar a 0 HP, antes del despawn / desactivar el objeto.</summary>
     public event System.Action OnDied;
 
+    /// <summary>A real death, before per-enemy listeners can transition the encounter or reuse the pool lease.</summary>
+    public static event System.Action<EnemyHealth> AnyDied;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetDeathNotification() => AnyDied = null;
+
     private void Awake()
     {
         _prefabMaxHealth = _maxHealth;
@@ -174,7 +180,8 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
             in request,
             healthBefore,
-            healthAfter);
+            healthAfter,
+            resolvedDamage: scaledDamage);
 
         if (result.Killed)
         {
@@ -200,6 +207,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     private void CompleteDeath()
     {
+        AnyDied?.Invoke(this);
         AudioManager.TryPlayEnemyDeath();
         ChallengeProgressTracker.NotifyEnemyKilled(this);
         OnDied?.Invoke();

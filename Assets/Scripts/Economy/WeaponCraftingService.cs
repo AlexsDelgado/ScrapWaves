@@ -30,7 +30,10 @@ public class WeaponCraftingService : MonoBehaviour
 
     private readonly Dictionary<string, bool> _advancedRejected = new();
     private readonly Dictionary<string, WeaponUpgradePath> _guaranteedPath = new();
-    private readonly Dictionary<string, WeaponUpgradePath> _advancedOffers = new();
+    private WeaponData _pendingAdvancedWeapon;
+    private WeaponUpgradePath _pendingAdvancedPath;
+    private List<MaterialCost> _reservedAdvancedCost;
+    private bool _advancedTinkering;
     // Owned by the run's player, never written to the meta-progression save.
     private readonly HashSet<string> _tinkerDiscards = new();
     private readonly List<WeaponData> _tinkerOffer = new(2);
@@ -38,6 +41,10 @@ public class WeaponCraftingService : MonoBehaviour
     private int _reservedTinkerSlot;
     private bool _tinkering;
     public bool HasPendingTinkeringChoice => _reservedTinkerCost != null;
+    public bool HasPendingAdvancedChoice => _reservedAdvancedCost != null;
+    public WeaponData PendingAdvancedWeapon => _pendingAdvancedWeapon;
+    public IReadOnlyList<MaterialCost> GetPendingAdvancedCost() =>
+        _reservedAdvancedCost != null ? _reservedAdvancedCost.AsReadOnly() : System.Array.Empty<MaterialCost>();
 
     private void Awake()
     {
@@ -74,6 +81,8 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryUpgradeWeapon(WeaponData weapon, int targetLevel)
     {
+        if (HasPendingTinkeringChoice || HasPendingAdvancedChoice || _tinkering || _advancedTinkering)
+            return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
         if (!TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon, targetLevel) || weapon == null || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
@@ -97,25 +106,26 @@ public class WeaponCraftingService : MonoBehaviour
     }
 
     // Availability queries never roll or cache offers, spend materials, or mutate progression.
-    public bool CanTinkerNewWeapon() => TutorialDirector.AllowsCrafting(CraftingActionKind.TinkerNewWeapon) && !HasPendingTinkeringChoice && !_tinkering
+    public bool CanTinkerNewWeapon() => TutorialDirector.AllowsCrafting(CraftingActionKind.TinkerNewWeapon)
+        && !HasPendingTinkeringChoice && !HasPendingAdvancedChoice && !_tinkering && !_advancedTinkering
         && _weaponManager != null && _inventory != null
         && _weaponManager.CanAddWeapon() && BuildUnequippedWeapons().Count >= 2
         && _inventory.CanAfford(GetTinkeringCost(_weaponManager.GetEquippedWeapons().Count + 1));
 
     public CraftingActionKind? GetAvailableAction(WeaponInstance weapon)
     {
-        if (HasPendingTinkeringChoice || _tinkering || weapon?.Data == null || _weaponManager == null || _inventory == null
+        if (HasPendingTinkeringChoice || HasPendingAdvancedChoice || _tinkering || _advancedTinkering
+            || weapon?.Data == null || _weaponManager == null || _inventory == null
             || !_weaponManager.TryGetEquippedWeapon(weapon.Data, out WeaponInstance equipped)
             || equipped != weapon || weapon.Level >= 10) return null;
         if (!TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon.Data, weapon.Level + 1)) return null;
         if (weapon.Level == 5 && weapon.SelectedPath == WeaponUpgradePath.None)
         {
-            WeaponUpgradePath path;
-            bool eligible = TryGetGuaranteedPath(weapon.Data, out path)
-                || _advancedOffers.TryGetValue(weapon.Data.WeaponId, out path);
+            bool eligible = TryGetGuaranteedPath(weapon.Data, out WeaponUpgradePath path);
             eligible = eligible ? IsAdvancedPathUnlocked(weapon.Data, path)
                 : IsAdvancedPathUnlocked(weapon.Data, WeaponUpgradePath.PathA);
-            return eligible && _inventory.CanAfford(GetAdvancedTinkeringCost(weapon.Data))
+            return eligible && TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon.Data)
+                && _inventory.CanAfford(GetAdvancedTinkeringCost(weapon.Data))
                 ? CraftingActionKind.AdvancedTinkering : null;
         }
         return _inventory.CanAfford(GetUpgradeCost(weapon.Data, weapon.SelectedPath, weapon.Level + 1))
@@ -132,6 +142,7 @@ public class WeaponCraftingService : MonoBehaviour
 
     public IReadOnlyList<WeaponData> GetTinkeringOffer()
     {
+        if (HasPendingAdvancedChoice || _advancedTinkering) return System.Array.Empty<WeaponData>();
         // A paid offer survives UI disable/recreation. Never replace it while awaiting a choice.
         if (HasPendingTinkeringChoice || _tinkering) return _tinkerOffer.AsReadOnly();
         if (_weaponManager == null || !_weaponManager.CanAddWeapon())
@@ -154,6 +165,8 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryBeginTinkering()
     {
+        if (HasPendingAdvancedChoice || _advancedTinkering)
+            return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
         if (_tinkering) return new CraftingActionResult(false, "Tinkering en curso.");
         if (HasPendingTinkeringChoice) return new CraftingActionResult(true, "Elegí una de las dos armas.");
         if (!CanTinkerNewWeapon()) return new CraftingActionResult(false, "Tinkering no disponible.");
@@ -176,7 +189,7 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryTinkerWeapon(WeaponData chosen)
     {
-        if (_tinkering || _weaponManager == null || _inventory == null)
+        if (_tinkering || _advancedTinkering || HasPendingAdvancedChoice || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
         if (!_weaponManager.CanAddWeapon() && !HasPendingTinkeringChoice)
@@ -218,31 +231,57 @@ public class WeaponCraftingService : MonoBehaviour
         finally { _tinkering = false; }
     }
 
+    public CraftingActionResult TryBeginAdvancedTinkering(WeaponData weapon)
+    {
+        if (_advancedTinkering || _tinkering || HasPendingTinkeringChoice)
+            return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
+        // Reopening or repeated clicks resume the paid offer; they never charge or roll again.
+        if (HasPendingAdvancedChoice)
+            return new CraftingActionResult(weapon != null && weapon == _pendingAdvancedWeapon,
+                "Resuelve la oferta pendiente primero.");
+        if (!TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon)
+            || weapon == null || _weaponManager == null || _inventory == null
+            || !_weaponManager.TryGetEquippedWeapon(weapon, out WeaponInstance instance)
+            || instance.Level != 5 || instance.SelectedPath != WeaponUpgradePath.None)
+            return new CraftingActionResult(false, "Advanced Tinkering no disponible.");
+
+        bool guaranteed = TryGetGuaranteedPath(weapon, out WeaponUpgradePath path);
+        if (guaranteed && !IsAdvancedPathUnlocked(weapon, path))
+            return new CraftingActionResult(false, "La ruta ya no esta disponible.");
+
+        _advancedTinkering = true;
+        try
+        {
+            var cost = new List<MaterialCost>(GetAdvancedTinkeringCost(weapon));
+            if (!_inventory.TrySpend(cost))
+                return new CraftingActionResult(false, "Materiales insuficientes para Advanced Tinkering.");
+
+            // The first random draw and public offer happen only after payment succeeds.
+            if (!guaranteed)
+                path = IsAdvancedPathUnlocked(weapon, WeaponUpgradePath.PathB) && Random.Range(0, 2) == 1
+                    ? WeaponUpgradePath.PathB : WeaponUpgradePath.PathA;
+            _pendingAdvancedWeapon = weapon;
+            _pendingAdvancedPath = path;
+            _reservedAdvancedCost = cost;
+            return new CraftingActionResult(true, "Oferta comprada. Acepta o rechaza la mejora.");
+        }
+        finally { _advancedTinkering = false; }
+    }
+
+    // A read-only query: viewing a menu can never reveal or roll an unpaid offer.
     public bool TryGetAdvancedOffer(WeaponData weapon, out WeaponUpgradePath path)
     {
         path = WeaponUpgradePath.None;
-        if (weapon == null || _weaponManager == null
-            || !_weaponManager.TryGetEquippedWeapon(weapon, out WeaponInstance instance)
-            || instance.Level != 5 || instance.SelectedPath != WeaponUpgradePath.None)
+        if (!HasPendingAdvancedChoice || weapon == null || weapon != _pendingAdvancedWeapon)
             return false;
-
-        // Keep the same offer when closing/reopening the station; reopening is not a reroll.
-        if (TryGetGuaranteedPath(weapon, out path))
-            _advancedOffers[weapon.WeaponId] = path;
-        else if (!_advancedOffers.TryGetValue(weapon.WeaponId, out path))
-        {
-            path = IsAdvancedPathUnlocked(weapon, WeaponUpgradePath.PathB) && Random.Range(0, 2) == 1
-                ? WeaponUpgradePath.PathB : WeaponUpgradePath.PathA;
-            _advancedOffers[weapon.WeaponId] = path;
-        }
-
-        return IsAdvancedPathUnlocked(weapon, path);
+        path = _pendingAdvancedPath;
+        return path != WeaponUpgradePath.None;
     }
 
     public bool CanRejectAdvancedOffer(WeaponData weapon)
     {
         return weapon != null && !WasAdvancedRejected(weapon)
-            && _advancedOffers.TryGetValue(weapon.WeaponId, out WeaponUpgradePath offered)
+            && TryGetAdvancedOffer(weapon, out WeaponUpgradePath offered)
             && IsAdvancedPathUnlocked(weapon, GetGuaranteedAlternatePath(weapon, offered));
     }
 
@@ -255,6 +294,8 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryAdvancedTinkering(WeaponData weapon, WeaponUpgradePath path, bool accept)
     {
+        if (_advancedTinkering || _tinkering || HasPendingTinkeringChoice)
+            return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
         if (!TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon) || weapon == null || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
@@ -264,32 +305,37 @@ public class WeaponCraftingService : MonoBehaviour
         if (instance.Level != 5 || instance.SelectedPath != WeaponUpgradePath.None)
             return new CraftingActionResult(false, "Solo disponible en nivel 5.");
 
-        if (!_advancedOffers.TryGetValue(weapon.WeaponId, out WeaponUpgradePath offered) || offered != path
+        if (!TryGetAdvancedOffer(weapon, out WeaponUpgradePath offered) || offered != path
             || !IsAdvancedPathUnlocked(weapon, path))
             return new CraftingActionResult(false, "La ruta no coincide con la oferta disponible.");
 
         if (!accept && !CanRejectAdvancedOffer(weapon))
             return new CraftingActionResult(false, "No hay otra ruta disponible para este intento.");
 
-        List<MaterialCost> costs = new(GetAdvancedTinkeringCost(weapon));
-        if (!_inventory.TrySpend(costs))
-            return new CraftingActionResult(false, "Materiales insuficientes para Advanced Tinkering.");
-
-        if (accept)
+        _advancedTinkering = true;
+        try
         {
-            _weaponManager.UpgradeWeapon(instance);
-            _weaponManager.ApplyUpgradePath(instance, path);
-            _advancedRejected.Remove(weapon.WeaponId);
-            _guaranteedPath.Remove(weapon.WeaponId);
-            _advancedOffers.Remove(weapon.WeaponId);
-            return new CraftingActionResult(true, $"Path {path} aplicado. Nivel {instance.Level}.");
+            if (accept)
+            {
+                _weaponManager.UpgradeWeapon(instance);
+                _weaponManager.ApplyUpgradePath(instance, path);
+                _advancedRejected.Remove(weapon.WeaponId);
+                _guaranteedPath.Remove(weapon.WeaponId);
+            }
+            else
+            {
+                // Declining consumes the paid attempt; the alternate is a separate purchase.
+                _advancedRejected[weapon.WeaponId] = true;
+                _guaranteedPath[weapon.WeaponId] = GetGuaranteedAlternatePath(weapon, path);
+            }
+            _reservedAdvancedCost = null;
+            _pendingAdvancedWeapon = null;
+            _pendingAdvancedPath = WeaponUpgradePath.None;
+            return new CraftingActionResult(true, accept
+                ? $"Path {path} aplicado. Nivel {instance.Level}."
+                : "Oferta rechazada. El siguiente intento usa el costo configurado para una oferta rechazada.");
         }
-
-        WeaponUpgradePath alternate = GetGuaranteedAlternatePath(weapon, path);
-        _advancedRejected[weapon.WeaponId] = true;
-        _guaranteedPath[weapon.WeaponId] = alternate;
-        _advancedOffers[weapon.WeaponId] = alternate;
-        return new CraftingActionResult(true, "Oferta rechazada. El siguiente intento usa el costo configurado para una oferta rechazada.");
+        finally { _advancedTinkering = false; }
     }
 
     public List<WeaponData> BuildUnequippedWeapons()

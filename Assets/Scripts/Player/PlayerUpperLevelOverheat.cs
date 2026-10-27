@@ -1,6 +1,6 @@
 using UnityEngine;
 
-/// <summary>One exposure clock; airborne exits suspend it until Base or the phase resets it.</summary>
+/// <summary>Base resets the exposure clock; damage escalation persists until the Overheat event or run resets.</summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(PlayerPlatformState))]
 public sealed class PlayerUpperLevelOverheat : MonoBehaviour
@@ -8,12 +8,15 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
     [SerializeField] private PlayerPlatformState _platformState;
     [SerializeField] private PlayerHealth _health;
     [SerializeField] private OverheatManager _overheatManager;
+    [SerializeField, Tooltip("The authored upper volume owns starting damage and the per-hit multiplier.")]
+    private UpperLevelVolume _upperLevelVolume;
     [SerializeField, Min(0f)] private float _graceSeconds = 2f;
-    [SerializeField, Min(1)] private int _damagePerTick = 5;
     [SerializeField, Min(.1f)] private float _tickInterval = 2f;
     [SerializeField, Tooltip("Authored reusable fire and smoke; never created at runtime.")]
     private ParticleSystem[] _effects = System.Array.Empty<ParticleSystem>();
 
+    // Keep fractional growth here; never multiply the rounded integer submitted to PlayerHealth.
+    private double _nextDamage;
     private float _exposure;
     private float _tickRemaining;
     private bool _effectsPlaying;
@@ -30,32 +33,40 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
     {
         if (_health != null)
         {
-            _health.OnPlayerDied += ResetExposure;
-            _health.OnReset += ResetExposure;
+            _health.OnPlayerDied += ResetHazard;
+            _health.OnReset += ResetHazard;
         }
-        if (_overheatManager != null) _overheatManager.OnOverheatFinished += HandleOverheatFinished;
-        ResetExposure();
+        if (_overheatManager != null)
+        {
+            _overheatManager.OnOverheatStarted += ResetHazard;
+            _overheatManager.OnOverheatFinished += HandleOverheatFinished;
+        }
+        ResetHazard();
     }
 
     private void OnDisable()
     {
         if (_health != null)
         {
-            _health.OnPlayerDied -= ResetExposure;
-            _health.OnReset -= ResetExposure;
+            _health.OnPlayerDied -= ResetHazard;
+            _health.OnReset -= ResetHazard;
         }
-        if (_overheatManager != null) _overheatManager.OnOverheatFinished -= HandleOverheatFinished;
-        ResetExposure();
+        if (_overheatManager != null)
+        {
+            _overheatManager.OnOverheatStarted -= ResetHazard;
+            _overheatManager.OnOverheatFinished -= HandleOverheatFinished;
+        }
+        ResetHazard();
     }
 
     private void Update() => Tick(Time.deltaTime);
 
     private void Tick(float deltaTime)
     {
-        if (_platformState == null || !_platformState.IsRunActive ||
+        if (_platformState == null || !_platformState.IsRunActive || _upperLevelVolume == null ||
             _overheatManager == null || !_overheatManager.IsOverheating)
         {
-            ResetExposure();
+            ResetHazard();
             return;
         }
 
@@ -85,10 +96,20 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
 
         if (_tickRemaining > 0f) return;
         _tickRemaining = Mathf.Max(.1f, _tickInterval);
-        _health.TakeDamage(Mathf.Max(1, _damagePerTick));
+        int damage = (int)System.Math.Min(int.MaxValue, System.Math.Max(1d, System.Math.Round(_nextDamage)));
+        // Advance per hazard tick even when shields or invulnerability absorb it. Advance first so
+        // synchronous death/reset callbacks from TakeDamage retain their freshly reset value.
+        _nextDamage = System.Math.Min(int.MaxValue, _nextDamage * _upperLevelVolume.DamageMultiplier);
+        _health.TakeDamage(damage);
     }
 
-    private void HandleOverheatFinished(OverheatEndReason reason) => ResetExposure();
+    private void HandleOverheatFinished(OverheatEndReason reason) => ResetHazard();
+
+    private void ResetHazard()
+    {
+        _nextDamage = _upperLevelVolume != null ? _upperLevelVolume.StartingDamage : 1d;
+        ResetExposure();
+    }
 
     private void ResetExposure()
     {

@@ -118,7 +118,7 @@ public sealed class BurnStatusCombatTextTests
     }
 
     [Test]
-    public void TickUsesStatusChannelAndEmitsExactAppliedDamageIncludingOverkillClamp()
+    public void TickReportsFullDamageAndAggregatesOverkillWithoutChangingHealth()
     {
         AuthoritativeTarget target = CreateTarget(7, out FlamethrowerBurnStatus burn);
         RecordingFeedbackSink sink = new();
@@ -132,10 +132,20 @@ public sealed class BurnStatusCombatTextTests
         Assert.That(target.LastStatusKind, Is.EqualTo(WeaponStatusKind.Burn));
         Assert.That(sink.DamageEvents.Count, Is.EqualTo(2));
         Assert.That(sink.DamageEvents[0].DamageAmount, Is.EqualTo(5));
-        Assert.That(sink.DamageEvents[1].DamageAmount, Is.EqualTo(2));
+        Assert.That(sink.DamageEvents[1].DamageAmount, Is.EqualTo(5));
         Assert.That(sink.DamageEvents[1].IsKill, Is.True);
         Assert.That(sink.DamageEvents[0].StatusInstanceId, Is.GreaterThan(0));
         Assert.That(sink.DamageEvents[1].StatusInstanceId, Is.EqualTo(sink.DamageEvents[0].StatusInstanceId));
+        Assert.That(target.Health, Is.Zero);
+        CombatTextEvent first = CombatTextEvent.FromFeedback(sink.DamageEvents[0]);
+        CombatTextEvent lethal = CombatTextEvent.FromFeedback(sink.DamageEvents[1]);
+        CombatTextAggregate aggregate = new(in first, 0f);
+        Assert.That(aggregate.TryMerge(in lethal, 0.5f), Is.True);
+        Assert.That(aggregate.TotalAppliedDamage, Is.EqualTo(10));
+        Assert.That(CombatTextStyleResolver.ResolveColor(CombatTextStyleResolver.ResolveStyle(in first)),
+            Is.EqualTo(new Color(1f, 0.5f, 0f)));
+        Assert.That(CombatTextStyleResolver.ResolveColor(CombatTextStyleResolver.ResolveStyle(in aggregate)),
+            Is.EqualTo(Color.red));
     }
 
     [Test]
@@ -270,7 +280,7 @@ public sealed class BurnStatusCombatTextTests
 
         Assert.That(sink.StatusClosures.Count, Is.EqualTo(1));
         Assert.That(sink.DamageEvents.Count, Is.EqualTo(1));
-        Assert.That(sink.DamageEvents[0].DamageAmount, Is.EqualTo(2));
+        Assert.That(sink.DamageEvents[0].DamageAmount, Is.EqualTo(5));
         Assert.That(sink.DamageEvents[0].IsKill, Is.True);
         Assert.That(sink.StatusClosures[0].StatusKind, Is.EqualTo(WeaponStatusKind.JellifiedBurn));
         Assert.That(sink.StatusClosures[0].StatusInstanceId, Is.EqualTo(statusId));

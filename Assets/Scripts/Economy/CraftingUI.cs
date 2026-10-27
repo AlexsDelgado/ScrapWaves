@@ -29,6 +29,8 @@ public class CraftingUI : MonoBehaviour
     private bool _applyingAction;
     public bool IsVisible => _isVisible;
     public bool IsChoosingWeapon => _crafting != null && _crafting.HasPendingTinkeringChoice;
+    public bool IsChoosingAdvanced => _crafting != null && _crafting.HasPendingAdvancedChoice;
+    public bool HasPendingChoice => IsChoosingWeapon || IsChoosingAdvanced;
 
     private void Awake()
     {
@@ -43,6 +45,7 @@ public class CraftingUI : MonoBehaviour
         _view.CloseButton.onClick.AddListener(Hide);
         _view.UpgradeButton.onClick.AddListener(UpgradeSelected);
         _view.TinkerButton.onClick.AddListener(Tinker);
+        _view.AdvancedPurchaseButton.onClick.AddListener(BuyAdvanced);
         _view.AcceptButton.onClick.AddListener(AcceptAdvanced);
         _view.DeclineButton.onClick.AddListener(DeclineAdvanced);
         _slotActions = new UnityAction[_view.Slots.Length];
@@ -71,7 +74,7 @@ public class CraftingUI : MonoBehaviour
     }
     private void OnEnable()
     {
-        if (!_isVisible && IsChoosingWeapon && _inventory != null) Show(_crafting, _inventory);
+        if (!_isVisible && HasPendingChoice && _inventory != null) Show(_crafting, _inventory);
     }
     private void OnDestroy()
     {
@@ -81,6 +84,7 @@ public class CraftingUI : MonoBehaviour
         if (_view.CloseButton != null) _view.CloseButton.onClick.RemoveListener(Hide);
         if (_view.UpgradeButton != null) _view.UpgradeButton.onClick.RemoveListener(UpgradeSelected);
         if (_view.TinkerButton != null) _view.TinkerButton.onClick.RemoveListener(Tinker);
+        if (_view.AdvancedPurchaseButton != null) _view.AdvancedPurchaseButton.onClick.RemoveListener(BuyAdvanced);
         if (_view.AcceptButton != null) _view.AcceptButton.onClick.RemoveListener(AcceptAdvanced);
         if (_view.DeclineButton != null) _view.DeclineButton.onClick.RemoveListener(DeclineAdvanced);
         for (int i = 0; i < _view.Slots.Length; i++)
@@ -128,6 +132,12 @@ public class CraftingUI : MonoBehaviour
         SetCameraBlocked(true);
         _selectedSlot = Mathf.Clamp(_selectedSlot, 0, Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count));
         if (IsChoosingWeapon) _selectedSlot = Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count);
+        if (IsChoosingAdvanced)
+        {
+            IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
+            for (int i = 0; i < equipped.Count; i++)
+                if (equipped[i]?.Runtime?.Data == _crafting.PendingAdvancedWeapon) _selectedSlot = i;
+        }
         SetStatus(string.Empty);
         _view.gameObject.SetActive(true);
         Refresh();
@@ -136,14 +146,14 @@ public class CraftingUI : MonoBehaviour
 
     public bool CloseForTutorial()
     {
-        if (IsChoosingWeapon || _applyingAction) return false;
+        if (HasPendingChoice || _applyingAction) return false;
         ClosePresentation();
         return true;
     }
 
     private void Hide()
     {
-        if (IsChoosingWeapon || _applyingAction) return;
+        if (HasPendingChoice || _applyingAction) return;
         ClosePresentation();
     }
     private void ClosePresentation()
@@ -170,7 +180,7 @@ public class CraftingUI : MonoBehaviour
     }
     private void SelectSlot(int slot)
     {
-        if (!_isVisible || IsChoosingWeapon || _applyingAction) return;
+        if (!_isVisible || HasPendingChoice || _applyingAction) return;
         // Crafting fills the next free equipment slot; later empty slots are not actionable yet.
         _selectedSlot = Mathf.Clamp(slot, 0, Mathf.Min(2, _weaponManager.GetEquippedWeapons().Count));
         SetStatus(string.Empty);
@@ -195,20 +205,32 @@ public class CraftingUI : MonoBehaviour
             _view.Slots[i].Bind(runtime, i == _selectedSlot, i <= equipped.Count);
             _view.Slots[i].Availability?.Bind(runtime != null ? _crafting.GetAvailableAction(runtime)
                 : i == equipped.Count && _crafting.CanTinkerNewWeapon() ? CraftingActionKind.TinkerNewWeapon : null);
-            if (IsChoosingWeapon) _view.Slots[i].Button.interactable = false;
+            if (HasPendingChoice) _view.Slots[i].Button.interactable = false;
         }
-        _view.CloseButton.interactable = !IsChoosingWeapon;
+        _view.CloseButton.interactable = !HasPendingChoice;
         _view.TinkerChoicePanel.SetActive(IsChoosingWeapon);
+        _view.AdvancedChoicePanel.SetActive(IsChoosingAdvanced);
+        _view.AdvancedPurchaseButton.interactable = false;
+        _view.AcceptButton.interactable = _view.DeclineButton.interactable = false;
         if (IsChoosingWeapon)
         {
             _view.UpgradeButton.interactable = _view.TinkerButton.interactable = false;
             _view.AcceptButton.interactable = _view.DeclineButton.interactable = false;
             ShowTinkerChoice();
+            FocusPendingChoice();
             return;
         }
         foreach (CraftingCandidateField candidate in _view.Candidates) candidate.Root.SetActive(false);
+        if (IsChoosingAdvanced)
+        {
+            _view.UpgradeButton.interactable = _view.TinkerButton.interactable = false;
+            ShowAdvancedChoice();
+            FocusPendingChoice();
+            return;
+        }
         WeaponInstance weapon = SelectedWeapon();
         _offeredPath = WeaponUpgradePath.None;
+        _view.AdvancedPathText.text = _view.AdvancedDescriptionText.text = _view.AdvancedNoticeText.text = _view.AdvancedCostText.text = string.Empty;
         if (weapon?.Data == null) ShowTinker(equipped.Count + 1);
         else if (weapon.Level == 5 && weapon.SelectedPath == WeaponUpgradePath.None) ShowAdvanced(weapon);
         else ShowUpgrade(weapon);
@@ -296,48 +318,84 @@ public class CraftingUI : MonoBehaviour
         _view.ShowPanel(_view.AdvancedPanel);
         _view.AdvancedNameText.text = weapon.Data.DisplayName;
         _view.AdvancedLevelText.text = "LV 5 → 6";
-        bool available = _crafting.TryGetAdvancedOffer(weapon.Data, out _offeredPath);
+        IReadOnlyList<MaterialCost> cost = _crafting.GetAdvancedTinkeringCost(weapon.Data);
         bool guaranteed = _crafting.TryGetGuaranteedPath(weapon.Data, out _);
-        bool canDecline = available && _crafting.CanRejectAdvancedOffer(weapon.Data);
-        WeaponMenuCopy copy = _content != null ? _content.Find(weapon.Data) : null;
+        _view.AdvancedPurchaseNoticeText.text = guaranteed
+            ? "Pay to reveal your guaranteed alternate path. Accept applies the upgrade; this retry cannot be declined."
+            : "Pay to reveal one available upgrade path. Then accept the upgrade or decline if another path is unlocked. Spent materials are not refunded.";
+        _view.AdvancedReadout?.Bind(_inventory, cost);
+        _view.AdvancedPurchaseCostText.text = "Purchase cost: " + BuildCostText(cost);
+        _view.AdvancedPurchaseButton.interactable = _crafting.GetAvailableAction(weapon) == CraftingActionKind.AdvancedTinkering;
+    }
+    private void ShowAdvancedChoice()
+    {
+        WeaponData weapon = _crafting.PendingAdvancedWeapon;
+        bool available = _crafting.TryGetAdvancedOffer(weapon, out _offeredPath);
+        bool guaranteed = _crafting.TryGetGuaranteedPath(weapon, out _);
+        bool canDecline = available && _crafting.CanRejectAdvancedOffer(weapon);
+        _view.AdvancedChoiceNameText.text = weapon != null ? weapon.DisplayName : string.Empty;
+        _view.AdvancedChoiceLevelText.text = "LV 5 → 6";
+        WeaponMenuCopy copy = _content != null ? _content.Find(weapon) : null;
         _view.AdvancedPathText.text = !available ? "No upgrade available"
-            : _offeredPath == WeaponUpgradePath.PathA ? weapon.Data.PathA?.PathName : weapon.Data.PathB?.PathName;
+            : _offeredPath == WeaponUpgradePath.PathA ? weapon.PathA?.PathName : weapon.PathB?.PathName;
         string description = copy == null ? string.Empty
             : _offeredPath == WeaponUpgradePath.PathA ? copy.PathADescription : copy.PathBDescription;
-        IReadOnlyList<IWeaponBehaviour> equipped = _weaponManager.GetEquippedWeapons();
-        IWeaponBehaviour behaviour = _selectedSlot < equipped.Count ? equipped[_selectedSlot] : null;
-        _view.AdvancedDescriptionText.text = available
-            ? CraftingUpgradePreview.DescribeAdvanced(behaviour, _offeredPath, description) : description;
-        _view.AdvancedNoticeText.text = guaranteed ? "Other path guaranteed after your previous decline."
-            : canDecline ? "Decline: pay this attempt's cost. The next try uses the rejected-offer price, with the other path guaranteed."
-            : "Only one path is unlocked.";
-        IReadOnlyList<MaterialCost> cost = _crafting.GetAdvancedTinkeringCost(weapon.Data);
-        _view.AdvancedReadout?.Bind(_inventory, cost, available ? null : "No upgrade available");
-        _view.AdvancedCostText.text = "Tinker cost: " + BuildCostText(cost);
-        _view.AcceptButton.interactable = available && _inventory.CanAfford(cost);
-        _view.DeclineButton.interactable = canDecline && _inventory.CanAfford(cost);
+        _view.AdvancedDescriptionText.text = available ? description : string.Empty;
+        _view.AdvancedNoticeText.text = "Accept: apply this path and upgrade to LV 6. No extra cost.\n"
+            + (canDecline ? "Decline: keep LV 5; no refund. The next purchase uses the retry price and guarantees the other path."
+                : guaranteed ? "This is your guaranteed retry. Decline is unavailable; accept to continue."
+                : "Only one path is unlocked. Decline is unavailable; accept to continue.");
+        _view.AdvancedCostText.text = "Paid: " + BuildCostText(_crafting.GetPendingAdvancedCost());
+        _view.AcceptButton.interactable = available;
+        _view.DeclineButton.interactable = canDecline;
+        var navigation = _view.AcceptButton.navigation;
+        navigation.selectOnLeft = navigation.selectOnRight = canDecline ? _view.DeclineButton : _view.AcceptButton;
+        _view.AcceptButton.navigation = navigation;
+    }
+    private void FocusPendingChoice()
+    {
+        if (EventSystem.current == null) return;
+        GameObject selected = EventSystem.current.currentSelectedGameObject;
+        if (IsChoosingAdvanced)
+        {
+            if (selected != _view.AcceptButton.gameObject && (selected != _view.DeclineButton.gameObject || !_view.DeclineButton.interactable))
+                EventSystem.current.SetSelectedGameObject(_view.AcceptButton.gameObject);
+        }
+        else if (IsChoosingWeapon)
+        {
+            foreach (CraftingCandidateField candidate in _view.Candidates)
+                if (selected == candidate.Button.gameObject) return;
+            EventSystem.current.SetSelectedGameObject(_view.Candidates[0].Button.gameObject);
+        }
     }
     private void UpgradeSelected()
     {
         WeaponInstance weapon = SelectedWeapon();
-        if (!_isVisible || IsChoosingWeapon || weapon?.Data == null || weapon.Level >= 10) return;
+        if (!_isVisible || HasPendingChoice || weapon?.Data == null || weapon.Level >= 10) return;
         ApplyAction(() => _crafting.TryUpgradeWeapon(weapon.Data, weapon.Level + 1), "Weapon upgraded.");
     }
     private void Tinker()
     {
-        if (!_isVisible || IsChoosingWeapon || !_view.TinkerPanel.activeSelf || SelectedWeapon() != null) return;
+        if (!_isVisible || HasPendingChoice || !_view.TinkerPanel.activeSelf || SelectedWeapon() != null) return;
         ApplyAction(() => _crafting.TryBeginTinkering(), string.Empty);
         if (_isVisible && IsChoosingWeapon && EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(_view.Candidates[0].Button.gameObject);
     }
     private void AcceptAdvanced() => ResolveAdvanced(true);
     private void DeclineAdvanced() => ResolveAdvanced(false);
-    private void ResolveAdvanced(bool accept)
+    private void BuyAdvanced()
     {
         WeaponInstance weapon = SelectedWeapon();
-        if (!_isVisible || IsChoosingWeapon || weapon?.Data == null || _offeredPath == WeaponUpgradePath.None) return;
-        ApplyAction(() => _crafting.TryAdvancedTinkering(weapon.Data, _offeredPath, accept),
+        if (!_isVisible || HasPendingChoice || !_view.AdvancedPanel.activeSelf || weapon?.Data == null) return;
+        ApplyAction(() => _crafting.TryBeginAdvancedTinkering(weapon.Data), string.Empty);
+    }
+    private void ResolveAdvanced(bool accept)
+    {
+        if (!_isVisible || !IsChoosingAdvanced || !_view.AdvancedChoicePanel.activeSelf || _offeredPath == WeaponUpgradePath.None) return;
+        ApplyAction(() => _crafting.TryAdvancedTinkering(_crafting.PendingAdvancedWeapon, _offeredPath, accept),
             accept ? "Advanced path applied." : "Offer declined. The other path is guaranteed next time.");
+        if (_isVisible && !HasPendingChoice && EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(_view.Slots[_selectedSlot].Button.gameObject);
     }
     private void ApplyAction(Func<CraftingActionResult> action, string successMessage)
     {

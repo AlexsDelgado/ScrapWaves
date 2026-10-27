@@ -245,7 +245,7 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
         _activeBurstSettings ??= new();
         _activeBurst = new FlamethrowerRadialBurst(transform, _activeBurstSettings, _activeBurstShader);
         _meshLayers = _activeBurst.Renderers;
-        _particleLayers = System.Array.Empty<ParticleSystem>();
+        _particleLayers = new[] { _activeBurst.FlameParticles };
         _animatedRoots = System.Array.Empty<Transform>();
     }
 
@@ -303,6 +303,8 @@ public sealed class FlamethrowerCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeap
 
     private void ApplyParticleBudget()
     {
+        // Q budgets its sampled instances in Configure; do not apply the nozzle/status budget again.
+        if (_activeBurst != null) return;
         float qualityMultiplier = _quality switch
         {
             GameFeelQualityLevel.Low => 0.35f,

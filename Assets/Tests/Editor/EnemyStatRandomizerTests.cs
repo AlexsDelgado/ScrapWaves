@@ -233,6 +233,54 @@ public sealed class EnemyStatRandomizerTests
     }
 
     [Test]
+    public void DroneHoverRange_IsIndividualStableAndResampledOnRealPoolReuseOnly()
+    {
+        Random.InitState(206);
+        Vector2 range = new(0.8f, 1.2f);
+        EnemyStatRandomizer vigilance = NewEnemy(100);
+        vigilance.gameObject.AddComponent<FlyingRangedBehavior>();
+        EnemyStatRandomizer bomber = NewEnemy(100);
+        bomber.gameObject.AddComponent<BomberDroneBehavior>();
+        EnemyStatRandomizer groundEnemy = NewEnemy(100);
+        foreach (EnemyStatRandomizer randomizer in new[] { vigilance, bomber, groundEnemy })
+        {
+            SetField(randomizer, "_droneHoverHeightMultiplierRange", range);
+            randomizer.BeginSpawn();
+        }
+        Assert.That(vigilance.DroneHoverHeightMultiplier, Is.InRange(range.x, range.y));
+        Assert.That(bomber.DroneHoverHeightMultiplier, Is.InRange(range.x, range.y));
+        Assert.That(vigilance.DroneHoverHeightMultiplier, Is.Not.EqualTo(bomber.DroneHoverHeightMultiplier));
+        Assert.That(groundEnemy.DroneHoverHeightMultiplier, Is.EqualTo(1f), "Ground enemies do not receive hover stats.");
+        float firstHeight = vigilance.DroneHoverHeightMultiplier;
+        vigilance.enabled = false;
+        vigilance.enabled = true;
+        vigilance.BeginSpawn();
+        Assert.That(vigilance.DroneHoverHeightMultiplier, Is.EqualTo(firstHeight));
+        Assert.That(Samples(vigilance), Is.EqualTo(Vector3.one), "Hover variation must not alter other stat ranges.");
+
+        Transform container = NewObject("Drone hover test pool").transform;
+        EnemyPrefabPool pool = new(vigilance.gameObject, container, 1, false, 1);
+        GameObject first = pool.TryGet();
+        EnemyStatRandomizer pooled = first.GetComponent<EnemyStatRandomizer>();
+        Assert.That(pooled.HasSampledForSpawn, Is.False);
+        pooled.BeginSpawn();
+        float firstLeaseHeight = pooled.DroneHoverHeightMultiplier;
+        first.GetComponent<SwarmPooledEnemy>().NotifySpawned();
+        pooled.BeginSpawn();
+        Assert.That(pooled.DroneHoverHeightMultiplier, Is.EqualTo(firstLeaseHeight));
+        pool.Release(first);
+        Assert.That(pooled.DroneHoverHeightMultiplier, Is.EqualTo(1f));
+        Assert.That(pooled.HasSampledForSpawn, Is.False);
+        GameObject second = pool.TryGet();
+        Assert.That(second, Is.SameAs(first));
+        pooled.BeginSpawn();
+        Assert.That(pooled.DroneHoverHeightMultiplier, Is.InRange(range.x, range.y));
+        Assert.That(pooled.DroneHoverHeightMultiplier, Is.Not.EqualTo(firstLeaseHeight),
+            "A reused drone rolls a new offset once for its next life.");
+        pool.Release(second);
+    }
+
+    [Test]
     public void RealPoolReuse_DoesNotSampleDuringPrewarmAndRestoresTheBaseline()
     {
         Transform container = NewObject("Randomizer test pool").transform;
