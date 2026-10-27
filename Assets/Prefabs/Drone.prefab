@@ -253,8 +253,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FlyingRangedBehavior
   _hoverHeight: 4
-  _verticalFollowSpeedRatio: 1.5
-  _upwardDeadZone: 5
+  _verticalFollowSpeedRatio: 0.6
+  _upwardDeadZone: 8
   _downwardDeadZone: 0.1
   _moveSpeed: 7
   _rotationSpeed: 360
@@ -410,7 +410,7 @@ MonoBehaviour:
   _healthMultiplierRange: {x: 0.95, y: 1.05}
   _sizeMultiplierRange: {x: 0.8, y: 1.2}
   _movementSpeedMultiplierRange: {x: 0.8, y: 1.2}
-  _droneHoverHeightMultiplierRange: {x: 0.8, y: 1.2}
+  _droneHoverHeightMultiplierRange: {x: 0.85, y: 1.05}
 --- !u!1 &5616991293731240567
 GameObject:
   m_ObjectHideFlags: 0
