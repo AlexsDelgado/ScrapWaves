@@ -49,7 +49,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GeyserVfx
   _kind: 1
   _launcher: {fileID: 0}
-  _overheatManager: {fileID: 0}
   _updraft: {fileID: 4062253671375486075}
   _debris: {fileID: 0}
   _entryBurst: {fileID: 646457701904763570}
