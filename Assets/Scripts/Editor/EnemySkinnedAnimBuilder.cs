@@ -11,19 +11,11 @@ using UnityEngine;
 /// </summary>
 public static class EnemySkinnedAnimBuilder
 {
-    private const string ChaserVisualPath = "Assets/Arte/EnemiesAnim/LarguiruchoRigWalk_anim.fbx";
-    private const string ChaserControllerPath = "Assets/Arte/EnemiesAnim/ChaserWalk.controller";
+    private const string ChaserControllerPath = LarguiruchoAnimationAuthoring.ControllerPath;
     private const string DroneVisualPath = "Assets/Arte/EnemiesAnim/Avispa_Vuelo.fbx";
     private const string DroneControllerPath = "Assets/Arte/EnemiesAnim/DroneFly.controller";
     private const string SlimeVisualPath = "Assets/Arte/EnemiesAnim/Basurita_MiniSalto.fbx";
     private const string SlimeControllerPath = "Assets/Arte/EnemiesAnim/SlimeHop.controller";
-
-    private static readonly string[] ChaserPrefabs =
-    {
-        "Assets/Prefabs/Chaser.prefab",
-        "Assets/Prefabs/Chaser (variant).prefab",
-        "Assets/Prefabs/Chaser_Elite.prefab"
-    };
 
     private static readonly string[] DronePrefabs =
     {
@@ -52,14 +44,13 @@ public static class EnemySkinnedAnimBuilder
         Debug.Log("ENEMY_SKINNED_ANIM_FIX_COMPLETE");
     }
 
-    [MenuItem("Tools/ScrapWaves/Build Chaser Walk Animation")]
+    [MenuItem("Tools/ScrapWaves/Build Chaser Animations")]
     public static void BuildChaserMenu()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
-            throw new InvalidOperationException("Build Chaser walk animation in Edit Mode.");
+            throw new InvalidOperationException("Build Chaser animations in Edit Mode.");
         BuildChaser();
-        AssetDatabase.SaveAssets();
-        Debug.Log("CHASER_WALK_BUILD_COMPLETE: " + ChaserControllerPath);
+        Debug.Log("CHASER_ANIMATIONS_BUILD_COMPLETE: " + ChaserControllerPath);
     }
 
     [MenuItem("Tools/ScrapWaves/Build Slime Hop Animation")]
@@ -81,20 +72,6 @@ public static class EnemySkinnedAnimBuilder
         AssetDatabase.SaveAssets();
         Debug.Log("DRONE_FLY_BUILD_COMPLETE: " + DroneControllerPath);
     }
-
-    // With Y90 facing, measured height at scale 1 ≈ 1.27m. Target default ≈ player (2m).
-    private const float ChaserNativeHeight = 1.27f;
-    private const float ChaserTargetHeight = 2f;
-    private static readonly float ChaserBaseScale = ChaserTargetHeight / ChaserNativeHeight; // ≈ 1.57
-
-    // Y90: mesh faces +X in Blender; gameplay forward is +Z (EnemyFollow LookRotation).
-    private static readonly VisualPose ChaserPoseDefault = new(
-        localPosition: Vector3.zero,
-        localEuler: new Vector3(0f, 90f, 0f),
-        localScale: Vector3.one * ChaserBaseScale);
-
-    // Variant + Elite: double height via root scale ×2 (visual stays at default size).
-    private static readonly Vector3 ChaserLargeRootScale = new(2f, 2f, 2f);
 
     private static readonly VisualPose DronePoseDefault = new(
         localPosition: new Vector3(0f, 1f, 0f),
@@ -118,26 +95,7 @@ public static class EnemySkinnedAnimBuilder
         }
     }
 
-    private static void BuildChaser()
-    {
-        ConfigureSkinnedAnimImport(ChaserVisualPath);
-        AnimatorController controller = BuildSingleStateController(ChaserControllerPath, ChaserVisualPath, "Walk");
-        foreach (string prefabPath in ChaserPrefabs)
-        {
-            bool large = prefabPath.Contains("Elite") || prefabPath.Contains("(variant)");
-            Vector3? rootScale = large ? ChaserLargeRootScale : Vector3.one;
-            ReplaceVisual(
-                prefabPath,
-                "Larguirucho",
-                ChaserVisualPath,
-                "Larguirucho",
-                controller,
-                ChaserPoseDefault,
-                hidePlaceholders: new[] { "Cylinder" },
-                rootLocalScale: rootScale,
-                preserveExistingPose: false);
-        }
-    }
+    private static void BuildChaser() => Debug.Log(LarguiruchoAnimationAuthoring.Apply());
 
     private static void BuildSlime()
     {

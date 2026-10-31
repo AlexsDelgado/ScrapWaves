@@ -12,6 +12,28 @@ public class ChargerEnemyBehavior : EnemyBehaviorBase
 {
     private enum State { Chase, Charging, Dashing, Recover, Overheat }
 
+    // Read-only presentation: the animation follows these phases; it never advances combat.
+    public enum PresentationPhase { Chase, Charging, Dashing, Recover, Overheat }
+    public PresentationPhase CurrentPresentationPhase => (PresentationPhase)_state;
+    public float PresentationElapsedSeconds => _state switch
+    {
+        State.Charging => Mathf.Max(0f, _chargeSeconds - _stateTimer),
+        State.Dashing => Mathf.Max(0f, _dashDuration - _stateTimer),
+        State.Recover => Mathf.Max(0f, RecoverySeconds - _stateTimer),
+        State.Overheat => Mathf.Max(0f, _overheatSeconds - _stateTimer),
+        _ => 0f
+    };
+    public float PresentationNormalizedProgress => _state switch
+    {
+        State.Charging => Fraction(PresentationElapsedSeconds, _chargeSeconds),
+        State.Dashing => Mathf.Max(Fraction(PresentationElapsedSeconds, _dashDuration), Fraction(_dashTravelled, _dashMaxDistance)),
+        State.Recover => Fraction(PresentationElapsedSeconds, RecoverySeconds),
+        State.Overheat => Fraction(PresentationElapsedSeconds, _overheatSeconds),
+        _ => 0f
+    };
+    private float RecoverySeconds => _overcharged ? _postCrashCooldown : Mathf.Min(0.6f, _postCrashCooldown);
+    private static float Fraction(float elapsed, float duration) => duration > 0f ? Mathf.Clamp01(elapsed / duration) : 1f;
+
     [Header("Enganche / carga")]
     [SerializeField, Min(0.5f), Tooltip("Distancia a la que se frena y empieza a cargar el dash.")]
     private float _lockInDistance = 5f;
