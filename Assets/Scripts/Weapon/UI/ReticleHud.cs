@@ -126,7 +126,8 @@ public class ReticleHud : MonoBehaviour
         bool transitioning = !UsesSandbox() && _weaponManager != null && _weaponManager.IsManualCycleInProgress;
         WeaponInstance runtime = transitioning ? _weaponManager.GetPendingManualWeapon() : ResolveManualWeapon();
         IWeaponBehaviour behaviour = ResolveManualBehaviour();
-        if (runtime?.Data == null || behaviour == null)
+        if ((GameManager.Instance != null && !GameManager.Instance.IsPlaying)
+            || runtime?.Data == null || behaviour == null)
         {
             ApplyMode(ReticleMode.Hidden);
             ApplyManualCycle(false, 1f);
