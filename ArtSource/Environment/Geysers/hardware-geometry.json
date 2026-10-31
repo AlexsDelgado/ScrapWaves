@@ -1,0 +1,39 @@
+{
+  "Fan": {
+    "triangles": 1932,
+    "mesh_objects": 2,
+    "dimensions_m": [
+      3.6,
+      3.6,
+      0.531
+    ],
+    "materials": [
+      "Geyser_BareSteel",
+      "Geyser_DeepOpening",
+      "Geyser_DullScrap",
+      "Geyser_HeatDarkenedMetal",
+      "Geyser_PaleScrap",
+      "Geyser_RustScrap"
+    ],
+    "root_pivot": "floor centre",
+    "status": "approved optional model at 75% draft dimensions"
+  },
+  "Vent": {
+    "triangles": 788,
+    "mesh_objects": 1,
+    "dimensions_m": [
+      3.6,
+      3.6,
+      0.444
+    ],
+    "materials": [
+      "Geyser_BareSteel",
+      "Geyser_DeepOpening",
+      "Geyser_DullScrap",
+      "Geyser_HeatDarkenedMetal",
+      "Geyser_RustScrap"
+    ],
+    "root_pivot": "floor centre",
+    "status": "approved optional model at 75% draft dimensions"
+  }
+}
