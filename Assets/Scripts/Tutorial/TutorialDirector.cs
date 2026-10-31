@@ -12,6 +12,7 @@ public sealed class TutorialDirector : MonoBehaviour
     public static bool ScriptedExperienceAllowed => !IsActive || Instance._grantingLevel;
     private static bool _replayRequested;
     public static void RequestReplay() => _replayRequested = true;
+    public static void CancelReplayRequest() => _replayRequested = false;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() { Instance = null; _replayRequested = false; }
 

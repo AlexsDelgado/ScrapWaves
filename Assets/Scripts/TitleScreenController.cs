@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
@@ -31,6 +33,11 @@ public sealed class TitleScreenController : MonoBehaviour
     [SerializeField] private ScrapSceneTransition _sceneTransition;
     [SerializeField] private UserSettingsService _settingsService;
 
+    [Header("Optional demonstration leaderboard")]
+    [SerializeField] private DemoLeaderboardSettings _demoLeaderboardSettings;
+    [SerializeField] private DemoLeaderboardView _leaderboardView;
+    [SerializeField] private PlayerNameEntryView _playerNameEntry;
+
     [Header("Authored item views")]
     [SerializeField] private MainMenuItemView _playItem;
     [SerializeField] private MainMenuItemView _objectivesItem;
@@ -41,6 +48,9 @@ public sealed class TitleScreenController : MonoBehaviour
 
     private bool _wired;
     private bool _initialFocusApplied;
+    private bool _nameEntryRequested;
+    private bool _tutorialRequested;
+    private bool _launchRequested;
 
     public bool IncludeTestingButtons => _includeTestingButtons;
     public Button PlayButton => _playButton;
@@ -49,10 +59,12 @@ public sealed class TitleScreenController : MonoBehaviour
     public Button SettingsButton => _settingsButton;
     public Button QuitButton => _quitButton;
     public TitleScreenScreenStack ScreenStack => _screenStack;
+    public bool DemoLeaderboardEnabled => _demoLeaderboardSettings != null && _demoLeaderboardSettings.Enabled;
 
     private void Awake()
     {
         ShowCursorForMenu();
+        DemoLeaderboardSession.ResetForMenu();
         if (UserSettingsService.Instance != null)
             _settingsService = UserSettingsService.Instance;
         if (ScrapSceneTransition.Instance != null)
@@ -61,7 +73,15 @@ public sealed class TitleScreenController : MonoBehaviour
         WireButtons();
         ApplyDestinationVisibility();
         if (_screenStack != null)
+        {
             _screenStack.ScreenClosed += HandleScreenClosed;
+            _screenStack.ScreenOpened += HandleScreenOpened;
+        }
+        if (_playerNameEntry != null)
+            _playerNameEntry.Confirmed += HandlePlayerNameConfirmed;
+        if (_demoLeaderboardSettings != null)
+            _demoLeaderboardSettings.Changed += HandleDemoLeaderboardChanged;
+        ApplyLeaderboardVisibility();
         if (_presentation != null)
             _presentation.InteractionBecameAvailable += HandlePresentationInteractionAvailable;
         if (_sceneTransition != null)
@@ -81,7 +101,14 @@ public sealed class TitleScreenController : MonoBehaviour
     private void OnDestroy()
     {
         if (_screenStack != null)
+        {
             _screenStack.ScreenClosed -= HandleScreenClosed;
+            _screenStack.ScreenOpened -= HandleScreenOpened;
+        }
+        if (_playerNameEntry != null)
+            _playerNameEntry.Confirmed -= HandlePlayerNameConfirmed;
+        if (_demoLeaderboardSettings != null)
+            _demoLeaderboardSettings.Changed -= HandleDemoLeaderboardChanged;
         if (_presentation != null)
             _presentation.InteractionBecameAvailable -= HandlePresentationInteractionAvailable;
         if (_sceneTransition != null)
@@ -137,15 +164,121 @@ public sealed class TitleScreenController : MonoBehaviour
 
     public void PlayTutorial()
     {
-        if (_sceneTransition != null && _sceneTransition.IsTransitioning) return;
-        TutorialDirector.RequestReplay();
-        LoadPlay();
+        RequestPlay(true);
     }
 
     private void LoadPlay()
     {
+        RequestPlay(false);
+    }
+
+    private void RequestPlay(bool tutorial)
+    {
+        if (_launchRequested || _nameEntryRequested ||
+            (_sceneTransition != null && _sceneTransition.IsTransitioning) ||
+            (_screenStack != null && (_screenStack.IsInputLocked || _screenStack.CurrentState != TitleScreenLocalState.MainMenu)))
+            return;
+
         _presentation?.PlayConfirm(_playItem);
-        RequestSceneLoad(SceneDestination.Play);
+        _tutorialRequested = tutorial;
+        if (!DemoLeaderboardEnabled)
+        {
+            BeginPlayLaunch(null);
+            return;
+        }
+
+        if (_playerNameEntry == null || !_playerNameEntry.HasRequiredReferences ||
+            _screenStack == null || !_screenStack.HasPlayerNameEntryBinding)
+        {
+            Debug.LogError("TitleScreenController: the enabled demo leaderboard requires an authored name-entry screen.", this);
+            _tutorialRequested = false;
+            _presentation?.PlayReject();
+            return;
+        }
+
+        _playerNameEntry.Prepare();
+        Button source = tutorial ? _tutorialButton : _playButton;
+        _nameEntryRequested = _screenStack.OpenPlayerNameEntry(source != null ? source.gameObject : null);
+        if (!_nameEntryRequested)
+            _tutorialRequested = false;
+    }
+
+    private void HandlePlayerNameConfirmed(string playerName)
+    {
+        if (!_nameEntryRequested || _launchRequested || !DemoLeaderboardEnabled ||
+            _screenStack == null || _screenStack.IsInputLocked ||
+            _screenStack.CurrentState != TitleScreenLocalState.PlayerNameEntry)
+            return;
+        BeginPlayLaunch(playerName);
+    }
+
+    private void BeginPlayLaunch(string playerName)
+    {
+        _launchRequested = true;
+        DemoLeaderboardSession.PrepareMenuLaunch(DemoLeaderboardEnabled ? playerName : null);
+        if (_tutorialRequested)
+            TutorialDirector.RequestReplay();
+        try
+        {
+            if (!RequestSceneLoad(SceneDestination.Play))
+                HandlePlayLaunchFailed();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"TitleScreenController: unable to start gameplay. {exception.Message}", this);
+            HandlePlayLaunchFailed();
+        }
+    }
+
+    private void HandlePlayLaunchFailed()
+    {
+        _launchRequested = false;
+        DemoLeaderboardSession.CancelPendingLaunch();
+        if (_tutorialRequested)
+            TutorialDirector.CancelReplayRequest();
+        if (_nameEntryRequested && DemoLeaderboardEnabled)
+            _playerNameEntry?.ShowLaunchError();
+        else
+        {
+            _tutorialRequested = false;
+            if (_nameEntryRequested)
+                _screenStack?.CloseCurrent();
+        }
+    }
+
+    private void HandleScreenOpened(TitleScreenLocalState state)
+    {
+        if (state != TitleScreenLocalState.PlayerNameEntry)
+            return;
+        if (!DemoLeaderboardEnabled)
+        {
+            _screenStack.CloseCurrent();
+            return;
+        }
+        _playerNameEntry?.ActivateInput();
+    }
+
+    private void HandleDemoLeaderboardChanged(bool enabled)
+    {
+        ApplyLeaderboardVisibility();
+        if (enabled)
+            return;
+        DemoLeaderboardSession.CancelPendingLaunch();
+        if (_nameEntryRequested && !_launchRequested)
+        {
+            _tutorialRequested = false;
+            _screenStack?.CloseCurrent();
+        }
+    }
+
+    private void ApplyLeaderboardVisibility()
+    {
+        if (_leaderboardView == null)
+            return;
+        _leaderboardView.SetVisible(DemoLeaderboardEnabled);
+        // Edit-mode authoring validation must not access the user's demonstration save.
+        if (DemoLeaderboardEnabled && Application.isPlaying)
+            _leaderboardView.RefreshFromStore();
     }
 
     private void LoadWeaponSandbox()
@@ -165,18 +298,18 @@ public sealed class TitleScreenController : MonoBehaviour
         SceneNavigation.QuitApplication();
     }
 
-    private void RequestSceneLoad(SceneDestination destination)
+    private bool RequestSceneLoad(SceneDestination destination)
     {
         if (_sceneTransition != null)
         {
             if (_sceneTransition.TryLoad(destination))
-                return;
+                return true;
             if (_sceneTransition.IsTransitioning)
-                return;
+                return false;
         }
 
         Debug.LogError("TitleScreenController: the authored ScrapSceneTransition is missing or unavailable; loading directly.", this);
-        SceneNavigation.Load(destination);
+        return SceneNavigation.Load(destination);
     }
 
     private void HandleScreenClosed(TitleScreenLocalState state)
@@ -188,6 +321,15 @@ public sealed class TitleScreenController : MonoBehaviour
                 break;
             case TitleScreenLocalState.Settings:
                 _settingsScreen?.Hide();
+                break;
+            case TitleScreenLocalState.PlayerNameEntry:
+                _playerNameEntry?.ResetEntry();
+                _nameEntryRequested = false;
+                if (!_launchRequested)
+                {
+                    _tutorialRequested = false;
+                    DemoLeaderboardSession.CancelPendingLaunch();
+                }
                 break;
         }
 
@@ -216,6 +358,10 @@ public sealed class TitleScreenController : MonoBehaviour
     {
         _presentation?.SetInputLocked(transitioning);
         _screenStack?.SetInputLocked(transitioning);
+        if (!transitioning && _launchRequested && gameObject.scene.IsValid() &&
+            gameObject.scene.name == SceneNavigation.TitleSceneName &&
+            SceneManager.GetActiveScene() == gameObject.scene)
+            HandlePlayLaunchFailed();
     }
 
     private void ApplyFeedbackPreferences()
@@ -339,6 +485,17 @@ public sealed class TitleScreenController : MonoBehaviour
             Debug.LogError("TitleScreenController: authored scene transition reference is missing; scene routes will use the direct fallback.", this);
         if (_settingsService == null)
             Debug.LogError("TitleScreenController: authored UserSettingsService reference is missing; feedback preferences cannot be applied.", this);
+        if (DemoLeaderboardEnabled)
+        {
+            if (_leaderboardView == null || !_leaderboardView.HasRequiredReferences)
+                Debug.LogError("TitleScreenController: enabled demo leaderboard is missing its twenty authored rows.", this);
+            if (_playerNameEntry == null || !_playerNameEntry.HasRequiredReferences ||
+                _screenStack == null || !_screenStack.HasPlayerNameEntryBinding)
+            {
+                DisableWithError(_playButton, nameof(_playerNameEntry));
+                DisableWithError(_tutorialButton, nameof(_playerNameEntry));
+            }
+        }
     }
 
     private void DisableWithError(Button button, string missingField)

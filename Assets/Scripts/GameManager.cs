@@ -42,6 +42,7 @@ public class GameManager : MonoBehaviour
             _bossManager = FindAnyObjectByType<BossManager>();
 
         RunSessionStats.Reset();
+        DemoLeaderboardSession.BeginGameplay();
     }
 
     private void OnEnable()
@@ -101,6 +102,7 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 0f;
         GameplayPause.SetHeld(ref _holdsUiPause, true);
 
+        DemoLeaderboardSession.SubmitResult(endState == GameState.Victory);
         ReportRunToSaveSystem(endState == GameState.Victory);
 
         if (RunEndScreenUI.Instance == null)

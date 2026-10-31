@@ -87,6 +87,8 @@ public static class TitleScreenAuthoringValidator
         }
 
         GameObject[] roots = scene.GetRootGameObjects();
+        try { DemoLeaderboardAuthoring.Validate(scene); }
+        catch (Exception exception) { result.Error("Demo leaderboard: " + exception.Message); }
         TitleScreenController[] controllers = FindInScene<TitleScreenController>(roots);
         EventSystem[] eventSystems = FindInScene<EventSystem>(roots);
         RequireExactlyOne(controllers, nameof(TitleScreenController), result);

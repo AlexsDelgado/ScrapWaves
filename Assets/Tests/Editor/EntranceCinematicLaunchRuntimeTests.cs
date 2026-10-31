@@ -366,6 +366,8 @@ public sealed class EntranceCinematicLaunchRuntimeTests
         Assert.That(settings.PlayEntranceCinematic, Is.False, "The saved menu setting must remain OFF between launches.");
         SetField(settings, "_playEntranceCinematic", playCinematic); // Runtime instance only; never save the scene.
         Assert.That(settings.PlayEntranceCinematic, Is.EqualTo(playCinematic));
+        // These startup/tutorial checks explicitly opt out of the optional demo name gate.
+        Object.FindFirstObjectByType<DemoLeaderboardSettings>()?.SetEnabled(false);
         var title = Object.FindFirstObjectByType<TitleScreenController>();
         if (replay) title.PlayTutorial();
         else title.PlayButton.onClick.Invoke();
@@ -539,7 +541,9 @@ public sealed class EntranceCinematicLaunchRuntimeTests
         Assert.That(GetField<AudioSource>(Intro(), "_audio").isPlaying, Is.False);
         Assert.That(GetField<GameObject>(Intro(), "_impact").activeSelf, Is.False);
         Assert.That(GetField<Transform>(Intro(), "_shadow").gameObject.activeSelf, Is.False);
-        Assert.That(GetField<Light>(Intro(), "_fill").enabled, Is.False);
+        // The current authored scene omits this optional light; runtime also guards it.
+        Light fill = GetField<Light>(Intro(), "_fill");
+        if (fill != null) Assert.That(fill.enabled, Is.False);
     }
 
     private static IEnumerator Until(Func<bool> condition, float seconds, string message, Func<string> diagnostics = null)

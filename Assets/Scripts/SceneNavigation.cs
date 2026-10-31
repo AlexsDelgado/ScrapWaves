@@ -41,13 +41,23 @@ public static class SceneNavigation
         int buildIndex = SceneUtility.GetBuildIndexByScenePath(scenePath);
         if (buildIndex < 0)
         {
+            DemoLeaderboardSession.CancelPendingLaunch();
             Debug.LogError($"SceneNavigation cannot load '{sceneName}' at path '{scenePath}' for destination '{destination}' because it is not enabled in Build Settings.");
             return false;
         }
 
         EntranceCinematicLaunchSettings.PrepareSceneLoad(destination);
+        DemoLeaderboardSession.PrepareSceneLoad(destination, SceneManager.GetActiveScene().name);
         PrepareForSceneChange();
-        SceneManager.LoadScene(buildIndex);
+        try
+        {
+            SceneManager.LoadScene(buildIndex);
+        }
+        catch
+        {
+            DemoLeaderboardSession.CancelPendingLaunch();
+            throw;
+        }
         return true;
     }
 
@@ -74,6 +84,7 @@ public static class SceneNavigation
 
     public static void QuitApplication()
     {
+        DemoLeaderboardSession.ResetForMenu();
         PrepareForSceneChange();
 
 #if UNITY_EDITOR
