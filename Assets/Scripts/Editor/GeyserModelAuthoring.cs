@@ -157,6 +157,24 @@ public static class GeyserModelAuthoring
         Debug.Log("GEYSER_VISUALS_REFRESHED: bent scrap geometry and materials only; no scene, collider or VFX regeneration.");
     }
 
+    [MenuItem("ScrapWaves/Level/Refresh Directional Geyser Flow Only")]
+    public static void RefreshDirectionalFlow()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Refresh outside Play Mode.");
+        foreach (string name in new[] { "TrashGeyser", "HotAirGeyser" })
+        {
+            string path = Folder + "/Prefabs/" + name + "_Visual.prefab";
+            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                root.GetComponent<GeyserVfx>().ApplyDirectionalDefaults();
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+        Debug.Log("GEYSER_DIRECTIONAL_FLOW_REFRESHED: both visual prefabs only; no scene or gameplay edits.");
+    }
+
     [MenuItem("ScrapWaves/Level/Refresh Trash Geyser Debris Only")]
     public static void RefreshTrashDebris()
     {

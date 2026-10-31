@@ -13,13 +13,17 @@ public sealed class GeyserVfx : MonoBehaviour
     [SerializeField] private ParticleSystem _entryBurst;
     [SerializeField] private Renderer _heatShimmer;
     [Header("Continuous updraft")]
-    [SerializeField] private Color _flowColor = new(.83f, .79f, .64f, .30f);
-    [SerializeField, Range(1f, 24f)] private float _particlesPerSecond = 12f;
-    [SerializeField, Range(.5f, 5f)] private float _upwardSpeed = 2.2f;
-    [SerializeField, Range(1f, 5f)] private float _lifetime = 3f;
-    [SerializeField, Range(.25f, 2f)] private float _wispSize = .9f;
+    [SerializeField] private Color _flowColor = new(.83f, .79f, .64f, .65f);
+    [SerializeField, Range(1f, 40f)] private float _particlesPerSecond = 24f;
+    [SerializeField, Range(.5f, 15f), InspectorName("Flow speed")] private float _upwardSpeed = 7f;
+    [SerializeField, Range(1f, 5f)] private float _lifetime = 1.8f;
+    [SerializeField, Range(.25f, 2f)] private float _wispSize = .5f;
     [SerializeField, Range(.5f, 2f)] private float _openingRadius = 1.25f;
     [SerializeField, Range(8, 64)] private int _updraftBudget = 48;
+    [SerializeField, Range(0f, 20f), Tooltip("Spread around the solved takeoff direction, in degrees.")]
+    private float _flowSpread = 5f;
+    [SerializeField, Range(1f, 6f)] private float _streakLength = 4.5f;
+    [SerializeField, Range(0f, .5f)] private float _velocityStretch = .3f;
     [Header("Trash only")]
     [SerializeField, Range(0f, 8f)] private float _debrisPerSecond = 4f;
     [SerializeField, Range(4, 24)] private int _debrisBudget = 20;
@@ -81,9 +85,41 @@ public sealed class GeyserVfx : MonoBehaviour
         _launcher = launcher;
         _subscribedLauncher = isActiveAndEnabled ? launcher : null;
         if (_subscribedLauncher != null) _subscribedLauncher.OnLaunched += HandleLaunch;
+        RefreshFlowDirection();
     }
 
-    private void HandleLaunch(PlayerMovement movement) => PlayEntryBurst();
+    private void HandleLaunch(PlayerMovement movement)
+    {
+        // Entry can occur off-centre: use the velocity actually applied to this player.
+        if (movement != null) SetFlowDirection(movement.CurrentVelocity);
+        PlayEntryBurst();
+    }
+
+    private void RefreshFlowDirection()
+    {
+        MapLaunchPad launcher = _launcher != null ? _launcher : GetComponentInParent<MapLaunchPad>();
+        Vector3 mouth = _updraft != null ? _updraft.transform.position : transform.position;
+        // Ambient flow previews a standing player at the mouth. The entry event refines it
+        // for the actual player's position and height without changing the launch solver.
+        if (launcher != null && launcher.TryGetLaunchVelocity(mouth + Vector3.up, 1f, out Vector3 velocity, out _))
+            SetFlowDirection(velocity);
+        else
+            SetFlowDirection(transform.up);
+    }
+
+    private void SetFlowDirection(Vector3 velocity)
+    {
+        if (velocity.sqrMagnitude < .0001f) return;
+        Vector3 direction = velocity.normalized;
+        Quaternion rotation = Quaternion.LookRotation(direction,
+            Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > .99f ? Vector3.forward : Vector3.up);
+        // Rotate at each mouth, not the parent: every emitter stays in its opening.
+        if (_updraft != null) _updraft.transform.rotation = rotation;
+        if (_debris != null) _debris.transform.rotation = rotation;
+        if (_entryBurst != null) _entryBurst.transform.rotation = rotation;
+        if (_heatShimmer != null && _kind == Kind.HotAir)
+            _heatShimmer.transform.rotation = Quaternion.FromToRotation(Vector3.up, direction);
+    }
 
     public void PlayEntryBurst()
     {
@@ -105,7 +141,11 @@ public sealed class GeyserVfx : MonoBehaviour
         // is replaced. The ordinary-to-permanent transition need not emit an event.
         if (_overheatManager == null) BindOverheat();
         RefreshOverheatSuppression();
-        if (!_overheatSuppressed) TickPresentation(Time.deltaTime);
+        if (!_overheatSuppressed)
+        {
+            RefreshFlowDirection();
+            TickPresentation(Time.deltaTime);
+        }
     }
 
     private void BindOverheat()
@@ -214,6 +254,7 @@ public sealed class GeyserVfx : MonoBehaviour
     {
         // Runtime tuning must not restart emission or replace the pre-overheat snapshot.
         if (_subscribedOverheat != null) RefreshOverheatSuppression();
+        RefreshFlowDirection();
         if (_updraft != null)
         {
             var main = _updraft.main;
@@ -222,17 +263,26 @@ public sealed class GeyserVfx : MonoBehaviour
             main.startLifetime = new ParticleSystem.MinMaxCurve(_lifetime * .8f, _lifetime);
             main.startSize = new ParticleSystem.MinMaxCurve(_wispSize * .75f, _wispSize * 1.2f);
             main.startColor = _flowColor; main.useUnscaledTime = false;
+            // Existing particles keep their trajectory when a destination or launch changes.
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            // Designer mound scaling may be nonuniform. Scale the opening, never the velocity.
+            main.scalingMode = ParticleSystemScalingMode.Shape;
             var emission = _updraft.emission; emission.enabled = true; emission.rateOverTime = _particlesPerSecond;
-            var shape = _updraft.shape; shape.radius = _openingRadius;
+            var shape = _updraft.shape; shape.radius = _openingRadius; shape.angle = _flowSpread;
+            ConfigureStreaks(_updraft);
         }
         if (_debris != null)
         {
             var main = _debris.main; main.maxParticles = _debrisBudget;
             main.loop = true; main.playOnAwake = _kind == Kind.Trash; main.startDelay = 0f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.scalingMode = ParticleSystemScalingMode.Shape;
             var emission = _debris.emission; emission.rateOverTime = _kind == Kind.Trash ? _debrisPerSecond : 0f;
             if (_kind == Kind.Trash)
             {
                 main.startSize = new ParticleSystem.MinMaxCurve(_debrisSize * .75f, _debrisSize * 1.25f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(_upwardSpeed * .55f, _upwardSpeed * .8f);
+                var shape = _debris.shape; shape.angle = _flowSpread;
                 main.startRotation3D = true;
                 var rotation = _debris.rotationOverLifetime; rotation.enabled = true; rotation.separateAxes = true;
                 rotation.x = new ParticleSystem.MinMaxCurve(1.8f * _debrisTumbleRate, 3.2f * _debrisTumbleRate);
@@ -244,12 +294,29 @@ public sealed class GeyserVfx : MonoBehaviour
         if (_entryBurst != null)
         {
             var main = _entryBurst.main; main.maxParticles = 40; main.loop = false;
-            main.playOnAwake = false; main.startColor = new Color(_flowColor.r, _flowColor.g, _flowColor.b, .48f);
+            main.playOnAwake = false; main.startColor = new Color(_flowColor.r, _flowColor.g, _flowColor.b, _flowColor.a * .3f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.scalingMode = ParticleSystemScalingMode.Shape;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(_upwardSpeed * 1.2f, _upwardSpeed * 1.6f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(.4f, .65f);
+            main.startSize = new ParticleSystem.MinMaxCurve(_wispSize * .6f, _wispSize);
+            var shape = _entryBurst.shape; shape.angle = _flowSpread; shape.radius = _openingRadius;
             var emission = _entryBurst.emission; emission.rateOverTime = 0f;
+            ConfigureStreaks(_entryBurst);
         }
         if (_heatShimmer != null) _heatShimmer.enabled = _kind == Kind.HotAir && _heatDistortion > 0f;
         if (_overheatSuppressed) SuppressEffects();
         TickPresentation(0f);
+    }
+
+    private void ConfigureStreaks(ParticleSystem particles)
+    {
+        var renderer = particles.GetComponent<ParticleSystemRenderer>();
+        if (renderer == null) return;
+        renderer.renderMode = ParticleSystemRenderMode.Stretch;
+        renderer.lengthScale = _streakLength;
+        renderer.velocityScale = _velocityStretch;
+        renderer.cameraVelocityScale = 0f;
     }
 
 #if UNITY_EDITOR
@@ -257,8 +324,14 @@ public sealed class GeyserVfx : MonoBehaviour
     public void ConfigureAuthoring(Kind kind, ParticleSystem updraft, ParticleSystem debris, ParticleSystem burst, Renderer shimmer)
     {
         _kind = kind; _updraft = updraft; _debris = debris; _entryBurst = burst; _heatShimmer = shimmer;
-        _flowColor = kind == Kind.Trash ? new Color(.83f,.79f,.64f,.30f) : new Color(.83f,.89f,.91f,.25f);
-        _particlesPerSecond = kind == Kind.Trash ? 12f : 14f;
+        ApplyDirectionalDefaults();
+    }
+    public void ApplyDirectionalDefaults()
+    {
+        _flowColor = _kind == Kind.Trash ? new Color(.83f,.79f,.64f,.65f) : new Color(.83f,.89f,.91f,.6f);
+        _particlesPerSecond = _kind == Kind.Trash ? 24f : 28f;
+        _upwardSpeed = 7f; _lifetime = 1.8f; _wispSize = .5f;
+        _streakLength = 4.5f; _velocityStretch = .3f;
         ApplyTuning();
     }
     public void SetPreviewClock(float seconds) { _flowTime = Mathf.Max(0f, seconds); TickPresentation(0f); }

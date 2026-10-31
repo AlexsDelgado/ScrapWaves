@@ -70,10 +70,6 @@ public sealed class MapLaunchPad : MonoBehaviour
         if (movement == null || movement.IsLaunching)
             return;
 
-        Collider landingCollider = _landing.GetComponent<Collider>();
-        if (landingCollider == null)
-            return;
-
         float halfHeight = 1f;
         Collider body = movement.GetComponent<Collider>();
         if (body != null)
@@ -84,15 +80,31 @@ public sealed class MapLaunchPad : MonoBehaviour
             return;
 
         Vector3 start = movement.transform.position;
-        Bounds land = landingCollider.bounds;
-        Vector3 target = new Vector3(land.center.x, land.max.y + halfHeight + 0.05f, land.center.z);
-
-        if (!TryComputeLaunchVelocity(start, target, _apexClearance, out Vector3 velocity, out float flightTime))
+        if (!TryGetLaunchVelocity(start, halfHeight, out Vector3 velocity, out float flightTime))
             return;
 
         _busy = true;
         movement.LaunchWithVelocity(velocity, flightTime + 0.75f);
         OnLaunched?.Invoke(movement);
+    }
+
+    /// <summary>Queries the same ballistic launch used by traversal without starting a launch or changing bindings.</summary>
+    public bool TryGetLaunchVelocity(Vector3 start, float halfHeight, out Vector3 velocity, out float flightTime)
+    {
+        velocity = Vector3.zero;
+        flightTime = 0f;
+        // Authoring previews can query before Awake has resolved an unassigned destination.
+        Transform landing = _landing != null ? _landing : FindLanding(name, transform.position);
+        if (landing == null)
+            return false;
+
+        Collider landingCollider = landing.GetComponent<Collider>();
+        if (landingCollider == null)
+            return false;
+
+        Bounds land = landingCollider.bounds;
+        Vector3 target = new Vector3(land.center.x, land.max.y + halfHeight + 0.05f, land.center.z);
+        return TryComputeLaunchVelocity(start, target, _apexClearance, out velocity, out flightTime);
     }
 
     private void OnCollisionExit(Collision collision)
