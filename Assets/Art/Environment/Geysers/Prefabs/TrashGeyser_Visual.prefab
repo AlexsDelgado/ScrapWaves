@@ -5149,7 +5149,7 @@ ParticleSystem:
       serializedVersion: 2
       minMaxState: 0
       minColor: {r: 1, g: 1, b: 1, a: 1}
-      maxColor: {r: 0.83, g: 0.79, b: 0.64, a: 0.65}
+      maxColor: {r: 0.83, g: 0.79, b: 0.64, a: 0.1625}
       maxGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -9835,9 +9835,10 @@ MonoBehaviour:
   _flowSpread: 5
   _streakLength: 4.5
   _velocityStretch: 0.3
+  _trashWispOpacity: 0.25
   _debrisPerSecond: 4
   _debrisBudget: 20
-  _debrisSize: 0.36
+  _debrisSize: 0.9
   _debrisTumbleRate: 1
   _entryParticleCount: 28
   _entryAccentSeconds: 0.45
@@ -10130,8 +10131,8 @@ ParticleSystem:
     startSize:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 0.45000002
-      minScalar: 0.27
+      scalar: 1.125
+      minScalar: 0.67499995
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10289,8 +10290,8 @@ ParticleSystem:
     startRotationX:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 3.14
-      minScalar: -3.14
+      scalar: 3.1415927
+      minScalar: -3.1415927
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10342,8 +10343,8 @@ ParticleSystem:
     startRotationY:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 3.14
-      minScalar: -3.14
+      scalar: 3.1415927
+      minScalar: -3.1415927
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10395,8 +10396,8 @@ ParticleSystem:
     startRotation:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 3.14
-      minScalar: -3.14
+      scalar: 3.1415927
+      minScalar: -3.1415927
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10594,7 +10595,7 @@ ParticleSystem:
     sphericalDirectionAmount: 0
     randomPositionAmount: 0
     radius:
-      value: 1.1
+      value: 1.25
       mode: 0
       spread: 0
       speed:
@@ -10819,7 +10820,7 @@ ParticleSystem:
     m_BurstCount: 0
     m_Bursts: []
   SizeModule:
-    enabled: 0
+    enabled: 1
     curve:
       serializedVersion: 2
       minMaxState: 1
@@ -10830,22 +10831,31 @@ ParticleSystem:
         m_Curve:
         - serializedVersion: 3
           time: 0
-          value: 0
-          inSlope: 0
-          outSlope: 1
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0.33333334
-        - serializedVersion: 3
-          time: 1
           value: 1
-          inSlope: 1
+          inSlope: 0
           outSlope: 0
           tangentMode: 0
           weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0.33333334
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.8
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
@@ -11143,7 +11153,7 @@ ParticleSystem:
         m_RotationOrder: 4
     separateAxes: 1
   ColorModule:
-    enabled: 1
+    enabled: 0
     gradient:
       serializedVersion: 2
       minMaxState: 1
@@ -14625,7 +14635,7 @@ ParticleSystemRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 9e99d6fc9099a9c46a885d21025dede8, type: 2}
+  - {fileID: 2100000, guid: 14412bf8ca903ab4b884d080a41e7ba2, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -14662,7 +14672,7 @@ ParticleSystemRenderer:
   m_RenderAlignment: 0
   m_Pivot: {x: 0, y: 0, z: 0}
   m_Flip: {x: 0, y: 0, z: 0}
-  m_EnableGPUInstancing: 0
+  m_EnableGPUInstancing: 1
   m_ApplyActiveColorSpace: 1
   m_AllowRoll: 1
   m_FreeformStretching: 0
@@ -14671,10 +14681,10 @@ ParticleSystemRenderer:
   m_VertexStreams: 00010304
   m_UseCustomTrailVertexStreams: 0
   m_TrailVertexStreams: 00010304
-  m_Mesh: {fileID: 4300000, guid: 14e0a51be9603764c8d68bbf68d4dada, type: 2}
-  m_Mesh1: {fileID: 0}
-  m_Mesh2: {fileID: 0}
-  m_Mesh3: {fileID: 0}
+  m_Mesh: {fileID: 4300000, guid: 9ca76981895b6b5488c2ad03629bf47f, type: 2}
+  m_Mesh1: {fileID: 4300000, guid: c2054b327845a6849bb801dc655dee8c, type: 2}
+  m_Mesh2: {fileID: 4300000, guid: ac5dbcc4a6cc0f44cbac5adfb9e605c6, type: 2}
+  m_Mesh3: {fileID: 4300000, guid: d0e351624cd1f984ca501a13e3df71a8, type: 2}
   m_MeshWeighting: 1
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1

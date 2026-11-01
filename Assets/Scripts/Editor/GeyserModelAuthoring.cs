@@ -89,6 +89,7 @@ public static class GeyserModelAuthoring
                 heatRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; heatRenderer.receiveShadows = false;
                 GeyserVfx presentation = root.AddComponent<GeyserVfx>();
                 presentation.ConfigureAuthoring(kind,updraft,debris,burst,heatRenderer);
+                GeyserDebrisAuthoring.Configure(presentation);
                 PrefabUtility.SaveAsPrefabAsset(root,Folder + "/Prefabs/" + name + "_Visual.prefab");
             }
             finally { Object.DestroyImmediate(root); }

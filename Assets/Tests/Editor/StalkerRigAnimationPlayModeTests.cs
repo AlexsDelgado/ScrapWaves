@@ -158,7 +158,9 @@ public sealed class StalkerRigAnimationPlayModeTests
                 // Exercise different real launch/landing planes, not only a pre-launch
                 // teleport that BeginJump replaces with the same origin and route.
                 target.position = speed < 1f ? new Vector3(30f, 1f, 0f)
-                    : speed < 2f ? new Vector3(24f, 1f, 18f) : new Vector3(0f, 1f, -30f);
+                    : speed < 2f ? new Vector3(16f, 1f, 12f) : new Vector3(0f, 1f, -80f);
+                // Exercise the authored narrow/tall route and the designer's broad/low alternative.
+                typeof(GigaWormBehavior).GetField("_jumpArcHeight",PrivateInstance).SetValue(behavior,speed < 2f ? 50f : 15f);
                 boss.SetActive(false);
                 boss.transform.SetPositionAndRotation(new Vector3(-20f * speed, -2.5f, 15f), Quaternion.Euler(0f, 45f, 0f));
                 boss.SetActive(true);
@@ -176,8 +178,9 @@ public sealed class StalkerRigAnimationPlayModeTests
                 Assert.That(health.IsInvincible, Is.False);
                 AssertVisibility(skin, proxies, true);
                 StalkerFlightPath flightPath = Read<StalkerFlightPath>(behavior, "_flightPath");
-                float directAscentDistance = Vector3.Distance(Read<Vector3>(behavior, "_emergeOriginGround"),
-                    Read<Vector3>(behavior, "_apexPoint"));
+                Vector3 authoredApex = (Vector3)typeof(GigaWormBehavior).GetMethod("CalculateApexPoint", PrivateInstance)
+                    .Invoke(behavior, new object[] { Read<Vector3>(behavior, "_emergeOriginGround"), Read<Vector3>(behavior, "_landingPoint") });
+                float directAscentDistance = Vector3.Distance(Read<Vector3>(behavior, "_emergeOriginGround"), authoredApex);
                 float ascentPathRatio = flightPath.ApexDistance / directAscentDistance;
                 float nominalAscentDuration = directAscentDistance / (Read<float>(behavior, "_jumpRiseSpeed") * speed);
 
@@ -241,7 +244,7 @@ public sealed class StalkerRigAnimationPlayModeTests
                     if ((beforeState == "Jump" || beforeState == "Fall") && (state == "Jump" || state == "Fall"))
                     {
                         float authoredSpeed = Read<float>(behavior, beforeState == "Jump" ? "_jumpRiseSpeed" : "_fallSpeed");
-                        float travelBudget = authoredSpeed * speed * Time.deltaTime * (beforeState == "Jump" ? ascentPathRatio : 1f);
+                        float travelBudget = authoredSpeed * speed * Time.deltaTime * (beforeState == "Jump" ? ascentPathRatio : Read<float>(behavior,"_fallPathSpeedMultiplier"));
                         float progress = Read<float>(behavior, "_flightDistance") - beforeDistance;
                         Assert.That(progress, Is.GreaterThan(0f), "The head stopped advancing along the arch.");
                         Assert.That(progress, Is.LessThanOrEqualTo(travelBudget + 0.001f), "The path clock exceeded its scripted rate.");
@@ -304,6 +307,10 @@ public sealed class StalkerRigAnimationPlayModeTests
                 Assert.That(observed, Is.SupersetOf(new[] { "Emergence", "Ascent", "ApexDive", "Dive", "Reburrow", "Hidden" }));
                 Assert.That(fallBeganAt, Is.EqualTo(nominalAscentDuration).Within(3f / 60f),
                     "Rounding the path must preserve the nominal ascent/spit window.");
+                float nominalFallDuration = flightPath.AuthoredFallDistance / (Read<float>(behavior,"_fallSpeed") * speed);
+                Assert.That(returnBeganAt-fallBeganAt, Is.EqualTo(nominalFallDuration).Within(3f/60f),
+                    "Opening the arch must preserve the authored dive/impact timing.");
+                TestContext.WriteLine($"Timing {speed}x: ascent={fallBeganAt:F3}s vs {nominalAscentDuration:F3}s; dive={returnBeganAt-fallBeganAt:F3}s vs {nominalFallDuration:F3}s.");
                 Assert.That(emergenceEndedAt, Is.EqualTo(0.3f / speed).Within(3f / 60f));
                 Assert.That(diveBeganAt - apexBeganAt, Is.EqualTo(0.6f / speed).Within(3f / 60f));
                 Assert.That(firstReturnTop, Is.GreaterThan(2f), "The fixture must expose a tail still above ground at head impact.");

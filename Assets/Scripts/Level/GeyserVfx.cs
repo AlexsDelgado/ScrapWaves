@@ -20,15 +20,17 @@ public sealed class GeyserVfx : MonoBehaviour
     [SerializeField, Range(.25f, 2f)] private float _wispSize = .5f;
     [SerializeField, Range(.5f, 2f)] private float _openingRadius = 1.25f;
     [SerializeField, Range(8, 64)] private int _updraftBudget = 48;
-    [SerializeField, Range(0f, 20f), Tooltip("Spread around the solved takeoff direction, in degrees.")]
+    [SerializeField, Range(0f, 20f), Tooltip("Spread around the direction toward the landing surface, in degrees.")]
     private float _flowSpread = 5f;
     [SerializeField, Range(1f, 6f)] private float _streakLength = 4.5f;
     [SerializeField, Range(0f, .5f)] private float _velocityStretch = .3f;
     [Header("Trash only")]
+    [SerializeField, Range(0f, 1f), Tooltip("Keep wind secondary to the solid scrap silhouettes; does not change the designer's flow colour or emission rate.")]
+    private float _trashWispOpacity = .25f;
     [SerializeField, Range(0f, 8f)] private float _debrisPerSecond = 4f;
     [SerializeField, Range(4, 24)] private int _debrisBudget = 20;
-    [SerializeField, Range(.1f, .7f), Tooltip("Width in metres of the existing one-metre scrap mesh, before particle size variation.")]
-    private float _debrisSize = .36f;
+    [SerializeField, Range(.1f, 1.5f), Tooltip("Width in metres of the existing worm scrap meshes, before particle size variation.")]
+    private float _debrisSize = .9f;
     [SerializeField, Range(.25f, 2f), Tooltip("Multiplier for bounded, nonzero tumbling on all three axes.")]
     private float _debrisTumbleRate = 1f;
     [Header("Entry feedback")]
@@ -90,8 +92,9 @@ public sealed class GeyserVfx : MonoBehaviour
 
     private void HandleLaunch(PlayerMovement movement)
     {
-        // Entry can occur off-centre: use the velocity actually applied to this player.
-        if (movement != null) SetFlowDirection(movement.CurrentVelocity);
+        // The short entry accent follows the actual launch; ambient guidance continues pointing at the destination.
+        if (movement != null && _entryBurst != null && movement.CurrentVelocity.sqrMagnitude > .0001f)
+            _entryBurst.transform.rotation = FlowRotation(movement.CurrentVelocity.normalized);
         PlayEntryBurst();
     }
 
@@ -99,10 +102,11 @@ public sealed class GeyserVfx : MonoBehaviour
     {
         MapLaunchPad launcher = _launcher != null ? _launcher : GetComponentInParent<MapLaunchPad>();
         Vector3 mouth = _updraft != null ? _updraft.transform.position : transform.position;
-        // Ambient flow previews a standing player at the mouth. The entry event refines it
-        // for the actual player's position and height without changing the launch solver.
-        if (launcher != null && launcher.TryGetLaunchVelocity(mouth + Vector3.up, 1f, out Vector3 velocity, out _))
-            SetFlowDirection(velocity);
+        // A steep ballistic tangent hides where a pad leads. Point directly at the receiving surface instead.
+        // This query changes no bindings, trajectory, particle speed or other designer tuning.
+        if (launcher != null && launcher.TryGetLandingSurfacePoint(out Vector3 target)
+            && (target - mouth).sqrMagnitude > .0001f)
+            SetFlowDirection(target - mouth);
         else
             SetFlowDirection(transform.up);
     }
@@ -111,8 +115,7 @@ public sealed class GeyserVfx : MonoBehaviour
     {
         if (velocity.sqrMagnitude < .0001f) return;
         Vector3 direction = velocity.normalized;
-        Quaternion rotation = Quaternion.LookRotation(direction,
-            Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > .99f ? Vector3.forward : Vector3.up);
+        Quaternion rotation = FlowRotation(direction);
         // Rotate at each mouth, not the parent: every emitter stays in its opening.
         if (_updraft != null) _updraft.transform.rotation = rotation;
         if (_debris != null) _debris.transform.rotation = rotation;
@@ -120,6 +123,9 @@ public sealed class GeyserVfx : MonoBehaviour
         if (_heatShimmer != null && _kind == Kind.HotAir)
             _heatShimmer.transform.rotation = Quaternion.FromToRotation(Vector3.up, direction);
     }
+
+    private static Quaternion FlowRotation(Vector3 direction) => Quaternion.LookRotation(direction,
+        Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > .99f ? Vector3.forward : Vector3.up);
 
     public void PlayEntryBurst()
     {
@@ -237,6 +243,7 @@ public sealed class GeyserVfx : MonoBehaviour
         {
             var main = _updraft.main;
             Color color = _flowColor;
+            if (_kind == Kind.Trash) color.a *= _trashWispOpacity;
             float brightness = Mathf.Lerp(1f, _entryBrightness, accent);
             color.r *= brightness; color.g *= brightness; color.b *= brightness;
             main.startColor = color;
@@ -277,12 +284,15 @@ public sealed class GeyserVfx : MonoBehaviour
             main.loop = true; main.playOnAwake = _kind == Kind.Trash; main.startDelay = 0f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.scalingMode = ParticleSystemScalingMode.Shape;
-            var emission = _debris.emission; emission.rateOverTime = _kind == Kind.Trash ? _debrisPerSecond : 0f;
+            var emission = _debris.emission; emission.enabled = _kind == Kind.Trash;
+            emission.rateOverTime = _kind == Kind.Trash ? _debrisPerSecond : 0f;
+            var debrisRenderer = _debris.GetComponent<ParticleSystemRenderer>();
+            if (debrisRenderer != null) debrisRenderer.enabled = _kind == Kind.Trash;
             if (_kind == Kind.Trash)
             {
                 main.startSize = new ParticleSystem.MinMaxCurve(_debrisSize * .75f, _debrisSize * 1.25f);
                 main.startSpeed = new ParticleSystem.MinMaxCurve(_upwardSpeed * .55f, _upwardSpeed * .8f);
-                var shape = _debris.shape; shape.angle = _flowSpread;
+                var shape = _debris.shape; shape.angle = _flowSpread; shape.radius = _openingRadius;
                 main.startRotation3D = true;
                 var rotation = _debris.rotationOverLifetime; rotation.enabled = true; rotation.separateAxes = true;
                 rotation.x = new ParticleSystem.MinMaxCurve(1.8f * _debrisTumbleRate, 3.2f * _debrisTumbleRate);

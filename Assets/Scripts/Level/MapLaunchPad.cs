@@ -88,6 +88,18 @@ public sealed class MapLaunchPad : MonoBehaviour
         OnLaunched?.Invoke(movement);
     }
 
+    /// <summary>Read-only destination for visual guidance; independent of the player's ballistic takeoff tangent.</summary>
+    public bool TryGetLandingSurfacePoint(out Vector3 point)
+    {
+        point = Vector3.zero;
+        Transform landing = _landing != null ? _landing : FindLanding(name, transform.position);
+        if (landing == null || !landing.TryGetComponent(out Collider landingCollider))
+            return false;
+        Bounds bounds = landingCollider.bounds;
+        point = new Vector3(bounds.center.x, bounds.max.y, bounds.center.z);
+        return true;
+    }
+
     /// <summary>Queries the same ballistic launch used by traversal without starting a launch or changing bindings.</summary>
     public bool TryGetLaunchVelocity(Vector3 start, float halfHeight, out Vector3 velocity, out float flightTime)
     {

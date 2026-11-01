@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 6389671565212194889}
   - component: {fileID: 2995102501825678186}
   - component: {fileID: 3907275776421296005}
+  - component: {fileID: 8519511800273868836}
   m_Layer: 3
   m_Name: Stalker
   m_TagString: Untagged
@@ -145,6 +146,7 @@ MonoBehaviour:
   _maxGroundHeightDelta: 2
   _telegraphDuration: 0.8
   _attackRadius: 14
+  _telegraphColor: {r: 1, g: 0.08, b: 0.04, a: 0.85}
   _jumpRiseSpeed: 25
   _jumpArcHeight: 50
   _apexHorizontalLead: 0.65
@@ -251,7 +253,28 @@ MonoBehaviour:
   - {fileID: 1625787542512610658}
   - {fileID: 8451417525503081555}
   - {fileID: 8130416731863458235}
-  _maximumJointBend: 45
+  _maximumJointBend: 50
+--- !u!114 &8519511800273868836
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e58ec1d41af643540b869fc4541eb083, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::StalkerUndergroundTrail
+  _moundPrefab: {fileID: 7048734860954053666, guid: 8401c6649b387af4e816558a718dc298, type: 3}
+  _capacity: 32
+  _spacing: 3
+  _growSeconds: 0.12
+  _holdSeconds: 1.5
+  _shrinkSeconds: 0.45
+  _width: 2.8
+  _height: 0.6
+  _groundTolerance: 3
 --- !u!1 &127129105812091392
 GameObject:
   m_ObjectHideFlags: 0

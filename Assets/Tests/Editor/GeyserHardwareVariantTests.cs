@@ -99,9 +99,11 @@ public sealed class GeyserHardwareVariantTests
             Vector3 expected = landing.GetComponent<Collider>().bounds.center;
             expected.y = landing.GetComponent<Collider>().bounds.max.y + 1.05f;
             Assert.That(Vector3.Distance(start + velocity * time + .5f * Physics.gravity * time * time, expected), Is.LessThan(.002f));
+            Assert.That(launcher.TryGetLandingSurfacePoint(out Vector3 surface), Is.True);
+            Vector3 direction = surface - updraft.transform.position;
             if (previousDirection != Vector3.zero)
-                Assert.That(Vector3.Angle(previousDirection, velocity), Is.GreaterThan(20f));
-            previousDirection = velocity;
+                Assert.That(Vector3.Angle(previousDirection, direction), Is.GreaterThan(20f));
+            previousDirection = direction;
             for (int i = 0; i < systems.Length; i++)
             {
                 Assert.That(Vector3.Distance(systems[i].transform.position, anchors[i]), Is.LessThan(.0001f));
@@ -111,7 +113,7 @@ public sealed class GeyserHardwareVariantTests
                 Assert.That(systems[i].GetParticles(emitted), Is.EqualTo(16));
                 Vector3 mean = Vector3.zero;
                 foreach (var particle in emitted) mean += particle.velocity;
-                Assert.That(Vector3.Angle(mean, velocity), Is.LessThan(5.1f), variant + "/" + systems[i].name);
+                Assert.That(Vector3.Angle(mean, direction), Is.LessThan(5.1f), variant + "/" + systems[i].name);
                 Assert.That(systems[i].main.simulationSpace, Is.EqualTo(ParticleSystemSimulationSpace.World));
             }
         }
@@ -155,10 +157,11 @@ public sealed class GeyserHardwareVariantTests
                 body.position = entry; actor.transform.position = entry; body.linearVelocity = Vector3.zero;
                 var burst = root.GetComponentsInChildren<ParticleSystem>().Single(system => system.name == "EntryBurst");
                 int launches = 0, landingEvents = 0, burstAtLaunch = 0;
-                Vector3 start = default, velocity = default; float flightTime = 0f;
+                Vector3 start = default, velocity = default, burstDirectionAtLaunch = default; float flightTime = 0f;
                 launcher.OnLaunched += player =>
                 {
                     launches++; start = player.transform.position; velocity = player.CurrentVelocity; burstAtLaunch = burst.particleCount;
+                    burstDirectionAtLaunch = burst.transform.forward;
                     Assert.That(launcher.TryGetLaunchVelocity(start, halfHeight, out _, out flightTime), Is.True);
                 };
                 movement.OnLanded += () =>
@@ -171,7 +174,7 @@ public sealed class GeyserHardwareVariantTests
                 Assert.That(launches, Is.EqualTo(1));
                 Assert.That(movement.IsLaunching, Is.True);
                 Assert.That(burstAtLaunch, Is.GreaterThan(0), "Real trigger entry drives VFX feedback.");
-                Assert.That(Vector3.Angle(burst.transform.forward, velocity), Is.LessThan(1f));
+                Assert.That(Vector3.Angle(burstDirectionAtLaunch, velocity), Is.LessThan(1f));
                 Bounds bounds = landing.GetComponent<Collider>().bounds;
                 Vector3 endpoint = new Vector3(bounds.center.x, bounds.max.y + halfHeight + .05f, bounds.center.z);
                 Assert.That(Vector3.Distance(start + velocity * flightTime + .5f * Physics.gravity * flightTime * flightTime, endpoint), Is.LessThan(.015f));

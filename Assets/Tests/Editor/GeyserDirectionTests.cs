@@ -15,7 +15,7 @@ public sealed class GeyserDirectionTests
     public void TearDown() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
     [Test]
-    public void EveryAuthoredRoute_EmitsTowardItsSolvedTakeoffWithoutMovingItsMouth()
+    public void EveryAuthoredRoute_EmitsTowardItsLandingSurfaceWithoutMovingItsMouth()
     {
         var scene = EditorSceneManager.OpenScene(GeyserModelAuthoring.ScenePath, OpenSceneMode.Additive);
         try
@@ -36,8 +36,8 @@ public sealed class GeyserDirectionTests
                 vfx.gameObject.SetActive(true);
                 vfx.ApplyTuning();
                 var updraft = systems.Single(p => p.name == "ContinuousUpdraft");
-                Assert.That(launcher.TryGetLaunchVelocity(updraft.transform.position + Vector3.up, 1f,
-                    out Vector3 expected, out _), Is.True, launcher.name);
+                Assert.That(launcher.TryGetLandingSurfacePoint(out Vector3 target), Is.True, launcher.name);
+                Vector3 expected = target - updraft.transform.position;
                 for (int i = 0; i < systems.Length; i++)
                 {
                     Assert.That(Vector3.Distance(systems[i].transform.position, anchors[i]), Is.LessThan(.0001f),
@@ -46,7 +46,7 @@ public sealed class GeyserDirectionTests
                     systems[i].Emit(16);
                     AssertFlow(systems[i], expected, launcher.name);
                 }
-                TestContext.WriteLine(launcher.name + ": takeoff " + expected.normalized);
+                TestContext.WriteLine(launcher.name + ": destination direction " + expected.normalized);
             }
         }
         finally { EditorSceneManager.CloseScene(scene, true); }
@@ -71,8 +71,8 @@ public sealed class GeyserDirectionTests
         Physics.SyncTransforms();
         Call(vfx, "Update");
         var updraft = systems.Single(p => p.name == "ContinuousUpdraft");
-        Assert.That(launcher.TryGetLaunchVelocity(updraft.transform.position + Vector3.up, 1f,
-            out Vector3 expected, out _), Is.True);
+        Assert.That(launcher.TryGetLandingSurfacePoint(out Vector3 target), Is.True);
+        Vector3 expected = target - updraft.transform.position;
         Assert.That(Vector3.Angle(original[0].velocity, expected), Is.GreaterThan(20f), "Exercise a material direction change.");
         for (int i = 0; i < systems.Length; i++)
         {
@@ -106,6 +106,9 @@ public sealed class GeyserDirectionTests
         Assert.That(burst.particleCount, Is.EqualTo(28));
         AssertFlow(burst, movement.CurrentVelocity, variant);
         Assert.That(Vector3.Angle(burst.transform.forward, movement.CurrentVelocity), Is.LessThan(.05f));
+        var updraft = vfx.GetComponentsInChildren<ParticleSystem>().Single(p => p.name == "ContinuousUpdraft");
+        Assert.That(Vector3.Angle(updraft.transform.forward, ambient), Is.LessThan(.05f),
+            "A real entry must leave the continuous destination guide pointing at its platform.");
         // Refreshing ambient direction on the next frame must not redirect this one-shot.
         var before = Read(burst);
         Call(vfx, "Update");
@@ -145,6 +148,8 @@ public sealed class GeyserDirectionTests
         const float halfHeight = 1.3f;
         Assert.That(launcher.TryGetLaunchVelocity(start, halfHeight, out Vector3 velocity, out float time), Is.True);
         Bounds bounds = landing.GetComponent<Collider>().bounds;
+        Assert.That(launcher.TryGetLandingSurfacePoint(out Vector3 surface), Is.True);
+        Assert.That(surface, Is.EqualTo(new Vector3(bounds.center.x, bounds.max.y, bounds.center.z)));
         Vector3 target = new Vector3(bounds.center.x, bounds.max.y + halfHeight + .05f, bounds.center.z);
         Vector3 endpoint = start + velocity * time + .5f * Physics.gravity * time * time;
         Assert.That(Vector3.Distance(endpoint, target), Is.LessThan(.002f));
@@ -152,9 +157,30 @@ public sealed class GeyserDirectionTests
             Assert.That(new SerializedObject(launcher).FindProperty("_landing").objectReferenceValue, Is.Null,
                 "Preview lookup must not serialize or rebind a destination.");
         Object.DestroyImmediate(landing);
+        Assert.That(launcher.TryGetLandingSurfacePoint(out _), Is.False);
         Assert.That(launcher.TryGetLaunchVelocity(start, halfHeight, out velocity, out time), Is.False);
         Assert.That(velocity, Is.EqualTo(Vector3.zero));
         Assert.That(time, Is.Zero);
+    }
+
+    [TestCase(4f, 20f)]
+    [TestCase(120f, 40f)]
+    [TestCase(4f, -12f)]
+    [TestCase(120f, -12f)]
+    public void ShortLongHighAndLowRoutes_AimDirectlyWithoutChangingBallisticEndpoint(float distance, float height)
+    {
+        var launcher = CreateLauncher(out GameObject landing);
+        var vfx = CreateVisual("HotAirGeyser", launcher);
+        landing.transform.position = launcher.transform.position + new Vector3(distance, height, distance * .2f);
+        Physics.SyncTransforms();
+        vfx.ApplyTuning();
+        var updraft = vfx.GetComponentsInChildren<ParticleSystem>().Single(p => p.name == "ContinuousUpdraft");
+        Assert.That(launcher.TryGetLandingSurfacePoint(out Vector3 target), Is.True);
+        Assert.That(Vector3.Angle(updraft.transform.forward, target - updraft.transform.position), Is.LessThan(.05f));
+        Vector3 start = updraft.transform.position + Vector3.up;
+        Assert.That(launcher.TryGetLaunchVelocity(start, 1f, out Vector3 velocity, out float time), Is.True);
+        Vector3 end = start + velocity * time + .5f * Physics.gravity * time * time;
+        Assert.That(Vector3.Distance(end, target + Vector3.up * 1.05f), Is.LessThan(.003f));
     }
 
     private static MapLaunchPad CreateLauncher(out GameObject landing)
@@ -168,6 +194,7 @@ public sealed class GeyserDirectionTests
         var launcher = source.AddComponent<MapLaunchPad>();
         Set(launcher, "_landing", landing.transform);
         Call(launcher, "Awake");
+        Physics.SyncTransforms();
         return launcher;
     }
 

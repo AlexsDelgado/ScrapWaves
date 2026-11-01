@@ -1,97 +1,102 @@
 using UnityEngine;
 
-/// <summary>A continuous worm flight, sampled by distance and extended along its ground-entry tangents.</summary>
+/// <summary>A distance-sampled open arch with straight ground-entry stems and rounded crown corners.</summary>
 public sealed class StalkerFlightPath
 {
-    private const int SamplesPerSpan = 128;
-    private readonly float[] _distances = new float[SamplesPerSpan * 2 + 1];
-    private Vector3 _origin, _riseControl, _beforeApex, _apex, _afterApex, _fallControl, _landing;
-    private Vector3 _normal = Vector3.right;
-
+    private Vector3 _origin, _landing, _forward, _normal;
+    private float _radius, _riseStem, _fallStem, _quarter, _crown, _height, _width;
+    public Vector3 ApexPosition { get; private set; }
     public float ApexDistance { get; private set; }
     public float Length { get; private set; }
+    public float AuthoredFallDistance { get; private set; }
 
     public void Configure(Vector3 origin, Vector3 apex, Vector3 landing, float bodyLength)
     {
-        _origin = origin;
-        _apex = apex;
-        _landing = landing;
-        Vector3 forward = Vector3.ProjectOnPlane(landing - origin, Vector3.up).normalized;
-        if (forward.sqrMagnitude < 0.5f) forward = Vector3.forward;
-        _normal = Vector3.Cross(Vector3.up, forward).normalized;
-        float rise = Mathf.Max(0.5f, apex.y - origin.y);
-        float fall = Mathf.Max(0.5f, apex.y - landing.y);
-        // A small outward overhang keeps a tall, narrow jump rounded at its crown.
-        // Both spans meet with the same tangent, rather than switching steering targets.
-        float handle = Mathf.Clamp(bodyLength * 0.45f, 2f, Mathf.Max(2f, Mathf.Min(rise, fall) * 0.55f));
-        _riseControl = origin + Vector3.up * (rise * 0.7f) - forward * (handle * 0.25f);
-        _beforeApex = apex - forward * handle;
-        _afterApex = apex + forward * handle;
-        _fallControl = landing + Vector3.up * (fall * 0.7f) + forward * (handle * 0.25f);
-        _distances[0] = 0f;
-        Vector3 previous = origin;
-        for (int i = 1; i < _distances.Length; i++)
-        {
-            Vector3 current = PositionAtParameter((float)i / SamplesPerSpan);
-            _distances[i] = _distances[i - 1] + Vector3.Distance(previous, current);
-            previous = current;
-        }
-        ApexDistance = _distances[SamplesPerSpan];
-        Length = _distances[_distances.Length - 1];
+        _origin=origin; _landing=landing;
+        Vector3 planar=Vector3.ProjectOnPlane(landing-origin,Vector3.up);
+        _width=Mathf.Max(.01f,planar.magnitude);
+        _forward=planar.sqrMagnitude>.000001f?planar.normalized:Vector3.forward;
+        _normal=Vector3.Cross(Vector3.up,_forward).normalized;
+        AuthoredFallDistance=PreviousDiveDistance(origin,apex,landing,bodyLength,_forward);
+        _height=Mathf.Max(apex.y,Mathf.Max(origin.y,landing.y)+.01f);
+        // Fit the largest useful rounded corner inside the actual route. There are no
+        // backward handles, loops or overshoot beyond either gameplay endpoint.
+        _radius=Mathf.Max(.005f,Mathf.Min(_width*.5f,bodyLength*.2f,
+            _height-origin.y,_height-landing.y));
+        _riseStem=_height-origin.y-_radius;
+        _fallStem=_height-landing.y-_radius;
+        _quarter=Mathf.PI*.5f*_radius;
+        _crown=Mathf.Max(0,_width-2*_radius);
+        float apexX=Mathf.Clamp(Vector3.Dot(apex-origin,_forward),_radius,_width-_radius);
+        ApexPosition=origin+_forward*apexX+Vector3.up*(_height-origin.y);
+        ApexDistance=_riseStem+_quarter+apexX-_radius;
+        Length=_riseStem+2*_quarter+_crown+_fallStem;
     }
 
     public Vector3 GetPosition(float distance)
     {
-        if (distance <= 0f) return _origin + TangentAtParameter(0f) * distance;
-        if (distance >= Length) return _landing + TangentAtParameter(2f) * (distance - Length);
-        return PositionAtParameter(ParameterAtDistance(distance));
+        if(distance<=0) return _origin+Vector3.up*distance;
+        if(distance>=Length) return _landing-Vector3.up*(distance-Length);
+        if(distance<_riseStem) return _origin+Vector3.up*distance;
+        distance-=_riseStem;
+        if(distance<_quarter)
+        {
+            float angle=distance/_radius;
+            return _origin+_forward*(_radius*(1-Mathf.Cos(angle)))
+                +Vector3.up*(_riseStem+_radius*Mathf.Sin(angle));
+        }
+        distance-=_quarter;
+        if(distance<_crown) return _origin+_forward*(_radius+distance)+Vector3.up*(_height-_origin.y);
+        distance-=_crown;
+        if(distance<_quarter)
+        {
+            float angle=distance/_radius;
+            return _origin+_forward*(_width-_radius+_radius*Mathf.Sin(angle))
+                +Vector3.up*(_height-_origin.y-_radius*(1-Mathf.Cos(angle)));
+        }
+        return _landing+Vector3.up*(_fallStem-(distance-_quarter));
     }
 
-    public Vector3 GetTangent(float distance) => TangentAtParameter(ParameterAtDistance(distance));
+    public Vector3 GetTangent(float distance)
+    {
+        if(distance<=_riseStem) return Vector3.up;
+        distance-=_riseStem;
+        if(distance<_quarter)
+        {
+            float angle=distance/_radius;
+            return _forward*Mathf.Sin(angle)+Vector3.up*Mathf.Cos(angle);
+        }
+        distance-=_quarter;
+        if(distance<_crown) return _forward;
+        distance-=_crown;
+        if(distance<_quarter)
+        {
+            float angle=distance/_radius;
+            return _forward*Mathf.Cos(angle)-Vector3.up*Mathf.Sin(angle);
+        }
+        return Vector3.down;
+    }
 
     public Quaternion GetRotation(float distance)
     {
-        Vector3 up = GetTangent(distance);
-        return Quaternion.LookRotation(Vector3.Cross(_normal, up), up);
+        Vector3 up=GetTangent(distance);
+        return Quaternion.LookRotation(Vector3.Cross(_normal,up),up);
     }
 
-    private float ParameterAtDistance(float distance)
+    // Timing calibration only: retain the previous authored dive duration when the
+    // corrected forward-only path is shorter. No part of the body follows this curve.
+    private static float PreviousDiveDistance(Vector3 origin,Vector3 apex,Vector3 landing,float bodyLength,Vector3 forward)
     {
-        if (distance <= 0f) return 0f;
-        if (distance >= Length) return 2f;
-        int low = 0, high = _distances.Length - 1;
-        while (high - low > 1)
+        float rise=Mathf.Max(.5f,apex.y-origin.y),fall=Mathf.Max(.5f,apex.y-landing.y);
+        float handle=Mathf.Clamp(bodyLength*.45f,2f,Mathf.Max(2f,Mathf.Min(rise,fall)*.55f));
+        Vector3 b=apex+forward*handle,c=landing+Vector3.up*(fall*.7f)+forward*(handle*.25f);
+        Vector3 previous=apex;float distance=0;
+        for(int i=1;i<=128;i++)
         {
-            int middle = (low + high) / 2;
-            if (_distances[middle] < distance) low = middle;
-            else high = middle;
+            float t=i/128f,s=1-t;
+            Vector3 point=s*s*s*apex+3*s*s*t*b+3*s*t*t*c+t*t*t*landing;
+            distance+=Vector3.Distance(previous,point);previous=point;
         }
-        float fraction = Mathf.InverseLerp(_distances[low], _distances[high], distance);
-        return (low + fraction) / SamplesPerSpan;
-    }
-
-    private Vector3 PositionAtParameter(float t)
-    {
-        return t <= 1f ? Bezier(_origin, _riseControl, _beforeApex, _apex, t)
-            : Bezier(_apex, _afterApex, _fallControl, _landing, t - 1f);
-    }
-
-    private Vector3 TangentAtParameter(float t)
-    {
-        Vector3 tangent = t <= 1f ? Derivative(_origin, _riseControl, _beforeApex, _apex, t)
-            : Derivative(_apex, _afterApex, _fallControl, _landing, t - 1f);
-        return tangent.sqrMagnitude > 0.000001f ? tangent.normalized : Vector3.up;
-    }
-
-    private static Vector3 Bezier(Vector3 a, Vector3 b, Vector3 c, Vector3 d, float t)
-    {
-        float s = 1f - t;
-        return s * s * s * a + 3f * s * s * t * b + 3f * s * t * t * c + t * t * t * d;
-    }
-
-    private static Vector3 Derivative(Vector3 a, Vector3 b, Vector3 c, Vector3 d, float t)
-    {
-        float s = 1f - t;
-        return 3f * (s * s * (b - a) + 2f * s * t * (c - b) + t * t * (d - c));
+        return Mathf.Max(.01f,distance);
     }
 }

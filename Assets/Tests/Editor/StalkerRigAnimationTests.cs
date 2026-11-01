@@ -459,6 +459,34 @@ public sealed class StalkerRigAnimationTests
             "The fixture must actually perturb the cosmetic hierarchy.");
     }
 
+    [TestCase(20f,50f)]
+    [TestCase(80f,15f)]
+    [TestCase(35f,30f)]
+    public void OpenArch_HeadAlwaysProgressesTowardLandingAndHasNoApexFlip(float width,float height)
+    {
+        var path=new StalkerFlightPath();
+        path.Configure(Vector3.zero,new Vector3(width*.65f,height,0),Vector3.right*width,45);
+        Vector3 previous=path.GetPosition(0);Quaternion previousRotation=path.GetRotation(0);
+        for(float distance=.1f;distance<path.Length;distance+=.1f)
+        {
+            Vector3 current=path.GetPosition(distance);Quaternion rotation=path.GetRotation(distance);
+            Assert.That(current.x,Is.InRange(previous.x-.0001f,width+.0001f),"Head path must not hook backward or beyond landing.");
+            Assert.That(current.y,Is.InRange(-.001f,height+.001f));
+            Assert.That(Quaternion.Angle(rotation,previousRotation),Is.LessThan(5),"Continuous orientation through the crown.");
+            previous=current;previousRotation=rotation;
+        }
+    }
+
+    [Test]
+    public void DefaultOpenArch_RetainsAuthoredDiveTimingReference()
+    {
+        var path=new StalkerFlightPath();
+        path.Configure(Vector3.zero,new Vector3(13,50,0),new Vector3(20,0,0),56.17852f);
+        Assert.That(path.AuthoredFallDistance,Is.EqualTo(62.03873f).Within(.002f));
+        Assert.That(path.Length-path.ApexDistance,Is.EqualTo(55.70796f).Within(.002f));
+        Assert.That(path.ApexPosition,Is.EqualTo(new Vector3(10,50,0)));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void FlightPath_JoinsAtHorizontalApexAndExtendsUndergroundWithoutOrbiting(bool rotatePlane)
