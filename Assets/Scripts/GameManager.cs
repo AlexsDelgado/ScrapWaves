@@ -97,6 +97,11 @@ public class GameManager : MonoBehaviour
 
     private void EnterEndState(GameState endState, string message)
     {
+        if (endState == GameState.Victory)
+            AudioManager.TryPlayVictory();
+        else if (endState == GameState.GameOver)
+            AudioManager.TryPlayDefeat();
+
         _state = endState;
         Time.timeScale = 0f;
         GameplayPause.SetHeld(ref _holdsUiPause, true);

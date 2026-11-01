@@ -256,7 +256,18 @@ public sealed class WeaponAudioVoicePool
     private static bool TrySelectClip(WeaponPresentationCueData cueData, out AudioClip clip)
     {
         clip = null;
-        if (cueData?.AudioClips == null || cueData.AudioClips.Count == 0)
+        if (cueData == null)
+            return false;
+
+        PsxSfxLibrary library = PsxSfxLibrary.Active;
+        if (library != null && library.TryGetWeaponClips(cueData.Cue, out AudioClip[] overrides))
+        {
+            clip = library.Pick("wpn:" + cueData.Cue, overrides);
+            if (clip != null)
+                return true;
+        }
+
+        if (cueData.AudioClips == null || cueData.AudioClips.Count == 0)
             return false;
 
         int startIndex = Random.Range(0, cueData.AudioClips.Count);

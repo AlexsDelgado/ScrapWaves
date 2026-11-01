@@ -69,6 +69,7 @@ public class XPPickup : MonoBehaviour
             Debug.Log($"XP +{amount} (total {_totalExperience})", this);
 
         _playerXp?.AddExperience(amount);
+        AudioManager.TryPlayXp();
 
         OnExperienceChanged?.Invoke(amount, _totalExperience);
     }

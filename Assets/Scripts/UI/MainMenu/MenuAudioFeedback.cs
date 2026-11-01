@@ -25,7 +25,7 @@ public sealed class MenuAudioFeedback : MonoBehaviour
             return;
         }
 
-        AudioClip clip = FindNextNavigationClip();
+        AudioClip clip = FindNextNavigationClip(NavigationClips);
         if (clip == null)
             return;
 
@@ -33,18 +33,32 @@ public sealed class MenuAudioFeedback : MonoBehaviour
         Play(clip, _navigationVolume, true);
     }
 
-    public void PlayConfirm() => Play(_confirmClip, _impactVolume, false);
-    public void PlayReject() => Play(_rejectClip, _navigationVolume, false);
-    public void PlayLocalOpen() => Play(_localOpenClip, _impactVolume * 0.72f, false);
-    public void PlayLocalClose() => Play(_localCloseClip, _navigationVolume, false);
+    public void PlayConfirm() => Play(Resolve(LibraryClip(lib => lib.PickUiConfirm()), _confirmClip), _impactVolume, false);
+    public void PlayReject() => Play(Resolve(LibraryClip(lib => lib.PickUiError()), _rejectClip), _navigationVolume, false);
+    public void PlayLocalOpen() => Play(Resolve(LibraryClip(lib => lib.PickUiClick()), _localOpenClip), _impactVolume * 0.72f, false);
+    public void PlayLocalClose() => Play(Resolve(LibraryClip(lib => lib.PickUiCancel()), _localCloseClip), _navigationVolume, false);
 
-    private AudioClip FindNextNavigationClip()
+    private AudioClip[] NavigationClips
     {
-        int count = _navigationClips.Length;
+        get
+        {
+            AudioClip[] hover = PsxSfxLibrary.Active != null ? PsxSfxLibrary.Active.HoverClips : null;
+            if (hover != null && hover.Length > 0)
+                return hover;
+            return _navigationClips;
+        }
+    }
+
+    private AudioClip FindNextNavigationClip(AudioClip[] clips)
+    {
+        if (clips == null || clips.Length == 0)
+            return null;
+
+        int count = clips.Length;
         for (int offset = 0; offset < count; offset++)
         {
             int index = (_navigationIndex + offset) % count;
-            AudioClip clip = _navigationClips[index];
+            AudioClip clip = clips[index];
             if (clip == null)
                 continue;
 
@@ -54,6 +68,14 @@ public sealed class MenuAudioFeedback : MonoBehaviour
 
         return null;
     }
+
+    private static AudioClip LibraryClip(System.Func<PsxSfxLibrary, AudioClip> pick)
+    {
+        PsxSfxLibrary library = PsxSfxLibrary.Active;
+        return library != null ? pick(library) : null;
+    }
+
+    private static AudioClip Resolve(AudioClip variation, AudioClip fallback) => variation != null ? variation : fallback;
 
     private void Play(AudioClip clip, float volume, bool varyPitch)
     {

@@ -9106,6 +9106,7 @@ MonoBehaviour:
   _sfx: {fileID: 0}
   _musicNormal: {fileID: 339802381}
   _musicOverheatLayer: {fileID: 0}
+  _library: {fileID: 11400000, guid: b7d91e4c2a6f48e0b5c3d8a1f0e64c27, type: 2}
   _shoot: {fileID: 0}
   _enemyHit: {fileID: 0}
   _enemyDeath: {fileID: 0}
