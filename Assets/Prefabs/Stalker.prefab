@@ -78,10 +78,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 1500
-  _damageTakenMultiplier: 0.2
+  _maxHealth: 3500
+  _damageTakenMultiplier: 0.1
 --- !u!114 &200007
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -92,7 +92,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a77242de664775447a0327cab31aa0a9, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyContactDamage
   _contactDamage: 60
   _contactPushForce: 3
@@ -107,7 +107,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f0b1398d8c9bf59499175b30247ce06e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyRegistryMember
 --- !u!114 &200009
 MonoBehaviour:
@@ -119,7 +119,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0b7d4e5f6081b293a4b5c6d7e8f9a0b1, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BossKeyDrop
   _keyPickupPrefab: {fileID: 1917597697853464676, guid: 6a2407263ab4e2f488f6b700a27ee5dc, type: 3}
 --- !u!114 &200010
@@ -132,7 +132,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f6a70819293a4b5c6d7e8f9a0b1c2d30, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GigaWormBehavior
   _buryDepth: 2.5
   _undergroundMoveSpeed: 5
@@ -143,7 +143,7 @@ MonoBehaviour:
   _huntDurationBeforeTelegraph: 2.5
   _sameGroundRadius: 25
   _maxGroundHeightDelta: 2
-  _telegraphDuration: 1.2
+  _telegraphDuration: 0.8
   _attackRadius: 14
   _jumpRiseSpeed: 25
   _jumpArcHeight: 50
@@ -158,7 +158,7 @@ MonoBehaviour:
   _airborneHitRadius: 1.8
   _airborneHitCooldown: 0.35
   _spitInterval: 0.5
-  _spitProjectilesPerBurst: 2
+  _spitProjectilesPerBurst: 6
   _spitSpreadDegrees: 45
   _spitTravelTime: 2
   _spitArcHeight: 2.5
@@ -175,7 +175,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0d8476f98f77f7f4e992393cae3995d7, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitFeedback
   _profile: {fileID: 0}
   _visualRoot: {fileID: 2054891973335749910}
@@ -215,7 +215,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 993fb02c672b03a4db4c428e8619cb18, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyStatusFeedback
   _profile: {fileID: 0}
 --- !u!114 &3907275776421296005
@@ -228,7 +228,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6eb12fe2f01d423880ff7f2bcbba6204, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StalkerRigAnimation
   _animator: {fileID: 362684934932296852}
   _visualRoot: {fileID: 2054891973335749910}
@@ -369,7 +369,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c259de5bd3415084ca16c57849401f4d, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDamageHitZone
   _damageMultiplier: 1.2
 --- !u!1 &1993794997527248040
@@ -1084,7 +1084,7 @@ Animator:
   m_LinearVelocityBlending: 0
   m_StabilizeFeet: 0
   m_AnimatePhysics: 0
-  m_WarningMessage:
+  m_WarningMessage: 
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
