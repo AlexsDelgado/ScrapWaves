@@ -10,7 +10,8 @@ public enum TitleScreenLocalState
     MainMenu,
     Objectives,
     Settings,
-    QuitConfirmation
+    QuitConfirmation,
+    PlayerNameEntry
 }
 
 [DisallowMultipleComponent]
@@ -42,6 +43,7 @@ public sealed class TitleScreenScreenStack : MonoBehaviour, ICancelHandler
     [SerializeField] private LocalScreenBinding _objectives;
     [SerializeField] private LocalScreenBinding _settings;
     [SerializeField] private LocalScreenBinding _quitConfirmation;
+    [SerializeField] private LocalScreenBinding _playerNameEntry;
     [SerializeField] private ObjectivesMenuUI _objectivesPresenter;
     [SerializeField] private MainMenuPresentationController _mainMenuPresentation;
     [SerializeField] private MenuAudioFeedback _audioFeedback;
@@ -72,6 +74,7 @@ public sealed class TitleScreenScreenStack : MonoBehaviour, ICancelHandler
         ? _activeBinding.State
         : TitleScreenLocalState.MainMenu;
     public bool IsInputLocked => _externalInputLocked || _localTransitionLocked;
+    public bool HasPlayerNameEntryBinding => _playerNameEntry != null && _playerNameEntry.IsValid;
     public bool HasValidBindings => _objectives != null && _objectives.IsValid &&
                                     _objectivesPresenter != null &&
                                     _settings != null && _settings.IsValid &&
@@ -84,7 +87,7 @@ public sealed class TitleScreenScreenStack : MonoBehaviour, ICancelHandler
 
     private void Awake()
     {
-        _bindings = new[] { _objectives, _settings, _quitConfirmation };
+        _bindings = new[] { _objectives, _settings, _quitConfirmation, _playerNameEntry };
         for (int i = 0; i < _bindings.Length; i++)
         {
             LocalScreenBinding binding = _bindings[i];
@@ -126,6 +129,7 @@ public sealed class TitleScreenScreenStack : MonoBehaviour, ICancelHandler
     public bool OpenObjectives(GameObject returnFocus) => Open(TitleScreenLocalState.Objectives, returnFocus);
     public bool OpenSettings(GameObject returnFocus) => Open(TitleScreenLocalState.Settings, returnFocus);
     public bool OpenQuitConfirmation(GameObject returnFocus) => Open(TitleScreenLocalState.QuitConfirmation, returnFocus);
+    public bool OpenPlayerNameEntry(GameObject returnFocus) => Open(TitleScreenLocalState.PlayerNameEntry, returnFocus);
 
     public bool Open(TitleScreenLocalState state, GameObject returnFocus)
     {

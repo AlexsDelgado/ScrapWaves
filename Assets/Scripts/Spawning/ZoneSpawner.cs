@@ -55,6 +55,7 @@ public class ZoneSpawner : MonoBehaviour
     [SerializeField, Min(0f)] private float _resolveStepOut = 0.06f;
 
     private bool _armed = true;
+    private readonly HashSet<Collider> _preparationEntries = new();
     private readonly List<GameObject> _spawned = new(16);
 
     public bool IsArmed => _armed;
@@ -77,37 +78,54 @@ public class ZoneSpawner : MonoBehaviour
 
     private void OnEnable()
     {
-        if (!_rearmOnOverheat)
-            return;
-
         if (_overheatManager == null)
             _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_overheatManager != null)
         {
-            _overheatManager.OnOverheatStarted += Rearm;
+            if (_rearmOnOverheat) _overheatManager.OnOverheatStarted += Rearm;
+            _overheatManager.OnOverheatFinished += ClearPreparationEntries;
         }
     }
 
     private void OnDisable()
     {
+        _preparationEntries.Clear();
         if (_overheatManager != null)
         {
             _overheatManager.OnOverheatStarted -= Rearm;
+            _overheatManager.OnOverheatFinished -= ClearPreparationEntries;
         }
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (EntranceCinematic.StartupHeld) return;
+        if (EntranceCinematic.StartupHeld || TutorialDirector.IsActive) return;
         if (!_armed)
             return;
 
-        if (other.GetComponentInParent<PlayerHealth>() == null)
+        PlayerHealth health = other.GetComponentInParent<PlayerHealth>();
+        if (health == null) return;
+        if (!health.IsAlive || (GameManager.Instance != null && !GameManager.Instance.IsPlaying)) return;
+        if (_overheatManager != null && _overheatManager.IsPreparing)
+        {
+            _preparationEntries.Add(other);
             return;
-
-        SpawnAmbush();
+        }
+        if (Time.timeScale <= 0f || GameplayPause.IsUiPaused) return;
+        _preparationEntries.Clear();
         _armed = false;
+        SpawnAmbush();
     }
+
+    private void ClearPreparationEntries(OverheatEndReason reason) => _preparationEntries.Clear();
+
+    private void OnTriggerStay(Collider other)
+    {
+        // Only retry entries held by preparation; ordinary rearming behavior is unchanged.
+        if (_preparationEntries.Contains(other)) OnTriggerEnter(other);
+    }
+
+    private void OnTriggerExit(Collider other) => _preparationEntries.Remove(other);
 
     private void SpawnAmbush()
     {
@@ -152,6 +170,9 @@ public class ZoneSpawner : MonoBehaviour
                     out _))
             {
                 _difficultyManager?.ApplySpawnModifiers(instance);
+                // In-world ambushes stay independent of the orbital cycle cap, even when
+                // this pooled instance previously belonged to an orbital or objective spawn.
+                EnemySpawnPopulationMember.RecordSpawn(instance, EnemySpawnSource.InWorld);
                 _spawned.Add(instance);
             }
         }

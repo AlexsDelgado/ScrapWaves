@@ -29,20 +29,30 @@ public enum CombatTextPriority
 
 public static class CombatTextStyleResolver
 {
+    // Legacy style IDs still select their authored sizing/motion, but damage
+    // numbers share exactly four semantic colors regardless of weapon/element.
+    public static Color ResolveColor(CombatTextStyleId style) => style switch
+    {
+        CombatTextStyleId.Kill => Color.red,
+        CombatTextStyleId.Burn or CombatTextStyleId.JellifiedBurn => new Color(1f, 0.5f, 0f),
+        CombatTextStyleId.Critical or CombatTextStyleId.CriticalWeakPoint => Color.yellow,
+        _ => Color.white
+    };
+
     public static CombatTextStyleId ResolveStyle(in CombatTextEvent combatTextEvent)
     {
         if (combatTextEvent.IsKill)
             return CombatTextStyleId.Kill;
+        if (combatTextEvent.DamageKind == DamageFeedbackKind.JellifiedBurn)
+            return CombatTextStyleId.JellifiedBurn;
+        if (combatTextEvent.DamageKind == DamageFeedbackKind.Burn)
+            return CombatTextStyleId.Burn;
         if (combatTextEvent.IsCritical && combatTextEvent.IsWeakPoint)
             return CombatTextStyleId.CriticalWeakPoint;
         if (combatTextEvent.IsWeakPoint)
             return CombatTextStyleId.WeakPoint;
         if (combatTextEvent.IsCritical)
             return CombatTextStyleId.Critical;
-        if (combatTextEvent.DamageKind == DamageFeedbackKind.JellifiedBurn)
-            return CombatTextStyleId.JellifiedBurn;
-        if (combatTextEvent.DamageKind == DamageFeedbackKind.Burn)
-            return CombatTextStyleId.Burn;
         if (combatTextEvent.IsAbilityDamage || combatTextEvent.DamageKind == DamageFeedbackKind.Ability)
             return CombatTextStyleId.Ability;
         return CombatTextStyleId.Normal;
@@ -52,16 +62,16 @@ public static class CombatTextStyleResolver
     {
         if (aggregate.IsKill)
             return CombatTextStyleId.Kill;
+        if (aggregate.Key.DamageKind == DamageFeedbackKind.JellifiedBurn)
+            return CombatTextStyleId.JellifiedBurn;
+        if (aggregate.Key.DamageKind == DamageFeedbackKind.Burn)
+            return CombatTextStyleId.Burn;
         if (aggregate.IsCritical && aggregate.IsWeakPoint)
             return CombatTextStyleId.CriticalWeakPoint;
         if (aggregate.IsWeakPoint)
             return CombatTextStyleId.WeakPoint;
         if (aggregate.IsCritical)
             return CombatTextStyleId.Critical;
-        if (aggregate.Key.DamageKind == DamageFeedbackKind.JellifiedBurn)
-            return CombatTextStyleId.JellifiedBurn;
-        if (aggregate.Key.DamageKind == DamageFeedbackKind.Burn)
-            return CombatTextStyleId.Burn;
         if (aggregate.IsAbilityDamage || aggregate.Key.DamageKind == DamageFeedbackKind.Ability)
             return CombatTextStyleId.Ability;
         return CombatTextStyleId.Normal;

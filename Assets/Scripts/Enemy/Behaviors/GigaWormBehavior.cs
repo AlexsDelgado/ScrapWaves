@@ -32,11 +32,13 @@ public class GigaWormBehavior : EnemyBehaviorBase
     [Header("Telegraph (suelo)")]
     [SerializeField, Min(0.2f)] private float _telegraphDuration = 1.2f;
     [SerializeField, Min(0.5f)] private float _attackRadius = 3f;
+    [SerializeField, Tooltip("Color of the ground warning before unburrowing. Pulse and fade timing are unchanged.")]
+    private Color _telegraphColor = new(1f, 0.08f, 0.04f, 0.85f);
 
     [Header("Jump (subida)")]
     [SerializeField, Min(0.5f)] private float _jumpRiseSpeed = 14f;
-    [SerializeField, Min(0f)] private float _jumpArcHeight = 5f;
-    [SerializeField, Range(0f, 1f), Tooltip("Que tan lejos hacia el punto de caida se coloca el apex en XZ (0 = encima del origen, 1 = encima del aterrizaje).")]
+    [SerializeField, Min(0f), Tooltip("Height of the open head/body arch above the higher ground endpoint.")] private float _jumpArcHeight = 5f;
+    [SerializeField, Range(0f, 1f), Tooltip("Horizontal apex preference. Clamped inside the rounded crown on narrow routes so the full body can follow without curling.")]
     private float _apexHorizontalLead = 0.65f;
     [SerializeField, Min(60f)] private float _airTiltSpeed = 540f;
 
@@ -76,7 +78,14 @@ public class GigaWormBehavior : EnemyBehaviorBase
     private Vector3 _landingPoint;
     private bool _landingImpactApplied;
     private AttackTelegraphVfx _activeTelegraph;
+    private Collider _debrisGroundSupport;
+    private readonly StalkerFlightPath _flightPath = new();
+    private float _flightDistance;
+    private float _ascentPathSpeedMultiplier = 1f;
+    private float _fallPathSpeedMultiplier = 1f;
 
+    private StalkerRigAnimation _rigAnimation;
+    private StalkerUndergroundTrail _undergroundTrail;
     private EnemyHealth _health;
     private EnemyRegistryMember _registryMember;
     private CharacterController _characterController;
@@ -89,6 +98,8 @@ public class GigaWormBehavior : EnemyBehaviorBase
     {
         base.Awake();
         _health = GetComponent<EnemyHealth>();
+        _rigAnimation = GetComponent<StalkerRigAnimation>();
+        _undergroundTrail = GetComponent<StalkerUndergroundTrail>();
         _registryMember = GetComponent<EnemyRegistryMember>();
         _characterController = GetComponent<CharacterController>();
         _colliders = GetComponentsInChildren<Collider>(true);
@@ -110,11 +121,15 @@ public class GigaWormBehavior : EnemyBehaviorBase
         _airborneHitTimer = 0f;
         _distanceSinceLastBurst = _groundBurstIntervalMeters;
         _landingImpactApplied = false;
+        _debrisGroundSupport = null;
+        _undergroundTrail?.ResetTrail();
         EnterBurrow();
     }
 
     private void OnDisable()
     {
+        _undergroundTrail?.ResetTrail();
+        _rigAnimation?.ResetPose();
         ClearTelegraph();
         ExitBurrowVisualOnly();
         SetGenericMovement(true);
@@ -163,6 +178,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
     private void TickSpawnUnderground()
     {
         SnapUndergroundToGround();
+        _undergroundTrail?.BeginTrack(_surfacePosition, _groundMask, _debrisGroundSupport);
         _state = State.HuntUnderground;
         _huntTimer = 0f;
     }
@@ -182,6 +198,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
     private void TickTelegraph()
     {
         _stateTimer -= Time.deltaTime;
+        _undergroundTrail?.AdvanceBridge(1f - _stateTimer / Mathf.Max(.01f, _telegraphDuration));
         if (_stateTimer > 0f)
             return;
 
@@ -191,25 +208,29 @@ public class GigaWormBehavior : EnemyBehaviorBase
 
     private void TickJump()
     {
-        AdvanceBodyTowardTarget(_apexPoint, _jumpRiseSpeed);
+        AdvanceAlongFlight(_jumpRiseSpeed * _ascentPathSpeedMultiplier, _flightPath.ApexDistance);
 
         TickAirborneHit();
         TickSpitDuringJump();
 
-        if (HasReachedAirTarget(_apexPoint, _apexArrivalThreshold))
+        if (_flightDistance >= _flightPath.ApexDistance)
+        {
             _state = State.Fall;
+            _rigAnimation?.BeginDive();
+        }
     }
 
     private void TickFall()
     {
-        AdvanceBodyTowardTarget(_landingPoint, _fallSpeed);
+        AdvanceAlongFlight(_fallSpeed * _fallPathSpeedMultiplier, _flightPath.Length);
 
         TickAirborneHit();
 
-        if (HasReachedAirTarget(_landingPoint, _landingSnapDistance))
+        if (_flightDistance >= _flightPath.Length)
         {
             transform.position = _landingPoint;
             ApplyLandingImpact();
+            _rigAnimation?.BeginReburrow();
             _surfacePosition = _landingPoint;
             _state = State.ReturnUnderground;
             _stateTimer = 0.35f;
@@ -218,15 +239,24 @@ public class GigaWormBehavior : EnemyBehaviorBase
 
     private void TickReturnUnderground()
     {
+        // Read the last completed visible pose before moving the head again. Hiding is
+        // allowed only after a rendered frame already had the whole body below ground.
+        bool bodyAboveGround = _rigAnimation != null
+            ? _rigAnimation.GetHighestBodyPoint() > _landingPoint.y - 0.05f
+            : transform.position.y > _landingPoint.y - _buryDepth;
         _stateTimer -= Time.deltaTime;
-        Vector3 pos = transform.position;
-        pos.y = Mathf.MoveTowards(pos.y, _surfacePosition.y - _buryDepth, Time.deltaTime * 12f);
-        transform.position = pos;
+        // Keep feeding the entire body through the entry point; reaching the head is only
+        // the start of burrowing. The impact clip finishes and holds while the tail follows.
+        AdvanceAlongFlight(_fallSpeed, float.PositiveInfinity);
 
-        if (_stateTimer > 0f)
+        if (_stateTimer > 0f || bodyAboveGround)
             return;
 
         EnterBurrow();
+        // Once hidden, return to normal hunt depth. A deeply submerged head is beyond
+        // the downward ground probe's range, so use the already resolved landing surface.
+        PlaceUndergroundAt(_landingPoint);
+        _undergroundTrail?.BeginTrack(_landingPoint, _groundMask, _debrisGroundSupport);
         _state = State.HuntUnderground;
         _huntTimer = 0f;
         _distanceSinceLastBurst = _groundBurstIntervalMeters;
@@ -234,6 +264,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
 
     private void BeginTelegraph()
     {
+        Vector3 previousSurface = _surfacePosition;
         _state = State.Telegraph;
         _stateTimer = _telegraphDuration;
 
@@ -245,12 +276,14 @@ public class GigaWormBehavior : EnemyBehaviorBase
         PlaceUndergroundAt(_emergeOriginGround);
 
         ClearTelegraph();
-        _activeTelegraph = AttackTelegraphVfx.Spawn(_emergeOriginGround, _attackRadius, _telegraphDuration);
-        GigaWormGroundBurstVfx.Spawn(_emergeOriginGround);
+        _activeTelegraph = AttackTelegraphVfx.Spawn(_emergeOriginGround, _attackRadius, _telegraphDuration, _telegraphColor);
+        SpawnUndergroundDebris(_emergeOriginGround);
+        _undergroundTrail?.BeginBridge(previousSurface, _emergeOriginGround, _groundMask, _debrisGroundSupport);
     }
 
     private void BeginJump()
     {
+        _undergroundTrail?.EndTravel(finishBridge: true);
         SnapshotPlayerGroundAtJump(out _playerSnapshotGround);
         _landingPoint = _playerSnapshotGround;
         EnforceMinimumFallDistance();
@@ -263,7 +296,18 @@ public class GigaWormBehavior : EnemyBehaviorBase
         _spitTimer = 0f;
         _airborneHitTimer = 0f;
         _landingImpactApplied = false;
-        SnapBodyAxisToward(_apexPoint);
+        float authoredAscentDistance = Vector3.Distance(_emergeOriginGround, _apexPoint);
+        _flightPath.Configure(_emergeOriginGround, _apexPoint, _landingPoint,
+            _rigAnimation != null ? _rigAnimation.BodyLength : 12f * Mathf.Abs(transform.lossyScale.y));
+        _apexPoint = _flightPath.ApexPosition;
+        // The rounded route is longer than the former direct ascent. Preserve its nominal
+        // duration so the existing spit interval has the same firing window.
+        _ascentPathSpeedMultiplier = _flightPath.ApexDistance
+            / Mathf.Max(0.01f, authoredAscentDistance);
+        _fallPathSpeedMultiplier = (_flightPath.Length - _flightPath.ApexDistance) / _flightPath.AuthoredFallDistance;
+        _flightDistance = 0f;
+        transform.SetPositionAndRotation(_flightPath.GetPosition(0f), _flightPath.GetRotation(0f));
+        _rigAnimation?.BeginJump();
     }
 
     private void EnforceMinimumFallDistance()
@@ -393,6 +437,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
 
         _landingImpactApplied = true;
         ExplosionRadiusVfx.Spawn(_landingPoint, _attackRadius);
+        GigaWormGroundBurstVfx.SpawnEntry(_landingPoint);
 
         if (_playerHealth == null)
             CachePlayerComponents();
@@ -409,50 +454,39 @@ public class GigaWormBehavior : EnemyBehaviorBase
         }
     }
 
-    /// <summary>
-    /// Gira el eje Y del gusano (cabeza) hacia el target y avanza a lo largo de ese eje.
-    /// Evita el deslizamiento lateral que produce MoveTowards en un cuerpo alargado vertical.
-    /// </summary>
-    private void AdvanceBodyTowardTarget(Vector3 worldTarget, float speed)
+    /// <summary>Moves the head along one continuous arch; the rig samples the same path behind it.</summary>
+    private void AdvanceAlongFlight(float speed, float phaseEnd)
     {
-        AlignBodyAxisToward(worldTarget);
-        transform.position += transform.up * (speed * DebugSpeedTool.EnemyScale * Time.deltaTime);
-    }
-
-    private void AlignBodyAxisToward(Vector3 worldTarget)
-    {
-        Vector3 toTarget = worldTarget - transform.position;
-        if (toTarget.sqrMagnitude < 0.0001f)
-            return;
-
-        Quaternion targetRotation = Quaternion.FromToRotation(Vector3.up, toTarget.normalized);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, _airTiltSpeed * Time.deltaTime);
-    }
-
-    private void SnapBodyAxisToward(Vector3 worldTarget)
-    {
-        Vector3 toTarget = worldTarget - transform.position;
-        if (toTarget.sqrMagnitude < 0.0001f)
-            return;
-
-        transform.rotation = Quaternion.FromToRotation(Vector3.up, toTarget.normalized);
-    }
-
-    private bool HasReachedAirTarget(Vector3 worldTarget, float threshold)
-    {
-        Vector3 toTarget = worldTarget - transform.position;
-        if (toTarget.sqrMagnitude <= threshold * threshold)
-            return true;
-
-        // Si ya paso el target mirando con la cabeza, cerrar la fase (evita orbitar).
-        return toTarget.sqrMagnitude <= threshold * threshold * 4f
-            && Vector3.Dot(toTarget.normalized, transform.up) <= 0f;
+        float next = Mathf.Min(phaseEnd, _flightDistance + speed * DebugSpeedTool.EnemyScale * Time.deltaTime);
+        float angle = Quaternion.Angle(transform.rotation, _flightPath.GetRotation(next));
+        float allowedAngle = _airTiltSpeed * DebugSpeedTool.EnemyScale * Time.deltaTime;
+        if (angle > allowedAngle && angle > 0.0001f)
+            next = Mathf.Lerp(_flightDistance, next, allowedAngle / angle);
+        _flightDistance = next;
+        transform.SetPositionAndRotation(_flightPath.GetPosition(next), _flightPath.GetRotation(next));
     }
 
     private Vector3 GetHeadWorldPosition()
     {
         float halfBodyLength = Mathf.Max(0.5f, transform.localScale.y * 0.45f);
         return transform.position + transform.up * halfBodyLength;
+    }
+
+    /// <summary>Base reward position; the pickup applies its usual lift above this anchor.</summary>
+    public Vector3 GetRewardDropPosition()
+    {
+        // The diving head can be far below the ground while the tail is still visible.
+        // Its resolved entry point remains the accessible reward surface for this jump.
+        if (_state == State.ReturnUnderground)
+            return _landingPoint;
+        if (_state == State.Jump || _state == State.Fall)
+            return transform.position;
+
+        // Hidden hunting moves away from the last landing point. Resolve the current XZ,
+        // with the normal hunt depth as fallback instead of a stale cached surface.
+        if (TryGetGroundPoint(transform.position, out Vector3 ground))
+            return ground;
+        return transform.position + Vector3.up * _buryDepth;
     }
 
     private void PlaceUndergroundAt(Vector3 surfaceGround)
@@ -479,13 +513,22 @@ public class GigaWormBehavior : EnemyBehaviorBase
         SnapUndergroundPosition(ref pos);
         transform.position = pos;
 
+        _undergroundTrail?.Track(_surfacePosition, _groundMask, _debrisGroundSupport);
+
         _distanceSinceLastBurst += step;
         if (_distanceSinceLastBurst >= _groundBurstIntervalMeters)
         {
             _distanceSinceLastBurst = 0f;
             if (TryGetGroundPoint(pos, out Vector3 ground))
-                GigaWormGroundBurstVfx.Spawn(ground);
+                SpawnUndergroundDebris(ground);
         }
+    }
+
+    private void SpawnUndergroundDebris(Vector3 surfacePoint)
+    {
+        if (_playerMovement != null && _playerMovement.TryGetGroundSupport(out Collider support))
+            _debrisGroundSupport = support;
+        GigaWormGroundBurstVfx.SpawnOnSurface(surfacePoint, _groundMask, _debrisGroundSupport);
     }
 
     private void SnapUndergroundToGround()
@@ -548,6 +591,7 @@ public class GigaWormBehavior : EnemyBehaviorBase
         SetGenericMovement(false);
         SetCollidersEnabled(false);
         SetRenderersEnabled(false);
+        _rigAnimation?.EnterBurrow();
 
         if (_registryMember != null)
             _registryMember.enabled = false;

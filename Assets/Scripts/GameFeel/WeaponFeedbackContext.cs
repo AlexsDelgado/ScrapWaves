@@ -21,6 +21,9 @@ public readonly struct WeaponFeedbackContext
     public readonly WeaponEnemyKind TargetClass;
     public readonly ImpactSurfaceType SurfaceType;
     public readonly float ExplosionRadius;
+    public readonly bool HasFragmentGeometry;
+    public readonly float FragmentConeRange;
+    public readonly float FragmentConeAngle;
     public readonly float EventIntensity;
     public readonly Transform Target;
     public readonly Transform Anchor;
@@ -55,13 +58,17 @@ public readonly struct WeaponFeedbackContext
         DamageFeedbackKind damageKind = DamageFeedbackKind.Direct,
         int statusInstanceId = 0,
         WeaponStatusKind statusKind = WeaponStatusKind.Burn,
-        int segmentIndex = 0)
+        int segmentIndex = 0,
+        float fragmentConeRange = -1f,
+        float fragmentConeAngle = 0f,
+        WeaponUpgradePath? upgradePath = null,
+        int? weaponLevel = null)
     {
         Weapon = weapon;
         WeaponType = weapon?.Data != null ? weapon.Data.WeaponType : WeaponType.AutomaticCannon;
         Mode = mode;
-        UpgradePath = weapon != null && weapon.HasAdvancedPath ? weapon.SelectedPath : WeaponUpgradePath.None;
-        WeaponLevel = weapon != null ? Mathf.Clamp(weapon.Level, 1, 10) : 1;
+        UpgradePath = upgradePath ?? (weapon != null && weapon.HasAdvancedPath ? weapon.SelectedPath : WeaponUpgradePath.None);
+        WeaponLevel = weaponLevel ?? (weapon != null ? Mathf.Clamp(weapon.Level, 1, 10) : 1);
         NormalizedHeat = Mathf.Clamp01(normalizedHeat);
         Origin = origin;
         Direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
@@ -75,6 +82,9 @@ public readonly struct WeaponFeedbackContext
         TargetClass = targetClass;
         SurfaceType = surfaceType;
         ExplosionRadius = Mathf.Max(0f, explosionRadius);
+        HasFragmentGeometry = fragmentConeRange >= 0f;
+        FragmentConeRange = Mathf.Max(0f, fragmentConeRange);
+        FragmentConeAngle = Mathf.Clamp(fragmentConeAngle, 0f, 180f);
         EventIntensity = Mathf.Max(0f, eventIntensity);
         Target = target;
         Anchor = anchor;
@@ -121,7 +131,7 @@ public readonly struct WeaponFeedbackContext
             DamageKind,
             StatusInstanceId,
             StatusKind,
-            SegmentIndex);
+            SegmentIndex, HasFragmentGeometry ? FragmentConeRange : -1f, FragmentConeAngle, UpgradePath, WeaponLevel);
     }
 
     public WeaponFeedbackContext WithAppliedDamage(
@@ -173,7 +183,7 @@ public readonly struct WeaponFeedbackContext
             DamageKind,
             StatusInstanceId,
             StatusKind,
-            SegmentIndex);
+            SegmentIndex, HasFragmentGeometry ? FragmentConeRange : -1f, FragmentConeAngle, UpgradePath, WeaponLevel);
     }
 
     public WeaponFeedbackContext WithExplosionRadius(float explosionRadius)
@@ -202,7 +212,7 @@ public readonly struct WeaponFeedbackContext
             DamageKind,
             StatusInstanceId,
             StatusKind,
-            SegmentIndex);
+            SegmentIndex, HasFragmentGeometry ? FragmentConeRange : -1f, FragmentConeAngle, UpgradePath, WeaponLevel);
     }
 
     public WeaponFeedbackContext WithDirection(Vector3 direction)
@@ -231,7 +241,7 @@ public readonly struct WeaponFeedbackContext
             DamageKind,
             StatusInstanceId,
             StatusKind,
-            SegmentIndex);
+            SegmentIndex, HasFragmentGeometry ? FragmentConeRange : -1f, FragmentConeAngle, UpgradePath, WeaponLevel);
     }
 
     public WeaponFeedbackContext WithDamageMetadata(
@@ -266,7 +276,7 @@ public readonly struct WeaponFeedbackContext
             damageKind,
             statusInstanceId,
             statusKind,
-            segmentIndex);
+            segmentIndex, HasFragmentGeometry ? FragmentConeRange : -1f, FragmentConeAngle, UpgradePath, WeaponLevel);
     }
 
     public WeaponFeedbackContext WithSequence(int actionSequenceId, DamageFeedbackKind damageKind)
@@ -295,5 +305,14 @@ public readonly struct WeaponFeedbackContext
             statusInstanceId,
             statusKind,
             segmentIndex);
+    }
+
+    public WeaponFeedbackContext WithFragmentGeometry(float range, float angle)
+    {
+        return new WeaponFeedbackContext(Weapon, Mode, NormalizedHeat, Origin, Direction,
+            ImpactPosition, ImpactNormal, DamageAmount, IsCritical, IsWeakPoint, IsKill,
+            IsAbilityDamage, TargetClass, SurfaceType, ExplosionRadius, EventIntensity,
+            Target, Anchor, ReferenceDamage, ActionSequenceId, DamageKind, StatusInstanceId,
+            StatusKind, SegmentIndex, range, angle, UpgradePath, WeaponLevel);
     }
 }

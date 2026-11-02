@@ -16,7 +16,7 @@ public static class CraftingReadoutAuthoring
         Modify(HudPath, AuthorHud);
         AssetDatabase.SaveAssets();
     }
-    [MenuItem("ScrapWaves/UI/Tune Translucent Crafting Pulse")]
+    [MenuItem("ScrapWaves/UI/Tune Crafting Availability Pulse")]
     public static void TuneHighlights()
     {
         foreach (string path in new[] { RunMenuPrefabBuilder.CraftingPrefabPath, HudPath })
@@ -28,13 +28,19 @@ public static class CraftingReadoutAuthoring
     private static void Tune(CraftingAvailabilityView view)
     {
         view.GlowColor = new Color(0.35f,0.9f,0.48f,0.045f);
-        view.OutlineColor = new Color(0.35f,0.9f,0.48f,0.65f);
-        view.PulseSpeed = 2.4f; view.PulseDepth = 0.72f;
+        view.OutlineColor = new Color(0.35f,0.9f,0.48f,1f);
+        view.PulseSpeed = 4.2f; view.PulseDepth = 0.9f;
         view.OutlineEdges = new Image[4];
         string[] sides = { "Top", "Bottom", "Left", "Right" };
         for (int i=0;i<sides.Length;i++) view.OutlineEdges[i]=view.Glow.transform.Find(sides[i]).GetComponent<Image>();
         view.Glow.color = view.GlowColor;
-        foreach (Image edge in view.OutlineEdges) edge.color = view.OutlineColor;
+        // Strength belongs on the perimeter: the icon, labels and faint fill stay readable.
+        foreach (Image edge in view.OutlineEdges)
+        {
+            edge.color = view.OutlineColor;
+            bool horizontal = edge.name == "Top" || edge.name == "Bottom";
+            edge.rectTransform.sizeDelta = horizontal ? new Vector2(0, 5) : new Vector2(5, 0);
+        }
     }
     private static void Modify(string path, Action<GameObject> author)
     {

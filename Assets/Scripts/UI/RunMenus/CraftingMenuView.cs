@@ -62,6 +62,14 @@ public sealed class CraftingMenuView : MonoBehaviour
     public GameObject AdvancedPanel;
     public TMP_Text AdvancedNameText;
     public TMP_Text AdvancedLevelText;
+    public TMP_Text AdvancedPurchaseNoticeText;
+    public TMP_Text AdvancedPurchaseCostText;
+    public Button AdvancedPurchaseButton;
+
+    [Header("Advanced Tinkering paid choice")]
+    public GameObject AdvancedChoicePanel;
+    public TMP_Text AdvancedChoiceNameText;
+    public TMP_Text AdvancedChoiceLevelText;
     public TMP_Text AdvancedPathText;
     public TMP_Text AdvancedDescriptionText;
     public TMP_Text AdvancedNoticeText;
@@ -79,7 +87,9 @@ public sealed class CraftingMenuView : MonoBehaviour
                 || UpgradeButton == null || UpgradeButtonText == null || TinkerCostLabel == null
                 || TinkerCostText == null || TinkerButton == null || TinkerChoicePanel == null
                 || TinkerChoiceNotice == null || AdvancedNameText == null
-                || AdvancedLevelText == null || AdvancedPathText == null || AdvancedDescriptionText == null
+                || AdvancedLevelText == null || AdvancedPurchaseNoticeText == null || AdvancedPurchaseCostText == null
+                || AdvancedPurchaseButton == null || AdvancedChoicePanel == null || AdvancedChoiceNameText == null
+                || AdvancedChoiceLevelText == null || AdvancedPathText == null || AdvancedDescriptionText == null
                 || AdvancedNoticeText == null || AdvancedCostText == null || AcceptButton == null || DeclineButton == null
                 || Slots == null || Slots.Length != 3 || Materials == null || Materials.Length != 6
                 || Candidates == null || Candidates.Length != 2 || UpgradeStatLabels == null || UpgradeStatLabels.Length != 3

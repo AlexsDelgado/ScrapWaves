@@ -1,0 +1,26 @@
+{
+  "sourceFolder": "Dumpster Fire / Art / FBX",
+  "retrievedUtc": "2026-10-31",
+  "files": [
+    {
+      "name": "Larguirucho_Attack.fbx",
+      "driveId": "1gJgnr5xSMx7D-ReU19I9EDWW0iZVGAzm",
+      "url": "https://drive.google.com/file/d/1gJgnr5xSMx7D-ReU19I9EDWW0iZVGAzm/view",
+      "modifiedUtc": "2026-10-16T00:39:34Z",
+      "bytes": 1550572,
+      "sha256": "f37968a68ab9f628e85178a9cad6b3e0f4f7598a8feca65ffc09333a6cc8dbf3"
+    },
+    {
+      "name": "Larguirucho_Walk.fbx",
+      "driveId": "1Tf7yvcNH2bNyyT8WiYGn6p73Jl9JvK4U",
+      "url": "https://drive.google.com/file/d/1Tf7yvcNH2bNyyT8WiYGn6p73Jl9JvK4U/view",
+      "modifiedUtc": "2026-10-16T00:29:04Z",
+      "bytes": 1360300,
+      "sha256": "cae931732c5f079577a6d2b150bf81ee3ed97ea70f0a170ae077acf090f8751b"
+    }
+  ],
+  "originalsUnmodified": true,
+  "unityImportFolder": "Assets/Art/Enemies/Chaser/Animation",
+  "authoring": "LarguiruchoAnimationAuthoring.Apply",
+  "movementOwner": "Existing SimpleFollow and ChargerEnemyBehavior; derived animation clips are in place."
+}

@@ -171,7 +171,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33a03871581ddf842825befb9298777e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  _maxHealth: 1000
+  _maxHealth: 8000
   _damageTakenMultiplier: 1
 --- !u!114 &3620616495473873500
 MonoBehaviour:
@@ -311,14 +311,14 @@ MonoBehaviour:
   _missileTurnRateDegPerSec: 90
   _mouth: {fileID: 5929581824322485209}
   _weakPoint: {fileID: 7957812352955880524}
-  _playerPullAcceleration: 10
+  _playerPullAcceleration: 20
   _swarmPullSpeed: 10
   _eatRadius: 5
-  _healPercentPerEnemyEaten: 0.02
+  _healPercentPerEnemyEaten: 0.002
   _swallowRadius: 2
   _swallowDamage: 40
   _swallowKnockback: 50
-  _healPercentOnSwallow: 0.15
+  _healPercentOnSwallow: 0.1
   _weakPointDestroyedDamagePercent: 0.2
   _maxSuctionDuration: 15
 --- !u!114 &114603746263934257

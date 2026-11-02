@@ -143,6 +143,203 @@ public sealed class ReticleHudAuthoringTests
         Assert.That(Hierarchy(ui), Is.EqualTo(hierarchy));
     }
 
+    private sealed class FixedMortarStatus : IMortarReticleStatus
+    {
+        public RaycastHit Hit;
+        public bool TryGetManualTerrainImpact(Vector3 fallbackDirection, out RaycastHit hit)
+        {
+            hit = Hit;
+            return hit.collider != null;
+        }
+        public float ManualRange => 18f;
+        public float ManualExplosionRadius => 1.8f;
+        public float ManualFootprintRadius => ManualExplosionRadius;
+        public float ShellCollisionRadius => .18f;
+        public float ManualTravelTime => .55f;
+        public float ArcHeight => 5f;
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void MortarMarker_OnlyShowsGroundAndRecoversAfterInvalidContacts(bool authored)
+    {
+        Vector3 anchor = new(4000f, 100f, 4000f);
+        var (hud, runtime) = CreateMortarFixture(authored, anchor);
+        var status = new FixedMortarStatus();
+        Collider floor = Surface("Ground", anchor);
+        Collider platform = Surface("Raised platform", anchor + Vector3.up * 4f);
+        platform.gameObject.layer = LayerMask.NameToLayer("Terrain");
+        Physics.SyncTransforms();
+        status.Hit = Contact(floor, Vector3.up);
+        UpdateAndAssertVisible(true, "floor");
+
+        string[] rejected = { "damageable child", "enemy layer", "wall", "ceiling", "dynamic prop", "non-ground layer", "steep face" };
+        for (int i = 0; i < rejected.Length; i++)
+        {
+            string kind = rejected[i];
+            Collider candidate = Surface(kind, anchor + Vector3.right * (20f + i * 10f));
+            Vector3 normal = Vector3.up;
+            switch (kind)
+            {
+                case "damageable child":
+                    GameObject actor = Track(new GameObject("Damageable parent"));
+                    actor.AddComponent<ReticleTestDamageable>();
+                    candidate.transform.SetParent(actor.transform, true);
+                    break;
+                case "enemy layer": candidate.gameObject.layer = LayerMask.NameToLayer("Enemy"); break;
+                case "wall": normal = Vector3.right; break;
+                case "ceiling": normal = Vector3.down; break;
+                case "dynamic prop": candidate.gameObject.AddComponent<Rigidbody>().useGravity = false; break;
+                case "non-ground layer": candidate.gameObject.layer = LayerMask.NameToLayer("Ignore Raycast"); break;
+                case "steep face":
+                    candidate.transform.rotation = Quaternion.Euler(0f, 0f, 60f);
+                    normal = candidate.transform.up;
+                    break;
+            }
+            Physics.SyncTransforms();
+            status.Hit = Contact(candidate, normal);
+            UpdateAndAssertVisible(false, kind);
+            status.Hit = Contact(platform, Vector3.up);
+            UpdateAndAssertVisible(true, "elevated platform after " + kind);
+        }
+
+        void UpdateAndAssertVisible(bool expected, string context)
+        {
+            Invoke(hud, "UpdateMortarMarker", runtime, status);
+            MortarLandingIndicatorVfx marker = Read<MortarLandingIndicatorVfx>(hud, "_authoredMortarMarker");
+            if (authored)
+            {
+                Assert.That(marker, Is.Not.Null);
+                Assert.That(marker.gameObject.activeSelf, Is.EqualTo(expected), context);
+                if (expected)
+                {
+                    Assert.That(marker.IsGroundConforming, Is.True, context);
+                    Assert.That(Vector3.Distance(marker.ContactPoint, status.Hit.point), Is.LessThan(.001f), context);
+                }
+            }
+            else Assert.That(marker, Is.Null);
+            Assert.That(Read<GameObject>(hud, "_mortarMarkerRoot").activeSelf,
+                Is.EqualTo(expected && !authored), context + " legacy view");
+        }
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void MortarMarker_ProjectsEnemyAndPropsOntoSupportingFloorWithoutLosingFootprint(bool authored)
+    {
+        Vector3 anchor = new(4100f, 100f, 4100f);
+        var (hud, runtime) = CreateMortarFixture(authored, anchor);
+        var status = new FixedMortarStatus();
+        Collider floor = Surface("Supporting floor", anchor);
+        Collider platform = Surface("Elevated supporting platform", anchor + Vector3.up * 2f);
+        platform.gameObject.layer = LayerMask.NameToLayer("Terrain");
+        platform.gameObject.SetActive(false);
+        foreach (string kind in new[] { "enemy", "dynamic prop", "crafting station" })
+        {
+            Collider model = Surface(kind, anchor);
+            model.transform.localScale = new Vector3(1.2f, 1.5f, 1.2f);
+            switch (kind)
+            {
+                case "enemy":
+                    model.gameObject.layer = LayerMask.NameToLayer("Enemy");
+                    model.gameObject.AddComponent<ReticleTestDamageable>();
+                    break;
+                case "dynamic prop": model.gameObject.AddComponent<Rigidbody>().useGravity = false; break;
+                default: model.gameObject.AddComponent<CraftingStation>(); break;
+            }
+            foreach (Collider support in new[] { floor, platform })
+            {
+                platform.gameObject.SetActive(support == platform);
+                model.gameObject.SetActive(false);
+                Physics.SyncTransforms();
+                model.transform.position = new Vector3(anchor.x, support.bounds.max.y + .85f, anchor.z);
+                Physics.SyncTransforms();
+                status.Hit = Contact(support, Vector3.up);
+                Invoke(hud, "UpdateMortarMarker", runtime, status);
+                int unobstructedVertexCount = MarkerVertices(hud, authored).Length;
+                Assert.That(unobstructedVertexCount, Is.GreaterThan(12));
+
+                model.gameObject.SetActive(true);
+                Physics.SyncTransforms();
+                status.Hit = Contact(model, Vector3.up);
+                Assert.That(status.Hit.point.y, Is.GreaterThan(support.bounds.max.y + 1f));
+                Invoke(hud, "UpdateMortarMarker", runtime, status);
+                MortarLandingIndicatorVfx marker = Read<MortarLandingIndicatorVfx>(hud, "_authoredMortarMarker");
+                string context = kind + " above " + support.name;
+                float offset = Read<float>(hud, "_mortarSurfaceOffset");
+                if (authored)
+                {
+                    Assert.That(marker, Is.Not.Null);
+                    Assert.That(marker.gameObject.activeSelf, Is.True, context);
+                    Assert.That(marker.IsGroundConforming, Is.True, context);
+                    Assert.That(marker.ContactPoint.y, Is.EqualTo(support.bounds.max.y).Within(.003f), context);
+                    offset = marker.SurfaceOffset;
+                }
+                Assert.That(Read<GameObject>(hud, "_mortarMarkerRoot").activeSelf, Is.EqualTo(!authored), context);
+                Vector3[] vertices = MarkerVertices(hud, authored);
+                Assert.That(vertices.Length, Is.EqualTo(unobstructedVertexCount),
+                    context + ": the model must not remove any floor-supported marker triangles or ring segments.");
+                Assert.That(vertices.Min(vertex => vertex.y), Is.EqualTo(support.bounds.max.y + offset).Within(.003f), context);
+                Assert.That(vertices.Max(vertex => vertex.y), Is.EqualTo(support.bounds.max.y + offset).Within(.003f), context);
+                Assert.That(vertices.Max(vertex => Vector3.ProjectOnPlane(vertex - anchor, Vector3.up).magnitude),
+                    Is.EqualTo(status.ManualFootprintRadius).Within(.025f), context + ": retain the full footprint around the object.");
+            }
+            floor.gameObject.SetActive(false);
+            platform.gameObject.SetActive(false);
+            Physics.SyncTransforms();
+            Invoke(hud, "UpdateMortarMarker", runtime, status);
+            MortarLandingIndicatorVfx hiddenMarker = Read<MortarLandingIndicatorVfx>(hud, "_authoredMortarMarker");
+            if (authored) Assert.That(hiddenMarker.gameObject.activeSelf, Is.False, kind + " without ground");
+            Assert.That(Read<GameObject>(hud, "_mortarMarkerRoot").activeSelf, Is.False, kind + " without ground");
+            model.gameObject.SetActive(false);
+            floor.gameObject.SetActive(true);
+        }
+    }
+
+    private (ReticleHud Hud, WeaponInstance Runtime) CreateMortarFixture(bool authored, Vector3 anchor)
+    {
+        var (hud, _) = CreateAuthored();
+        WeaponManager manager = hud.gameObject.AddComponent<WeaponManager>();
+        typeof(ReticleHud).GetField("_weaponManager", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(hud, manager);
+        typeof(WeaponManager).GetProperty(nameof(WeaponManager.CurrentAimSolution))
+            .SetValue(manager, new AimSolution(anchor + Vector3.up * 2f, anchor + Vector3.forward * 18f, Time.frameCount));
+        // A profile without a mortar prefab exercises the existing legacy view.
+        string weaponPath = authored ? "Mortar" : "AutomaticCannon";
+        WeaponData data = AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/" + weaponPath + ".asset");
+        Assert.That(data, Is.Not.Null);
+        return (hud, new WeaponInstance { Data = data });
+    }
+
+    private static Vector3[] MarkerVertices(ReticleHud hud, bool authored)
+    {
+        if (authored)
+            return Read<MortarLandingIndicatorVfx>(hud, "_authoredMortarMarker").GetComponentsInChildren<MeshFilter>()
+                .Where(filter => filter.GetComponent<Renderer>().enabled)
+                .SelectMany(filter =>
+                {
+                    Vector3[] vertices = filter.sharedMesh.vertices;
+                    return filter.sharedMesh.triangles.Select(index => filter.transform.TransformPoint(vertices[index]));
+                }).ToArray();
+        return new[] { Read<LineRenderer>(hud, "_mortarLandingRing"), Read<LineRenderer>(hud, "_mortarBlastRing") }
+            .SelectMany(line => Enumerable.Range(0, line.positionCount).Select(line.GetPosition)).ToArray();
+    }
+
+    private Collider Surface(string name, Vector3 position)
+    {
+        GameObject surface = Track(GameObject.CreatePrimitive(PrimitiveType.Cube));
+        surface.name = name;
+        surface.transform.position = position;
+        surface.transform.localScale = new Vector3(6f, .5f, 6f);
+        return surface.GetComponent<Collider>();
+    }
+
+    private static RaycastHit Contact(Collider surface, Vector3 normal)
+    {
+        Assert.That(surface.Raycast(new Ray(surface.bounds.center + normal * 10f, -normal),
+            out RaycastHit hit, 20f), Is.True, surface.name);
+        return hit;
+    }
+
     [Test]
     public void ControllerDisposal_HidesButDoesNotDestroySceneOwnedViews()
     {

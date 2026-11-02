@@ -57,7 +57,7 @@ public class PlayerXP : MonoBehaviour
 
     public void AddExperience(int amount)
     {
-        if (amount <= 0 || IsAtLevelCap)
+        if (!TutorialDirector.ScriptedExperienceAllowed || amount <= 0 || IsAtLevelCap)
             return;
 
         _xpTowardsNext += amount;

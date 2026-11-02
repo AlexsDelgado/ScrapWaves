@@ -61,19 +61,20 @@ public class TitleScreenControllerTests
             controller.PlayButton,
             controller.SettingsButton,
             controller.ObjectivesButton,
-            controller.QuitButton
+            controller.QuitButton,
+            controller.TutorialButton
         };
 
         Assert.That(productionButtons, Has.All.Not.Null, "Every production destination must be assigned in the scene.");
         CollectionAssert.AreEqual(
-            new[] { "PLAY", "SETTINGS", "OBJECTIVES", "QUIT" },
+            new[] { "PLAY", "SETTINGS", "OBJECTIVES", "QUIT", "PLAY TUTORIAL" },
             productionButtons.Select(ReadButtonLabel).ToArray());
 
         MainMenuItemView[] productionItems = FindAllInScene<MainMenuItemView>(scene)
             .Where(item => !item.IsDeveloperEntry)
             .OrderBy(item => item.transform.GetSiblingIndex())
             .ToArray();
-        Assert.That(productionItems, Has.Length.EqualTo(4),
+        Assert.That(productionItems, Has.Length.EqualTo(5),
             "The production menu must not retain an unreferenced destination such as Credits.");
         Assert.That(productionItems, Has.All.Not.Null);
         Assert.That(productionItems, Has.All.Matches<MainMenuItemView>(item => item.HasRequiredReferences));
@@ -83,7 +84,7 @@ public class TitleScreenControllerTests
         CollectionAssert.AreEqual(
             productionButtons.Select(button => button.GetComponent<MainMenuItemView>()).ToArray(),
             productionItems,
-            "Controller references must follow the same order as the four authored production slots.");
+            "Controller references must follow the same order as the five authored production slots.");
         Assert.That(
             FindAllInScene<TMP_Text>(scene).Any(text =>
                 string.Equals(text.text?.Trim(), "CREDITS", StringComparison.OrdinalIgnoreCase)),

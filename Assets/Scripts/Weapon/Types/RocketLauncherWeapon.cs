@@ -3,37 +3,100 @@ using UnityEngine;
 
 public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbilityBehaviour, IRocketReticleStatus
 {
+    public override float? GetManualAimConvergenceDistance() =>
+        Runtime?.Data != null && WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Manual,
+            WeaponStatField.RangeMeters, Runtime.Data.BaseRange).IsAuthored
+            ? GetModeRange(WeaponStatMode.Manual) : (float?)null;
+
+    public override WeaponGeometrySnapshot CaptureGeometry()
+    {
+        if (Runtime?.Data == null) return null;
+        var guides = new List<WeaponGeometryGuide>
+        {
+            CreateAutomaticTargetingGuide(GetModeRange(WeaponStatMode.Automatic))
+        };
+        float manualRange = GetProjectileTravelRange(WeaponStatMode.Manual);
+        float manualRadius = GetExplosionRadius(WeaponStatMode.Manual) * GetAreaSizeMultiplier();
+        guides.Add(new WeaponGeometryGuide(WeaponStatMode.Manual, WeaponGeometryPurpose.ProjectilePath,
+            WeaponGeometryShape.Line, WeaponGeometryAnchor.Muzzle, rangeMeters: manualRange));
+        guides.Add(new WeaponGeometryGuide(WeaponStatMode.Manual, WeaponGeometryPurpose.Explosion,
+            WeaponGeometryShape.Sphere, WeaponGeometryAnchor.Muzzle, radiusMeters: manualRadius,
+            forwardOffsetMeters: manualRange));
+        if (GetFragmentDamageScale(false) > 0f && GetFragmentConeAngle() > 0f && GetFragmentConeRange(manualRadius, false) > 0f)
+            guides.Add(new WeaponGeometryGuide(WeaponStatMode.Manual, WeaponGeometryPurpose.Hitbox,
+                WeaponGeometryShape.PlanarCone, WeaponGeometryAnchor.Muzzle,
+                rangeMeters: GetFragmentConeRange(manualRadius, false), fullAngleDegrees: GetFragmentConeAngle(),
+                forwardOffsetMeters: manualRange));
+        if (IsFragmentationCapPath())
+        {
+            float range = GetProjectileTravelRange(WeaponStatMode.Ability);
+            guides.Add(new WeaponGeometryGuide(WeaponStatMode.Ability, WeaponGeometryPurpose.ProjectilePath,
+                WeaponGeometryShape.Line, WeaponGeometryAnchor.Muzzle, rangeMeters: range));
+            guides.Add(new WeaponGeometryGuide(WeaponStatMode.Ability, WeaponGeometryPurpose.Explosion,
+                WeaponGeometryShape.Sphere, WeaponGeometryAnchor.Muzzle,
+                radiusMeters: GetExplosionRadius(WeaponStatMode.Ability) * GetAreaSizeMultiplier(), forwardOffsetMeters: range));
+        }
+        else
+            guides.Add(new WeaponGeometryGuide(WeaponStatMode.Ability, WeaponGeometryPurpose.Targeting,
+                WeaponGeometryShape.PlanarCone, WeaponGeometryAnchor.Muzzle,
+                rangeMeters: GetModeRange(WeaponStatMode.Ability), fullAngleDegrees: Runtime.Data.RocketLauncher.RocketActiveConeAngle));
+        // Automatic lofts and Q child impacts depend on acquired targets/child
+        // directions. A static snapshot must not invent those future locations.
+        return new WeaponGeometrySnapshot(guides.ToArray());
+    }
+
     protected override void CollectDiagnostics(List<WeaponDiagnosticSection> sections)
     {
         RocketLauncherTuning t = Runtime.Data.RocketLauncher;
-        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticFireInterval(), Runtime.Data.BaseRange,
+        var automatic = DiagnosticMode("Automatic", 1f, GetAutomaticFireInterval(), GetModeRange(WeaponStatMode.Automatic),
             Mathf.Max(1, t.RocketAutoBaseRocketCount + GetThresholdRocketBonus() + GetFragmentationRocketBonus()), 0f,
             knockbackScale: GetPathAdjustedKnockbackScale(false));
-        var manual = DiagnosticMode("Manual", 1f, GetManualFireInterval(), Runtime.Data.BaseRange, 1, 1f,
+        var manual = DiagnosticMode("Manual", 1f, GetManualFireInterval(), GetModeRange(WeaponStatMode.Manual), 1, 1f,
             knockbackScale: GetPathAdjustedKnockbackScale(false));
-        var active = DiagnosticMode("Active Ability", t.RocketActiveDamageScale, 0f, Runtime.Data.BaseRange,
-            IsFragmentationCapPath() ? 1 : GetMaximumActiveRocketCount(t), Runtime.Data.ActiveAbilityAmmoCost, true,
-            t.RocketActiveDamageScale * GetPathAdjustedKnockbackScale(true));
+        var active = DiagnosticMode("Active Ability", 1f, 0f, IsFragmentationCapPath()
+            ? GetProjectileTravelRange(WeaponStatMode.Ability) : GetModeRange(WeaponStatMode.Ability),
+            IsFragmentationCapPath() ? 1 : GetMaximumActiveRocketCount(t), WeaponMath.GetActiveAbilityAmmoCost(Runtime), true,
+            t.RocketActiveDamageScale * GetPathAdjustedKnockbackScale(true),
+            mode: WeaponStatMode.Ability, weaponDamageScale: t.RocketActiveDamageScale);
         automatic.Add("Volley shot interval", GetAutomaticVolleyShotInterval(), " s")
             .Add("Heat bonus rockets", GetThresholdRocketBonus())
-            .Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketAutoExplosionRadius) * GetAreaSizeMultiplier(), " m")
+            .Add("Projectile travel range", GetProjectileTravelRange(WeaponStatMode.Automatic), " m")
+            .Add("Explosion radius", GetExplosionRadius(WeaponStatMode.Automatic) * GetAreaSizeMultiplier(), " m")
             .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketAutoExplosionFalloff));
-        manual.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketManualExplosionRadius) * GetAreaSizeMultiplier(), " m")
+        manual.Add("Explosion radius", GetExplosionRadius(WeaponStatMode.Manual) * GetAreaSizeMultiplier(), " m")
             .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketManualExplosionFalloff));
-        active.Add("Explosion radius", GetPathAdjustedExplosionRadius(t.RocketActiveExplosionRadius, true) * GetAreaSizeMultiplier(), " m")
-            .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketActiveExplosionFalloff))
-            .Add("Maximum locked targets", GetActiveTargetLimit(t))
-            .Add("Lock interval", t.RocketActiveTargetLockInterval, " s")
-            .Add("Count assumption", "Maximum volley; actual count depends on acquired targets");
+        active.Add("Projectile travel range", GetProjectileTravelRange(WeaponStatMode.Ability), " m")
+            .Add("Explosion radius", GetExplosionRadius(WeaponStatMode.Ability) * GetAreaSizeMultiplier(), " m")
+            .Add("Explosion falloff", GetPathAdjustedFalloff(t.RocketActiveExplosionFalloff));
+        if (!IsFragmentationCapPath())
+            active.Add("Maximum locked targets", GetActiveTargetLimit(t))
+                .Add("Lock interval", t.RocketActiveTargetLockInterval, " s")
+                .Add("Count assumption", "Maximum volley; actual count depends on acquired targets");
         if (IsFragmentationCapPath())
         {
             automatic.Add("Fragment damage scale", GetFragmentDamageScale(false), "x");
             manual.Add("Fragment damage scale", GetFragmentDamageScale(false), "x");
             active.Add("Cluster rockets", GetFragmentClusterRocketCount()).Add("Cluster damage scale", GetFragmentClusterDamageScale(), "x");
+            foreach (var section in new[] { automatic, manual, active })
+                section.Add("Fragment cone range / explosion radius", GetFragmentConeRangeMultiplier(), "x")
+                    .Add("Fragment cone full angle", GetFragmentConeAngle(), " degrees");
+            active.Add("Cluster explosion radius", GetClusterExplosionRadius() * GetAreaSizeMultiplier(), " m")
+                .Add("Cluster travel range", GetClusterTravelRange(), " m");
         }
         if (IsKineticExplosionPath())
             foreach (var section in new[] { automatic, manual, active })
-                section.Add("Vulnerability applied", "1.2x damage taken for 5 s; excluded from damage preview");
+                section.Add("Vulnerability incoming damage multiplier", GetKineticDamageTakenMultiplier(), "x")
+                    .Add("Vulnerability duration", GetKineticDuration(), " s");
+        AddFlightDiagnostics(automatic, WeaponStatMode.Automatic);
+        AddFlightDiagnostics(manual, WeaponStatMode.Manual);
+        AddFlightDiagnostics(active, WeaponStatMode.Ability);
+        if (IsFragmentationCapPath())
+        {
+            WeaponResolvedStat childLifetime = WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+                RocketOverrides?.AbilityClusterLifetimeSeconds ?? default, Pool != null ? Pool.ProjectileLifetime : 3f);
+            if (childLifetime.IsAuthored || Pool != null) active.Add("Cluster lifetime cap", childLifetime.Value, " s");
+            else active.Add("Cluster lifetime cap", "Inherited from projectile pool");
+        }
         sections.Add(automatic); sections.Add(manual); sections.Add(active);
     }
 
@@ -114,7 +177,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (Spawn == null)
             return;
 
-        if (!Targeting.TryGetTarget(Runtime, Owner, Mathf.Max(0f, Runtime.Data.BaseRange), aimDirection, out Transform target))
+        if (!Targeting.TryGetTarget(Runtime, Owner, GetModeRange(WeaponStatMode.Automatic), aimDirection, out Transform target))
         {
             ClearFireOriginAim();
             return;
@@ -128,7 +191,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             EnemyRegistry.GetAimPoint(target),
             tuning.RocketAutoBaseRocketCount + extra,
             1f,
-            GetPathAdjustedExplosionRadius(tuning.RocketAutoExplosionRadius),
+            GetExplosionRadius(WeaponStatMode.Automatic),
             GetPathAdjustedFalloff(tuning.RocketAutoExplosionFalloff),
             tuning.RocketAutoSpeedMultiplier,
             WeaponEnemyClassifier.CountsAsEliteOrBoss(target));
@@ -153,12 +216,16 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
         FireTimer = GetManualFireInterval();
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        bool authoredRange = WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Manual,
+            WeaponStatField.RangeMeters, Runtime.Data.BaseRange).IsAuthored;
         FireRocketAt(
-            Spawn.position + aimDirection.normalized * Runtime.Data.BaseRange,
+            Spawn.position + aimDirection.normalized * GetModeRange(WeaponStatMode.Manual),
             1f,
-            GetPathAdjustedExplosionRadius(tuning.RocketManualExplosionRadius),
+            GetExplosionRadius(WeaponStatMode.Manual),
             GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff),
-            tuning.RocketManualSpeedMultiplier);
+            tuning.RocketManualSpeedMultiplier,
+            false,
+            launchDirectionOverride: authoredRange ? aimDirection.normalized : (Vector3?)null);
     }
 
     // Provides immediate behavior for debug/UI callers that do not use the hold lifecycle.
@@ -177,7 +244,9 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (aimDirection.sqrMagnitude <= 0.0001f)
             return;
 
-        if (Runtime.CurrentAmmo <= 0f)
+        bool authoredFreeAbility = WeaponStatAuthoringResolver.GetLevelRow(Runtime)?.AbilityAmmoCost.Enabled == true
+            && WeaponMath.GetActiveAbilityAmmoCost(Runtime) == 0f;
+        if (Runtime.CurrentAmmo <= 0f && !authoredFreeAbility)
             return;
 
         RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
@@ -257,18 +326,19 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             _abilityTargets.Clear();
             ClearTargetMarkers();
 
-            if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
+            if (!TrySpendManualAmmo(WeaponMath.GetActiveAbilityAmmoCost(Runtime), requireFullAmount: false))
                 return;
 
             Vector3 direction = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : Spawn.forward;
             FireRocketAt(
-                Spawn.position + direction * Mathf.Max(0.01f, Runtime.Data.BaseRange),
+                Spawn.position + direction * Mathf.Max(0.01f, GetProjectileTravelRange(WeaponStatMode.Ability)),
                 tuning.RocketActiveDamageScale,
-                GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius, activeAbility: true),
+                GetExplosionRadius(WeaponStatMode.Ability),
                 GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
                 tuning.RocketActiveSpeedMultiplier,
                 false,
-                isAbilityDamage: true);
+                isAbilityDamage: true,
+                launchDirectionOverride: RocketOverrides?.AbilityProjectileTravelRangeMeters.Enabled == true ? direction : (Vector3?)null);
             CompleteActiveAbility();
             return;
         }
@@ -283,7 +353,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             return;
         }
 
-        if (!TrySpendManualAmmo(Runtime.Data.ActiveAbilityAmmoCost, requireFullAmount: false))
+        if (!TrySpendManualAmmo(WeaponMath.GetActiveAbilityAmmoCost(Runtime), requireFullAmount: false))
         {
             CancelTargetingFeedback(aimDirection, tuning);
             ClearTargetMarkers();
@@ -300,7 +370,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             bool fired = FireRocketAt(
                 target.position,
                 tuning.RocketActiveDamageScale,
-                GetPathAdjustedExplosionRadius(tuning.RocketActiveExplosionRadius, activeAbility: true),
+                GetExplosionRadius(WeaponStatMode.Ability),
                 GetPathAdjustedFalloff(tuning.RocketActiveExplosionFalloff),
                 tuning.RocketActiveSpeedMultiplier,
                 WeaponEnemyClassifier.CountsAsEliteOrBoss(target),
@@ -331,7 +401,12 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     // Returns manual fire interval boosted by heat percentage.
     private float GetManualFireInterval()
     {
-        float baseInterval = GetFireInterval();
+        float legacyRate = Runtime.Data.BaseAttackRate * WeaponMath.GetAttackRateMultiplier(Runtime);
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime, WeaponStatMode.Manual,
+            WeaponStatField.AttackCyclesPerSecond, legacyRate);
+        float playerSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
+        float baseInterval = rate.IsAuthored ? 1f / (rate.Value * playerSpeed)
+            : 1f / Mathf.Max(0.05f, Mathf.Max(0.01f, rate.Value) * playerSpeed);
         float heatFactor = Heat != null ? 1f + Heat.NormalizedHeat : 1f;
         return baseInterval / Mathf.Max(0.2f, heatFactor);
     }
@@ -339,9 +414,13 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     private float GetAutomaticFireInterval()
     {
         float attackSpeed = WeaponMath.GetStatScale(Stats, StatType.AttackSpeedMultiplier);
-        float weaponRate = Mathf.Max(0.01f,
-            Mathf.Max(0.01f, Runtime.Data.RocketLauncher.RocketAutoBurstsPerSecond) * WeaponMath.GetAttackRateMultiplier(Runtime));
-        return 1f / Mathf.Max(0.05f, weaponRate * attackSpeed) / Mathf.Max(0.01f, GetHeatFireRateMultiplier());
+        float legacyRate = Mathf.Max(0.01f, Runtime.Data.RocketLauncher.RocketAutoBurstsPerSecond)
+            * WeaponMath.GetAttackRateMultiplier(Runtime);
+        WeaponResolvedStat rate = WeaponStatAuthoringResolver.ResolveModeValue(Runtime,
+            WeaponStatMode.Automatic, WeaponStatField.AttackCyclesPerSecond, legacyRate);
+        float interval = rate.IsAuthored ? 1f / (rate.Value * attackSpeed)
+            : 1f / Mathf.Max(0.05f, Mathf.Max(0.01f, rate.Value) * attackSpeed);
+        return interval / Mathf.Max(0.01f, GetHeatFireRateMultiplier());
     }
 
     private float GetAutomaticVolleyShotInterval() =>
@@ -374,7 +453,8 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
 
     private int GetFragmentationRocketBonus()
     {
-        return IsFragmentationCapPath() ? 1 : 0;
+        return IsFragmentationCapPath() ? WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            RocketOverrides?.FragmentAdditionalAutomaticRockets ?? default, 1).Value : 0;
     }
 
     private float GetPathAdjustedExplosionRadius(float radius)
@@ -385,41 +465,47 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
     private float GetPathAdjustedExplosionRadius(float radius, bool activeAbility)
     {
         if (IsKineticExplosionPath())
-            radius *= 2f;
+            radius *= WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.KineticExplosionRadiusMultiplier ?? default, 2f).Value;
         if (IsFragmentationCapPath() && !activeAbility)
-            radius *= 0.5f;
+            radius *= WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.FragmentOrdinaryExplosionRadiusMultiplier ?? default, .5f).Value;
         return radius;
     }
 
     private float GetPathAdjustedFalloff(float falloff)
     {
         if (IsKineticExplosionPath())
-            return Mathf.Clamp01(falloff * 0.65f);
+            return Mathf.Clamp01(falloff * WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+                RocketOverrides?.KineticExplosionFalloffMultiplier ?? default, .65f).Value);
         return falloff;
     }
 
     private float GetPathAdjustedKnockbackScale(bool activeAbility)
     {
         if (IsKineticExplosionPath())
-            return activeAbility ? 0.5f : 3f;
+            return activeAbility
+                ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.KineticAbilityKnockbackMultiplier ?? default, .5f).Value
+                : WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.KineticOrdinaryKnockbackMultiplier ?? default, 3f).Value;
         if (IsFragmentationCapPath())
-            return 0.75f;
+            return WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.FragmentKnockbackMultiplier ?? default, .75f).Value;
         return 1f;
     }
 
     private float GetFragmentDamageScale(bool activeAbility)
     {
-        return IsFragmentationCapPath() && !activeAbility ? 1f : 0f;
+        return IsFragmentationCapPath() && !activeAbility
+            ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.FragmentDamageMultiplier ?? default, 1f).Value : 0f;
     }
 
     private int GetFragmentClusterRocketCount()
     {
-        return IsFragmentationCapPath() ? 20 : 0;
+        return IsFragmentationCapPath() ? WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            RocketOverrides?.AbilityClusterRocketCount ?? default, 20).Value : 0;
     }
 
     private float GetFragmentClusterDamageScale()
     {
-        return IsFragmentationCapPath() ? 0.5f : 0f;
+        return IsFragmentationCapPath() ? WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+            RocketOverrides?.AbilityClusterDamageMultiplier ?? default, .5f).Value : 0f;
     }
 
     private float GetFragmentConeRange(float scaledExplosionRadius, bool activeAbility)
@@ -427,8 +513,84 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (!IsFragmentationCapPath() || activeAbility)
             return 0f;
 
-        return scaledExplosionRadius * 4f;
+        return scaledExplosionRadius * GetFragmentConeRangeMultiplier();
     }
+
+    private WeaponRocketStatOverrides RocketOverrides => WeaponStatAuthoringResolver.GetLevelRow(Runtime)?.Rocket;
+
+    private float GetModeRange(WeaponStatMode mode) => Mathf.Max(0f,
+        WeaponStatAuthoringResolver.ResolveModeValue(Runtime, mode, WeaponStatField.RangeMeters,
+            Runtime.Data.BaseRange).Value);
+
+    // Acquisition and flight were linked by BaseRange. An explicit acquisition edit
+    // must not also shorten an already distinct projectile or Q child flight.
+    private float GetProjectileTravelRange(WeaponStatMode mode)
+    {
+        if (mode == WeaponStatMode.Manual) return GetModeRange(mode);
+        WeaponRocketStatOverrides values = RocketOverrides;
+        WeaponOptionalFloat value = mode == WeaponStatMode.Automatic
+            ? values?.AutomaticProjectileTravelRangeMeters ?? default
+            : values?.AbilityProjectileTravelRangeMeters ?? default;
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime, value, Mathf.Max(0f, Runtime.Data.BaseRange)).Value;
+    }
+
+    private float GetExplosionRadius(WeaponStatMode mode)
+    {
+        RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
+        float legacy = mode == WeaponStatMode.Automatic ? tuning.RocketAutoExplosionRadius
+            : mode == WeaponStatMode.Manual ? tuning.RocketManualExplosionRadius : tuning.RocketActiveExplosionRadius;
+        legacy = GetPathAdjustedExplosionRadius(legacy, mode == WeaponStatMode.Ability);
+        return WeaponStatAuthoringResolver.ResolveModeValue(Runtime, mode, WeaponStatField.ExplosionRadiusMeters, legacy).Value;
+    }
+
+    private float GetClusterExplosionRadius() => WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+        RocketOverrides?.AbilityClusterExplosionRadiusMeters ?? default,
+        GetPathAdjustedExplosionRadius(Runtime.Data.RocketLauncher.RocketManualExplosionRadius)).Value;
+
+    private float GetClusterTravelRange() => WeaponStatAuthoringResolver.ResolveOptional(Runtime,
+        RocketOverrides?.AbilityClusterTravelRangeMeters ?? default, Mathf.Max(0f, Runtime.Data.BaseRange * 0.45f)).Value;
+
+    private WeaponResolvedStat GetProjectileLifetime(WeaponStatMode mode)
+    {
+        WeaponRocketStatOverrides values = RocketOverrides;
+        WeaponOptionalFloat authored = mode == WeaponStatMode.Automatic ? values?.AutomaticProjectileLifetimeSeconds ?? default
+            : mode == WeaponStatMode.Manual ? values?.ManualProjectileLifetimeSeconds ?? default
+            : values?.AbilityProjectileLifetimeSeconds ?? default;
+        return WeaponStatAuthoringResolver.ResolveOptional(Runtime, authored, Pool != null ? Pool.ProjectileLifetime : 3f);
+    }
+
+    private void ConfigureAuthoredFlightLimits(Projectile projectile, WeaponStatMode mode, float travelRange)
+    {
+        bool authoredTravel = mode == WeaponStatMode.Manual
+            ? WeaponStatAuthoringResolver.ResolveModeValue(Runtime, mode, WeaponStatField.RangeMeters, Runtime.Data.BaseRange).IsAuthored
+            : mode == WeaponStatMode.Automatic ? RocketOverrides?.AutomaticProjectileTravelRangeMeters.Enabled == true
+            : RocketOverrides?.AbilityProjectileTravelRangeMeters.Enabled == true;
+        if (authoredTravel) projectile.ConfigureMaxTravel(travelRange, true, clampEndpoint: true);
+        WeaponResolvedStat lifetime = GetProjectileLifetime(mode);
+        if (lifetime.IsAuthored) projectile.ConfigureLifetime(lifetime.Value);
+    }
+
+    private void AddFlightDiagnostics(WeaponDiagnosticSection section, WeaponStatMode mode)
+    {
+        WeaponResolvedStat lifetime = GetProjectileLifetime(mode);
+        if (lifetime.IsAuthored || Pool != null) section.Add("Projectile lifetime cap", lifetime.Value, " s");
+        else section.Add("Projectile lifetime cap", "Inherited from projectile pool");
+        if (mode == WeaponStatMode.Automatic && !lifetime.IsAuthored)
+            section.Add("Inherited automatic lifetime", "Pool cap extends to account for lofted flight");
+        section.Add("Flight termination", "First collision, maximum travel, or lifetime expiry");
+    }
+
+    private float GetKineticDuration() => IsKineticExplosionPath()
+        ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.KineticDebuffDurationSeconds ?? default, 5f).Value : 0f;
+
+    private float GetKineticDamageTakenMultiplier() => IsKineticExplosionPath()
+        ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.KineticDamageTakenMultiplier ?? default, 1.2f).Value : 1f;
+
+    private float GetFragmentConeRangeMultiplier() => IsFragmentationCapPath()
+        ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.FragmentConeRangePerExplosionRadius ?? default, 4f).Value : 0f;
+
+    private float GetFragmentConeAngle() => IsFragmentationCapPath()
+        ? WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.FragmentConeAngleDegrees ?? default, 45f).Value : 0f;
 
     private bool IsKineticExplosionPath() =>
         Runtime != null && Runtime.HasAdvancedPath && Runtime.SelectedPath == WeaponUpgradePath.PathA;
@@ -555,7 +717,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         EnemyRegistry.CollectClosestOnPlaneInCone(
             Spawn.position,
             aimDirection,
-            Mathf.Max(0f, Runtime.Data.BaseRange),
+            GetModeRange(WeaponStatMode.Ability),
             tuning.RocketActiveConeAngle,
             IsFragmentationCapPath() ? 1 : Mathf.Max(requestedTargetCount, 64),
             _abilityCandidates);
@@ -600,7 +762,7 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 continue;
 
             if (marker != null)
-                Object.Destroy(marker.gameObject);
+                DestroyTargetMarker(marker);
             _targetMarkers.RemoveAt(i);
         }
 
@@ -641,11 +803,17 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         for (int i = 0; i < _targetMarkers.Count; i++)
         {
             if (_targetMarkers[i] != null)
-                Object.Destroy(_targetMarkers[i].gameObject);
+                DestroyTargetMarker(_targetMarkers[i]);
         }
 
         _targetMarkers.Clear();
         _markedTargets.Clear();
+    }
+
+    private static void DestroyTargetMarker(RocketTargetMarkerVfx marker)
+    {
+        if (Application.isPlaying) Object.Destroy(marker.gameObject);
+        else Object.DestroyImmediate(marker.gameObject);
     }
 
     private Transform GetFirstActiveTarget()
@@ -699,13 +867,14 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         bool eliteOrBoss,
         bool isAbilityDamage = false,
         bool emitShotFeedback = true,
-        bool automaticPipeLaunch = false)
+        bool automaticPipeLaunch = false,
+        Vector3? launchDirectionOverride = null)
     {
         if (Pool == null || Spawn == null)
             return false;
 
         Vector3 launchPosition = Spawn.position;
-        Vector3 direction = targetPosition - launchPosition;
+        Vector3 direction = launchDirectionOverride ?? (targetPosition - launchPosition);
         if (direction.sqrMagnitude <= 0.0001f)
             return false;
 
@@ -714,7 +883,9 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             direction = Vector3.up;
         Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
         float scaledExplosionRadius = explosionRadius * GetAreaSizeMultiplier();
-        float travelRange = Mathf.Max(0f, Runtime.Data.BaseRange);
+        WeaponStatMode mode = isAbilityDamage ? WeaponStatMode.Ability
+            : automaticPipeLaunch ? WeaponStatMode.Automatic : WeaponStatMode.Manual;
+        float travelRange = GetProjectileTravelRange(mode);
         float pathKnockback = GetPathAdjustedKnockbackScale(isAbilityDamage);
         bool usesCluster = IsFragmentationCapPath() && isAbilityDamage;
         int clusterContributorCount = usesCluster ? GetFragmentClusterRocketCount() : 0;
@@ -722,27 +893,31 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
             DamageFeedbackKind.Explosion,
             1 + clusterContributorCount);
         WeaponDamageContext damageContext = CreateDamageContext(
-                damageScale,
+                1f,
                 isAbilityDamage,
-                damageScale * pathKnockback)
+                damageScale * pathKnockback,
+                mode: mode,
+                weaponDamageScale: damageScale)
             .WithFeedbackMetadata(actionSequenceId, DamageFeedbackKind.Explosion);
         int finalDamage = damageContext.EstimateDamage(eliteOrBoss);
         float knockback = damageContext.CalculateKnockback(finalDamage);
-        float amplifier = IsKineticExplosionPath() ? 1.2f : 1f;
-        float amplifierDuration = IsKineticExplosionPath() ? 5f : 0f;
+        float amplifier = GetKineticDamageTakenMultiplier();
+        float amplifierDuration = GetKineticDuration();
         float fragmentConeRange = GetFragmentConeRange(scaledExplosionRadius, isAbilityDamage);
         float fragmentDamageScale = GetFragmentDamageScale(isAbilityDamage);
-        float fragmentConeAngle = fragmentDamageScale > 0f ? 45f : 0f;
+        float fragmentConeAngle = fragmentDamageScale > 0f ? GetFragmentConeAngle() : 0f;
 
         if (usesCluster)
         {
             RocketLauncherTuning tuning = Runtime.Data.RocketLauncher;
-            float clusterRadius = GetPathAdjustedExplosionRadius(tuning.RocketManualExplosionRadius) * GetAreaSizeMultiplier();
+            float clusterRadius = GetClusterExplosionRadius() * GetAreaSizeMultiplier();
             float clusterDamageScale = GetFragmentClusterDamageScale();
             WeaponDamageContext clusterDamageContext = CreateDamageContext(
-                    damageScale * clusterDamageScale,
+                    clusterDamageScale,
                     isAbilityDamage,
-                    damageScale * GetPathAdjustedKnockbackScale(false))
+                    damageScale * GetPathAdjustedKnockbackScale(false),
+                    mode: WeaponStatMode.Ability,
+                    weaponDamageScale: damageScale)
                 .WithFeedbackMetadata(actionSequenceId, DamageFeedbackKind.Fragment);
             int clusterDamage = clusterDamageContext.EstimateDamage(eliteOrBoss);
             float clusterKnockback = clusterDamageContext.CalculateKnockback(clusterDamage);
@@ -765,11 +940,13 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 GetFragmentClusterRocketCount(),
                 clusterDamage,
                 clusterRadius,
-                GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff),
+                WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.AbilityClusterFalloff ?? default,
+                    GetPathAdjustedFalloff(tuning.RocketManualExplosionFalloff)).Value,
                 clusterKnockback,
-                tuning.RocketManualSpeedMultiplier,
-                Mathf.Max(0f, Runtime.Data.BaseRange * 0.45f),
-                GetFragmentDamageScale(activeAbility: false) > 0f ? 45f : 0f,
+                WeaponStatAuthoringResolver.ResolveOptional(Runtime, RocketOverrides?.AbilityClusterSpeedMultiplier ?? default,
+                    tuning.RocketManualSpeedMultiplier).Value,
+                GetClusterTravelRange(),
+                GetFragmentDamageScale(activeAbility: false) > 0f ? GetFragmentConeAngle() : 0f,
                 GetFragmentConeRange(clusterRadius, activeAbility: false),
                 GetFragmentDamageScale(activeAbility: false),
                 5f,
@@ -778,6 +955,14 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
                 out Projectile clusterRocket);
             if (spawned)
             {
+                ConfigureAuthoredFlightLimits(clusterRocket, mode, travelRange);
+                if (RocketOverrides?.AbilityClusterLifetimeSeconds.Enabled == true)
+                    clusterRocket.ConfigureClusterLifetime(RocketOverrides.AbilityClusterLifetimeSeconds.Value);
+                if (RocketOverrides?.AbilityClusterTravelRangeMeters.Enabled == true)
+                    clusterRocket.ConfigureClusterTravelEndpointClamp();
+                if (RocketOverrides?.AbilityClusterExplosionRadiusMeters.Enabled == true
+                    || RocketOverrides?.FragmentOrdinaryExplosionRadiusMultiplier.Enabled == true)
+                    clusterRocket.ConfigureExactClusterRadius(clusterRadius);
                 clusterRocket.ConfigureDamageFeedback(
                     actionSequenceId,
                     DamageFeedbackKind.Explosion,
@@ -813,7 +998,14 @@ public sealed class RocketLauncherWeapon : BasicProjectileWeapon, IHoldActiveAbi
         if (rocketSpawned)
         {
             if (automaticPipeLaunch)
+            {
                 rocket.ConfigureAutomaticRocketLaunch(targetPosition, GetAutomaticLaunchClearanceHeight(), Owner);
+                // Inherited reach includes the historical loft compensation. An
+                // explicit travel override is literal distance along that arc.
+                if (RocketOverrides?.AutomaticProjectileTravelRangeMeters.Enabled == true)
+                    rocket.ConfigureMaxTravel(travelRange, true);
+            }
+            ConfigureAuthoredFlightLimits(rocket, mode, travelRange);
             rocket.ConfigureDamageFeedback(
                 actionSequenceId,
                 DamageFeedbackKind.Explosion,

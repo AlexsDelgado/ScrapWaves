@@ -5,14 +5,14 @@ public partial class BasicProjectileWeapon
 {
     // A detached shallow copy shares read-only tuning/dependencies, but owns its
     // hypothetical runtime. Existing mode getters therefore stay authoritative.
-    public WeaponDiagnosticsSnapshot CaptureUpgradeDiagnostics(int targetLevel)
+    public WeaponDiagnosticsSnapshot CaptureUpgradeDiagnostics(int targetLevel, WeaponUpgradePath? targetPath = null)
     {
         if (Runtime?.Data == null) return CaptureDiagnostics();
         var preview = (BasicProjectileWeapon)MemberwiseClone();
         preview.Runtime = new WeaponInstance
         {
             Data = Runtime.Data, Level = Mathf.Clamp(targetLevel, 1, 10),
-            SelectedPath = Runtime.SelectedPath, State = Runtime.State,
+            SelectedPath = targetPath ?? Runtime.SelectedPath, State = Runtime.State,
             CurrentAmmo = Runtime.CurrentAmmo, ManualCooldownTimer = Runtime.ManualCooldownTimer,
             AbilityCooldownTimer = Runtime.AbilityCooldownTimer
         };
@@ -55,24 +55,36 @@ public partial class BasicProjectileWeapon
     // No random roll, target lookup, damage reporting, or gameplay-state writes.
     protected WeaponDiagnosticSection DiagnosticMode(string name, float damageScale, float interval,
         float range, int count, float ammo, bool ability = false, float knockbackScale = -1f,
-        float eliteDamageScale = 1f, float bossDamageScale = 1f)
+        float eliteDamageScale = 1f, float bossDamageScale = 1f, WeaponStatMode? mode = null, float weaponDamageScale = 1f)
     {
         var section = new WeaponDiagnosticSection(name);
+        WeaponStatMode resolvedMode = mode ?? (ability ? WeaponStatMode.Ability
+            : name == "Manual" ? WeaponStatMode.Manual : WeaponStatMode.Automatic);
         if (Stats != null && Stats.GetDefinition(StatType.DamageMultiplier) != null
             && Stats.GetDefinition(StatType.EliteDamageMultiplier) != null)
         {
             var context = new WeaponDamageContext(Stats, Runtime, false, 1f, damageScale, ability,
-                knockbackScale >= 0f ? knockbackScale : damageScale);
+                knockbackScale >= 0f ? knockbackScale : damageScale * weaponDamageScale, mode: resolvedMode, weaponDamageScale: weaponDamageScale);
+            section.Add("Damage source", WeaponStatAuthoringResolver.ResolveModeValue(Runtime, resolvedMode,
+                WeaponStatField.Damage, 0f).Provenance);
+            section.Add("Knockback source", WeaponStatAuthoringResolver.ResolveModeValue(Runtime, resolvedMode,
+                WeaponStatField.KnockbackStrength, 0f).Provenance);
             section.Add("Damage / hit (non-critical)", context.EstimateDamage(false));
             section.Add("Damage / hit (elite, non-critical)", context.EstimateDamage(true, eliteDamageScale));
             if (!Mathf.Approximately(eliteDamageScale, bossDamageScale))
                 section.Add("Damage / hit (boss, non-critical)", context.EstimateDamage(true, bossDamageScale));
             if (CanCrit() && Stats.GetDefinition(StatType.CriticalDamage) != null)
             {
-                float criticalMultiplier = Mathf.Max(1f, Stats.GetStat(StatType.CriticalDamage) * GetCritMultiplierOverride());
+                WeaponResolvedStat criticalFactor = WeaponStatAuthoringResolver.ResolveCriticalDamageMultiplier(Runtime, GetCritMultiplierOverride());
+                float criticalMultiplier = Mathf.Max(1f, Stats.GetStat(StatType.CriticalDamage) * criticalFactor.Value);
                 section.Add("Damage / hit (critical)", context.WithScales(criticalMultiplier, 1f).EstimateDamage(false));
+                section.Add("Critical damage source", criticalFactor.Provenance);
                 if (Stats.GetDefinition(StatType.CriticalChance) != null)
-                    section.Add("Critical chance", Mathf.Clamp01(Stats.GetStat(StatType.CriticalChance)) * 100f, "%");
+                {
+                    WeaponResolvedStat chance = WeaponStatAuthoringResolver.ResolveCriticalChance(Runtime, Stats.GetStat(StatType.CriticalChance));
+                    section.Add("Critical chance", chance.Value * 100f, "%");
+                    section.Add("Critical chance source", chance.Provenance);
+                }
             }
             else section.Add("Critical hits", "Unavailable");
             if (Stats.GetDefinition(StatType.Knockback) != null)
@@ -85,7 +97,12 @@ public partial class BasicProjectileWeapon
             section.Add("Actions / ticks per second", 1f / interval);
         }
         section.Add("Range", range, " m").Add("Hits / projectiles per action", count).Add("Ammo / action", ammo);
-        if (ability) section.Add("Ability cooldown duration", WeaponMath.GetAbilityCooldownDuration(Runtime, Stats), " s");
+        if (ability)
+        {
+            section.Add("Ability cooldown duration", WeaponMath.GetAbilityCooldownDuration(Runtime, Stats), " s");
+            section.Add("Ability cooldown source", WeaponStatAuthoringResolver.ResolveAbilityCooldownSeconds(Runtime).Provenance);
+            section.Add("Ability ammo cost source", WeaponStatAuthoringResolver.ResolveAbilityAmmoCost(Runtime).Provenance);
+        }
         return section;
     }
 }

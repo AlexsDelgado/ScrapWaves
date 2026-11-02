@@ -21,8 +21,8 @@ Shader "ScrapWaves/GameFeel/Manual Flame Sprite"
             CBUFFER_START(UnityPerMaterial)
                 float _CloudAge;
             CBUFFER_END
-            struct Attributes { float4 positionOS : POSITION; float2 uv : TEXCOORD0; half4 color : COLOR; };
-            struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; float3 positionWS : TEXCOORD1; half4 color : COLOR; };
+            struct Attributes { float4 positionOS : POSITION; float4 uv : TEXCOORD0; float4 damageSphere : TEXCOORD1; half4 color : COLOR; };
+            struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; float3 positionWS : TEXCOORD1; float4 damageSphere : TEXCOORD2; half4 color : COLOR; };
             float Hash(float2 p)
             {
                 p = frac(p * float2(123.34, 456.21));
@@ -45,12 +45,17 @@ Shader "ScrapWaves/GameFeel/Manual Flame Sprite"
                 Varyings output;
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.positionCS = TransformWorldToHClip(output.positionWS);
-                output.uv = input.uv;
+                output.uv = input.uv.xy;
+                output.damageSphere = input.damageSphere;
                 output.color = input.color;
                 return output;
             }
             half4 Frag(Varyings input) : SV_Target
             {
+                // A trail sample or billboard may extend beyond its live sphere; fire pixels cannot.
+                float radius = max(.0001, input.damageSphere.w);
+                float normalizedDistance = distance(input.positionWS, input.damageSphere.xyz) / radius;
+                clip(1 - normalizedDistance);
                 float2 p = input.uv * 2 - 1;
                 float2 advect = float2(_CloudAge * .42, -_CloudAge * 2.1);
                 float2 anchor = input.positionWS.xz * .38 + input.positionWS.y * .17;
@@ -63,6 +68,7 @@ Shader "ScrapWaves/GameFeel/Manual Flame Sprite"
                 float erosion = smoothstep(.21,.69,density + envelope * .3);
                 float detail = SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,float2(.55+p.x*.06,.5+p.y*.16)).g;
                 float alpha = input.color.a * envelope * erosion * lerp(.85,1.1,detail);
+                alpha *= 1 - smoothstep(.82, 1, normalizedDistance);
                 float hot = smoothstep(.55,.83,density + envelope * .12);
                 float burning = smoothstep(.15,.5,max(input.color.r,max(input.color.g,input.color.b)));
                 float3 pale = lerp(input.color.rgb,float3(1,.95,.72),.36);

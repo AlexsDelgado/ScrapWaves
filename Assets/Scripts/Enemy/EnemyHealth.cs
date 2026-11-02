@@ -6,6 +6,8 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     [SerializeField, Min(0f)] private float _damageTakenMultiplier = 1f;
 
     private int _prefabMaxHealth;
+    private float _spawnHealthMultiplier = 1f;
+    private float _difficultyHealthMultiplier = 1f;
     private int _currentHealth;
     private bool _isInvincible;
     private bool _blockDotWhileInvincible;
@@ -35,12 +37,19 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     public void ApplyConfiguredMaxHealth(int maxHealth)
     {
         _prefabMaxHealth = Mathf.Max(1, maxHealth);
+        _spawnHealthMultiplier = _difficultyHealthMultiplier = 1f;
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
     }
 
     /// <summary>Se invoca una vez al pasar a 0 HP, antes del despawn / desactivar el objeto.</summary>
     public event System.Action OnDied;
+
+    /// <summary>A real death, before per-enemy listeners can transition the encounter or reuse the pool lease.</summary>
+    public static event System.Action<EnemyHealth> AnyDied;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetDeathNotification() => AnyDied = null;
 
     private void Awake()
     {
@@ -49,6 +58,10 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     private void OnEnable()
     {
+        // Re-enabling the same randomized life must not reset its health or variation.
+        if (TryGetComponent(out EnemyStatRandomizer variation) && variation.HasSampledForSpawn)
+            return;
+        _spawnHealthMultiplier = _difficultyHealthMultiplier = 1f;
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
         _isInvincible = false;
@@ -59,14 +72,14 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
     /// <summary>Tras salir del pool; <see cref="DifficultyManager"/> ajusta vida según la partida.</summary>
     public void ConfigureDifficultyForSpawn(float healthMultiplier)
     {
-        int newMax = Mathf.Max(1, Mathf.RoundToInt(_prefabMaxHealth * healthMultiplier));
-        _maxHealth = newMax;
-        _currentHealth = newMax;
+        _difficultyHealthMultiplier = healthMultiplier;
+        RefillScaledHealth();
     }
 
     /// <summary>Reset de estado al reutilizar desde pool (antes de modifiers de dificultad).</summary>
     public void PrepareForPoolSpawn()
     {
+        _spawnHealthMultiplier = _difficultyHealthMultiplier = 1f;
         _maxHealth = _prefabMaxHealth;
         _currentHealth = _maxHealth;
         _isInvincible = false;
@@ -74,9 +87,23 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         _lastDamagingWeaponId = null;
     }
 
+    /// <summary>Spawn-only variation; leaves the authored HP and difficulty factor intact.</summary>
+    public void SetSpawnHealthMultiplier(float multiplier)
+    {
+        _spawnHealthMultiplier = float.IsNaN(multiplier) || float.IsInfinity(multiplier) || multiplier <= 0f
+            ? 1f : multiplier;
+        RefillScaledHealth();
+    }
+
+    private void RefillScaledHealth()
+    {
+        _maxHealth = Mathf.Max(1, Mathf.RoundToInt(_prefabMaxHealth * _difficultyHealthMultiplier * _spawnHealthMultiplier));
+        _currentHealth = _maxHealth;
+    }
+
     public void NotifyDamagedByWeapon(string weaponId)
     {
-        if (!string.IsNullOrEmpty(weaponId))
+        if (!string.IsNullOrEmpty(weaponId) && !EnemyEmergence.BlocksGameplay(this))
             _lastDamagingWeaponId = weaponId;
     }
 
@@ -130,6 +157,11 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         if (request.ModifiedDamage <= 0 || healthBefore <= 0)
             return DamageApplicationResult.Rejected(in request, healthBefore);
 
+        // Emergence is an independent all-channel immunity, including hit zones and DoT.
+        // Do not modify the invincibility flags owned by enemy combat behaviors.
+        if (EnemyEmergence.BlocksGameplay(this))
+            return DamageApplicationResult.BlockedResult(in request, healthBefore);
+
         bool blocked = request.Channel == DamageChannel.Direct
             ? _isInvincible
             : _isInvincible && _blockDotWhileInvincible;
@@ -148,7 +180,8 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         DamageApplicationResult result = DamageApplicationResult.FromHealthDelta(
             in request,
             healthBefore,
-            healthAfter);
+            healthAfter,
+            resolvedDamage: scaledDamage);
 
         if (result.Killed)
         {
@@ -174,6 +207,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     private void CompleteDeath()
     {
+        AnyDied?.Invoke(this);
         AudioManager.TryPlayEnemyDeath(gameObject);
         ChallengeProgressTracker.NotifyEnemyKilled(this);
         OnDied?.Invoke();

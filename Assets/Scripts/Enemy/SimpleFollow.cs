@@ -19,8 +19,10 @@ public class SimpleFollow : MonoBehaviour
 
     private float _baseSpeed;
     private float _difficultySpeedMultiplier = 1f;
+    private EnemyStatRandomizer _statRandomizer;
     private Rigidbody _rb;
     private EnemyKnockbackReceiver _knockback;
+    private EnemyEmergence _emergence;
     private float _slotAngleDeg;
     private float _weavePhase;
     private int _sampleSeed;
@@ -29,7 +31,9 @@ public class SimpleFollow : MonoBehaviour
     {
         _rb = GetComponent<Rigidbody>();
         _knockback = GetComponent<EnemyKnockbackReceiver>();
+        _emergence = GetComponent<EnemyEmergence>();
         _baseSpeed = _speed;
+        _statRandomizer = GetComponent<EnemyStatRandomizer>();
         _sampleSeed = GetInstanceID();
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
@@ -55,6 +59,7 @@ public class SimpleFollow : MonoBehaviour
 
     public void PrepareForSpawn()
     {
+        _emergence = GetComponent<EnemyEmergence>();
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
         _difficultySpeedMultiplier = 1f;
@@ -92,6 +97,11 @@ public class SimpleFollow : MonoBehaviour
 
     public void BrainFixedUpdate(float fixedDeltaTime)
     {
+        if (_emergence == null)
+            _emergence = GetComponent<EnemyEmergence>();
+        if (_emergence != null && _emergence.BlocksGameplayNow)
+            return;
+
         if (_rb == null)
             return;
 
@@ -136,6 +146,7 @@ public class SimpleFollow : MonoBehaviour
 
         float speed = _baseSpeed
             * _difficultySpeedMultiplier
+            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
             * WeaponMovementSlowStatus.GetSpeedMultiplier(transform)
             * DebugSpeedTool.EnemyScale;
         Vector3 nextPos = transform.position + dir * speed * fixedDeltaTime + knockbackDisplacement;

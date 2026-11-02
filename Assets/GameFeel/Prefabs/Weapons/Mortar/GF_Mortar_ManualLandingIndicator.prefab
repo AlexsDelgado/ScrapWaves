@@ -419,6 +419,9 @@ MonoBehaviour:
   - {fileID: 2385800413840451104}
   - {fileID: 8125584161768151194}
   _minimumPulsePeriod: 0.12
+  _groundSurfaceOffset: 0.015
+  _groundProjectionDistance: 3
+  _maximumSurfaceDeviation: 0.06
 --- !u!1 &6387872707562772097
 GameObject:
   m_ObjectHideFlags: 0

@@ -11,19 +11,11 @@ using UnityEngine;
 /// </summary>
 public static class EnemySkinnedAnimBuilder
 {
-    private const string ChaserVisualPath = "Assets/Arte/EnemiesAnim/LarguiruchoRigWalk_anim.fbx";
-    private const string ChaserControllerPath = "Assets/Arte/EnemiesAnim/ChaserWalk.controller";
+    private const string ChaserControllerPath = LarguiruchoAnimationAuthoring.ControllerPath;
     private const string DroneVisualPath = "Assets/Arte/EnemiesAnim/Avispa_Vuelo.fbx";
     private const string DroneControllerPath = "Assets/Arte/EnemiesAnim/DroneFly.controller";
     private const string SlimeVisualPath = "Assets/Arte/EnemiesAnim/Basurita_MiniSalto.fbx";
     private const string SlimeControllerPath = "Assets/Arte/EnemiesAnim/SlimeHop.controller";
-
-    private static readonly string[] ChaserPrefabs =
-    {
-        "Assets/Prefabs/Chaser.prefab",
-        "Assets/Prefabs/Chaser (variant).prefab",
-        "Assets/Prefabs/Chaser_Elite.prefab"
-    };
 
     private static readonly string[] DronePrefabs =
     {
@@ -52,14 +44,13 @@ public static class EnemySkinnedAnimBuilder
         Debug.Log("ENEMY_SKINNED_ANIM_FIX_COMPLETE");
     }
 
-    [MenuItem("Tools/ScrapWaves/Build Chaser Walk Animation")]
+    [MenuItem("Tools/ScrapWaves/Build Chaser Animations")]
     public static void BuildChaserMenu()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
-            throw new InvalidOperationException("Build Chaser walk animation in Edit Mode.");
+            throw new InvalidOperationException("Build Chaser animations in Edit Mode.");
         BuildChaser();
-        AssetDatabase.SaveAssets();
-        Debug.Log("CHASER_WALK_BUILD_COMPLETE: " + ChaserControllerPath);
+        Debug.Log("CHASER_ANIMATIONS_BUILD_COMPLETE: " + ChaserControllerPath);
     }
 
     [MenuItem("Tools/ScrapWaves/Build Slime Hop Animation")]
@@ -81,20 +72,6 @@ public static class EnemySkinnedAnimBuilder
         AssetDatabase.SaveAssets();
         Debug.Log("DRONE_FLY_BUILD_COMPLETE: " + DroneControllerPath);
     }
-
-    // With Y90 facing, measured height at scale 1 ≈ 1.27m. Target default ≈ player (2m).
-    private const float ChaserNativeHeight = 1.27f;
-    private const float ChaserTargetHeight = 2f;
-    private static readonly float ChaserBaseScale = ChaserTargetHeight / ChaserNativeHeight; // ≈ 1.57
-
-    // Y90: mesh faces +X in Blender; gameplay forward is +Z (EnemyFollow LookRotation).
-    private static readonly VisualPose ChaserPoseDefault = new(
-        localPosition: Vector3.zero,
-        localEuler: new Vector3(0f, 90f, 0f),
-        localScale: Vector3.one * ChaserBaseScale);
-
-    // Variant + Elite: double height via root scale ×2 (visual stays at default size).
-    private static readonly Vector3 ChaserLargeRootScale = new(2f, 2f, 2f);
 
     private static readonly VisualPose DronePoseDefault = new(
         localPosition: new Vector3(0f, 1f, 0f),
@@ -118,26 +95,7 @@ public static class EnemySkinnedAnimBuilder
         }
     }
 
-    private static void BuildChaser()
-    {
-        ConfigureSkinnedAnimImport(ChaserVisualPath);
-        AnimatorController controller = BuildSingleStateController(ChaserControllerPath, ChaserVisualPath, "Walk");
-        foreach (string prefabPath in ChaserPrefabs)
-        {
-            bool large = prefabPath.Contains("Elite") || prefabPath.Contains("(variant)");
-            Vector3? rootScale = large ? ChaserLargeRootScale : Vector3.one;
-            ReplaceVisual(
-                prefabPath,
-                "Larguirucho",
-                ChaserVisualPath,
-                "Larguirucho",
-                controller,
-                ChaserPoseDefault,
-                hidePlaceholders: new[] { "Cylinder" },
-                rootLocalScale: rootScale,
-                preserveExistingPose: false);
-        }
-    }
+    private static void BuildChaser() => Debug.Log(LarguiruchoAnimationAuthoring.Apply());
 
     private static void BuildSlime()
     {
@@ -267,18 +225,28 @@ public static class EnemySkinnedAnimBuilder
         GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
         try
         {
-            if (rootLocalScale.HasValue)
+            // Emergence owns an independent, neutral parent. Keep current art tuning when
+            // rebuilding a migrated prefab instead of restoring the builder's old defaults.
+            Transform emergencePivot = root.transform.Find(EnemyEmergenceAuthoring.PivotName);
+            bool preserveEmergencePose = root.GetComponent<EnemyEmergence>() != null || emergencePivot != null;
+            if (rootLocalScale.HasValue && !preserveEmergencePose)
                 root.transform.localScale = rootLocalScale.Value;
 
-            Transform existing = root.GetComponentsInChildren<Transform>(true)
-                .FirstOrDefault(t => t.name == existingVisualName);
+            Transform visualParent = emergencePivot != null ? emergencePivot : root.transform;
+            // A skinned model can contain a mesh with the legacy visual's name.
+            // Replace only a top-level model, never a mesh or bone inside its rig.
+            Transform existing = visualParent.Cast<Transform>().FirstOrDefault(t => t.name == existingVisualName)
+                ?? visualParent.Cast<Transform>().FirstOrDefault(t => t.name == newVisualName);
+            if (preserveEmergencePose && existing == null)
+                throw new InvalidOperationException("Missing top-level emergence visual in " + prefabPath);
+            Quaternion? preservedRotation = preserveEmergencePose && existing != null ? existing.localRotation : null;
 
             VisualPose pose = defaultPose;
-            if (preserveExistingPose && existing != null)
+            if ((preserveExistingPose || preserveEmergencePose) && existing != null)
             {
                 pose = new VisualPose(
                     existing.localPosition,
-                    forceLocalEuler ?? existing.localEulerAngles,
+                    preserveEmergencePose ? existing.localEulerAngles : forceLocalEuler ?? existing.localEulerAngles,
                     existing.localScale);
             }
             else if (forceLocalEuler.HasValue)
@@ -307,21 +275,21 @@ public static class EnemySkinnedAnimBuilder
             if (existing != null)
                 UnityEngine.Object.DestroyImmediate(existing.gameObject);
 
-            foreach (Transform t in root.GetComponentsInChildren<Transform>(true)
+            foreach (Transform t in visualParent.Cast<Transform>()
                          .Where(t => t.name == newVisualName)
                          .ToArray())
             {
                 UnityEngine.Object.DestroyImmediate(t.gameObject);
             }
 
-            GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+            GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, visualParent);
             visual.name = newVisualName;
             visual.transform.localPosition = pose.LocalPosition;
-            visual.transform.localRotation = Quaternion.Euler(pose.LocalEuler);
+            visual.transform.localRotation = preservedRotation ?? Quaternion.Euler(pose.LocalEuler);
             visual.transform.localScale = pose.LocalScale;
             PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
 
-            if (preserveExistingPose)
+            if (preserveExistingPose || preserveEmergencePose)
             {
                 foreach (SkinnedMeshRenderer skin in visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
@@ -373,6 +341,7 @@ public static class EnemySkinnedAnimBuilder
                 }
             }
 
+            EnemyEmergenceAuthoring.ConfigureActor(root);
             PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             Debug.Log("Replaced skinned visual on " + prefabPath + " -> " + newVisualName
                       + " scale=" + pose.LocalScale + " euler=" + pose.LocalEuler

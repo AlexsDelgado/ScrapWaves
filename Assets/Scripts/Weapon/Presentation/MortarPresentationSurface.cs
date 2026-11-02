@@ -14,6 +14,41 @@ public static class MortarPresentationSurface
     private const float RequiredSlopeCoverage = 0.5f;
     private const float GoldenAngle = 2.39996323f;
 
+    /// <summary>
+    /// Projects an impact footprint onto the nearest walkable ground beneath it.
+    /// Actors and props do not support the marker; physical collision stays separate.
+    /// </summary>
+    public static bool TryResolveGround(RaycastHit sourceHit, Transform ignoredRoot,
+        RaycastHit[] supportHits, out RaycastHit groundHit)
+    {
+        groundHit = sourceHit;
+        if (ReticleAimProvider.IsValidMortarGroundHit(sourceHit, ignoredRoot)) return true;
+        groundHit = default;
+        if (sourceHit.collider == null || supportHits == null || supportHits.Length == 0) return false;
+
+        // Start at the contact, not the object's top: a ceiling or a higher floor
+        // must not pull an impact footprint upwards onto a different storey.
+        const float probeBelow = 128f;
+        Vector3 origin = sourceHit.point + Vector3.up * BoundsPadding;
+        int count = Physics.RaycastNonAlloc(origin, Vector3.down, supportHits,
+            BoundsPadding + probeBelow, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] candidates = count == supportHits.Length
+            ? Physics.RaycastAll(origin, Vector3.down, BoundsPadding + probeBelow,
+                ~0, QueryTriggerInteraction.Ignore) : supportHits;
+        if (candidates != supportHits) count = candidates.Length;
+        float nearest = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = candidates[i];
+            // The probe clearance must not select the top of a thin ceiling above the contact.
+            if (hit.point.y > sourceHit.point.y + .001f || hit.distance >= nearest
+                || !ReticleAimProvider.IsValidMortarGroundHit(hit, ignoredRoot)) continue;
+            nearest = hit.distance;
+            groundHit = hit;
+        }
+        return !float.IsPositiveInfinity(nearest);
+    }
+
     public static void Resolve(
         RaycastHit sourceHit,
         float effectRadius,

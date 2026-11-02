@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StatDefinition
   <StatType>k__BackingField: 4
   <Category>k__BackingField: 0
-  <BaseValue>k__BackingField: 10
+  <BaseValue>k__BackingField: 15
   <UpgradeableByLevel>k__BackingField: 1
   <UpgradeableByItems>k__BackingField: 1
   <LevelUpgradeBaseAmount>k__BackingField: 0.025

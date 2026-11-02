@@ -87,11 +87,17 @@ public sealed class WeaponMovementSlowStatus : MonoBehaviour
         return target.root != null ? target.root : target;
     }
 
-    private void Update()
+    private void Update() => Simulate(Time.deltaTime);
+
+    /// <summary>Advances the same slow lifetime used by Update with deterministic elapsed time.</summary>
+    public void Simulate(float deltaTime)
     {
-        _remainingDuration -= Time.deltaTime;
+        _remainingDuration -= deltaTime;
         if (_remainingDuration <= 0f)
-            Destroy(this);
+        {
+            if (Application.isPlaying) Destroy(this);
+            else DestroyImmediate(this);
+        }
     }
 
     private void TryApplyDummyStatus(string label, float duration)

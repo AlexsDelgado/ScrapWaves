@@ -19,6 +19,9 @@ public sealed class MapLaunchPad : MonoBehaviour
     [SerializeField, Tooltip("Geysers launch immediately while the player occupies the opening trigger. Legacy pads retain top-surface contact activation.")]
     private bool _launchFromTrigger;
 
+    [SerializeField, Tooltip("Overheat disables new launches without changing the vent's model or collision.")]
+    private OverheatManager _overheatManager;
+
     public event Action<PlayerMovement> OnLaunched;
 
     private Collider _collider;
@@ -27,6 +30,8 @@ public sealed class MapLaunchPad : MonoBehaviour
     private void Awake()
     {
         _collider = GetComponent<Collider>();
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_landing == null)
             _landing = FindLanding(name, transform.position);
     }
@@ -49,15 +54,20 @@ public sealed class MapLaunchPad : MonoBehaviour
 
     private void TryLaunch(Collider contactingBody, bool requireTopContact)
     {
-        if (_busy || _landing == null)
+        if (!isActiveAndEnabled || contactingBody == null)
+            return;
+
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
+
+        // Read the phase at the point of use, including permanent overheat and
+        // an overheat that begins while the player is already inside the opening.
+        if ((_overheatManager != null && _overheatManager.IsOverheating) ||
+            !TutorialDirector.AllowsLaunch(this) || _busy || _landing == null)
             return;
 
         PlayerMovement movement = contactingBody.GetComponentInParent<PlayerMovement>();
         if (movement == null || movement.IsLaunching)
-            return;
-
-        Collider landingCollider = _landing.GetComponent<Collider>();
-        if (landingCollider == null)
             return;
 
         float halfHeight = 1f;
@@ -70,15 +80,43 @@ public sealed class MapLaunchPad : MonoBehaviour
             return;
 
         Vector3 start = movement.transform.position;
-        Bounds land = landingCollider.bounds;
-        Vector3 target = new Vector3(land.center.x, land.max.y + halfHeight + 0.05f, land.center.z);
-
-        if (!TryComputeLaunchVelocity(start, target, _apexClearance, out Vector3 velocity, out float flightTime))
+        if (!TryGetLaunchVelocity(start, halfHeight, out Vector3 velocity, out float flightTime))
             return;
 
         _busy = true;
         movement.LaunchWithVelocity(velocity, flightTime + 0.75f);
         OnLaunched?.Invoke(movement);
+    }
+
+    /// <summary>Read-only destination for visual guidance; independent of the player's ballistic takeoff tangent.</summary>
+    public bool TryGetLandingSurfacePoint(out Vector3 point)
+    {
+        point = Vector3.zero;
+        Transform landing = _landing != null ? _landing : FindLanding(name, transform.position);
+        if (landing == null || !landing.TryGetComponent(out Collider landingCollider))
+            return false;
+        Bounds bounds = landingCollider.bounds;
+        point = new Vector3(bounds.center.x, bounds.max.y, bounds.center.z);
+        return true;
+    }
+
+    /// <summary>Queries the same ballistic launch used by traversal without starting a launch or changing bindings.</summary>
+    public bool TryGetLaunchVelocity(Vector3 start, float halfHeight, out Vector3 velocity, out float flightTime)
+    {
+        velocity = Vector3.zero;
+        flightTime = 0f;
+        // Authoring previews can query before Awake has resolved an unassigned destination.
+        Transform landing = _landing != null ? _landing : FindLanding(name, transform.position);
+        if (landing == null)
+            return false;
+
+        Collider landingCollider = landing.GetComponent<Collider>();
+        if (landingCollider == null)
+            return false;
+
+        Bounds land = landingCollider.bounds;
+        Vector3 target = new Vector3(land.center.x, land.max.y + halfHeight + 0.05f, land.center.z);
+        return TryComputeLaunchVelocity(start, target, _apexClearance, out velocity, out flightTime);
     }
 
     private void OnCollisionExit(Collision collision)

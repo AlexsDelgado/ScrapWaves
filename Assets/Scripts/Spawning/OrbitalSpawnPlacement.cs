@@ -42,7 +42,8 @@ public static class OrbitalSpawnPlacement
         float resolveStepOut,
         out GameObject instance,
         out Vector3 spawnPosition,
-        out string placementLog)
+        out string placementLog,
+        System.Predicate<Vector3> acceptGround = null)
     {
         instance = null;
         spawnPosition = Vector3.zero;
@@ -78,8 +79,10 @@ public static class OrbitalSpawnPlacement
                     maxProjectionIterations,
                     resolveStepUp,
                     resolveStepOut,
+                    player.position,
                     out instance,
-                    out spawnPosition))
+                    out spawnPosition,
+                    acceptGround))
             {
                 placementLog = "ground resolve failed";
                 return false;
@@ -94,12 +97,6 @@ public static class OrbitalSpawnPlacement
             placementLog = "spawn blocked";
             return false;
         }
-
-        Transform root = instance.transform;
-        Vector3 toPlayer = player.position - root.position;
-        toPlayer.y = 0f;
-        if (toPlayer.sqrMagnitude > 0.0001f)
-            root.rotation = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
 
         placementLog = $"dir={GetDirectionLabel(directionIndex)} angle={GetDirectionAngleDegrees(directionIndex):0}° pos={spawnPosition}";
         return true;
@@ -126,6 +123,43 @@ public static class OrbitalSpawnPlacement
         out GameObject instance,
         out Vector3 spawnPosition)
     {
+        return TrySpawnGrounded(
+            prefab,
+            desiredPosition,
+            groundRaycastMask,
+            fallbackGroundRaycastMask,
+            overlapSolidMask,
+            raycastStartHeight,
+            raycastMaxDistance,
+            maxAbsSpawnSurfaceDeltaY,
+            surfaceSeparation,
+            maxProjectionIterations,
+            resolveStepUp,
+            resolveStepOut,
+            null,
+            out instance,
+            out spawnPosition);
+    }
+
+    /// <summary>Optionally filters the selected ground point, then faces a target before emergence measures the final model bounds.</summary>
+    public static bool TrySpawnGrounded(
+        GameObject prefab,
+        Vector3 desiredPosition,
+        LayerMask groundRaycastMask,
+        LayerMask fallbackGroundRaycastMask,
+        LayerMask overlapSolidMask,
+        float raycastStartHeight,
+        float raycastMaxDistance,
+        float maxAbsSpawnSurfaceDeltaY,
+        float surfaceSeparation,
+        int maxProjectionIterations,
+        float resolveStepUp,
+        float resolveStepOut,
+        Vector3? facingTargetPosition,
+        out GameObject instance,
+        out Vector3 spawnPosition,
+        System.Predicate<Vector3> acceptGround = null)
+    {
         instance = null;
         spawnPosition = desiredPosition;
 
@@ -145,7 +179,12 @@ public static class OrbitalSpawnPlacement
             EnemyPoolProfiler.RegisterInstantiate();
         }
 
+        EnemyStatRandomizer.BeginSpawn(instance);
+        EnemyEmergence emergence = instance.GetComponent<EnemyEmergence>();
+        emergence?.PrepareForPlacement();
         Transform root = instance.transform;
+        Vector3 groundPoint;
+        Vector3 groundNormal;
 
         // El CharacterController de estos prefabs está apagado: se mueven con Rigidbody.
         // Igual hay que apoyar el pie en el suelo. Sin ese raycast nacen a la altura del
@@ -162,7 +201,9 @@ public static class OrbitalSpawnPlacement
                     raycastStartHeight,
                     raycastMaxDistance,
                     surfaceSeparation,
-                    out Vector3 surface))
+                    out Vector3 surface,
+                    out groundPoint,
+                    out groundNormal) || (acceptGround != null && !acceptGround(groundPoint)))
             {
                 ReleaseFailedSpawn(instance, fromPool);
                 instance = null;
@@ -173,6 +214,7 @@ public static class OrbitalSpawnPlacement
             SpawnGroundUtility.SeatAboveSurface(root, surface, surfaceSeparation);
             SpawnGroundUtility.ClearRigidbodyVelocity(root);
             spawnPosition = root.position;
+            FinishPlacement(root, facingTargetPosition, emergence, groundPoint, groundNormal);
             return true;
         }
 
@@ -191,7 +233,9 @@ public static class OrbitalSpawnPlacement
                 maxProjectionIterations,
                 resolveStepUp,
                 resolveStepOut,
-                out Vector3 foot))
+                out Vector3 foot,
+                out groundPoint,
+                out groundNormal) || (acceptGround != null && !acceptGround(groundPoint)))
         {
             ReleaseFailedSpawn(instance, fromPool);
             instance = null;
@@ -200,11 +244,30 @@ public static class OrbitalSpawnPlacement
 
         root.SetPositionAndRotation(foot, Quaternion.identity);
         spawnPosition = foot;
+        FinishPlacement(root, facingTargetPosition, emergence, groundPoint, groundNormal);
         return true;
+    }
+
+    private static void FinishPlacement(
+        Transform root,
+        Vector3? facingTargetPosition,
+        EnemyEmergence emergence,
+        Vector3 groundPoint,
+        Vector3 groundNormal)
+    {
+        if (facingTargetPosition.HasValue)
+        {
+            Vector3 toTarget = facingTargetPosition.Value - root.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude > 0.0001f)
+                root.rotation = Quaternion.LookRotation(toTarget.normalized, Vector3.up);
+        }
+        emergence?.BeginEmergence(groundPoint, groundNormal);
     }
 
     private static void ReleaseFailedSpawn(GameObject instance, bool fromPool)
     {
+        instance.GetComponent<EnemyEmergence>()?.CancelEmergence();
         if (fromPool && EnemyPoolRegistry.Instance != null)
             EnemyPoolRegistry.Instance.Release(instance);
         else

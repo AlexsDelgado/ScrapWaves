@@ -6,7 +6,7 @@ using UnityEngine.Serialization;
 [Serializable]
 public sealed class CombatTextStyleDefinition
 {
-    public Color TextColor = new(1f, 0.93f, 0.78f, 1f);
+    public Color TextColor = Color.white;
     [Range(8f, 128f)] public float FontSize = 34f;
     [Range(0.5f, 1.5f)] public float BaseScale = 1f;
     public FontStyles FontStyle = FontStyles.Bold;
@@ -427,7 +427,7 @@ public sealed class CombatTextProfile : ScriptableObject
     {
         return new CombatTextStyleDefinition
         {
-            TextColor = jellified ? new Color(0.34f, 0.92f, 0.24f) : new Color(1f, 0.42f, 0.04f),
+            TextColor = CombatTextStyleResolver.ResolveColor(CombatTextStyleId.Burn),
             FontSize = 30f,
             BaseScale = 0.90f,
             FontStyle = FontStyles.Bold
@@ -436,27 +436,27 @@ public sealed class CombatTextProfile : ScriptableObject
 
     private static CombatTextStyleDefinition CreateCriticalStyle() => new()
     {
-        TextColor = new Color(1f, 0.82f, 0.22f),
+        TextColor = Color.yellow,
         FontSize = 40f, BaseScale = 1.06f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateWeakPointStyle() => new()
     {
-        TextColor = new Color(0.35f, 0.95f, 1f),
+        TextColor = Color.white,
         FontSize = 38f, BaseScale = 1.07f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateCriticalWeakPointStyle() => new()
     {
-        TextColor = new Color(0.85f, 0.40f, 1f),
+        TextColor = Color.yellow,
         FontSize = 44f, BaseScale = 1.10f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateKillStyle() => new()
     {
-        TextColor = new Color(1f, 0.23f, 0.302f),
+        TextColor = Color.red,
         FontSize = 46f, BaseScale = 1.10f, FontStyle = FontStyles.Bold
     };
     private static CombatTextStyleDefinition CreateAbilityStyle() => new()
     {
-        TextColor = new Color(0.36f, 0.486f, 1f),
+        TextColor = Color.white,
         FontSize = 36f, BaseScale = 1.04f, FontStyle = FontStyles.Bold
     };
 }

@@ -34,6 +34,7 @@ public class DialogueBoxUI : MonoBehaviour
     private Coroutine _routine;
 
     public bool IsShowing => _routine != null;
+    public DialogueEntry CurrentEntry { get; private set; }
 
     private void Awake()
     {
@@ -48,18 +49,23 @@ public class DialogueBoxUI : MonoBehaviour
         HideImmediate();
     }
 
-    private void OnDisable()
-    {
-        _routine = null;
-        HideImmediate();
-    }
+    private void OnDisable() => Dismiss();
 
     /// <summary>Muestra la entrada completa y llama a <paramref name="onFinished"/> al cerrarse.</summary>
     public void Play(DialogueEntry entry, bool revealed, Action onFinished)
     {
         if (_routine != null)
             StopCoroutine(_routine);
+        CurrentEntry = entry;
         _routine = StartCoroutine(PlayRoutine(entry, revealed, onFinished));
+    }
+
+    public void Dismiss()
+    {
+        if (_routine != null) StopCoroutine(_routine);
+        _routine = null;
+        CurrentEntry = null;
+        HideImmediate();
     }
 
     public void HideImmediate()
@@ -110,6 +116,7 @@ public class DialogueBoxUI : MonoBehaviour
 
         HideImmediate();
         _routine = null;
+        CurrentEntry = null;
         onFinished?.Invoke();
     }
 

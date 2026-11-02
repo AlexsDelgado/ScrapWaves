@@ -1,29 +1,36 @@
 using UnityEngine;
 
-/// <summary>Continuous, bounded presentation for an always-ready traversal opening.</summary>
+/// <summary>Continuous, bounded presentation for a traversal opening outside overheat.</summary>
 [DisallowMultipleComponent]
 public sealed class GeyserVfx : MonoBehaviour
 {
     public enum Kind { Trash, HotAir }
     [SerializeField] private Kind _kind;
     [SerializeField] private MapLaunchPad _launcher;
+    [SerializeField] private OverheatManager _overheatManager;
     [SerializeField] private ParticleSystem _updraft;
     [SerializeField] private ParticleSystem _debris;
     [SerializeField] private ParticleSystem _entryBurst;
     [SerializeField] private Renderer _heatShimmer;
     [Header("Continuous updraft")]
-    [SerializeField] private Color _flowColor = new(.83f, .79f, .64f, .30f);
-    [SerializeField, Range(1f, 24f)] private float _particlesPerSecond = 12f;
-    [SerializeField, Range(.5f, 5f)] private float _upwardSpeed = 2.2f;
-    [SerializeField, Range(1f, 5f)] private float _lifetime = 3f;
-    [SerializeField, Range(.25f, 2f)] private float _wispSize = .9f;
+    [SerializeField] private Color _flowColor = new(.83f, .79f, .64f, .65f);
+    [SerializeField, Range(1f, 40f)] private float _particlesPerSecond = 24f;
+    [SerializeField, Range(.5f, 15f), InspectorName("Flow speed")] private float _upwardSpeed = 7f;
+    [SerializeField, Range(1f, 5f)] private float _lifetime = 1.8f;
+    [SerializeField, Range(.25f, 2f)] private float _wispSize = .5f;
     [SerializeField, Range(.5f, 2f)] private float _openingRadius = 1.25f;
     [SerializeField, Range(8, 64)] private int _updraftBudget = 48;
+    [SerializeField, Range(0f, 20f), Tooltip("Spread around the direction toward the landing surface, in degrees.")]
+    private float _flowSpread = 5f;
+    [SerializeField, Range(1f, 6f)] private float _streakLength = 4.5f;
+    [SerializeField, Range(0f, .5f)] private float _velocityStretch = .3f;
     [Header("Trash only")]
+    [SerializeField, Range(0f, 1f), Tooltip("Keep wind secondary to the solid scrap silhouettes; does not change the designer's flow colour or emission rate.")]
+    private float _trashWispOpacity = .25f;
     [SerializeField, Range(0f, 8f)] private float _debrisPerSecond = 4f;
     [SerializeField, Range(4, 24)] private int _debrisBudget = 20;
-    [SerializeField, Range(.1f, .7f), Tooltip("Width in metres of the existing one-metre scrap mesh, before particle size variation.")]
-    private float _debrisSize = .36f;
+    [SerializeField, Range(.1f, 1.5f), Tooltip("Width in metres of the existing worm scrap meshes, before particle size variation.")]
+    private float _debrisSize = .9f;
     [SerializeField, Range(.25f, 2f), Tooltip("Multiplier for bounded, nonzero tumbling on all three axes.")]
     private float _debrisTumbleRate = 1f;
     [Header("Entry feedback")]
@@ -35,6 +42,14 @@ public sealed class GeyserVfx : MonoBehaviour
 
     private MaterialPropertyBlock _heatProperties;
     private MapLaunchPad _subscribedLauncher;
+    private OverheatManager _subscribedOverheat;
+    private bool _overheatSuppressed;
+    private bool _resumeUpdraft;
+    private bool _resumeDebris;
+    private bool _updraftEmissionEnabled;
+    private bool _debrisEmissionEnabled;
+    private bool _entryEmissionEnabled;
+    private bool _shimmerEnabled;
     private float _accentRemaining;
     private float _flowTime;
     public Kind GeyserKind => _kind;
@@ -44,18 +59,26 @@ public sealed class GeyserVfx : MonoBehaviour
 
     private void OnEnable()
     {
-        ApplyTuning();
         BindLauncher(_launcher != null ? _launcher : GetComponentInParent<MapLaunchPad>());
-        if (_updraft != null) _updraft.Play();
-        if (_debris != null && _kind == Kind.Trash) _debris.Play();
+        // Retain a suppression snapshot across disable/enable. Re-tuning or
+        // starting loops here would overwrite a deliberately stopped effect.
+        if (!_overheatSuppressed)
+        {
+            ApplyTuning();
+            if (_updraft != null && _updraft.gameObject.activeInHierarchy) _updraft.Play();
+            if (_debris != null && _kind == Kind.Trash && _debris.gameObject.activeInHierarchy) _debris.Play();
+        }
+        BindOverheat();
+        RefreshOverheatSuppression();
     }
 
     private void OnDisable()
     {
         if (_subscribedLauncher != null) _subscribedLauncher.OnLaunched -= HandleLaunch;
         _subscribedLauncher = null;
-        foreach (ParticleSystem particles in new[] { _updraft, _debris, _entryBurst })
-            if (particles != null) particles.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
+        UnbindOverheat();
+        ClearParticles();
+        if (_heatShimmer != null) _heatShimmer.enabled = false;
     }
 
     public void BindLauncher(MapLaunchPad launcher)
@@ -64,19 +87,152 @@ public sealed class GeyserVfx : MonoBehaviour
         _launcher = launcher;
         _subscribedLauncher = isActiveAndEnabled ? launcher : null;
         if (_subscribedLauncher != null) _subscribedLauncher.OnLaunched += HandleLaunch;
+        RefreshFlowDirection();
     }
 
-    private void HandleLaunch(PlayerMovement movement) => PlayEntryBurst();
+    private void HandleLaunch(PlayerMovement movement)
+    {
+        // The short entry accent follows the actual launch; ambient guidance continues pointing at the destination.
+        if (movement != null && _entryBurst != null && movement.CurrentVelocity.sqrMagnitude > .0001f)
+            _entryBurst.transform.rotation = FlowRotation(movement.CurrentVelocity.normalized);
+        PlayEntryBurst();
+    }
+
+    private void RefreshFlowDirection()
+    {
+        MapLaunchPad launcher = _launcher != null ? _launcher : GetComponentInParent<MapLaunchPad>();
+        Vector3 mouth = _updraft != null ? _updraft.transform.position : transform.position;
+        // A steep ballistic tangent hides where a pad leads. Point directly at the receiving surface instead.
+        // This query changes no bindings, trajectory, particle speed or other designer tuning.
+        if (launcher != null && launcher.TryGetLandingSurfacePoint(out Vector3 target)
+            && (target - mouth).sqrMagnitude > .0001f)
+            SetFlowDirection(target - mouth);
+        else
+            SetFlowDirection(transform.up);
+    }
+
+    private void SetFlowDirection(Vector3 velocity)
+    {
+        if (velocity.sqrMagnitude < .0001f) return;
+        Vector3 direction = velocity.normalized;
+        Quaternion rotation = FlowRotation(direction);
+        // Rotate at each mouth, not the parent: every emitter stays in its opening.
+        if (_updraft != null) _updraft.transform.rotation = rotation;
+        if (_debris != null) _debris.transform.rotation = rotation;
+        if (_entryBurst != null) _entryBurst.transform.rotation = rotation;
+        if (_heatShimmer != null && _kind == Kind.HotAir)
+            _heatShimmer.transform.rotation = Quaternion.FromToRotation(Vector3.up, direction);
+    }
+
+    private static Quaternion FlowRotation(Vector3 direction) => Quaternion.LookRotation(direction,
+        Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > .99f ? Vector3.forward : Vector3.up);
 
     public void PlayEntryBurst()
     {
+        if (!isActiveAndEnabled)
+            return;
+        RefreshOverheatSuppression();
+        if (_overheatSuppressed)
+            return;
+
         _accentRemaining = _entryAccentSeconds;
         if (_entryBurst != null) { _entryBurst.Play(); _entryBurst.Emit(_entryParticleCount); }
         if (_kind == Kind.Trash && _debris != null) _debris.Emit(Mathf.Min(6, _debrisBudget));
         TickPresentation(0f);
     }
 
-    private void Update() => TickPresentation(Time.deltaTime);
+    private void Update()
+    {
+        // Also reconcile when enabled after a phase started, or after a manager
+        // is replaced. The ordinary-to-permanent transition need not emit an event.
+        if (_overheatManager == null) BindOverheat();
+        RefreshOverheatSuppression();
+        if (!_overheatSuppressed)
+        {
+            RefreshFlowDirection();
+            TickPresentation(Time.deltaTime);
+        }
+    }
+
+    private void BindOverheat()
+    {
+        if (_overheatManager == null)
+            _overheatManager = FindAnyObjectByType<OverheatManager>();
+        if (_subscribedOverheat == _overheatManager)
+            return;
+        UnbindOverheat();
+        _subscribedOverheat = _overheatManager;
+        if (_subscribedOverheat == null)
+            return;
+        _subscribedOverheat.OnOverheatStarted += RefreshOverheatSuppression;
+        _subscribedOverheat.OnOverheatFinished += HandleOverheatFinished;
+    }
+
+    private void UnbindOverheat()
+    {
+        if (_subscribedOverheat != null)
+        {
+            _subscribedOverheat.OnOverheatStarted -= RefreshOverheatSuppression;
+            _subscribedOverheat.OnOverheatFinished -= HandleOverheatFinished;
+        }
+        _subscribedOverheat = null;
+    }
+
+    private void HandleOverheatFinished(OverheatEndReason _) => RefreshOverheatSuppression();
+
+    private void RefreshOverheatSuppression()
+    {
+        bool suppressed = _overheatManager != null && _overheatManager.IsOverheating;
+        if (suppressed == _overheatSuppressed)
+            return;
+
+        _overheatSuppressed = suppressed;
+        if (suppressed)
+        {
+            _resumeUpdraft = _updraft != null && _updraft.isPlaying && _updraft.gameObject.activeInHierarchy;
+            _resumeDebris = _debris != null && _kind == Kind.Trash && _debris.isPlaying && _debris.gameObject.activeInHierarchy;
+            _updraftEmissionEnabled = _updraft != null && _updraft.emission.enabled;
+            _debrisEmissionEnabled = _debris != null && _debris.emission.enabled;
+            _entryEmissionEnabled = _entryBurst != null && _entryBurst.emission.enabled;
+            _shimmerEnabled = _heatShimmer != null && _heatShimmer.enabled;
+            SuppressEffects();
+            return;
+        }
+
+        SetEmission(_updraft, _updraftEmissionEnabled);
+        SetEmission(_debris, _debrisEmissionEnabled);
+        SetEmission(_entryBurst, _entryEmissionEnabled);
+        if (_heatShimmer != null) _heatShimmer.enabled = _shimmerEnabled;
+        if (!isActiveAndEnabled)
+            return;
+        if (_resumeUpdraft && _updraft != null && _updraft.gameObject.activeInHierarchy) _updraft.Play();
+        if (_resumeDebris && _debris != null && _debris.gameObject.activeInHierarchy) _debris.Play();
+        // Entry feedback is a one-shot: never replay it when a phase ends.
+    }
+
+    private void SuppressEffects()
+    {
+        _accentRemaining = 0f;
+        SetEmission(_updraft, false);
+        SetEmission(_debris, false);
+        SetEmission(_entryBurst, false);
+        ClearParticles();
+        if (_heatShimmer != null) _heatShimmer.enabled = false;
+    }
+
+    private void ClearParticles()
+    {
+        if (_updraft != null) _updraft.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (_debris != null) _debris.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (_entryBurst != null) _entryBurst.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    }
+
+    private static void SetEmission(ParticleSystem particles, bool enabled)
+    {
+        if (particles == null) return;
+        var emission = particles.emission;
+        emission.enabled = enabled;
+    }
 
     private void TickPresentation(float deltaTime)
     {
@@ -87,6 +243,7 @@ public sealed class GeyserVfx : MonoBehaviour
         {
             var main = _updraft.main;
             Color color = _flowColor;
+            if (_kind == Kind.Trash) color.a *= _trashWispOpacity;
             float brightness = Mathf.Lerp(1f, _entryBrightness, accent);
             color.r *= brightness; color.g *= brightness; color.b *= brightness;
             main.startColor = color;
@@ -102,6 +259,9 @@ public sealed class GeyserVfx : MonoBehaviour
 
     public void ApplyTuning()
     {
+        // Runtime tuning must not restart emission or replace the pre-overheat snapshot.
+        if (_subscribedOverheat != null) RefreshOverheatSuppression();
+        RefreshFlowDirection();
         if (_updraft != null)
         {
             var main = _updraft.main;
@@ -110,17 +270,29 @@ public sealed class GeyserVfx : MonoBehaviour
             main.startLifetime = new ParticleSystem.MinMaxCurve(_lifetime * .8f, _lifetime);
             main.startSize = new ParticleSystem.MinMaxCurve(_wispSize * .75f, _wispSize * 1.2f);
             main.startColor = _flowColor; main.useUnscaledTime = false;
+            // Existing particles keep their trajectory when a destination or launch changes.
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            // Designer mound scaling may be nonuniform. Scale the opening, never the velocity.
+            main.scalingMode = ParticleSystemScalingMode.Shape;
             var emission = _updraft.emission; emission.enabled = true; emission.rateOverTime = _particlesPerSecond;
-            var shape = _updraft.shape; shape.radius = _openingRadius;
+            var shape = _updraft.shape; shape.radius = _openingRadius; shape.angle = _flowSpread;
+            ConfigureStreaks(_updraft);
         }
         if (_debris != null)
         {
             var main = _debris.main; main.maxParticles = _debrisBudget;
             main.loop = true; main.playOnAwake = _kind == Kind.Trash; main.startDelay = 0f;
-            var emission = _debris.emission; emission.rateOverTime = _kind == Kind.Trash ? _debrisPerSecond : 0f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.scalingMode = ParticleSystemScalingMode.Shape;
+            var emission = _debris.emission; emission.enabled = _kind == Kind.Trash;
+            emission.rateOverTime = _kind == Kind.Trash ? _debrisPerSecond : 0f;
+            var debrisRenderer = _debris.GetComponent<ParticleSystemRenderer>();
+            if (debrisRenderer != null) debrisRenderer.enabled = _kind == Kind.Trash;
             if (_kind == Kind.Trash)
             {
                 main.startSize = new ParticleSystem.MinMaxCurve(_debrisSize * .75f, _debrisSize * 1.25f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(_upwardSpeed * .55f, _upwardSpeed * .8f);
+                var shape = _debris.shape; shape.angle = _flowSpread; shape.radius = _openingRadius;
                 main.startRotation3D = true;
                 var rotation = _debris.rotationOverLifetime; rotation.enabled = true; rotation.separateAxes = true;
                 rotation.x = new ParticleSystem.MinMaxCurve(1.8f * _debrisTumbleRate, 3.2f * _debrisTumbleRate);
@@ -132,11 +304,29 @@ public sealed class GeyserVfx : MonoBehaviour
         if (_entryBurst != null)
         {
             var main = _entryBurst.main; main.maxParticles = 40; main.loop = false;
-            main.playOnAwake = false; main.startColor = new Color(_flowColor.r, _flowColor.g, _flowColor.b, .48f);
+            main.playOnAwake = false; main.startColor = new Color(_flowColor.r, _flowColor.g, _flowColor.b, _flowColor.a * .3f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.scalingMode = ParticleSystemScalingMode.Shape;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(_upwardSpeed * 1.2f, _upwardSpeed * 1.6f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(.4f, .65f);
+            main.startSize = new ParticleSystem.MinMaxCurve(_wispSize * .6f, _wispSize);
+            var shape = _entryBurst.shape; shape.angle = _flowSpread; shape.radius = _openingRadius;
             var emission = _entryBurst.emission; emission.rateOverTime = 0f;
+            ConfigureStreaks(_entryBurst);
         }
         if (_heatShimmer != null) _heatShimmer.enabled = _kind == Kind.HotAir && _heatDistortion > 0f;
+        if (_overheatSuppressed) SuppressEffects();
         TickPresentation(0f);
+    }
+
+    private void ConfigureStreaks(ParticleSystem particles)
+    {
+        var renderer = particles.GetComponent<ParticleSystemRenderer>();
+        if (renderer == null) return;
+        renderer.renderMode = ParticleSystemRenderMode.Stretch;
+        renderer.lengthScale = _streakLength;
+        renderer.velocityScale = _velocityStretch;
+        renderer.cameraVelocityScale = 0f;
     }
 
 #if UNITY_EDITOR
@@ -144,8 +334,14 @@ public sealed class GeyserVfx : MonoBehaviour
     public void ConfigureAuthoring(Kind kind, ParticleSystem updraft, ParticleSystem debris, ParticleSystem burst, Renderer shimmer)
     {
         _kind = kind; _updraft = updraft; _debris = debris; _entryBurst = burst; _heatShimmer = shimmer;
-        _flowColor = kind == Kind.Trash ? new Color(.83f,.79f,.64f,.30f) : new Color(.83f,.89f,.91f,.25f);
-        _particlesPerSecond = kind == Kind.Trash ? 12f : 14f;
+        ApplyDirectionalDefaults();
+    }
+    public void ApplyDirectionalDefaults()
+    {
+        _flowColor = _kind == Kind.Trash ? new Color(.83f,.79f,.64f,.65f) : new Color(.83f,.89f,.91f,.6f);
+        _particlesPerSecond = _kind == Kind.Trash ? 24f : 28f;
+        _upwardSpeed = 7f; _lifetime = 1.8f; _wispSize = .5f;
+        _streakLength = 4.5f; _velocityStretch = .3f;
         ApplyTuning();
     }
     public void SetPreviewClock(float seconds) { _flowTime = Mathf.Max(0f, seconds); TickPresentation(0f); }

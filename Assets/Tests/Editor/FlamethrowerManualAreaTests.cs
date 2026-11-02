@@ -10,6 +10,7 @@ using Object = UnityEngine.Object;
 public sealed class FlamethrowerManualAreaTests
 {
     private readonly List<Object> _cleanup = new();
+    private readonly List<Transform> _waveRegistrations = new();
     private GameObject _owner;
     private FlamethrowerManualAreas _areas;
     private FlamethrowerTuning _tuning;
@@ -44,6 +45,20 @@ public sealed class FlamethrowerManualAreaTests
     [TearDown]
     public void TearDown()
     {
+        // These visuals are created without Awake in Edit Mode. Unity does not dispatch
+        // their OnDestroy, so explicitly release their budget before destroying this test scene.
+        foreach (var visual in Object.FindObjectsByType<EnemyStatusVisual>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            typeof(EnemyStatusVisual).GetMethod("OnDestroy", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(visual, null);
+            typeof(EnemyStatusVisual).GetField("_counted", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(visual, false);
+        }
+        EnemyStatusFeedback.ClearAllActive();
+        foreach (var root in _waveRegistrations) if (root!=null) EnemyRegistry.Unregister(root);
+        _waveRegistrations.Clear();
+        foreach (FlamethrowerActiveWave wave in Object.FindObjectsByType<FlamethrowerActiveWave>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(wave.gameObject);
+        foreach (FlamethrowerCueVfx cue in Object.FindObjectsByType<FlamethrowerCueVfx>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            Object.DestroyImmediate(cue.gameObject);
         foreach (FlamethrowerFuelPuddle puddle in Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             Object.DestroyImmediate(puddle.gameObject);
         foreach (FlamethrowerManualAreas areas in Object.FindObjectsByType<FlamethrowerManualAreas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -71,10 +86,11 @@ public sealed class FlamethrowerManualAreaTests
         Assert.That(_areas.GetCenter(0).z, Is.EqualTo(5.25f).Within(0.002f));
         Assert.That(_areas.GetCenter(0).y, Is.EqualTo(1f).Within(0.001f));
         Assert.That(_areas.GetVelocity(0).magnitude, Is.EqualTo(7f).Within(0.002f));
-        Assert.That(_areas.GetRadius(0), Is.EqualTo(Mathf.Lerp(0.35f, 0.75f, 1f / 3f)).Within(0.001f));
+        Assert.That(_areas.GetRadius(0), Is.EqualTo(0.5775f).Within(0.001f));
         _areas.Simulate(0.7f);
         Assert.That(_areas.GetCenter(0).z, Is.EqualTo(7f).Within(0.002f));
         Assert.That(_areas.GetVelocity(0).magnitude, Is.LessThan(0.001f));
+        Assert.That(_areas.GetRadius(0), Is.EqualTo(0.875f).Within(0.001f));
         _areas.Simulate(0.31f);
         Assert.That(_areas.ActiveCount, Is.Zero);
     }
@@ -86,9 +102,33 @@ public sealed class FlamethrowerManualAreaTests
         Emit(Vector3.zero, direction, range: 12.25f, size: 2f);
         _tuning.FlameAreaTimeToStop = 20f;
         _tuning.FlameAreaFinalRadius = 10f;
+        _tuning.FlameAreaGrowthDuration = 20f;
         _areas.Simulate(1f);
         Assert.That(Vector3.Distance(_areas.GetCenter(0), direction * 12.25f), Is.LessThan(0.003f));
-        Assert.That(_areas.GetRadius(0), Is.EqualTo(Mathf.Lerp(0.7f, 1.5f, 2f / 3f)).Within(0.001f));
+        Assert.That(_areas.GetRadius(0), Is.EqualTo(1.75f).Within(0.001f));
+    }
+
+    [Test]
+    public void Growth_ClampsToLifetimeAndPublishesLiveDamageBoundsToEveryWisp()
+    {
+        _tuning.FlameAreaLifetime = 0.6f;
+        _tuning.FlameAreaGrowthDuration = 10f;
+        Emit(Vector3.up, Vector3.forward, range: 0f, size: 2f);
+        _areas.Simulate(0.3f);
+        Assert.That(_areas.GetRadius(0), Is.EqualTo(1.155f).Within(0.001f));
+        var spheres = new List<Vector4>();
+        _areas.GetComponentInChildren<ParticleSystem>().GetCustomParticleData(spheres, ParticleSystemCustomData.Custom1);
+        Assert.That(spheres.Count, Is.EqualTo(_areas.VisualParticleCount));
+        Assert.That(spheres.Count, Is.GreaterThan(0));
+        foreach (Vector4 sphere in spheres)
+        {
+            Assert.That(new Vector3(sphere.x, sphere.y, sphere.z), Is.EqualTo(_areas.GetCenter(0)));
+            Assert.That(sphere.w, Is.EqualTo(_areas.GetRadius(0)).Within(0.001f));
+        }
+        _areas.Simulate(0.299f);
+        Assert.That(_areas.GetRadius(0), Is.GreaterThan(1.748f));
+        _areas.Simulate(0.002f);
+        Assert.That(_areas.ActiveCount, Is.Zero);
     }
 
     [Test]
@@ -264,7 +304,7 @@ public sealed class FlamethrowerManualAreaTests
         _areas.Simulate(10f);
         Assert.That(_areas.ActiveCount, Is.EqualTo(1));
         Assert.That(_areas.GetCenter(0), Is.EqualTo(Vector3.zero));
-        Assert.That(_areas.GetRadius(0), Is.EqualTo(0.35f));
+        Assert.That(_areas.GetRadius(0), Is.EqualTo(0.28f));
         Assert.That(_hits, Is.Zero);
     }
 
@@ -447,6 +487,38 @@ public sealed class FlamethrowerManualAreaTests
         finally { RenderTexture.active = previous; camera.targetTexture = null; target.Release(); }
     }
 
+    [Test]
+    public void Plume_RenderedFireCannotExtendOutsideLiveDamageSphereAfterPoolReuse()
+    {
+        var camera = Track(new GameObject("Damage boundary camera")).AddComponent<Camera>();
+        camera.orthographic = true; camera.orthographicSize = 2f;
+        camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = Color.black;
+        var target = Track(new RenderTexture(512, 512, 24)); target.Create();
+        var frame = Track(new Texture2D(512, 512, TextureFormat.RGB24, false));
+        RenderTexture previous = RenderTexture.active;
+        try
+        {
+            foreach (Vector3 center in new[] { new Vector3(3f, 2f, 4f), new Vector3(-8f, 5f, 12f) })
+            {
+                _areas.Clear(); Emit(center, Vector3.forward, range: 0f); _areas.Simulate(0.4f);
+                camera.transform.position = center + Vector3.back * 5f;
+                camera.transform.LookAt(center); camera.targetTexture = target; camera.Render();
+                RenderTexture.active = target; frame.ReadPixels(new Rect(0, 0, 512, 512), 0, 0); frame.Apply();
+                float maximumPixels = _areas.GetRadius(0) / camera.orthographicSize * 256f + 2f;
+                Color[] pixels = frame.GetPixels(); int visible = 0;
+                for (int y = 0; y < 512; y++) for (int x = 0; x < 512; x++)
+                {
+                    if (pixels[y * 512 + x].maxColorComponent <= .02f) continue;
+                    visible++;
+                    Assert.That(Vector2.Distance(new Vector2(x + .5f, y + .5f), new Vector2(256, 256)),
+                        Is.LessThanOrEqualTo(maximumPixels), "Visible fire outside damage sphere");
+                }
+                Assert.That(visible, Is.GreaterThan(30), "Boundary test must render visible fire");
+            }
+        }
+        finally { RenderTexture.active = previous; camera.targetTexture = null; target.Release(); }
+    }
+
     [TestCase(WeaponUpgradePath.None)]
     [TestCase(WeaponUpgradePath.PathA)]
     [TestCase(WeaponUpgradePath.PathB)]
@@ -489,6 +561,145 @@ public sealed class FlamethrowerManualAreaTests
         Assert.That(weapon.ActiveManualAreaCount, Is.EqualTo(1));
     }
 
+    [Test]
+    public void Automatic_CapturesBodyFacingAndKeepsExistingTrajectoryWhenFacingChanges()
+    {
+        var movement = _owner.AddComponent<PlayerMovement>();
+        _owner.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+        SetField(movement, "_moveDirectionWorld", Vector3.left);
+        FlamethrowerWeapon weapon = CreateWeapon(WeaponUpgradePath.None, out var instance, movement);
+        instance.State = WeaponState.Automatic;
+        weapon.TickAutomatic(.01f, Vector3.back);
+        Assert.That(weapon.ActiveAutomaticAreaCount, Is.EqualTo(1));
+        Assert.That(weapon.ActiveManualAreaCount, Is.Zero);
+        Assert.That(weapon.ManualAreas.GetMode(0), Is.EqualTo(WeaponFeedbackMode.Automatic));
+        Assert.That(Vector3.Angle(weapon.ManualAreas.GetVelocity(0), Vector3.right), Is.LessThan(.01f));
+        weapon.ManualAreas.Simulate(.2f);
+        _owner.transform.position = new Vector3(20, 0, 20);
+        _owner.transform.rotation = Quaternion.identity;
+        SetField(movement, "_moveDirectionWorld", Vector3.right);
+        weapon.TickAutomatic(.15f, Vector3.back);
+        Assert.That(Vector3.Angle(weapon.ManualAreas.GetVelocity(0), Vector3.right), Is.LessThan(.01f));
+        Assert.That(Vector3.Angle(weapon.ManualAreas.GetVelocity(1), Vector3.forward), Is.LessThan(.01f));
+        SetField(movement, "_moveDirectionWorld", Vector3.zero);
+        _owner.transform.rotation = Quaternion.Euler(0, 180, 0);
+        weapon.TickAutomatic(.15f, Vector3.back);
+        Assert.That(Vector3.Angle(weapon.ManualAreas.GetVelocity(2), Vector3.back), Is.LessThan(.01f));
+        weapon.ManualAreas.Simulate(.9f);
+        Assert.That(weapon.ManualAreas.GetCenter(0).x, Is.EqualTo(4.2f).Within(.003f));
+        Assert.That(weapon.ManualAreas.GetVelocity(0).sqrMagnitude, Is.LessThan(.001f));
+        Assert.That(instance.CurrentAmmo, Is.EqualTo(100f));
+    }
+
+    [TestCase(false)] [TestCase(true)]
+    public void Automatic_DashAndSlideStillEmitAlongBodyFacing(bool dashing)
+    {
+        var movement = _owner.AddComponent<PlayerMovement>();
+        _owner.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
+        var body = _owner.GetComponent<Rigidbody>();
+        SetField(movement, "_rb", body);
+        SetField(movement, "_moveDirectionWorld", Vector3.back);
+        SetField(movement, dashing ? "_isDashing" : "_isSliding", true);
+        if (dashing) SetField(movement, "_dashLaunchFrame", -1);
+        body.linearVelocity = new Vector3(3f, -8f, 0f);
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var instance, movement);
+        instance.State = WeaponState.Automatic;
+        weapon.TickAutomatic(.01f, Vector3.back);
+        Assert.That(Vector3.Angle(weapon.ManualAreas.GetVelocity(0), Vector3.left), Is.LessThan(.01f));
+        body.linearVelocity = Vector3.up * 5f;
+        weapon.TickAutomatic(.15f, Vector3.back);
+        Assert.That(Vector3.Angle(weapon.ManualAreas.GetVelocity(1), Vector3.left), Is.LessThan(.01f));
+    }
+
+    [TestCase(false)] [TestCase(true)]
+    public void Automatic_TravelScalesWithManualHeatRangeAndAreaSize(bool hot)
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var instance);
+        var stats = _owner.GetComponent<PlayerStats>();
+        stats.AddModifier(new StatModifier(StatType.ProjectileAreaSize, 2f, StatUpgradeSource.TemporaryEffect,
+            modifierType: StatModifierType.Multiplicative));
+        var heat = _owner.AddComponent<HeatManager>();
+        if (hot) SetField(heat, "_currentHeat", heat.TotalHeatCapacity);
+        weapon.Setup(instance, _owner.transform, stats, heat);
+        instance.State = WeaponState.Automatic; weapon.TickAutomatic(.01f, Vector3.forward);
+        weapon.ManualAreas.Simulate(1f);
+        Assert.That(weapon.ManualAreas.GetCenter(0).z, Is.EqualTo(hot ? 14.7f : 8.4f).Within(.004f));
+        Assert.That(weapon.ManualAreas.GetRadius(0), Is.EqualTo(1.75f).Within(.002f));
+    }
+
+    [TestCase(false)] [TestCase(true)]
+    public void Automatic_HeatSelectsItsOwnDamageCadence(bool hot)
+    {
+        var weapon = CreateWeapon(WeaponUpgradePath.None, out var instance);
+        instance.Data.BaseRange = 0f;
+        var heat = _owner.AddComponent<HeatManager>();
+        if (hot) SetField(heat, "_currentHeat", heat.TotalHeatCapacity);
+        weapon.Setup(instance, _owner.transform, _owner.GetComponent<PlayerStats>(), heat);
+        var enemy = Target(Vector3.zero, colliders: 2);
+        instance.State = WeaponState.Automatic; weapon.TickAutomatic(.01f, Vector3.forward);
+        weapon.ManualAreas.Simulate(.5f);
+        Assert.That(enemy.Hits, Is.EqualTo(hot ? 2 : 1));
+        weapon.ManualAreas.Simulate(.5f);
+        Assert.That(enemy.Hits, Is.EqualTo(hot ? 3 : 2));
+        Assert.That(enemy.GetComponent<FlamethrowerBurnStatus>(), Is.Null);
+    }
+
+    [Test]
+    public void Modes_KeepIndependentDamageClocks()
+    {
+        Object.DestroyImmediate(_areas.gameObject);
+        _areas = Track(new GameObject("Shared mode areas")).AddComponent<FlamethrowerManualAreas>();
+        int manual = 0, automatic = 0;
+        _areas.InitializeModeAware(_owner.transform, (target, origin, mode) =>
+        { if (mode == WeaponFeedbackMode.Manual) manual++; else automatic++; return true; }, null);
+        Target(Vector3.zero); Target(Vector3.right * 4);
+        _areas.Emit(.01f, Vector3.zero, Vector3.forward, 0, 1, _tuning, FlamethrowerStreamStyle.Flame, 0);
+        _areas.Emit(.01f, Vector3.right * 4, Vector3.forward, 0, 1, _tuning, FlamethrowerStreamStyle.Flame, 0,
+            WeaponFeedbackMode.Automatic);
+        _areas.Simulate(.5f);
+        Assert.That(manual, Is.EqualTo(2)); Assert.That(automatic, Is.EqualTo(1));
+        _areas.Simulate(.5f);
+        Assert.That(manual, Is.EqualTo(3)); Assert.That(automatic, Is.EqualTo(2));
+    }
+
+    [TestCase(false)] [TestCase(true)]
+    public void Modes_CoincidentOverlapsApplyOneHitWithManualPriority(bool automaticFirst)
+    {
+        Object.DestroyImmediate(_areas.gameObject);
+        _areas = Track(new GameObject("Overlapping mode areas")).AddComponent<FlamethrowerManualAreas>();
+        var modes = new List<WeaponFeedbackMode>();
+        _areas.InitializeModeAware(_owner.transform, (target, origin, mode) => { modes.Add(mode); return true; }, null);
+        Target(Vector3.zero, colliders: 2);
+        foreach (WeaponFeedbackMode mode in automaticFirst
+            ? new[] { WeaponFeedbackMode.Automatic, WeaponFeedbackMode.Manual }
+            : new[] { WeaponFeedbackMode.Manual, WeaponFeedbackMode.Automatic })
+            _areas.Emit(.01f, Vector3.zero, Vector3.forward, 0, 1, _tuning, FlamethrowerStreamStyle.Flame, 0, mode);
+        _areas.Simulate(1f);
+        Assert.That(modes, Is.EqualTo(new[] { WeaponFeedbackMode.Manual, WeaponFeedbackMode.Manual, WeaponFeedbackMode.Manual }));
+    }
+
+    [TestCase(WeaponUpgradePath.None)] [TestCase(WeaponUpgradePath.PathA)] [TestCase(WeaponUpgradePath.PathB)]
+    public void Automatic_AfterSwitchKeepsAutomaticAttributionAndPathStatus(WeaponUpgradePath path)
+    {
+        var weapon = CreateWeapon(path, out var instance);
+        var sink = new FeedbackRecorder(); weapon.SetPresentationSink(sink);
+        var enemy = Track(new GameObject("Automatic authoritative enemy"));
+        var receiver = enemy.AddComponent<AuthoritativeReceiver>();
+        enemy.AddComponent<SphereCollider>(); enemy.AddComponent<BoxCollider>(); Physics.SyncTransforms();
+        instance.State = WeaponState.Automatic;
+        weapon.TickAutomatic(.01f, Vector3.forward);
+        instance.State = WeaponState.Manual;
+        weapon.ManualAreas.Simulate(.01f);
+        Assert.That(receiver.Hits, Is.EqualTo(1));
+        Assert.That(sink.Damage.Count, Is.EqualTo(1));
+        Assert.That(sink.Damage[0].Mode, Is.EqualTo(WeaponFeedbackMode.Automatic));
+        Assert.That(sink.Status.Count, Is.EqualTo(path == WeaponUpgradePath.None ? 0 : 1));
+        foreach (var status in sink.Status) Assert.That(status.Mode, Is.EqualTo(WeaponFeedbackMode.Automatic));
+        Assert.That(instance.CurrentAmmo, Is.EqualTo(100));
+        Assert.That(enemy.GetComponent<FlamethrowerBurnStatus>() != null, Is.EqualTo(path == WeaponUpgradePath.PathA));
+        Assert.That(enemy.GetComponent<WeaponMovementSlowStatus>() != null, Is.EqualTo(path == WeaponUpgradePath.PathB));
+    }
+
     [TestCase("Assets/ScriptableObjects/WeaponSO/Flamethrower.asset")]
     [TestCase("Assets/ScriptableObjects/WeaponSO/Sandbox_Flamethrower.asset")]
     [TestCase("Assets/Scripts/Weapon/Testing/SO/Sandbox_Flamethrower.asset")]
@@ -498,8 +709,10 @@ public sealed class FlamethrowerManualAreaTests
         Assert.That(tuning.FlameAreaEmissionInterval, Is.EqualTo(0.15f));
         Assert.That(tuning.FlameAreaLifetime, Is.EqualTo(1.5f));
         Assert.That(tuning.FlameAreaTimeToStop, Is.EqualTo(1f));
-        Assert.That(tuning.FlameAreaInitialRadius, Is.EqualTo(0.35f));
-        Assert.That(tuning.FlameAreaFinalRadius, Is.EqualTo(0.75f));
+        Assert.That(tuning.FlameAreaInitialRadius, Is.EqualTo(0.28f));
+        Assert.That(tuning.FlameAreaFinalRadius, Is.EqualTo(0.875f));
+        Assert.That(tuning.FlameAreaGrowthDuration, Is.EqualTo(1f));
+        Assert.That(tuning.FlameAutomaticRangeMultiplier, Is.EqualTo(.6f));
         Assert.That(tuning.FlameManualTickInterval, Is.EqualTo(0.5f));
         Assert.That(tuning.FlameManualAmmoPerSecond, Is.EqualTo(10f));
     }
@@ -565,6 +778,166 @@ public sealed class FlamethrowerManualAreaTests
         Assert.That(sink.Status[0].Mode, Is.EqualTo(WeaponFeedbackMode.Manual));
     }
 
+    [Test]
+    public void Q_ArrivesOnceAtTargetsAndKeepsCastOriginAmmoAndCooldown()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out var instance);
+        var near=WaveTarget(Vector3.right*2,2);var far=WaveTarget(Vector3.forward*5.9f,2);
+        var sink=new FeedbackRecorder();weapon.SetPresentationSink(sink);
+        weapon.UseActiveAbility(Vector3.up);
+        Assert.That(near.Hits+far.Hits,Is.Zero);Assert.That(sink.Shots,Is.EqualTo(1));
+        Assert.That(instance.CurrentAmmo,Is.EqualTo(60));Assert.That(instance.AbilityCooldownTimer,Is.EqualTo(14));
+        weapon.ActiveWave.Simulate(.19f);Assert.That(near.Hits,Is.Zero);
+        weapon.ActiveWave.Simulate(.02f);Assert.That(near.Hits,Is.EqualTo(1));Assert.That(far.Hits,Is.Zero);
+        Assert.That(near.TotalDamage,Is.EqualTo(10));Assert.That(near.GetComponent<FlamethrowerBurnStatus>(),Is.Not.Null);
+        Assert.That(near.GetComponent<EnemyKnockbackReceiver>(),Is.Not.Null);
+        _owner.transform.position=Vector3.one*100;
+        weapon.ActiveWave.Simulate(.39f);Assert.That(far.Hits,Is.EqualTo(1));Assert.That(far.TotalDamage,Is.EqualTo(10));
+        Assert.That(weapon.ActiveWave.Clock.Origin,Is.EqualTo(Vector3.zero));
+        Assert.That(weapon.ActiveWave.Clock.Radius,Is.EqualTo(6f).Within(.001f));
+        weapon.ActiveWave.Simulate(1f);Assert.That(near.Hits+far.Hits,Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Q_SweepsFastMovingTargetsAndRejectsLateEntryBehindPassedFront()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out _);
+        var incoming=WaveTarget(Vector3.right*8);var passing=WaveTarget(Vector3.left*8);
+        weapon.UseActiveAbility(Vector3.forward);weapon.ActiveWave.Simulate(.2f);
+        incoming.transform.position=Vector3.zero;passing.transform.position=Vector3.right*8;
+        weapon.ActiveWave.Simulate(.1f);
+        Assert.That(incoming.Hits,Is.EqualTo(1));Assert.That(passing.Hits,Is.EqualTo(1));
+        var late=WaveTarget(Vector3.right);
+        weapon.ActiveWave.Simulate(.3f);Assert.That(late.Hits,Is.Zero);
+        Assert.That(incoming.Hits+passing.Hits,Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Q_PooledReentryCannotSweepFromOldPositionToInterior()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out _);var enemy=WaveTarget(Vector3.right*8);
+        weapon.UseActiveAbility(Vector3.forward);weapon.ActiveWave.Simulate(.2f);
+        EnemyRegistry.Unregister(enemy.transform);enemy.transform.position=Vector3.right;
+        EnemyRegistry.Register(enemy.transform);weapon.ActiveWave.Simulate(.4f);
+        Assert.That(enemy.Hits,Is.Zero);
+    }
+
+    [Test]
+    public void Q_InactiveReentryCannotSweepFromOldPositionToInterior()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out _);var enemy=WaveTarget(Vector3.right*8);
+        weapon.UseActiveAbility(Vector3.forward);weapon.ActiveWave.Simulate(.2f);
+        enemy.gameObject.SetActive(false);weapon.ActiveWave.Simulate(.1f);
+        enemy.transform.position=Vector3.right;enemy.gameObject.SetActive(true);
+        weapon.ActiveWave.Simulate(.3f);
+        Assert.That(enemy.Hits,Is.Zero);
+    }
+
+    [Test]
+    public void Q_LargeFinalStepDoesNotCountTargetMovementAfterExpansionEnds()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out _);var enemy=WaveTarget(Vector3.right*8);
+        weapon.UseActiveAbility(Vector3.forward);weapon.ActiveWave.Simulate(.5f);
+        enemy.transform.position=Vector3.zero;weapon.ActiveWave.Simulate(1f);
+        Assert.That(enemy.Hits,Is.Zero,"The target crosses only after the damaging front has finished.");
+    }
+
+    [Test]
+    public void Q_CapsTheWholeCastAt64UniqueReceiversAcrossFramesAndDuplicateRoots()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out _);var enemies=new List<Receiver>();
+        for(int i=0;i<100;i++)
+        {
+            var target=WaveTarget(Vector3.right*(.5f+i*.055f),2);enemies.Add(target);
+            RegisterWaveRoot(target.transform.GetChild(0));
+        }
+        weapon.UseActiveAbility(Vector3.forward);
+        for(int i=0;i<60;i++)weapon.ActiveWave.Simulate(1f/60f);
+        int hits=0;foreach(var target in enemies){Assert.That(target.Hits,Is.LessThanOrEqualTo(1));hits+=target.Hits;}
+        Assert.That(hits,Is.EqualTo(64));Assert.That(weapon.ActiveWave.HitCount,Is.EqualTo(64));
+    }
+
+    [TestCase(false)] [TestCase(true)]
+    public void Q_PauseAndHitstopFreezeDamageVisualAndPoolLifetime(bool uiPause)
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out var instance);WaveTarget(Vector3.right*4);
+        weapon.UseActiveAbility(Vector3.forward);
+        var profile=AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>("Assets/ScriptableObjects/WeaponPresentation/FlamethrowerPresentation.asset");
+        profile.TryGetCueData(WeaponPresentationCue.FlamethrowerActiveBurst,out var cue);
+        var pooled=Track(Object.Instantiate(cue.VfxPrefab)).GetComponent<PooledWeaponVfx>();pooled.Initialize();
+        var context=new WeaponPresentationContext(cue.Cue,instance,Vector3.zero,Vector3.up,explosionRadius:6f);
+        pooled.Play(in context,cue.Duration,0,false);var visual=pooled.GetComponent<FlamethrowerCueVfx>();
+        weapon.ActiveWave.Simulate(.2f);visual.SampleActive(999);
+        Assert.That(visual.ActiveDamageRadius,Is.EqualTo(2f).Within(.001f));
+        if(uiPause)GameplayPause.Push();else Time.timeScale=0;
+        weapon.ActiveWave.Simulate(100);visual.SampleActive(100);
+        Assert.That(weapon.ActiveWave.Clock.Elapsed,Is.EqualTo(.2f));Assert.That(weapon.ActiveWave.HitCount,Is.Zero);
+        Assert.That(visual.ActiveDamageRadius,Is.EqualTo(2f).Within(.001f));Assert.That(pooled.ShouldRelease(999),Is.False);
+        if(uiPause)GameplayPause.Pop();else Time.timeScale=1;
+        weapon.ActiveWave.Simulate(.4f);visual.SampleActive(0);
+        Assert.That(visual.ActiveDamageRadius,Is.EqualTo(6f).Within(.001f));Assert.That(pooled.ShouldRelease(999),Is.False);
+        weapon.ActiveWave.Simulate(.25f);visual.SampleActive(0);Assert.That(pooled.ShouldRelease(999),Is.True);
+    }
+
+    [Test]
+    public void Q_OwnerDeactivationCancelsWaveAndPresentationDuringPause()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out _);var target=WaveTarget(Vector3.right*3);
+        weapon.UseActiveAbility(Vector3.forward);weapon.ActiveWave.Simulate(.1f);
+        Time.timeScale=0;_owner.SetActive(false);weapon.ActiveWave.Simulate(10);
+        Assert.That(weapon.ActiveWave.Clock.Cancelled,Is.True);Assert.That(weapon.ActiveWave.Clock.Complete,Is.True);
+        Assert.That(target.Hits,Is.Zero);
+    }
+
+    [TestCase(WeaponUpgradePath.PathA)] [TestCase(WeaponUpgradePath.PathB)]
+    public void Q_ArrivalRetainsCapturedUpgradeAndActiveAttributionAfterSwitch(WeaponUpgradePath path)
+    {
+        var weapon=CreateQWeapon(path,out var instance);var target=WaveTarget(Vector3.right*4);
+        var sink=new FeedbackRecorder();weapon.SetPresentationSink(sink);weapon.UseActiveAbility(Vector3.forward);
+        instance.State=WeaponState.Automatic;instance.SelectedPath=WeaponUpgradePath.None;instance.Level=1;
+        weapon.ActiveWave.Simulate(.5f);
+        Assert.That(target.Hits,Is.EqualTo(1));Assert.That(sink.Status.Count,Is.EqualTo(1));
+        Assert.That(sink.Status[0].Mode,Is.EqualTo(WeaponFeedbackMode.Active));Assert.That(sink.Status[0].UpgradePath,Is.EqualTo(path));
+        Assert.That(sink.Status[0].Origin,Is.EqualTo(Vector3.zero));
+        Assert.That(target.GetComponent<WeaponMovementFreezeStatus>()!=null,Is.EqualTo(path==WeaponUpgradePath.PathB));
+        Assert.That(target.GetComponent<FlamethrowerBurnStatus>()!=null,Is.EqualTo(path==WeaponUpgradePath.PathA));
+    }
+
+    [TestCase(6,.3f,3.6f)] [TestCase(18,.6f,10.8f)]
+    public void Q_FuelFootprintActivatesAtFrontArrivalAndPreservesIndependentScaledRadius(int level,float arrival,float radius)
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.PathA,out var instance);instance.Level=level;
+        weapon.UseActiveAbility(Vector3.forward);weapon.ActiveWave.Simulate(arrival-.01f);
+        Assert.That(Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None),Is.Empty);
+        weapon.ActiveWave.Simulate(.01f);
+        var puddles=Object.FindObjectsByType<FlamethrowerFuelPuddle>(FindObjectsSortMode.None);
+        Assert.That(puddles,Has.Length.EqualTo(1));Assert.That(puddles[0].GameplayRadius,Is.EqualTo(radius).Within(.001f));
+    }
+
+    [Test]
+    public void Q_PartialAmmoCastSpendsRemainderAndCooldownBlocksAnotherFront()
+    {
+        var weapon=CreateQWeapon(WeaponUpgradePath.None,out var instance);instance.CurrentAmmo=5f;
+        var sink=new FeedbackRecorder();weapon.SetPresentationSink(sink);
+        weapon.UseActiveAbility(Vector3.forward);var first=weapon.ActiveWave;
+        Assert.That(first,Is.Not.Null);Assert.That(instance.CurrentAmmo,Is.Zero);
+        Assert.That(instance.AbilityCooldownTimer,Is.EqualTo(14f));Assert.That(sink.Shots,Is.EqualTo(1));
+        instance.CurrentAmmo=100f;weapon.UseActiveAbility(Vector3.forward);
+        Assert.That(weapon.ActiveWave,Is.SameAs(first));Assert.That(instance.CurrentAmmo,Is.EqualTo(100f));
+        Assert.That(sink.Shots,Is.EqualTo(1));
+    }
+
+    private FlamethrowerWeapon CreateQWeapon(WeaponUpgradePath path,out WeaponInstance instance)
+    {
+        var weapon=CreateWeapon(path,out instance);instance.Data.ActiveAbilityAmmoCost=40;instance.Data.SkillCooldown=14;
+        return weapon;
+    }
+    private Receiver WaveTarget(Vector3 position,int colliders=1)
+    {
+        var target=Target(position,colliders);RegisterWaveRoot(target.transform);return target;
+    }
+    private void RegisterWaveRoot(Transform root){EnemyRegistry.Register(root);_waveRegistrations.Add(root);}
+
     private sealed class AuthoritativeReceiver : MonoBehaviour, IAuthoritativeDamageable
     {
         public int Hits;
@@ -580,10 +953,11 @@ public sealed class FlamethrowerManualAreaTests
     {
         public readonly List<WeaponFeedbackContext> Damage = new();
         public readonly List<WeaponFeedbackContext> Status = new();
+        public int Shots;
         public void OnChargeStarted(in WeaponFeedbackContext context) { }
         public void OnChargeUpdated(in WeaponFeedbackContext context, float normalizedProgress) { }
         public void OnChargeCancelled(in WeaponFeedbackContext context) { }
-        public void OnShotFired(in WeaponFeedbackContext context) { }
+        public void OnShotFired(in WeaponFeedbackContext context) { Shots++; }
         public void OnSustainedFireStarted(in WeaponFeedbackContext context) { }
         public void OnSustainedFireStopped(in WeaponFeedbackContext context) { }
         public void OnProjectileImpact(in WeaponFeedbackContext context) { }
@@ -598,14 +972,14 @@ public sealed class FlamethrowerManualAreaTests
         public void EndLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
     }
 
-    private FlamethrowerWeapon CreateWeapon(WeaponUpgradePath path, out WeaponInstance instance)
+    private FlamethrowerWeapon CreateWeapon(WeaponUpgradePath path, out WeaponInstance instance, PlayerMovement movement = null)
     {
         WeaponData data = Track(ScriptableObject.CreateInstance<WeaponData>());
         data.WeaponType = WeaponType.Flamethrower;
         data.WeaponId = "manual-area-test";
         data.EnsureSpecificTuningForCurrentType();
         data.BaseDamage = 5f; data.BaseRange = 7f;
-        PlayerStats stats = _owner.AddComponent<PlayerStats>();
+        PlayerStats stats = _owner.GetComponent<PlayerStats>() ?? _owner.AddComponent<PlayerStats>();
         var definitions = new List<StatDefinition>();
         foreach (StatType type in new[] { StatType.DamageMultiplier, StatType.EliteDamageMultiplier, StatType.CriticalChance,
             StatType.CriticalDamage, StatType.AttackSpeedMultiplier, StatType.AmmoMultiplier, StatType.Knockback,
@@ -621,7 +995,7 @@ public sealed class FlamethrowerManualAreaTests
         typeof(PlayerStats).GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(stats, null);
         instance = new WeaponInstance { Data = data, CurrentAmmo = 100f, Level = path == WeaponUpgradePath.None ? 1 : 6,
             SelectedPath = path, State = WeaponState.Manual };
-        var weapon = new FlamethrowerWeapon(null, null, _owner.transform, null);
+        var weapon = new FlamethrowerWeapon(null, null, _owner.transform, movement);
         weapon.Setup(instance, _owner.transform, stats, null);
         return weapon;
     }
@@ -657,6 +1031,7 @@ public sealed class FlamethrowerManualAreaTests
     private sealed class Receiver : MonoBehaviour, IDamageable
     {
         public int Hits;
-        public bool ApplyDamage(int amount) { Hits++; return true; }
+        public int TotalDamage;
+        public bool ApplyDamage(int amount) { Hits++; TotalDamage+=amount; return true; }
     }
 }

@@ -103,6 +103,8 @@ public class BalanceTuningHub : MonoBehaviour
 
     public int ActiveEnemies => EnemyRegistry.ActiveCount;
 
+    public int CappedActiveEnemies => EnemySpawnPopulationMember.ActiveCount;
+
     public int MaxActiveEnemies => _orbitalSpawner != null ? _orbitalSpawner.MaxActiveEnemies : 0;
 
     /// <summary>En qué estado está el spawneo ahora mismo, en una línea.</summary>
@@ -112,6 +114,8 @@ public class BalanceTuningHub : MonoBehaviour
         {
             if (_heatManager == null)
                 return "sin HeatManager";
+            if (_orbitalSpawner != null && CappedActiveEnemies >= MaxActiveEnemies)
+                return "pausado (cap del ciclo; zonas y objetivos independientes)";
             if (_heatManager.IsSpawnScalingSuppressed)
                 return "suprimido (fase de Overheat)";
             if (_heatManager.IsPostOverheatDecayActive)

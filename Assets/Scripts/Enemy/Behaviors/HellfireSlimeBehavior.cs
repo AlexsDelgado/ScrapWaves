@@ -67,6 +67,9 @@ public class HellfireSlimeBehavior : EnemyBehaviorBase
 
     private void Update()
     {
+        if (EmergenceBlocksGameplay)
+            return;
+
         if (Player == null)
             return;
 

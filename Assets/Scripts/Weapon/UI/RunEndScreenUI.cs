@@ -133,6 +133,9 @@ public class RunEndScreenUI : MonoBehaviour
 
     private void Retry()
     {
+        DemoLeaderboardSession.PrepareRetry();
+        bool replayTutorial = TutorialDirector.IsActive;
+        if (replayTutorial) TutorialDirector.RequestReplay();
         EntranceCinematic.PrepareRetry();
         if (GameManager.Instance != null)
             GameManager.Instance.ResetTimeScaleForReload();
@@ -140,7 +143,16 @@ public class RunEndScreenUI : MonoBehaviour
             Time.timeScale = 1f;
 
         Scene scene = SceneManager.GetActiveScene();
-        SceneManager.LoadScene(scene.buildIndex);
+        try
+        {
+            SceneManager.LoadScene(scene.buildIndex);
+        }
+        catch
+        {
+            DemoLeaderboardSession.CancelPendingLaunch();
+            if (replayTutorial) TutorialDirector.CancelReplayRequest();
+            throw;
+        }
     }
 
     private void ReturnToMainMenu()

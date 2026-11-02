@@ -28,6 +28,8 @@ public class LevelUpChoiceUI : MonoBehaviour
     [SerializeField] private bool _pauseWhileChoosing = true;
     [SerializeField] private ThirdPersonCamera _thirdPersonCamera;
     [SerializeField] private ChoiceMenuView _levelUpView;
+    [SerializeField] private ChoiceMenuView _tutorialLevelUpView;
+    [SerializeField] private TutorialDefinition _tutorialDefinition;
     [SerializeField] private ChoiceMenuView _weaponSelectionView;
     [SerializeField] private RunMenuContent _content;
 
@@ -44,6 +46,7 @@ public class LevelUpChoiceUI : MonoBehaviour
     private void Awake()
     {
         _levelUpView?.Hide();
+        _tutorialLevelUpView?.Hide();
         if (_weaponSelectionView != _levelUpView)
             _weaponSelectionView?.Hide();
     }
@@ -52,7 +55,9 @@ public class LevelUpChoiceUI : MonoBehaviour
         Action<int> onComplete)
     {
         // The level-up heading and instructions are authored on this menu prefab.
-        return PresentChoiceCoroutine(_levelUpView, null, null, null, options, onComplete);
+        ChoiceMenuView view = TutorialDirector.IsActive && _tutorialLevelUpView != null ? _tutorialLevelUpView : _levelUpView;
+        string explanation = view == _tutorialLevelUpView ? _tutorialDefinition?.Page(TutorialStep.ItemChoice)?.Text : null;
+        return PresentChoiceCoroutine(view, null, explanation, null, options, onComplete);
     }
 
     public IEnumerator PresentWeaponSelectionCoroutine(string title, IReadOnlyList<LevelUpChoiceOption> options,

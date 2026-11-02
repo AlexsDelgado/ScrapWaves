@@ -68,7 +68,8 @@ public class BalanceTuningHubEditor : Editor
             EditorGUILayout.LabelField("Resultado", EditorStyles.miniBoldLabel);
             EditorGUILayout.LabelField("  Intervalo real", $"{hub.EffectiveSpawnIntervalSeconds:0.00} s");
             EditorGUILayout.LabelField("  Cantidad por oleada", $"x{hub.EffectiveSpawnCountMultiplier:0.00} sobre el BatchSize de la ruleta");
-            EditorGUILayout.LabelField("  Enemigos activos", $"{hub.ActiveEnemies} / {hub.MaxActiveEnemies}");
+            EditorGUILayout.LabelField("  Enemigos para cap", $"{hub.CappedActiveEnemies} / {hub.MaxActiveEnemies}");
+            EditorGUILayout.LabelField("  Enemigos registrados (incluye zonas)", hub.ActiveEnemies.ToString());
         }
 
         EditorGUILayout.Space();

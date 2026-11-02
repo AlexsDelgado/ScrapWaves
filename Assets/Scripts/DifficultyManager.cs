@@ -100,7 +100,7 @@ public class DifficultyManager : MonoBehaviour
     {
         get
         {
-            float elapsed = Time.timeSinceLevelLoad - ScalingStartDelaySeconds;
+            float elapsed = RunSessionStats.ElapsedSeconds - ScalingStartDelaySeconds;
             if (elapsed <= 0f)
                 return 0f;
             return elapsed / 60f;
@@ -112,7 +112,7 @@ public class DifficultyManager : MonoBehaviour
     {
         get
         {
-            if (Time.timeSinceLevelLoad < ScalingStartDelaySeconds)
+            if (RunSessionStats.ElapsedSeconds < ScalingStartDelaySeconds)
                 return 0f;
 
             AnimationCurve curve = IntensityCurve;

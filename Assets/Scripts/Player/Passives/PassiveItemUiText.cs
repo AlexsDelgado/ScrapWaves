@@ -45,8 +45,11 @@ public static class PassiveItemUiText
             if (sb.Length > 0)
                 sb.Append(' ');
 
-            string sign = bonus.ModifierType == StatModifierType.Multiplicative ? "x" : "+";
-            sb.Append($"{sign}{value:0.##} {StatDisplayNames.GetDisplayName(bonus.StatType)}");
+            string amount = StatDisplayFormat.FormatBonus(bonus.StatType, value, bonus.ModifierType);
+            string name = bonus.StatType == StatType.AbilityCooldownReduction
+                ? "Ability Cooldown Reduction"
+                : StatDisplayNames.GetDisplayName(bonus.StatType);
+            sb.Append($"{amount} {name}");
         }
 
         return sb.Length > 0 ? sb.ToString() : "No bonuses configured.";

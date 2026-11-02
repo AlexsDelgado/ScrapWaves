@@ -240,6 +240,85 @@ public sealed class GameplayAimTests
         Assert.That(manager.CurrentAimSolution.FrameNumber, Is.EqualTo(Time.frameCount));
     }
 
+    [TestCase(WeaponType.RotatingBlade, WeaponUpgradePath.None, WeaponType.AutomaticCannon)]
+    [TestCase(WeaponType.RotatingBlade, WeaponUpgradePath.PathA, WeaponType.RocketLauncher)]
+    [TestCase(WeaponType.RotatingBlade, WeaponUpgradePath.PathB, WeaponType.AutomaticCannon)]
+    [TestCase(WeaponType.Mortar, WeaponUpgradePath.None, WeaponType.RocketLauncher)]
+    [TestCase(WeaponType.Mortar, WeaponUpgradePath.PathA, WeaponType.AutomaticCannon)]
+    [TestCase(WeaponType.Mortar, WeaponUpgradePath.PathB, WeaponType.RocketLauncher)]
+    public void ManagersDropNearbyEnemyAssistanceForSwordAndMortar(WeaponType type, WeaponUpgradePath path, WeaponType assistedType)
+    {
+        Camera camera = CameraAt(Vector3.zero);
+        ReticleAimProvider provider = Provider(camera);
+        GameObject enemy = Go("Enemy beside the reticle");
+        enemy.transform.position = new Vector3(1.2f, 0f, 10f);
+        enemy.AddComponent<BoxCollider>().size = Vector3.one * 2f;
+        enemy.AddComponent<AimTestDamageable>();
+        Physics.SyncTransforms();
+
+        var manager = provider.gameObject.AddComponent<WeaponManager>();
+        Set(manager, "_reticleAimProvider", provider);
+        var sandboxObject = Go("Inactive aim exclusion sandbox");
+        sandboxObject.SetActive(false);
+        var sandbox = sandboxObject.AddComponent<WeaponTestingSandboxManager>();
+        Set(sandbox, "_aimProvider", provider);
+        Set(sandbox, "<PlayerTransform>k__BackingField", provider.transform);
+        var instances = (WeaponInstance[])Get(sandbox, "_instances");
+        var behaviours = (IWeaponBehaviour[])Get(sandbox, "_behaviours");
+        var equipped = (List<IWeaponBehaviour>)manager.GetEquippedWeapons();
+        for (int i = 0; i < 2; i++)
+        {
+            instances[i] = Weapon(i == 0 ? assistedType : type);
+            instances[i].Level = i == 0 || path == WeaponUpgradePath.None ? 1 : 7;
+            instances[i].SelectedPath = i == 0 ? WeaponUpgradePath.None : path;
+            var behaviour = new BasicProjectileWeapon(null, null, provider.transform);
+            behaviour.Setup(instances[i], provider.transform, null, null);
+            behaviours[i] = behaviour;
+            equipped.Add(behaviour);
+        }
+
+        // Both gameplay and sandbox share this result for manual fire and ability input.
+        Invoke(manager, "GetAimDirection");
+        Invoke(sandbox, "ResolveAimDirection");
+        Assert.That(manager.CurrentAimSolution.TargetPoint.x, Is.EqualTo(0.2f).Within(0.001f),
+            "The nearby target must actually be eligible for assistance on the cannon or rocket launcher.");
+        Assert.That(sandbox.CurrentAimSolution.TargetPoint, Is.EqualTo(manager.CurrentAimSolution.TargetPoint));
+
+        Invoke(manager, "StartManualMode", 1);
+        sandbox.SelectManualSlot(1);
+        Assert.That(manager.CurrentAimSolution.TargetPoint.x, Is.Zero.Within(0.001f));
+        Assert.That(manager.CurrentAimSolution.TargetPoint.z, Is.EqualTo(25f).Within(0.001f));
+        Assert.That(sandbox.CurrentAimSolution.TargetPoint, Is.EqualTo(manager.CurrentAimSolution.TargetPoint),
+            "Switching to sword or mortar must immediately release the assisted target in both managers.");
+
+        Invoke(manager, "StartManualMode", 0);
+        sandbox.SelectManualSlot(0);
+        Assert.That(manager.CurrentAimSolution.TargetPoint.x, Is.EqualTo(0.2f).Within(0.001f),
+            "The exclusion must not disable assistance for other weapons.");
+        Assert.That(sandbox.CurrentAimSolution.TargetPoint, Is.EqualTo(manager.CurrentAimSolution.TargetPoint));
+    }
+
+    [TestCase(WeaponType.RotatingBlade)]
+    [TestCase(WeaponType.Mortar)]
+    public void UnassistedSwordAndMortarKeepExactReticleSurfaceConvergence(WeaponType type)
+    {
+        Camera camera = CameraAt(new Vector3(0f, 1.8f, 0f));
+        ReticleAimProvider provider = Provider(camera);
+        GameObject enemy = Go("Directly aimed surface");
+        enemy.transform.position = new Vector3(0f, 1f, 10f);
+        enemy.AddComponent<BoxCollider>().size = Vector3.one * 2f;
+        enemy.AddComponent<AimTestDamageable>();
+        Physics.SyncTransforms();
+        Vector3 muzzle = new(0.7f, 1.2f, 0f);
+
+        AimSolution aim = provider.ResolveWeaponAim(muzzle, Weapon(type));
+
+        Assert.That(Vector3.Distance(aim.TargetPoint, new Vector3(0f, 1.8f, 9f)), Is.LessThan(0.001f),
+            "Disabling assistance must preserve the exact point under the reticle, not snap to the body center.");
+        Assert.That(Vector3.Angle(aim.Direction, (aim.TargetPoint - muzzle).normalized), Is.LessThan(0.01f),
+            "The muzzle still converges on the reticle despite camera offset.");
+    }
+
     private ThirdPersonCamera Controller(Camera camera)
     {
         var controller = camera.gameObject.AddComponent<ThirdPersonCamera>();

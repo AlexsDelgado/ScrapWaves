@@ -7,10 +7,21 @@ public sealed class EnemyKnockbackReceiver : MonoBehaviour
     [SerializeField, Min(0f)] private float _maxPlanarSpeed = 18f;
 
     private Vector3 _planarVelocity;
+    private EnemyEmergence _emergence;
+
+    private void Awake() => _emergence = GetComponent<EnemyEmergence>();
 
     // Applies a horizontal impulse away from the impact point.
     public void ApplyKnockback(Vector3 impactOrigin, float strength)
     {
+        if (_emergence == null)
+            _emergence = GetComponent<EnemyEmergence>();
+        if (_emergence != null && _emergence.BlocksGameplayNow)
+        {
+            ClearPending();
+            return;
+        }
+
         if (strength <= 0f)
             return;
 
@@ -29,6 +40,14 @@ public sealed class EnemyKnockbackReceiver : MonoBehaviour
     // Movement controllers consume displacement so knockback does not fight their normal steering.
     public Vector3 ConsumeDisplacement(float deltaTime)
     {
+        if (_emergence == null)
+            _emergence = GetComponent<EnemyEmergence>();
+        if (_emergence != null && _emergence.BlocksGameplayNow)
+        {
+            ClearPending();
+            return Vector3.zero;
+        }
+
         if (_planarVelocity.sqrMagnitude <= 0.0001f)
             return Vector3.zero;
 

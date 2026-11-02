@@ -1,0 +1,118 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6538ac63e68d01d4e893f109d9378580, type: 3}
+  m_Name: TutorialDefinition
+  m_EditorClassIdentifier: Assembly-CSharp::TutorialDefinition
+  StartingWeapon: {fileID: 11400000, guid: 7991edf7f844c1b4abbdf23bd13bf5c8, type: 2}
+  FirstUpgradePipes: 0
+  TinkerCommonEach: 0
+  MarkerRadius: 2.5
+  RecoveryRadius: 48
+  Pages:
+  - Step: 0
+    Title: WELCOME TO DUMPSTER FIRE
+    Text: "Welcome to Dumpster Fire! In this survivor game, you\u2019ll face hordes
+      of enemies and bosses while you improve your equipment and try to escape the
+      scrapyard. Let\u2019s start with some basics."
+    Controls: 0
+    AdvanceWithE: 1
+  - Step: 1
+    Title: 01 / GET MOVING
+    Text: "You can move with W/A/S/D and jump with the space bar. You can dash with
+      Left Shift, which consumes a dash charge that recharges over time. If you\u2019re
+      going quick enough, like after a dash, you can slide by holding Left Control.
+      Walk to the highlighted area to continue."
+    Controls: 1
+    AdvanceWithE: 0
+  - Step: 2
+    Title: 02 / FIRST CONTACT
+    Text: An enemy has spawned! Shoot him with your left click until he dies.
+    Controls: 2
+    AdvanceWithE: 0
+  - Step: 3
+    Title: 02 / COLLECT THE MATERIALS
+    Text: Walk over the dropped materials to collect them.
+    Controls: 1
+    AdvanceWithE: 0
+  - Step: 4
+    Title: 02 / UPGRADE YOUR AUTOCANNON
+    Text: Different enemies drop different materials. You can use these materials
+      to upgrade your weapons and to craft new ones. Go to the tinkering table and
+      upgrade your autocannon to level 2.
+    Controls: 3
+    AdvanceWithE: 0
+  - Step: 5
+    Title: 03 / FEELING THE HEAT
+    Text: You are starting to attract attention! Killing enemies fills the Heat gauge,
+      and the fuller it is, the more enemies will spawn. Once it reaches its maximum,
+      an Overheat event will begin, spawning elite enemies and bosses.
+    Controls: 0
+    AdvanceWithE: 1
+  - Step: 6
+    Title: 03 / WEAPON ABILITIES
+    Text: Luckily, you also have weapon abilities at your disposal. Each weapon has
+      a unique ability, but they all consume ammo to use and have a timed cooldown.
+      Press Q to use your ability to deal with this small horde.
+    Controls: 4
+    AdvanceWithE: 0
+  - Step: 7
+    Title: 03 / MATERIALS FOR TINKERING
+    Text: Collect the materials dropped by all three enemies, then return to the
+      tinkering table.
+    Controls: 1
+    AdvanceWithE: 0
+  - Step: 8
+    Title: 03 / BUILD YOUR SECOND WEAPON
+    Text: With enough materials, you can Tinker at a table to create a new semi-random
+      weapon. Go to the table and choose your second weapon slot to tinker a new
+      weapon. If you upgrade weapons enough, you will also be able to perform Advanced
+      Tinkering on them, which will evolve their capabilities or change them drastically.
+    Controls: 3
+    AdvanceWithE: 0
+  - Step: 9
+    Title: 04 / YOUR WEAPONS WORK TOGETHER
+    Text: "We\u2019re almost done. Your equipped weapons will cycle when you run
+      out of ammo; however, unequipped weapons will still fire independently, although
+      with limited range and damage. Kill the last horde of enemies with your new
+      weapons to continue."
+    Controls: 2
+    AdvanceWithE: 0
+  - Step: 10
+    Title: 04 / COLLECT THE LAST MATERIALS
+    Text: Collect the materials from all four enemies to level up.
+    Controls: 1
+    AdvanceWithE: 0
+  - Step: 11
+    Title: 04 / LEVEL UP
+    Text: Apart from using them for crafting, picking materials up makes you level
+      up. When you do, you will get small random stat boosts, as well as choosing
+      one of three passive items. You have six item slots, differentiated by body
+      parts, which can fit different items. If you already have items, you will also
+      be given the choice to upgrade them up to level 6.
+    Controls: 0
+    AdvanceWithE: 0
+  - Step: 12
+    Title: 04 / YOUR WAY OUT
+    Text: Your goal is to leave the scrapyard. To do this, you need to trigger enough
+      Overheat cycles to attract the two bosses, collect their core batteries and
+      use them to power a massive gate found somewhere between the trash piles.
+    Controls: 0
+    AdvanceWithE: 1
+  - Step: 13
+    Title: 04 / TAKE TO THE SKY
+    Text: "To finish the tutorial, walk towards the trash geyser. It will make you
+      jump up to the floating islands in the sky. These are ripe with opportunities,
+      as well as being the only place you\u2019ll find tinkering stations. Be warned,
+      however, that during Overheat events, you will be forced to jump back down
+      to the scrapyard."
+    Controls: 1
+    AdvanceWithE: 0

@@ -235,7 +235,7 @@ public class WeaponManager : MonoBehaviour
     public bool CanUseAbility()
     {
         WeaponInstance weapon = GetCurrentManualWeapon();
-        if (IsManualCycleInProgress || weapon?.Data == null || weapon.State != WeaponState.Manual)
+        if (!TutorialDirector.AbilityAllowed || IsManualCycleInProgress || weapon?.Data == null || weapon.State != WeaponState.Manual)
             return false;
         if (weapon.AbilityCooldownTimer > 0f)
             return false;
@@ -370,10 +370,10 @@ public class WeaponManager : MonoBehaviour
     {
         Transform spawn = _projectileSpawn != null ? _projectileSpawn : transform;
         WeaponInstance manualWeapon = GetCurrentManualWeapon();
-        float fallbackDistance = manualWeapon?.Data != null ? manualWeapon.Data.BaseRange : 0f;
+        BasicProjectileWeapon geometrySource = GetCurrentManualBehaviour() as BasicProjectileWeapon;
         CurrentAimSolution = _reticleAimProvider != null
-            ? _reticleAimProvider.ResolveWeaponAim(spawn.position, manualWeapon)
-            : ReticleAimProvider.CreateFallback(spawn.position, fallbackDistance, Camera.main, transform.forward);
+            ? _reticleAimProvider.ResolveWeaponAim(spawn.position, manualWeapon, geometrySource)
+            : ReticleAimProvider.CreateWeaponFallback(spawn.position, manualWeapon, geometrySource, Camera.main, transform.forward);
         return CurrentAimSolution.Direction;
     }
 

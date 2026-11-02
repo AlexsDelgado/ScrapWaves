@@ -3,7 +3,6 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class ReticleAimProvider : MonoBehaviour
 {
-    private const int MortarPredictionSegments = 64;
     private const int MortarHitBufferSize = 32;
 
     [SerializeField, Tooltip("Camera used for the center-screen reticle ray. Empty uses Camera.main.")]
@@ -48,18 +47,45 @@ public class ReticleAimProvider : MonoBehaviour
     public Camera AimCamera => ResolveCamera();
 
     public bool TryGetAimSolution(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, out AimSolution solution)
+        => TryGetAimSolutionCore(origin, fallbackDistance, preferDamageableAimPoint, 1f, out solution);
+
+    private bool TryGetAimSolutionCore(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint,
+        float minimumDistance, out AimSolution solution)
     {
         solution = default;
         if (!TryGetGameplayRay(ResolveCamera(), out Ray ray)) return false;
-        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint), Time.frameCount);
+        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint, minimumDistance), Time.frameCount);
         return solution.IsValid;
     }
 
-    public AimSolution ResolveWeaponAim(Vector3 origin, WeaponInstance weapon)
+    public AimSolution ResolveWeaponAim(Vector3 origin, WeaponInstance weapon, BasicProjectileWeapon behaviour = null)
     {
-        float distance = weapon?.Data != null ? weapon.Data.BaseRange : _maxAimDistance;
-        return TryGetAimSolution(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), out AimSolution solution)
-            ? solution : CreateFallback(origin, distance, ResolveCamera(), transform.forward);
+        float? authored = GetAuthoredConvergenceDistance(behaviour);
+        float distance = authored ?? (weapon?.Data != null ? weapon.Data.BaseRange : _maxAimDistance);
+        float minimumDistance = authored.HasValue ? 0f : 1f;
+        return TryGetAimSolutionCore(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), minimumDistance, out AimSolution solution)
+            ? solution : CreateFallback(origin, distance, ResolveCamera(), transform.forward, minimumDistance);
+    }
+
+    public static float ResolveConvergenceDistance(WeaponInstance weapon, BasicProjectileWeapon behaviour, float fallback = 0f)
+    {
+        float? authored = GetAuthoredConvergenceDistance(behaviour);
+        if (authored.HasValue) return authored.Value;
+        return weapon?.Data != null ? weapon.Data.BaseRange : fallback;
+    }
+
+    public static AimSolution CreateWeaponFallback(Vector3 origin, WeaponInstance weapon, BasicProjectileWeapon behaviour,
+        Camera camera, Vector3 forward)
+    {
+        float? authored = GetAuthoredConvergenceDistance(behaviour);
+        float distance = authored ?? (weapon?.Data != null ? weapon.Data.BaseRange : 0f);
+        return CreateFallback(origin, distance, camera, forward, authored.HasValue ? 0f : 1f);
+    }
+
+    private static float? GetAuthoredConvergenceDistance(BasicProjectileWeapon behaviour)
+    {
+        float? value = behaviour?.GetManualAimConvergenceDistance();
+        return value.HasValue && !float.IsNaN(value.Value) && !float.IsInfinity(value.Value) && value.Value > 0f ? value : null;
     }
 
     public static bool TryGetGameplayRay(Camera camera, out Ray ray)
@@ -73,11 +99,11 @@ public class ReticleAimProvider : MonoBehaviour
         return true;
     }
 
-    public static AimSolution CreateFallback(Vector3 origin, float distance, Camera camera, Vector3 forward)
+    public static AimSolution CreateFallback(Vector3 origin, float distance, Camera camera, Vector3 forward, float minimumDistance = 1f)
     {
         if (TryGetGameplayRay(camera, out Ray ray)) forward = ray.direction;
         if (forward.sqrMagnitude <= 0.0001f) forward = Vector3.forward;
-        return new AimSolution(origin, origin + forward.normalized * Mathf.Max(1f, distance), Time.frameCount);
+        return new AimSolution(origin, origin + forward.normalized * Mathf.Max(minimumDistance, distance), Time.frameCount);
     }
 
     public bool TryGetMortarTerrainImpact(
@@ -94,25 +120,9 @@ public class ReticleAimProvider : MonoBehaviour
             return false;
 
         Vector3 target = origin + aimDirection.normalized * Mathf.Max(0f, range);
-        float maximumTime = MortarTrajectory.GetMaximumNormalizedTime(travelTime);
-        float predictionStep = maximumTime / MortarPredictionSegments;
-        float radius = Mathf.Max(0.01f, collisionRadius);
-        Vector3 previous = origin;
-
-        // Sweep chords along the same parabola as the live shell while ignoring enemy hits.
-        for (int i = 1; i <= MortarPredictionSegments; i++)
-        {
-            float t = predictionStep * i;
-            Vector3 next = MortarTrajectory.Evaluate(origin, target, arcHeight, t);
-            if (TryGetMortarSegmentHit(previous, next, radius, out terrainHit))
-                return true;
-
-            previous = next;
-        }
-
-        return false;
+        return MortarTrajectory.TryPredictTerrainCollision(origin, target, arcHeight, travelTime,
+            collisionRadius, _ignoredRoot, _mortarHitBuffer, out terrainHit);
     }
-
     public static bool IsValidMortarTerrainTransform(Transform candidate, Transform ignoredRoot)
     {
         if (candidate == null)
@@ -130,6 +140,55 @@ public class ReticleAimProvider : MonoBehaviour
         return candidate.GetComponentInParent<EnemyRegistryMember>() == null;
     }
 
+    // Match the player's walkable slope and ground layers. Default is intentional:
+    // authored elevated pads and geyser walkable meshes also live on that layer.
+    public const float MortarGroundMinimumUpDot = 0.6427876f; // cos(50 degrees)
+    // MonoBehaviour types can first initialize on Unity's loading thread. Resolve
+    // layer names only when a physics query calls this property on the main thread.
+    private static int s_MortarGroundMask, s_MortarActorMask;
+    private static int MortarGroundMask
+    {
+        get
+        {
+            if (s_MortarGroundMask == 0)
+            {
+                s_MortarActorMask = LayerMask.GetMask("Enemy", "Player");
+                s_MortarGroundMask = LayerMask.GetMask("Default", "Terrain");
+            }
+            return s_MortarGroundMask;
+        }
+    }
+
+    public static bool IsValidMortarGroundHit(RaycastHit hit, Transform ignoredRoot)
+    {
+        return hit.normal.y >= MortarGroundMinimumUpDot
+            && IsValidMortarGroundCollider(hit.collider, ignoredRoot);
+    }
+
+    public static bool IsValidMortarGroundCollider(Collider candidate, Transform ignoredRoot)
+    {
+        if (candidate == null || candidate.isTrigger
+            || (MortarGroundMask & (1 << candidate.gameObject.layer)) == 0
+            || !IsValidMortarTerrainTransform(candidate.transform, ignoredRoot))
+            return false;
+
+        Rigidbody body = candidate.attachedRigidbody;
+        if (body != null && !body.isKinematic) return false;
+        // Inspect the collider hierarchy, not RaycastHit.transform (which can be
+        // the attached body's transform). Child hitboxes can have their own layer.
+        for (Transform current = candidate.transform; current != null; current = current.parent)
+        {
+            int layer = current.gameObject.layer;
+            if ((s_MortarActorMask & (1 << layer)) != 0)
+                return false;
+        }
+
+        // These authored colliders enclose interactive props or spawn exclusion
+        // volumes; an upward face does not make them a floor.
+        return candidate.GetComponentInParent<CraftingStation>() == null
+            && candidate.GetComponentInParent<EnemySpawnBlockVolume>() == null;
+    }
+
     private Camera ResolveCamera()
     {
         if (_aimCamera == null)
@@ -138,11 +197,11 @@ public class ReticleAimProvider : MonoBehaviour
         return _aimCamera;
     }
 
-    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint)
+    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, float minimumDistance = 1f)
     {
         int hitCount = Physics.RaycastNonAlloc(ray, _hitBuffer, _maxAimDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
         float closestDistance = float.PositiveInfinity;
-        Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance);
+        Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance, minimumDistance);
         bool directlyHitsEnemy = false;
 
         for (int i = 0; i < hitCount; i++)
@@ -244,10 +303,10 @@ public class ReticleAimProvider : MonoBehaviour
         return damageable is Component damageableComponent ? damageableComponent.transform : null;
     }
 
-    private Vector3 GetNoHitTargetPoint(Ray ray, Vector3 origin, float fallbackDistance)
+    private Vector3 GetNoHitTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, float minimumDistance = 1f)
     {
         // Keep no-hit shots converged with the reticle at weapon reach, not at camera max distance.
-        float distance = Mathf.Clamp(fallbackDistance, 1f, _maxAimDistance);
+        float distance = Mathf.Clamp(fallbackDistance, minimumDistance, _maxAimDistance);
         Vector3 cameraToOrigin = ray.origin - origin;
         float projection = Vector3.Dot(ray.direction, cameraToOrigin);
         float c = cameraToOrigin.sqrMagnitude - distance * distance;
@@ -262,53 +321,6 @@ public class ReticleAimProvider : MonoBehaviour
         }
 
         return origin + ray.direction * distance;
-    }
-
-    private bool TryGetMortarSegmentHit(
-        Vector3 start,
-        Vector3 end,
-        float radius,
-        out RaycastHit terrainHit)
-    {
-        terrainHit = default;
-        Vector3 displacement = end - start;
-        float distance = displacement.magnitude;
-        if (distance <= 0.0001f)
-            return false;
-
-        int hitCount = Physics.SphereCastNonAlloc(
-            start,
-            radius,
-            displacement / distance,
-            _mortarHitBuffer,
-            distance,
-            _aimMask.value,
-            QueryTriggerInteraction.Ignore);
-
-        float closestDistance = float.PositiveInfinity;
-        bool found = false;
-        for (int i = 0; i < hitCount; i++)
-        {
-            RaycastHit hit = _mortarHitBuffer[i];
-            if (!IsValidMortarTerrainTransform(hit.transform, _ignoredRoot))
-                continue;
-
-            Rigidbody body = hit.rigidbody;
-            if (body != null
-                && !IsValidMortarTerrainTransform(body.transform, _ignoredRoot))
-            {
-                continue;
-            }
-
-            if (hit.distance >= closestDistance)
-                continue;
-
-            closestDistance = hit.distance;
-            terrainHit = hit;
-            found = true;
-        }
-
-        return found;
     }
 
     private bool IsIgnoredHit(RaycastHit hit)

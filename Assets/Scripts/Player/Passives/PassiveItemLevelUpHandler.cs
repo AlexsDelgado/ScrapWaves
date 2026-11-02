@@ -14,6 +14,7 @@ public class PassiveItemLevelUpHandler : MonoBehaviour
 
     /// <summary>Unfiltered production pool, used by deterministic testing tools.</summary>
     public IReadOnlyList<PassiveItemData> ItemPool => _itemPool;
+    public bool LastChoiceApplied { get; private set; }
 
     private void Awake()
     {
@@ -25,6 +26,7 @@ public class PassiveItemLevelUpHandler : MonoBehaviour
 
     public IEnumerator PresentAndApplyCoroutine(int newLevel)
     {
+        LastChoiceApplied = false;
         List<PassiveItemData> unlockedPool = _itemPool;
         if (SaveManager.Instance != null)
         {
@@ -64,6 +66,6 @@ public class PassiveItemLevelUpHandler : MonoBehaviour
 
         PassiveItemOffer chosen = offer[selectedIndex];
         _roulette.RegisterChoice(chosen, offer);
-        _passiveItemManager.TryApplyOffer(chosen);
+        LastChoiceApplied = _passiveItemManager.TryApplyOffer(chosen);
     }
 }

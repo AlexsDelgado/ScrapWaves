@@ -30,15 +30,16 @@ public sealed class TrashGeyserDebrisTests
     {
         var renderer = _debris.GetComponent<ParticleSystemRenderer>();
         Assert.That(renderer.renderMode, Is.EqualTo(ParticleSystemRenderMode.Mesh));
-        Assert.That(renderer.mesh, Is.SameAs(AssetDatabase.LoadAssetAtPath<Mesh>(GeyserModelAuthoring.Folder + "/Meshes/LightScrap.asset")));
-        Assert.That(renderer.mesh.vertexCount, Is.EqualTo(4));
-        Assert.That(renderer.mesh.triangles.Length, Is.EqualTo(12));
+        var meshes = new Mesh[4];
+        Assert.That(renderer.GetMeshes(meshes), Is.EqualTo(4));
+        Assert.That(meshes, Is.EquivalentTo(new[] { "Cog", "Bolt", "Nail", "Nut" }.Select(name =>
+            AssetDatabase.LoadAssetAtPath<Mesh>("Assets/Art/Enemies/Stalker/ScrapBurst/Meshes/" + name + ".asset"))));
         _debris.Emit(1);
         var particles = new ParticleSystem.Particle[20];
         Assert.That(_debris.GetParticles(particles), Is.EqualTo(1));
         uint seed = particles[0].randomSeed;
         Vector3 before = particles[0].rotation3D;
-        Assert.That(particles[0].GetCurrentSize(_debris), Is.InRange(.27f, .45f));
+        Assert.That(particles[0].GetCurrentSize(_debris), Is.InRange(.675f, 1.125f));
         Vector3 origin = particles[0].position;
         _debris.Simulate(.2f, false, false, false);
         int count = _debris.GetParticles(particles);
@@ -75,6 +76,36 @@ public sealed class TrashGeyserDebrisTests
 
 public sealed class TrashGeyserSavedPrefabTests
 {
+    [TestCase("TrashGeyser_Visual")]
+    [TestCase("HotAirGeyser_Visual")]
+    [TestCase("FanJumpPad")]
+    [TestCase("VentJumpPad")]
+    public void EveryVariant_SupportsTrashOverridesAndKeepsHotAirFreeOfSolidScrap(string variant)
+    {
+        var instance = Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(GeyserModelAuthoring.Folder + "/Prefabs/" + variant + ".prefab"));
+        try
+        {
+            var fx = instance.GetComponentInChildren<GeyserVfx>();
+            var settings = new SerializedObject(fx);
+            var debris = (ParticleSystem)settings.FindProperty("_debris").objectReferenceValue;
+            Assert.That(debris, Is.Not.Null, "Designer scene overrides may select Trash on any source prefab.");
+            settings.FindProperty("_kind").enumValueIndex = (int)GeyserVfx.Kind.Trash;
+            settings.ApplyModifiedPropertiesWithoutUndo(); fx.ApplyTuning();
+            debris.Simulate(2f, false, true, false);
+            Assert.That(debris.particleCount, Is.GreaterThan(0));
+            Assert.That(debris.GetComponent<ParticleSystemRenderer>().enabled, Is.True);
+            Assert.That(debris.GetComponent<ParticleSystemRenderer>().meshCount, Is.EqualTo(4));
+            Assert.That(debris.main.maxParticles, Is.EqualTo(20));
+            settings.Update(); settings.FindProperty("_kind").enumValueIndex = (int)GeyserVfx.Kind.HotAir;
+            settings.ApplyModifiedPropertiesWithoutUndo(); fx.ApplyTuning();
+            Assert.That(debris.particleCount, Is.Zero);
+            Assert.That(debris.emission.enabled, Is.False);
+            Assert.That(debris.GetComponent<ParticleSystemRenderer>().enabled, Is.False);
+            Assert.That(fx.MaximumParticleBudget, Is.EqualTo(88));
+        }
+        finally { Object.DestroyImmediate(instance); }
+    }
+
     [Test]
     public void SavedPrefab_ContainsDebrisTuningBeforeRuntimeApplyTuning()
     {
@@ -86,7 +117,7 @@ public sealed class TrashGeyserSavedPrefabTests
         Assert.That(EditorUtility.IsPersistent(prefab), Is.True);
         var presentation = prefab.GetComponent<GeyserVfx>();
         string root = SavedComponent(saved, presentation);
-        Assert.That(SavedNumber(root, "_debrisSize", 2), Is.EqualTo(.36f).Within(.0001f));
+        Assert.That(SavedNumber(root, "_debrisSize", 2), Is.EqualTo(.9f).Within(.0001f));
         Assert.That(SavedNumber(root, "_debrisTumbleRate", 2), Is.EqualTo(1f));
         Assert.That(SavedNumber(root, "_debrisPerSecond", 2), Is.EqualTo(4f));
         Assert.That(SavedNumber(root, "_debrisBudget", 2), Is.EqualTo(20f));
@@ -95,7 +126,7 @@ public sealed class TrashGeyserSavedPrefabTests
             .Single(p => p.name == "LightTumblingDebris");
         string particles = SavedComponent(saved, debris);
         string initial = SavedSection(particles, "InitialModule", 2);
-        AssertSavedRange(initial, "startSize", .27f, .45f);
+        AssertSavedRange(initial, "startSize", .675f, 1.125f);
         Assert.That(SavedNumber(initial, "maxNumParticles", 4), Is.EqualTo(20f));
         string rotation = SavedSection(particles, "RotationModule", 2);
         Assert.That(SavedNumber(rotation, "enabled", 4), Is.EqualTo(1f));

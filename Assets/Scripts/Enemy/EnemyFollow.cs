@@ -12,6 +12,7 @@ public class EnemyFollow : MonoBehaviour
     private float _baseMoveSpeed;
     public float AuthoredMoveSpeed => _moveSpeed;
     private float _difficultySpeedMultiplier = 1f;
+    private EnemyStatRandomizer _statRandomizer;
     private SwarmPooledEnemy _pooled;
 
     [SerializeField, Tooltip("Distancia mínima al jugador en XZ. Debe ser menor que el radio del hurtbox + collider del enemigo si quieres daño por contacto.")]
@@ -48,6 +49,7 @@ public class EnemyFollow : MonoBehaviour
     private float _minFollowDistanceSqr;
     private CharacterController _characterController;
     private EnemyKnockbackReceiver _knockback;
+    private EnemyEmergence _emergence;
     private float _verticalVelocity;
     private float _slotAngleDeg;
     private float _weavePhase;
@@ -56,6 +58,7 @@ public class EnemyFollow : MonoBehaviour
     private void Awake()
     {
         _baseMoveSpeed = _moveSpeed;
+        _statRandomizer = GetComponent<EnemyStatRandomizer>();
         _pooled = GetComponent<SwarmPooledEnemy>();
         _sampleSeed = GetInstanceID();
         CacheDerived();
@@ -63,6 +66,7 @@ public class EnemyFollow : MonoBehaviour
             _target = PlayerMovement.PlayerTransform;
         _characterController = GetComponent<CharacterController>();
         _knockback = GetComponent<EnemyKnockbackReceiver>();
+        _emergence = GetComponent<EnemyEmergence>();
         EnemyMovementSteering.RandomizeIdentity(out _slotAngleDeg, out _weavePhase);
     }
 
@@ -83,6 +87,7 @@ public class EnemyFollow : MonoBehaviour
 
     public void PrepareForSpawn()
     {
+        _emergence = GetComponent<EnemyEmergence>();
         if (_target == null)
             _target = PlayerMovement.PlayerTransform;
         if (_pooled == null)
@@ -129,6 +134,11 @@ public class EnemyFollow : MonoBehaviour
 
     private void Update()
     {
+        if (_emergence == null)
+            _emergence = GetComponent<EnemyEmergence>();
+        if (_emergence != null && _emergence.BlocksGameplayNow)
+            return;
+
         if (_characterController == null)
             return;
 
@@ -180,6 +190,7 @@ public class EnemyFollow : MonoBehaviour
 
         float speed = _baseMoveSpeed
             * _difficultySpeedMultiplier
+            * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
             * WeaponMovementSlowStatus.GetSpeedMultiplier(transform)
             * DebugSpeedTool.EnemyScale;
         if (OverheatSwarmBoost.SpeedMultiplier > 1f)

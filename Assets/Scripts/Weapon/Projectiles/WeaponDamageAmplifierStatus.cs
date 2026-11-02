@@ -43,15 +43,15 @@ public sealed class WeaponDamageAmplifierStatus : MonoBehaviour
 
     private void Update()
     {
-        if (_remainingDuration <= 0f)
-        {
+        if (AdvanceLifetime(Time.deltaTime))
             Destroy(this);
-            return;
-        }
+    }
 
-        _remainingDuration -= Time.deltaTime;
-        if (_remainingDuration <= 0f)
-            Destroy(this);
+    private bool AdvanceLifetime(float deltaTime)
+    {
+        if (_remainingDuration > 0f)
+            _remainingDuration -= Mathf.Max(0f, deltaTime);
+        return _remainingDuration <= 0f;
     }
 
     private void TryApplyDummyStatus(float duration)

@@ -45,6 +45,12 @@ public class RunStartWeaponChoice : MonoBehaviour
             entrance.ReleaseForSelection();
         }
 
+        if (TutorialDirector.IsActive)
+        {
+            TutorialDirector.Instance.Begin();
+            entrance?.CompleteStartup();
+            yield break;
+        }
         List<WeaponData> offer = PickTwoRandomWeapons();
         if (offer.Count == 0)
         {

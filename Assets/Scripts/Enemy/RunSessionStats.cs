@@ -10,7 +10,7 @@ public static class RunSessionStats
 
     public static int BossKills => _bossKills;
 
-    public static float ElapsedSeconds => UnityEngine.Time.time - _runStartTime;
+    public static float ElapsedSeconds => TutorialDirector.IsActive ? 0f : UnityEngine.Time.time - _runStartTime;
 
     public static void Reset()
     {

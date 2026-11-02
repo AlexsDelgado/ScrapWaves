@@ -219,8 +219,10 @@ public sealed class ManualWeaponScreenShakeTests
         AutomaticCannonWeapon cannon = CreateCannon(h, null);
         GameObject target = Track(new GameObject("Delayed Head Hunter target"));
         ShakeTestDamageable damageable = target.AddComponent<ShakeTestDamageable>();
+        WeaponDamageContext damageContext = new(null, h.Weapon, false, -1f, 1f, false, 1f,
+            mode: mode == WeaponFeedbackMode.Automatic ? WeaponStatMode.Automatic : WeaponStatMode.Manual);
         Call(cannon, "QueueHeadHunterImpact", target.transform, 10, false, false, false,
-            Vector3.zero, Vector3.zero, Vector3.forward, 0, 1f, 0, 10f);
+            Vector3.zero, Vector3.zero, Vector3.forward, 0, 1f, 0, 10f, damageContext);
         h.Weapon.State = mode == WeaponFeedbackMode.Automatic ? WeaponState.Manual : WeaponState.Automatic;
         Call(cannon, "TickHeadHunterPendingImpacts", 1f);
         Assert.That(damageable.TotalDamage, Is.EqualTo(10));

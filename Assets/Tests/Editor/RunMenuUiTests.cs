@@ -20,6 +20,7 @@ public sealed class RunMenuUiTests
     private readonly List<Object> _cleanup = new();
     private Random.State _randomState;
     private SaveManager _previousSaveManager;
+    private UnityEngine.EventSystems.EventSystem _editModeEventSystem;
 
     [SetUp]
     public void SetUp()
@@ -35,6 +36,12 @@ public sealed class RunMenuUiTests
     [TearDown]
     public void TearDown()
     {
+        if (_editModeEventSystem != null)
+        {
+            typeof(UnityEngine.EventSystems.EventSystem).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(_editModeEventSystem, null);
+            _editModeEventSystem = null;
+        }
         // Controllers are registered after their views, so their cleanup can release listeners first.
         for (int i = _cleanup.Count - 1; i >= 0; i--)
             if (_cleanup[i] != null) Object.DestroyImmediate(_cleanup[i]);
@@ -72,6 +79,11 @@ public sealed class RunMenuUiTests
         Assert.That(view.UpgradeStatLabels, Has.Length.EqualTo(3));
         Assert.That(view.UpgradeStatValues, Has.Length.EqualTo(3));
         Assert.That(view.Candidates.Length, Is.EqualTo(2));
+        Assert.That(view.AdvancedChoicePanel.activeSelf, Is.False);
+        Assert.That(view.AdvancedPathText.transform.IsChildOf(view.AdvancedChoicePanel.transform), Is.True);
+        Assert.That(view.AcceptButton.transform.IsChildOf(view.AdvancedChoicePanel.transform), Is.True);
+        Assert.That(view.DeclineButton.transform.IsChildOf(view.AdvancedChoicePanel.transform), Is.True);
+        Assert.That(view.AdvancedPurchaseButton.transform.IsChildOf(view.AdvancedPanel.transform), Is.True);
         foreach (CraftingWeaponSlotView slot in view.Slots) AssertObjectReferences(slot);
         foreach (CraftingMaterialField field in view.Materials) AssertObjectReferences(field);
         foreach (CraftingCandidateField field in view.Candidates) AssertObjectReferences(field);
@@ -590,46 +602,166 @@ public sealed class RunMenuUiTests
     }
 
     [Test]
-    public void Advanced_UsesCurrentOfferDeclineAndAcceptanceWithServicePrices()
+    public void Advanced_PurchasesBeforeRevealAndResolvesEachPaidOfferOnlyOnce()
     {
         CraftingHarness harness = CreateCraftingHarness(5);
         WeaponInstance weapon = harness.Weapons[0];
+        int firstWiringCost = harness.Service.GetAdvancedTinkeringCost(weapon.Data).Where(cost => cost.Material == MaterialType.Wiring).Sum(cost => cost.Amount);
+        Random.State beforePurchase = Random.state;
         Open(harness);
         int[] hierarchy = Hierarchy(harness.View);
+        Assert.That(harness.View.AdvancedPanel.activeSelf, Is.True);
+        Assert.That(harness.View.AdvancedChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out _), Is.False);
+        Assert.That(Random.state, Is.EqualTo(beforePurchase), "Opening the station must not roll an offer.");
+        Assert.That(harness.View.GetComponentsInChildren<TMP_Text>(false).Any(text =>
+            text.text.Contains(weapon.Data.PathA.PathName) || text.text.Contains(weapon.Data.PathB.PathName)), Is.False);
+        Assert.That(harness.View.AdvancedPurchaseCostText.text, Does.Contain(CostText(harness.Service.GetAdvancedTinkeringCost(weapon.Data))));
+        int transactions = 0;
+        harness.Inventory.OnMaterialsSpent += () => transactions++;
+        harness.View.AcceptButton.onClick.Invoke();
+        harness.View.DeclineButton.onClick.Invoke();
+        Assert.That(transactions, Is.Zero, "A hidden resolution button cannot purchase or apply an offer.");
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
+        Assert.That(transactions, Is.EqualTo(1));
+        Assert.That(harness.View.AdvancedChoicePanel.activeSelf, Is.True);
         Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out WeaponUpgradePath initial), Is.True);
         Assert.That(harness.View.AdvancedPathText.text, Is.EqualTo(PathName(weapon.Data, initial)));
-        Assert.That(harness.View.AdvancedDescriptionText.text, Is.Empty);
-        Assert.That(harness.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: " + CostText(harness.Service.GetAdvancedTinkeringCost(weapon.Data))));
-        int transactions = 0;
-        harness.Inventory.OnInventoryChanged += () => transactions++;
+        Assert.That(harness.View.AdvancedCostText.text, Does.Contain(CostText(harness.Service.GetPendingAdvancedCost())));
+        Assert.That(weapon.Level, Is.EqualTo(5));
+        Assert.That(weapon.SelectedPath, Is.EqualTo(WeaponUpgradePath.None), "Buying must not apply the upgrade.");
+        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(100 - firstWiringCost));
+
         harness.View.DeclineButton.onClick.Invoke();
+        harness.View.DeclineButton.onClick.Invoke();
+        Assert.That(transactions, Is.EqualTo(1), "Declining spends no additional materials and never refunds the purchase.");
         Assert.That(harness.Service.TryGetGuaranteedPath(weapon.Data, out WeaponUpgradePath alternate), Is.True);
         Assert.That(alternate, Is.Not.EqualTo(initial));
         Assert.That(weapon.Level, Is.EqualTo(5));
+        Assert.That(harness.View.AdvancedChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.Service.TryGetAdvancedOffer(weapon.Data, out _), Is.False, "The next offer is hidden until a new purchase.");
+        Assert.That(harness.View.AdvancedPurchaseCostText.text, Does.Contain(CostText(harness.Service.GetAdvancedTinkeringCost(weapon.Data))));
+        int retryWiringCost = harness.Service.GetAdvancedTinkeringCost(weapon.Data).Where(cost => cost.Material == MaterialType.Wiring).Sum(cost => cost.Amount);
+        harness.View.AcceptButton.onClick.Invoke();
+        Assert.That(weapon.Level, Is.EqualTo(5));
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
         Assert.That(harness.View.AdvancedPathText.text, Is.EqualTo(PathName(weapon.Data, alternate)));
         Assert.That(harness.View.DeclineButton.interactable, Is.False);
-        Assert.That(harness.View.AdvancedCostText.text, Is.EqualTo("Tinker cost: " + CostText(harness.Service.GetAdvancedTinkeringCost(weapon.Data))));
-        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(95));
+        Assert.That(transactions, Is.EqualTo(2));
+        harness.View.AcceptButton.onClick.Invoke();
         harness.View.AcceptButton.onClick.Invoke();
         Assert.That(weapon.Level, Is.EqualTo(6));
         Assert.That(weapon.SelectedPath, Is.EqualTo(alternate));
-        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(87));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(100 - firstWiringCost - retryWiringCost));
         Assert.That(transactions, Is.EqualTo(2));
         Assert.That(harness.View.UpgradePanel.activeSelf, Is.True);
-        Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy));
+        Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy), "Runtime binds only the authored hierarchy.");
     }
 
     [Test]
-    public void Crafting_ReopenPreservesOfferAndHierarchyAndCloseCallbackRunsOnce()
+    public void Advanced_InsufficientPurchaseDoesNotSpendRollOrReveal()
+    {
+        CraftingHarness harness = CreateCraftingHarness(5);
+        MaterialCost required = harness.Service.GetAdvancedTinkeringCost(harness.Weapons[0].Data).First(cost => cost.Amount > 0);
+        int insufficient = required.Amount - 1;
+        Assert.That(harness.Inventory.TrySpend(new[] { new MaterialCost(required.Material,
+            harness.Inventory.GetAmount(required.Material) - insufficient) }), Is.True);
+        Random.State before = Random.state;
+        Open(harness);
+        Assert.That(harness.View.AdvancedPurchaseButton.interactable, Is.False);
+        int transactions = 0;
+        harness.Inventory.OnMaterialsSpent += () => transactions++;
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
+        Assert.That(transactions, Is.Zero);
+        Assert.That(harness.Inventory.GetAmount(required.Material), Is.EqualTo(insufficient));
+        Assert.That(Random.state, Is.EqualTo(before));
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out _), Is.False);
+        Assert.That(harness.Service.HasPendingAdvancedChoice, Is.False);
+        Assert.That(harness.View.AdvancedChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.Weapons[0].Level, Is.EqualTo(5));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Advanced_PaidModalBlocksAbandonmentAndSurvivesPresenterReplacement(bool replaceController)
+    {
+        CraftingHarness harness = CreateCraftingHarness(5, 4);
+        int wiringCost = harness.Service.GetAdvancedTinkeringCost(harness.Weapons[0].Data).Where(cost => cost.Material == MaterialType.Wiring).Sum(cost => cost.Amount);
+        Open(harness);
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out WeaponUpgradePath offer), Is.True);
+        Random.State rolled = Random.state;
+        int[] hierarchy = Hierarchy(harness.View);
+        harness.View.CloseButton.onClick.Invoke();
+        Assert.That(harness.Controller.CloseForTutorial(), Is.False);
+        harness.View.Slots[1].Button.onClick.Invoke();
+        harness.View.UpgradeButton.onClick.Invoke();
+        harness.View.TinkerButton.onClick.Invoke();
+        harness.View.AdvancedPurchaseButton.onClick.Invoke();
+        var events = Track(new GameObject("Advanced cancel events", typeof(UnityEngine.EventSystems.EventSystem)))
+            .GetComponent<UnityEngine.EventSystems.EventSystem>();
+        // EventSystem does not execute its lifecycle automatically in EditMode.
+        _editModeEventSystem = events;
+        typeof(UnityEngine.EventSystems.EventSystem).GetMethod("OnEnable", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(events, null);
+        UnityEngine.EventSystems.EventSystem.current = events;
+        Assert.That(UnityEngine.EventSystems.EventSystem.current, Is.SameAs(events));
+        UnityEngine.EventSystems.ExecuteEvents.Execute(harness.View.AdvancedChoicePanel,
+            new UnityEngine.EventSystems.BaseEventData(events), UnityEngine.EventSystems.ExecuteEvents.cancelHandler);
+        var pauseOwner = Track(new GameObject("Advanced pause fixture")); pauseOwner.SetActive(false);
+        var pause = pauseOwner.AddComponent<PauseMenuUI>(); SetField(pause, "_craftingUi", harness.Controller);
+        Assert.That(typeof(PauseMenuUI).GetMethod("CanPause", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(pause, null), Is.False);
+        Assert.That(harness.Controller.IsVisible, Is.True);
+        Assert.That(harness.Controller.IsChoosingAdvanced, Is.True);
+        Assert.That(harness.View.CloseButton.interactable, Is.False);
+        Assert.That(harness.View.Slots.All(slot => !slot.Button.interactable), Is.True);
+        Assert.That(harness.Weapons[1].Level, Is.EqualTo(4));
+        Assert.That(Time.timeScale, Is.Zero);
+        Assert.That(GameplayPause.LockCount, Is.EqualTo(1));
+        Assert.That(Hierarchy(harness.View), Is.EqualTo(hierarchy));
+        typeof(CraftingUI).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(harness.Controller, null);
+        Assert.That(harness.Controller.IsVisible, Is.False);
+        Assert.That(GameplayPause.LockCount, Is.Zero);
+        CraftingUI controller = harness.Controller; CraftingMenuView view = harness.View;
+        if (replaceController)
+        {
+            Object.DestroyImmediate(controller);
+            GameObject replacement = Track(new GameObject("Replacement advanced presenter")); replacement.SetActive(false);
+            controller = replacement.AddComponent<CraftingUI>();
+            view = InstantiateView<CraftingMenuView>("CraftingMenu"); SetField(controller, "_view", view);
+        }
+        Assert.That(controller.PresentCoroutine(harness.Service, harness.Inventory, () => { }).MoveNext(), Is.True);
+        Assert.That(view.AdvancedChoicePanel.activeSelf, Is.True);
+        Assert.That(events.currentSelectedGameObject, Is.EqualTo(view.AcceptButton.gameObject), "Reopening places controller focus inside the modal.");
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out WeaponUpgradePath reopened), Is.True);
+        Assert.That(reopened, Is.EqualTo(offer));
+        Assert.That(Random.state, Is.EqualTo(rolled));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.EqualTo(100 - wiringCost));
+        Assert.That(harness.Inventory.TrySpend(new[] { new MaterialCost(MaterialType.Wiring, 100 - wiringCost) }), Is.True);
+        Assert.That(view.AcceptButton.interactable, Is.True, "A paid offer does not require another payment to resolve.");
+        view.AcceptButton.onClick.Invoke();
+        view.AcceptButton.onClick.Invoke();
+        Assert.That(harness.Weapons[0].Level, Is.EqualTo(6));
+        Assert.That(harness.Weapons[0].SelectedPath, Is.EqualTo(offer));
+        Assert.That(harness.Inventory.GetAmount(MaterialType.Wiring), Is.Zero);
+        Assert.That(controller.IsChoosingAdvanced, Is.False);
+        view.CloseButton.onClick.Invoke();
+        Assert.That(GameplayPause.LockCount, Is.Zero);
+    }
+
+    [Test]
+    public void Crafting_ReopenBeforePurchaseDoesNotRollAndCloseCallbackRunsOnce()
     {
         CraftingHarness harness = CreateCraftingHarness(5);
         int[] hierarchy = Hierarchy(harness.View);
+        Random.State before = Random.state;
         Time.timeScale = 0.5f;
         int closed = 0;
         IEnumerator presentation = harness.Controller.PresentCoroutine(harness.Service, harness.Inventory, () => closed++);
         Assert.That(presentation.MoveNext(), Is.True);
-        string offeredPath = harness.View.AdvancedPathText.text;
-        Random.State afterOffer = Random.state;
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out _), Is.False);
         harness.View.CloseButton.onClick.Invoke();
         harness.View.CloseButton.onClick.Invoke();
         Assert.That(presentation.MoveNext(), Is.False);
@@ -637,8 +769,9 @@ public sealed class RunMenuUiTests
         Assert.That(Time.timeScale, Is.EqualTo(0.5f));
         Assert.That(GameplayPause.LockCount, Is.Zero);
         Open(harness);
-        Assert.That(harness.View.AdvancedPathText.text, Is.EqualTo(offeredPath));
-        Assert.That(Random.state, Is.EqualTo(afterOffer));
+        Assert.That(harness.View.AdvancedChoicePanel.activeSelf, Is.False);
+        Assert.That(harness.Service.TryGetAdvancedOffer(harness.Weapons[0].Data, out _), Is.False);
+        Assert.That(Random.state, Is.EqualTo(before));
         Assert.That(GameplayPause.LockCount, Is.EqualTo(1));
         harness.View.CloseButton.onClick.Invoke();
         Assert.That(GameplayPause.LockCount, Is.Zero);
@@ -665,6 +798,8 @@ public sealed class RunMenuUiTests
     [TestCase("candidate icon")]
     [TestCase("upgrade label")]
     [TestCase("advanced description")]
+    [TestCase("advanced purchase button")]
+    [TestCase("advanced modal")]
     public void MissingCraftingNestedReference_FailsBeforeBindingOrPausing(string missing)
     {
         CraftingHarness harness = CreateCraftingHarness(4);
@@ -676,6 +811,8 @@ public sealed class RunMenuUiTests
             case "candidate icon": harness.View.Candidates[0].Icon = null; break;
             case "upgrade label": harness.View.UpgradeStatLabels[1] = null; break;
             case "advanced description": harness.View.AdvancedDescriptionText = null; break;
+            case "advanced purchase button": harness.View.AdvancedPurchaseButton = null; break;
+            case "advanced modal": harness.View.AdvancedChoicePanel = null; break;
         }
         Assert.That(harness.View.IsConfigured, Is.False);
         int closed = 0;

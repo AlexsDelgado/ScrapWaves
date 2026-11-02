@@ -38,7 +38,7 @@ public class CraftingStation : MonoBehaviour
 
     private void Update()
     {
-        if (_isOpen || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+        if (TutorialInput.WasConsumed || !TutorialDirector.AllowsStation(this) || GameplayPause.IsUiPaused || _isOpen || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
             return;
 
         // Otra estación (o el level-up choice) puede tener el CraftingUI compartido abierto:
@@ -61,6 +61,7 @@ public class CraftingStation : MonoBehaviour
         if (_craftingUi == null)
             return;
 
+        if (!TutorialDirector.AllowsStation(this)) return;
         _isOpen = true;
         OnInteracted?.Invoke();
         StartCoroutine(_craftingUi.PresentCoroutine(_craftingService, _inventory, () => _isOpen = false));

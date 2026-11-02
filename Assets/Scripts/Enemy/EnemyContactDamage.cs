@@ -12,7 +12,7 @@ public class EnemyContactDamage : MonoBehaviour
 
     public void TryApplyContactDamage(PlayerHealth player)
     {
-        if (player == null || !player.IsAlive)
+        if (player == null || !player.IsAlive || EnemyEmergence.BlocksGameplay(this))
             return;
 
         if (player.IsInvulnerable)

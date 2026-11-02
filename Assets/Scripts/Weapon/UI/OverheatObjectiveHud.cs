@@ -45,11 +45,13 @@ public class OverheatObjectiveHud : MonoBehaviour
             if (subscribe)
             {
                 _overheatManager.OnOverheatStarted += Refresh;
+                _overheatManager.OnPreparationFinished += Refresh;
                 _overheatManager.OnOverheatFinished += OnOverheatFinished;
             }
             else
             {
                 _overheatManager.OnOverheatStarted -= Refresh;
+                _overheatManager.OnPreparationFinished -= Refresh;
                 _overheatManager.OnOverheatFinished -= OnOverheatFinished;
             }
         }
@@ -127,10 +129,17 @@ public class OverheatObjectiveHud : MonoBehaviour
             return;
         }
 
-        bool show = _overheatManager != null && _overheatManager.IsOverheating;
+        bool show = _overheatManager != null && _overheatManager.IsOverheating && !_overheatManager.IsPreparing;
         _root.SetActive(show);
         if (!show)
             return;
+
+        if ((_bossManager != null && _bossManager.IsWaitingForBase) ||
+            (_eliteSpawner != null && _eliteSpawner.IsWaitingForBase))
+        {
+            _objectiveText.text = "Bajá al suelo";
+            return;
+        }
 
         if (_bossManager != null && _bossManager.HasActiveBosses)
         {

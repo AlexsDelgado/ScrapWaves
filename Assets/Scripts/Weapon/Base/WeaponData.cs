@@ -103,9 +103,13 @@ public sealed class FlamethrowerTuning : WeaponSpecificTuning
     [Min(0.01f), Tooltip("Seconds to decelerate to rest. Initial speed is derived from manual range; terrain contact projects the remaining velocity.")]
     public float FlameAreaTimeToStop = 1f;
     [Min(0.01f), Tooltip("Initial damage-trigger radius in meters, before area-size scaling. Terrain collision uses only the center.")]
-    public float FlameAreaInitialRadius = 0.35f;
-    [Min(0.01f), Tooltip("Radius at expiration in meters, before area-size scaling. Grows linearly; never smaller than the initial radius.")]
-    public float FlameAreaFinalRadius = 0.75f;
+    public float FlameAreaInitialRadius = 0.28f;
+    [Min(0.01f), Tooltip("Maximum damage radius in meters, before area-size scaling. Never smaller than the initial radius.")]
+    public float FlameAreaFinalRadius = 0.875f;
+    [Min(0.01f), Tooltip("Seconds to reach maximum visual and damage radius. Captured at emission and capped by area lifetime.")]
+    public float FlameAreaGrowthDuration = 1f;
+    [Range(0.05f, 1f), Tooltip("Automatic area travel as a fraction of the current manual travel, including heat and area-size scaling.")]
+    public float FlameAutomaticRangeMultiplier = 0.6f;
 
     [Min(0.01f)] public float FlameAutoTickInterval = 1f;
     [Min(0.01f)] public float FlameOverheatAutoTickInterval = 0.5f;
@@ -119,17 +123,32 @@ public sealed class FlamethrowerTuning : WeaponSpecificTuning
     [Min(0f)] public float FlameBurnDamageScale = 0.5f;
 
     [Min(0f)] public float FlameActiveRadius = 6f;
+    [Min(0.01f), Tooltip("Inherited seconds for Q's damage and visual front to reach its final radius. A level/path Q wave-speed override replaces this time with final radius / speed.")]
+    public float FlameActiveExpansionDuration = 0.6f;
     [Min(0f)] public float FlameActiveDamageScale = 2f;
     [Min(0f)] public float FlameManualKnockbackScale = 0.25f;
     [Min(0f)] public float FlameActiveKnockbackScale = 3f;
     [Min(0f)] public float FlameVisualDuration = 0.18f;
-    [Min(0f)] public float FlameActiveVisualDuration = 0.45f;
+    [Min(0f), Tooltip("Q visual lifetime. Never shorter than expansion plus a 0.2 second final-boundary fade.")]
+    public float FlameActiveVisualDuration = 0.85f;
 }
 
 [Serializable]
 public sealed class MortarTuning : WeaponSpecificTuning
 {
     public static readonly MortarTuning Defaults = new();
+
+    [Tooltip("Camera pitch is positive upward. These control horizontal landing range, not launch angle.")]
+    public float MortarManualMinimumPitch = -20f;
+    public float MortarManualLevelPitch = 0f;
+    public float MortarManualMaximumPitch = 7.5f;
+    [Min(0f)] public float MortarManualMinimumRange = 5f;
+    [Min(0f)] public float MortarManualLevelRange = 18f;
+    [Min(0f)] public float MortarManualMaximumRange = 22f;
+    [Min(1f), Tooltip("Terrain search above the muzzle at the selected horizontal range.")]
+    public float MortarManualSurfaceProbeAbove = 32f;
+    [Min(1f), Tooltip("Terrain search below the muzzle. A miss hides the marker and does not spend ammo.")]
+    public float MortarManualSurfaceProbeBelow = 128f;
 
     [Min(0f)] public float MortarAutoExplosionRadius = 2.6f;
     [Min(0f)] public float MortarManualExplosionRadius = 2.9f;
@@ -204,6 +223,10 @@ public class WeaponData : ScriptableObject, IUnlockable
     public WeaponPresentationProfile PresentationProfile;
 
     [SerializeReference] private WeaponSpecificTuning _specificTuning;
+    // Switching the selected weapon type must not erase another type's authored payload.
+    [SerializeReference, HideInInspector] private List<WeaponSpecificTuning> _retainedSpecificTunings = new();
+
+    public WeaponStatProfile StatProfile = new();
 
     [Header("Meta / Desbloqueo")]
     [Tooltip("Todo el contenido existente arranca desbloqueado; tildar en falso solo en armas nuevas que deban pasar por el sistema de logros/tienda.")]
@@ -269,15 +292,28 @@ public class WeaponData : ScriptableObject, IUnlockable
     {
         WeaponSpecificTuning expected = CreateSpecificTuning(WeaponType);
         if (expected == null)
-        {
-            _specificTuning = null;
             return;
+        if (_specificTuning != null && _specificTuning.GetType() == expected.GetType())
+            return;
+
+        _retainedSpecificTunings ??= new List<WeaponSpecificTuning>();
+        if (_specificTuning != null)
+        {
+            Type previousType = _specificTuning.GetType();
+            _retainedSpecificTunings.RemoveAll(tuning => tuning != null && tuning.GetType() == previousType);
+            _retainedSpecificTunings.Add(_specificTuning);
         }
 
-        if (_specificTuning == null || _specificTuning.GetType() != expected.GetType())
+        Type expectedType = expected.GetType();
+        int retainedIndex = _retainedSpecificTunings.FindIndex(tuning => tuning != null && tuning.GetType() == expectedType);
+        if (retainedIndex >= 0)
+        {
+            _specificTuning = _retainedSpecificTunings[retainedIndex];
+            _retainedSpecificTunings.RemoveAt(retainedIndex);
+        }
+        else
             _specificTuning = expected;
     }
-
     private void OnValidate()
     {
         EnsureSpecificTuningForCurrentType();

@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StatDefinition
   <StatType>k__BackingField: 0
   <Category>k__BackingField: 0
-  <BaseValue>k__BackingField: 6.8
+  <BaseValue>k__BackingField: 10.27
   <UpgradeableByLevel>k__BackingField: 1
   <UpgradeableByItems>k__BackingField: 1
-  <LevelUpgradeBaseAmount>k__BackingField: 0.04
+  <LevelUpgradeBaseAmount>k__BackingField: 0.06
   <IsPercentage>k__BackingField: 0
   <IsInteger>k__BackingField: 0

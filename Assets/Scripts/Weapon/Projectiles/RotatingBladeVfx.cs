@@ -7,6 +7,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
 {
     private const int OrbitSegmentCount = 72;
     private const int SlashSegmentCount = 96;
+    private const int SlashFillRadialSegments = 8;
     private const int SlashHeadSegmentCount = 24;
     private const float SlashSweepWindow = 0.32f;
     private const int ThrustSegmentCount = 8;
@@ -129,18 +130,22 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         float hitRadius,
         float duration,
         Color bladeColor,
-        float normalizedHeat)
+        float normalizedHeat,
+        bool exactHitEnvelope = false,
+        int totalBladeCount = 1)
     {
         Initialize();
         BeginOrbitFrame();
+        if (exactHitEnvelope && hitRadius <= 0f) return;
 
-        ownerOrigin += Vector3.up * 0.14f;
+        if (!exactHitEnvelope) ownerOrigin += Vector3.up * 0.14f;
         bladeCenter.y = ownerOrigin.y;
         float orbitRadius = Vector3.Distance(ownerOrigin, bladeCenter);
-        if (orbitRadius <= 0.01f)
+        if (orbitRadius <= 0.01f && !exactHitEnvelope)
             return;
 
         float heat = Mathf.Clamp01(normalizedHeat);
+        float glowScale = Mathf.Min(1f, 2f / Mathf.Max(1, totalBladeCount));
         _orbitTimer = _orbitDuration = Mathf.Max(0.01f, duration);
         _orbitColor = WithAlpha(bladeColor, _orbitGuideAlpha);
         _bladeColor = WithAlpha(bladeColor, BladeColor.a);
@@ -162,12 +167,12 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             radial = Vector3.forward;
 
         Vector3 radialDirection = radial.normalized;
-        float halfLength = Mathf.Max(0.2f, hitRadius);
+        float halfLength = exactHitEnvelope ? hitRadius : Mathf.Max(0.2f, hitRadius);
         LineRenderer bladeLine = GetNextBladeLine();
         bladeLine.enabled = true;
         bladeLine.loop = false;
         bladeLine.positionCount = 2;
-        bladeLine.widthMultiplier = Mathf.Clamp(hitRadius * 0.11f, 0.035f, 0.24f);
+        bladeLine.widthMultiplier = exactHitEnvelope ? hitRadius * .11f : Mathf.Clamp(hitRadius * 0.11f, 0.035f, 0.24f);
         bladeLine.SetPosition(0, bladeCenter - radialDirection * halfLength);
         bladeLine.SetPosition(1, bladeCenter + radialDirection * halfLength);
 
@@ -175,14 +180,14 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         physicalBlade.Root.transform.SetPositionAndRotation(
             bladeCenter,
             Quaternion.LookRotation(radialDirection, Vector3.up));
-        float bladeLength = Mathf.Max(_minimumBladeLength, hitRadius * 2f);
+        float bladeLength = exactHitEnvelope ? hitRadius * 2f : Mathf.Max(_minimumBladeLength, hitRadius * 2f);
         physicalBlade.Root.transform.localScale = new Vector3(
-            Mathf.Clamp(hitRadius * 0.85f, 0.28f, 1.6f),
-            Mathf.Clamp(hitRadius * 0.38f, 0.14f, 0.7f),
+            exactHitEnvelope ? hitRadius * .85f : Mathf.Clamp(hitRadius * 0.85f, 0.28f, 1.6f),
+            exactHitEnvelope ? hitRadius * .38f : Mathf.Clamp(hitRadius * 0.38f, 0.14f, 0.7f),
             bladeLength * 0.5f);
         SetBladeVisualEnabled(physicalBlade, true);
-        ApplyBladeProperties(physicalBlade, bladeColor, heat);
-        ConfigureTrail(physicalBlade.Trail, bladeColor, hitRadius, heat);
+        ApplyBladeProperties(physicalBlade, bladeColor, heat, glowScale);
+        ConfigureTrail(physicalBlade.Trail, bladeColor, hitRadius, heat, glowScale);
         DisableUnusedPhysicalBlades();
 
         SetLineColor(_orbitLine, _orbitColor, 1f);
@@ -240,38 +245,37 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         ShowThrust(origin, direction, range, lineWidth, duration, ThrustColor);
     }
 
-    public void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color)
+    public void ShowThrust(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color, bool exactHitEnvelope = false)
     {
         Initialize();
-        direction = GetHorizontalDirection(direction);
+        direction = direction.normalized;
         if (direction.sqrMagnitude <= 0.0001f)
             return;
 
-        Vector3 liftedOrigin = origin + Vector3.up * 0.2f;
         float safeDuration = Mathf.Max(0.05f, duration);
         _thrustTimer = _thrustDuration = safeDuration;
         _thrustColor = color;
-        _thrustLine.enabled = true;
+        _thrustLine.enabled = !exactHitEnvelope || lineWidth > 0f;
         _thrustLine.loop = false;
         _thrustLine.positionCount = 2;
-        _thrustLine.widthMultiplier = Mathf.Max(0.035f, lineWidth * 0.16f);
-        _thrustLine.SetPosition(0, liftedOrigin);
-        _thrustLine.SetPosition(1, liftedOrigin + direction * range);
+        _thrustLine.widthMultiplier = exactHitEnvelope ? Mathf.Max(0f, lineWidth * .16f) : Mathf.Max(0.035f, lineWidth * 0.16f);
+        _thrustLine.SetPosition(0, origin);
+        _thrustLine.SetPosition(1, origin + direction * range);
         SetLineColor(_thrustLine, _thrustColor, 1f);
 
         MeshPulse surface = GetMeshPulse(_thrustSurfaces, "Blade Thrust Ribbon", _thrustMaterial, ownsMesh: true);
-        surface.Root.transform.SetPositionAndRotation(liftedOrigin, Quaternion.LookRotation(direction, Vector3.up));
+        surface.Root.transform.SetPositionAndRotation(origin, GetSlashRotation(direction));
         surface.Root.transform.localScale = Vector3.one;
         surface.Timer = surface.Duration = safeDuration;
         surface.Color = color;
-        BuildThrustSurface(surface.Mesh, range, lineWidth);
-        surface.Renderer.enabled = true;
+        BuildThrustSurface(surface.Mesh, range, lineWidth, exactHitEnvelope);
+        surface.Renderer.enabled = !exactHitEnvelope || lineWidth > 0f;
         ApplyPulseProperties(surface, 0f);
     }
 
-    public void ShowDash(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color)
+    public void ShowDash(Vector3 origin, Vector3 direction, float range, float lineWidth, float duration, Color color, bool exactHitEnvelope = false)
     {
-        ShowThrust(origin, direction, range, Mathf.Max(0.08f, lineWidth * 0.62f), duration, color);
+        ShowThrust(origin, direction, range, exactHitEnvelope ? lineWidth : Mathf.Max(0.08f, lineWidth * 0.62f), duration, color, exactHitEnvelope);
         direction = GetHorizontalDirection(direction);
         if (direction.sqrMagnitude <= 0.0001f)
             return;
@@ -416,7 +420,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             blade.Trail.emitting = enabled;
     }
 
-    private void ApplyBladeProperties(BladeVisual blade, Color color, float heat)
+    private void ApplyBladeProperties(BladeVisual blade, Color color, float heat, float glowScale)
     {
         float emission = Mathf.Lerp(1.4f, 4.8f, heat);
         for (int i = 0; i < blade.Renderers.Length; i++)
@@ -424,10 +428,14 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             Renderer renderer = blade.Renderers[i];
             if (renderer == null || renderer is TrailRenderer)
                 continue;
+            Material material = renderer.sharedMaterial;
+            bool additiveGlow = material != null && material.shader != null
+                && material.shader.name == "ScrapWaves/GameFeel/Scrap VFX";
             renderer.GetPropertyBlock(_propertyBlock);
             _propertyBlock.SetColor(BaseColorId, color);
-            _propertyBlock.SetColor(EmissionColorId, color * emission);
-            _propertyBlock.SetFloat(EmissionIntensityId, emission);
+            // Scrap VFX multiplies color by intensity; keep the opaque body unchanged.
+            _propertyBlock.SetColor(EmissionColorId, additiveGlow ? color : color * emission);
+            _propertyBlock.SetFloat(EmissionIntensityId, additiveGlow ? emission * glowScale : emission);
             _propertyBlock.SetFloat(HeatId, heat);
             _propertyBlock.SetFloat(PulseId, 0.72f + heat * 0.28f);
             _propertyBlock.SetFloat(DissolveId, 0f);
@@ -435,7 +443,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         }
     }
 
-    private void ConfigureTrail(TrailRenderer trail, Color color, float hitRadius, float heat)
+    private void ConfigureTrail(TrailRenderer trail, Color color, float hitRadius, float heat, float glowScale)
     {
         if (trail == null)
             return;
@@ -450,7 +458,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         Color hot = Color.Lerp(color, Color.white, 0.28f + heat * 0.32f);
         gradient.SetKeys(
             new[] { new GradientColorKey(hot, 0f), new GradientColorKey(color, 1f) },
-            new[] { new GradientAlphaKey(0.82f, 0f), new GradientAlphaKey(0f, 1f) });
+            new[] { new GradientAlphaKey(0.82f * glowScale, 0f), new GradientAlphaKey(0f, 1f) });
         trail.colorGradient = gradient;
     }
 
@@ -540,7 +548,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         TickOneShot(_thrustLine, _thrustColor, ref _thrustTimer, _thrustDuration, deltaTime);
         TickSlashLines(deltaTime);
         TickMeshPulses(_slashSurfaces, deltaTime, 0f);
-        TickMeshPulses(_thrustSurfaces, deltaTime, 0.18f);
+        TickMeshPulses(_thrustSurfaces, deltaTime, 0f);
         TickMeshPulses(_dashAfterimages, deltaTime, 0.28f);
     }
 
@@ -699,17 +707,18 @@ public sealed class RotatingBladeVfx : MonoBehaviour
     private static void BuildSlashSurface(Mesh mesh, float range, float coneAngle, float revealProgress)
     {
         int pointCount = SlashSegmentCount + 1;
-        List<Vector3> vertices = new(pointCount * 2 + 160);
-        List<Vector2> uvs = new(pointCount * 2 + 160);
-        List<Color> colors = new(pointCount * 2 + 160);
-        List<int> triangles = new(SlashSegmentCount * 6 + 360);
+        int radialPointCount = SlashFillRadialSegments + 2;
+        List<Vector3> vertices = new(pointCount * radialPointCount);
+        List<Vector2> uvs = new(pointCount * radialPointCount);
+        List<Color> colors = new(pointCount * radialPointCount);
+        List<int> triangles = new(SlashSegmentCount * (radialPointCount - 1) * 6);
         float halfAngle = Mathf.Clamp(coneAngle, 1f, 180f) * 0.5f;
         float visibleEnd = Mathf.Lerp(0.012f, 1f, Mathf.Clamp01(revealProgress));
         float headTaperDistance = Mathf.Max(0.025f, Mathf.Min(0.14f, visibleEnd * 0.45f));
 
-        // Only the already-swept portion exists. The live end is tapered as it
-        // advances, so the effect materializes from left to right instead of
-        // flashing a complete area-of-effect cone into existence.
+        // Retain the timed outer slash, filling only its already-swept sector.
+        // The transparent inner edge keeps the player clear while the radial
+        // gradient communicates the damage cone between the player and rim.
         for (int i = 0; i < pointCount; i++)
         {
             float t = visibleEnd * (i / (float)(pointCount - 1));
@@ -723,19 +732,32 @@ public sealed class RotatingBladeVfx : MonoBehaviour
             float irregular = Mathf.Sin(t * Mathf.PI * 7f) * range * 0.008f * envelope;
             float outerRadius = Mathf.Max(0.05f, range * 0.985f + irregular);
             float thickness = range * Mathf.Lerp(0.012f, 0.205f, envelope);
-            float innerRadius = Mathf.Max(range * 0.76f, outerRadius - thickness);
+            float innerRimRadius = Mathf.Max(range * 0.76f, outerRadius - thickness);
             float alpha = Mathf.Lerp(0.16f, 0.98f, envelope);
 
-            vertices.Add(radial * innerRadius);
+            for (int ring = 0; ring <= SlashFillRadialSegments; ring++)
+            {
+                float radialFraction = ring / (float)SlashFillRadialSegments;
+                float radius = Mathf.Lerp(range * 0.08f, innerRimRadius, radialFraction);
+                vertices.Add(radial * radius);
+                // The fill uses the existing colored body; reserve the white
+                // core's UV interval for the original outer rim.
+                uvs.Add(new Vector2(0f, t));
+                colors.Add(new Color(1f, 1f, 1f,
+                    alpha * 0.78f * Mathf.Pow(radialFraction, 2.2f)));
+            }
             vertices.Add(radial * outerRadius);
-            uvs.Add(new Vector2(0f, t));
             uvs.Add(new Vector2(1f, t));
-            colors.Add(new Color(1f, 1f, 1f, alpha * 0.78f));
             colors.Add(new Color(1f, 1f, 1f, alpha));
             if (i >= pointCount - 1)
                 continue;
-            int vertex = i * 2;
-            AddQuadTriangles(triangles, vertex, vertex + 2, vertex + 1, vertex + 3);
+            int row = i * radialPointCount;
+            for (int ring = 0; ring < radialPointCount - 1; ring++)
+            {
+                int vertex = row + ring;
+                AddQuadTriangles(triangles, vertex, vertex + radialPointCount,
+                    vertex + 1, vertex + radialPointCount + 1);
+            }
         }
 
         AssignMesh(mesh, vertices.ToArray(), uvs.ToArray(), colors.ToArray(), triangles.ToArray());
@@ -751,7 +773,7 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         triangles.Add(outerEnd);
     }
 
-    private static void BuildThrustSurface(Mesh mesh, float range, float width)
+    private static void BuildThrustSurface(Mesh mesh, float range, float width, bool exactHitEnvelope)
     {
         int pointCount = ThrustSegmentCount + 1;
         Vector3[] vertices = new Vector3[pointCount * 2];
@@ -761,8 +783,9 @@ public sealed class RotatingBladeVfx : MonoBehaviour
         for (int i = 0; i < pointCount; i++)
         {
             float t = i / (float)(pointCount - 1);
-            float halfWidth = Mathf.Max(0.025f, width * 0.5f * Mathf.Lerp(0.22f, 0.72f, Mathf.Sin(t * Mathf.PI)));
-            float lateralNoise = Mathf.Sin(t * Mathf.PI * 7f) * width * 0.035f;
+            float halfWidth = exactHitEnvelope ? Mathf.Max(0f, width * .5f)
+                : Mathf.Max(0.025f, width * 0.5f * Mathf.Lerp(0.22f, 0.72f, Mathf.Sin(t * Mathf.PI)));
+            float lateralNoise = exactHitEnvelope ? 0f : Mathf.Sin(t * Mathf.PI * 7f) * width * 0.035f;
             vertices[i * 2] = new Vector3(-halfWidth + lateralNoise, 0f, range * t);
             vertices[i * 2 + 1] = new Vector3(halfWidth + lateralNoise, 0f, range * t);
             uvs[i * 2] = new Vector2(0f, t);

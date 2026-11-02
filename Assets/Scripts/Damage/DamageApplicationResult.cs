@@ -8,7 +8,10 @@ public readonly struct DamageApplicationResult
     public readonly bool IsAuthoritative;
     public readonly int RequestedDamage;
     public readonly int ModifiedDamage;
+    // Health actually removed; retained for gameplay hooks such as lifesteal.
     public readonly int AppliedDamage;
+    // Full damage after target modifiers, before the remaining-health clamp.
+    public readonly int ResolvedDamage;
     public readonly int HealthBefore;
     public readonly int HealthAfter;
 
@@ -21,7 +24,8 @@ public readonly struct DamageApplicationResult
         int appliedDamage,
         int healthBefore,
         int healthAfter,
-        bool isAuthoritative = true)
+        bool isAuthoritative = true,
+        int? resolvedDamage = null)
     {
         Applied = applied;
         Blocked = blocked;
@@ -30,6 +34,7 @@ public readonly struct DamageApplicationResult
         RequestedDamage = Mathf.Max(0, requestedDamage);
         ModifiedDamage = Mathf.Max(0, modifiedDamage);
         AppliedDamage = Mathf.Max(0, appliedDamage);
+        ResolvedDamage = applied ? Mathf.Max(0, resolvedDamage ?? modifiedDamage) : 0;
         HealthBefore = Mathf.Max(0, healthBefore);
         HealthAfter = Mathf.Max(0, healthAfter);
     }
@@ -65,7 +70,8 @@ public readonly struct DamageApplicationResult
     public static DamageApplicationResult FromHealthDelta(
         in DamageRequest request,
         int healthBefore,
-        int healthAfter)
+        int healthAfter,
+        int? resolvedDamage = null)
     {
         int before = Mathf.Max(0, healthBefore);
         int after = Mathf.Clamp(healthAfter, 0, before);
@@ -80,7 +86,8 @@ public readonly struct DamageApplicationResult
             request.ModifiedDamage,
             appliedDamage,
             before,
-            after);
+            after,
+            resolvedDamage: resolvedDamage ?? request.ModifiedDamage);
     }
 
     public static DamageApplicationResult FromLegacy(in DamageRequest request, bool applied)
