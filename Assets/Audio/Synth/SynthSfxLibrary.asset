@@ -145,6 +145,11 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 1ca1259209243be8cd6fb5e1d0d0b422, type: 3}
     - {fileID: 8300000, guid: bc2312ce4822d2c579aae1836b7f455e, type: 3}
     - {fileID: 8300000, guid: 53ea86c7b28d8d50913c6ff0bbbc1146, type: 3}
+  - Key: overheat_alarm
+    Clips:
+    - {fileID: 8300000, guid: 23ffc42dca4a73e37db625d36ed086c9, type: 3}
+    - {fileID: 8300000, guid: f00cfbbcb1520f10527dd9137be280d4, type: 3}
+    - {fileID: 8300000, guid: 195b42ae8a38dfe103325fcd0fb7b249, type: 3}
   - Key: overheat_end
     Clips:
     - {fileID: 8300000, guid: 6e9e99cae5f40e3c279ef270c254dab1, type: 3}

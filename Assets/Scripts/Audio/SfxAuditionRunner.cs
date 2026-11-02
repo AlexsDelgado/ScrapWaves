@@ -48,6 +48,7 @@ public class SfxAuditionRunner : MonoBehaviour
         new("Jugador", "xp", "XP recogida"),
         new("Jugador", "levelup", "Level up"),
         new("Overheat", "overheat_warning", "Warning (80 % de calor)"),
+        new("Overheat", "overheat_alarm", "Alarma: overheat y jugador en nivel superior"),
         new("Overheat", "overheat_start", "Overheat: inicio"),
         new("Overheat", "overheat_end", "Overheat: fin"),
         new("Enemigos", "bomber_spawn", "Dron bombardero: spawn"),

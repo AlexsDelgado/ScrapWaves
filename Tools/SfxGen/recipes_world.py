@@ -54,8 +54,7 @@ def explosion(rng, dur, f_body, decay, debris_n, t60, wet=0.3):
     blast = lp_sweep(noise(n, rng), 9000, 250, 1.6) * env_exp(n, decay * 0.7, 0.0005)
     body = boom(n, f_body, f_body * 0.3, decay)
     rumble = lowpass(noise(n, rng), 180) * env_exp(n, decay * 1.6, 0.01) * 0.6
-    rain = debris(n, rng, debris_n, dur * 0.7, 500, 5000, 0.28, 0.08)
-    x = soft_clip(mix(blast * 0.9, body * 1.1, rumble, rain, transient(n, rng, 0.005, 1200) * 0.7, n=n), 1.7)
+    x = soft_clip(mix(blast * 0.9, body * 1.1, rumble, transient(n, rng, 0.005, 1200) * 0.7, n=n), 1.7)
     return reverb(x, rng, t60, wet)
 
 
@@ -71,8 +70,7 @@ def rocket_launch(rng, v):
     kick = boom(n, 120, 45, 0.1)
     jet = whoosh(n, rng, 800, 6000, 0.25) * 0.9
     roar = lowpass(noise(n, rng), 900) * np.minimum(np.arange(n) / SR / 0.05, 1) * env_exp(n, 0.5, 0.0) * 0.5
-    crackle = debris(n, rng, 10, 0.5, 1500, 6000, 0.12)
-    x = soft_clip(mix(kick * 0.8, jet, roar, crackle, transient(n, rng, 0.004, 1500) * 0.5, n=n), 1.6)
+    x = soft_clip(mix(kick * 0.8, jet, roar, transient(n, rng, 0.004, 1500) * 0.5, n=n), 1.6)
     return finish_fx(x, rng, 0.4, 0.2)
 
 
@@ -190,8 +188,7 @@ def dash(rng, v):
     n = int(0.45 * SR)
     burst = whoosh(n, rng, 500, 4500, 0.18) * 0.9
     push = boom(n, 100, 50, 0.1, 2) * 0.7
-    rattle = debris(n, rng, 4, 0.15, 1500, 4500, 0.15)
-    return finish_fx(mix(burst, push, rattle, n=n), rng, 0.2, 0.1)
+    return finish_fx(mix(burst, push, n=n), rng, 0.2, 0.1)
 
 
 def slide(rng, v):
@@ -201,8 +198,7 @@ def slide(rng, v):
     grit = bandpass(noise(n, rng), 300, 3500) * (np.minimum(t / 0.04, 1) * np.exp(-6.9 * t / 0.5))
     grit *= 0.7 + 0.3 * np.sign(np.sin(2 * np.pi * (60 + 20 * v["a"]) * t))
     low = lowpass(noise(n, rng), 250) * env_exp(n, 0.3, 0.01) * 0.6
-    stones = debris(n, rng, 12, 0.55, 1000, 4500, 0.2, 0.03)
-    return finish_fx(mix(grit * 0.7, low, stones, n=n), rng, 0.25, 0.1)
+    return finish_fx(mix(grit * 0.7, low, n=n), rng, 0.25, 0.1)
 
 
 def overheat_warning(rng, v):
@@ -219,6 +215,40 @@ def overheat_warning(rng, v):
     hiss = highpass(noise(n, rng), 3500) * np.minimum(t / 0.2, 1) * env_exp(n, 0.8, 0.0) * 0.25
     tick = modal(520, 0.2, rng, 0.08) * 0.2
     return finish_fx(soft_clip(mix(horn * 0.5, hiss, tick, n=n), 1.8), rng, 0.35, 0.18)
+
+
+def overheat_alarm(rng, v):
+    """Sirena de ataque aéreo / alerta nuclear: lamento largo que sube y baja sobre un retumbo y fuego.
+
+    Un ciclo completo (~3,6 s) pensado para repetirse seguido mientras dure el peligro. La subida es rápida
+    y la bajada lenta (inercia del rotor); el eco grande se calcula sobre dos ciclos para que el empalme no se note.
+    """
+    cycle = 3.6
+    n = int(cycle * SR)
+    t = np.arange(n) / SR
+    rise = 1.9
+    up = np.clip(t / rise, 0, 1)
+    down = np.clip((t - rise) / (cycle - rise), 0, 1)
+    up = up * up * (3 - 2 * up)
+    down = down * down * (3 - 2 * down)
+    lo, hi = 360 * (1 + 0.04 * v["a"]), 1020 * (1 + 0.04 * v["a"])
+    f = np.where(t < rise, lo + (hi - lo) * up, hi - (hi - lo) * down)
+
+    def horn(freq):
+        w = osc(freq, "saw") + 0.7 * osc(freq * 2, "saw") + 0.5 * osc(freq * 3, "saw") + 0.3 * osc(freq * 5, "saw")
+        return lowpass(w, 3400)
+
+    voice = horn(f) + 0.8 * horn(f * 1.006)
+    voice *= 0.85 + 0.15 * np.sin(2 * np.pi * 13 * t)
+    sub_t = 0.5 + 0.5 * np.sin(2 * np.pi * t / 0.9 - 1.0)
+    sub = osc(np.full(n, 50.0), "sine") * (0.5 + 0.5 * sub_t) * 0.5
+    fire = lowpass(noise(n, rng), 220) * (0.55 + 0.45 * np.sin(2 * np.pi * t / cycle * 2)) * 0.5
+    dry = soft_clip(voice * 0.55 + sub + fire, 2.0)
+    edge = int(0.03 * SR)
+    dry[:edge] *= np.linspace(0, 1, edge)
+    dry[-edge:] *= np.linspace(1, 0, edge)
+    wet = reverb(np.concatenate([dry, dry]), rng, 1.1, 0.3, 3000)
+    return lofi(wet[n:2 * n], 12)
 
 
 # ---------------------------------------------------------------- enemigos
@@ -301,8 +331,7 @@ def flyer_death(rng, v):
     c = int(0.4 * SR)
     short = zap(n, rng, 0.2) * 0.6
     fall = servo(m, 1000, 140, 2500) * env_exp(m, 0.3, 0.005) * 0.3
-    crash = at(mix(boom(c, 130, 50, 0.1), modal(420, 0.35, rng, 0.15)[:c] * 0.3,
-                   debris(c, rng, 6, 0.25, 800, 4500, 0.25), n=c), 0.45, n)
+    crash = at(mix(boom(c, 130, 50, 0.1), modal(420, 0.35, rng, 0.15)[:c] * 0.3, n=c), 0.45, n)
     return finish_fx(mix(short, fall, crash, n=n), rng, 0.3, 0.15)
 
 
@@ -367,6 +396,7 @@ WORLD_RECIPES = {
     "dash": dash,
     "slide": slide,
     "overheat_warning": overheat_warning,
+    "overheat_alarm": overheat_alarm,
     "bomber_spawn": bomber_spawn, "bomber_death": bomber_death,
     "charger_spawn": charger_spawn, "charger_death": charger_death,
     "destroyer_spawn": destroyer_spawn, "destroyer_death": destroyer_death,

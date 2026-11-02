@@ -12,7 +12,7 @@ public static class SynthSfxLibraryValidator
 
     private static readonly string[] RequiredKeys =
     {
-        "shot", "jump", "land", "hurt", "xp", "levelup", "overheat_start", "overheat_end", "overheat_warning",
+        "shot", "jump", "land", "hurt", "xp", "levelup", "overheat_start", "overheat_end", "overheat_warning", "overheat_alarm",
         "enemy_hit", "enemy_death", "dash", "slide",
         "rocket_launch", "rocket_explosion", "mortar_launch", "mortar_explosion", "blade_slash", "blade_thrust",
         "blade_dash", "flame_loop", "flame_burst", "cannon_ability", "rocket_ability", "mortar_ability",

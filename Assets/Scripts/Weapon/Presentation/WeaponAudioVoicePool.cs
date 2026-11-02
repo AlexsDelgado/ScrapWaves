@@ -68,17 +68,17 @@ public sealed class WeaponAudioVoicePool
         }
     }
 
-    /// <summary>Volumen del cue; si no tiene uno autorado (0) y hay sonido sintetizado, la ganancia por defecto de la familia.</summary>
+    /// <summary>Volumen del cue; sin volumen autorado (0) usa la ganancia de la familia sintética, y las armas automáticas bajan por <see cref="SynthSfxLibrary.AutomaticWeaponGain"/>.</summary>
     public static float ResolveCueVolume(WeaponPresentationCueData cueData)
     {
         if (cueData == null)
             return 0f;
-        if (cueData.Volume > 0f)
-            return cueData.Volume;
 
         SynthSfxLibrary synth = SynthSfxLibrary.Active;
         string key = synth != null ? SynthSfxLibrary.WeaponKey(cueData.Cue) : null;
-        return key != null && synth.Has(key) ? SynthSfxLibrary.DefaultGain(key) : 0f;
+        bool hasSynth = key != null && synth.Has(key);
+        float volume = cueData.Volume > 0f ? cueData.Volume : hasSynth ? SynthSfxLibrary.DefaultGain(key) : 0f;
+        return hasSynth ? volume * SynthSfxLibrary.WeaponRoleGain(cueData.Cue) : volume;
     }
 
     public bool TryPlayOneShot(

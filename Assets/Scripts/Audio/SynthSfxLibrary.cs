@@ -58,6 +58,27 @@ public class SynthSfxLibrary : ScriptableObject
         return clips[index];
     }
 
+    /// <summary>Las armas automáticas (secundarias) suenan a esta fracción del volumen del arma manual.</summary>
+    public const float AutomaticWeaponGain = 0.25f;
+
+    public static float WeaponRoleGain(WeaponPresentationCue cue)
+    {
+        switch (cue)
+        {
+            case WeaponPresentationCue.AutomaticCannonAutoBurst:
+            case WeaponPresentationCue.AutomaticCannonAutoShot:
+            case WeaponPresentationCue.AutomaticCannonHeadHunterAutomatic:
+            case WeaponPresentationCue.RocketAutomaticLaunch:
+            case WeaponPresentationCue.MortarAutomaticLaunch:
+            case WeaponPresentationCue.FlamethrowerAutomaticLoop:
+            case WeaponPresentationCue.FlamethrowerJellifiedAutomaticLoop:
+            case WeaponPresentationCue.FlamethrowerNitrogenAutomaticLoop:
+                return AutomaticWeaponGain;
+            default:
+                return 1f;
+        }
+    }
+
     /// <summary>
     /// Volumen para los cues de arma que no tienen uno autorado (Volume = 0, como los que crean los builders).
     /// Los cues con volumen propio lo conservan.

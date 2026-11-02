@@ -37,6 +37,9 @@ public class AudioManager : MonoBehaviour
     [SerializeField, Tooltip("Sonido al subir de nivel. Apagado a pedido de diseño.")]
     private bool _playLevelUpSfx;
 
+    [SerializeField, Tooltip("Alarma repetida al estar en el nivel superior durante Overheat. Apagada a pedido de diseño.")]
+    private bool _playUpperAlarmSfx;
+
     [SerializeField] private AudioClip _shoot;
     [SerializeField] private AudioClip _enemyHit;
     [SerializeField] private AudioClip _enemyDeath;
@@ -69,6 +72,9 @@ public class AudioManager : MonoBehaviour
     private float _lastHeat;
     private bool _heatWarned;
     private float _nextSlideTime;
+    private PlayerPlatformState _subscribedPlatform;
+    private float _nextUpperAlarmTime;
+    private const float UpperAlarmGain = 2.5f;
     private AudioSource[] _spatialVoices;
     private int _nextSpatialVoice;
     private readonly System.Collections.Generic.Dictionary<string, float> _nextSpatialTime = new();
@@ -127,6 +133,8 @@ public class AudioManager : MonoBehaviour
             _subscribedMovement.OnSlideStarted += PlaySlide;
         }
 
+        _subscribedPlatform = FindAnyObjectByType<PlayerPlatformState>();
+
         _subscribedHeat = FindAnyObjectByType<HeatManager>();
         if (_subscribedHeat != null)
         {
@@ -162,6 +170,32 @@ public class AudioManager : MonoBehaviour
         _subscribedOverheat = null;
         _subscribedMovement = null;
         _subscribedHeat = null;
+        _subscribedPlatform = null;
+    }
+
+    private void Update() => TickUpperLevelAlarm();
+
+    /// <summary>Alarma repetida mientras hay Overheat y el jugador sigue en el nivel superior, donde el fuego lo daña.</summary>
+    private void TickUpperLevelAlarm()
+    {
+        bool inDanger = _playUpperAlarmSfx && _subscribedOverheat != null && _subscribedOverheat.IsOverheating &&
+                        _subscribedPlatform != null && _subscribedPlatform.IsSimulationActive &&
+                        _subscribedPlatform.IsInsideUpper;
+        if (!inDanger)
+        {
+            _nextUpperAlarmTime = 0f;
+            return;
+        }
+
+        if (Time.unscaledTime < _nextUpperAlarmTime)
+            return;
+
+        AudioClip clip = Synth("overheat_alarm");
+        if (clip == null)
+            return;
+
+        PlaySfx(clip, UpperAlarmGain);
+        _nextUpperAlarmTime = Time.unscaledTime + clip.length - 0.03f;
     }
 
     private void OnPlayerLevelUp(int _) => PlayLevelUp();
@@ -509,12 +543,12 @@ public class AudioManager : MonoBehaviour
         return Mathf.Clamp01(_musicOverheatVolume * (_musicMainVolume / defaultVolume));
     }
 
-    private void PlaySfx(AudioClip clip)
+    private void PlaySfx(AudioClip clip, float gain = 1f)
     {
         if (clip == null || _sfx == null)
             return;
 
-        _sfx.PlayOneShot(clip, _sfxVolumeScale);
+        _sfx.PlayOneShot(clip, _sfxVolumeScale * gain);
     }
 
     /// <summary>Llamadas seguras desde cualquier script sin referencia.</summary>

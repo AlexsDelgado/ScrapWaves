@@ -43,8 +43,7 @@ def land(rng, v):
     thump = boom(n, 90 * (1 + 0.1 * v["a"]), 32, 0.2)
     slap = lp_sweep(noise(n, rng), 3500, 300, 2.0) * env_exp(n, 0.07, 0.0005)
     sheet = modal(210 * (1 + 0.2 * v["b"]), 0.5, rng, 0.25) * 0.18
-    scatter = debris(n, rng, 8, 0.3, 1200, 5500, 0.25, 0.02)
-    x = soft_clip(mix(thump * 1.1, slap * 0.7, sheet, scatter, n=n), 1.4)
+    x = soft_clip(mix(thump * 1.1, slap * 0.7, sheet, n=n), 1.4)
     return lofi(reverb(x, rng, 0.3, 0.18), 12)
 
 
@@ -105,8 +104,7 @@ def overheat_end(rng, v):
     n = int(1.2 * SR)
     steam = lp_sweep(noise(n, rng), 9000, 700, 0.8) * env_exp(n, 0.7, 0.02)
     clunk = mix(boom(n, 100, 40, 0.12) * 0.8, modal(240, 0.5, rng, 0.2) * 0.25, n=n)
-    ticks = debris(n, rng, 6, 1.0, 600, 2500, 0.18, 0.15)
-    x = soft_clip(mix(steam * 0.8, clunk, ticks, n=n), 1.4)
+    x = soft_clip(mix(steam * 0.8, clunk, n=n), 1.4)
     return lofi(reverb(x, rng, 0.45, 0.2), 12)
 
 
@@ -126,8 +124,7 @@ def enemy_death(rng, v):
     burst = lp_sweep(noise(n, rng), 6000, 400, 1.6) * env_exp(n, 0.25, 0.0005)
     thump = boom(n, 110 * (1 + 0.1 * v["a"]), 36, 0.25)
     crash = modal(rng.uniform(260, 420), 0.7, rng, 0.35, spread=0.05) * 0.25
-    rain = debris(n, rng, 14, 0.7, 700, 5500, 0.3, 0.05)
-    x = soft_clip(mix(burst * 0.9, thump, crash, rain, transient(n, rng, 0.004, 1500) * 0.6, n=n), 1.6)
+    x = soft_clip(mix(burst * 0.9, thump, crash, transient(n, rng, 0.004, 1500) * 0.6, n=n), 1.6)
     return lofi(reverb(x, rng, 0.4, 0.2), 12)
 
 
