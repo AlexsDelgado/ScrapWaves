@@ -28,6 +28,15 @@ public class AudioManager : MonoBehaviour
     [SerializeField, Tooltip("Variaciones PSX. Si tiene clips, reemplazan los campos sueltos de abajo.")]
     private PsxSfxLibrary _library;
 
+    [SerializeField, Tooltip("SFX sintetizados (Tools/SfxGen). Tienen prioridad sobre la librería PSX y los clips sueltos.")]
+    private SynthSfxLibrary _synth;
+
+    [SerializeField, Tooltip("Sonido al recoger XP. Apagado a pedido de diseño.")]
+    private bool _playXpSfx;
+
+    [SerializeField, Tooltip("Sonido al subir de nivel. Apagado a pedido de diseño.")]
+    private bool _playLevelUpSfx;
+
     [SerializeField] private AudioClip _shoot;
     [SerializeField] private AudioClip _enemyHit;
     [SerializeField] private AudioClip _enemyDeath;
@@ -56,12 +65,21 @@ public class AudioManager : MonoBehaviour
     private PlayerMovement _subscribedMovement;
     private float _nextXpTime;
     private float _nextDeathTime;
+    private HeatManager _subscribedHeat;
+    private float _lastHeat;
+    private bool _heatWarned;
+    private float _nextSlideTime;
+    private AudioSource[] _spatialVoices;
+    private int _nextSpatialVoice;
+    private readonly System.Collections.Generic.Dictionary<string, float> _nextSpatialTime = new();
     private BgmTrackSelector _trackSelector;
     private Coroutine _playlistRoutine;
 
     private void OnEnable()
     {
         Instance = this;
+        if (_synth != null)
+            SynthSfxLibrary.Active = _synth;
         BecameAvailable?.Invoke(this);
     }
 
@@ -69,6 +87,8 @@ public class AudioManager : MonoBehaviour
     {
         if (Instance == this)
             Instance = null;
+        if (_synth != null && SynthSfxLibrary.Active == _synth)
+            SynthSfxLibrary.Active = null;
     }
 
     private void Start()
@@ -103,6 +123,15 @@ public class AudioManager : MonoBehaviour
             _subscribedMovement.OnJump += PlayJump;
             _subscribedMovement.OnAirJump += PlayJump;
             _subscribedMovement.OnLanded += PlayLand;
+            _subscribedMovement.OnDashStarted += PlayDash;
+            _subscribedMovement.OnSlideStarted += PlaySlide;
+        }
+
+        _subscribedHeat = FindAnyObjectByType<HeatManager>();
+        if (_subscribedHeat != null)
+        {
+            _lastHeat = _subscribedHeat.CurrentHeat;
+            _subscribedHeat.OnHeatChanged += OnHeatChangedHandler;
         }
     }
 
@@ -122,14 +151,41 @@ public class AudioManager : MonoBehaviour
             _subscribedMovement.OnJump -= PlayJump;
             _subscribedMovement.OnAirJump -= PlayJump;
             _subscribedMovement.OnLanded -= PlayLand;
+            _subscribedMovement.OnDashStarted -= PlayDash;
+            _subscribedMovement.OnSlideStarted -= PlaySlide;
         }
+
+        if (_subscribedHeat != null)
+            _subscribedHeat.OnHeatChanged -= OnHeatChangedHandler;
 
         _subscribedXp = null;
         _subscribedOverheat = null;
         _subscribedMovement = null;
+        _subscribedHeat = null;
     }
 
     private void OnPlayerLevelUp(int _) => PlayLevelUp();
+
+    /// <summary>Aviso al entrar en la fase intermedia (80 %) subiendo el calor, nunca durante Overheat ni al decaer.</summary>
+    private void OnHeatChangedHandler()
+    {
+        float heat = _subscribedHeat.CurrentHeat;
+        bool rising = heat > _lastHeat;
+        _lastHeat = heat;
+
+        if (!_subscribedHeat.IsInIntermediatePhase)
+        {
+            _heatWarned = false;
+            return;
+        }
+
+        bool overheating = _subscribedOverheat != null && _subscribedOverheat.IsOverheating;
+        if (_heatWarned || !rising || overheating)
+            return;
+
+        _heatWarned = true;
+        PlayOverheatWarning();
+    }
 
     private void OnOverheatStartedHandler()
     {
@@ -251,7 +307,7 @@ public class AudioManager : MonoBehaviour
         _musicOverheatLayer.volume = active ? ResolveOverheatLayerVolume() : 0f;
     }
 
-    public void PlayShoot() => PlaySfx(Resolve(_library != null ? _library.PickShoot() : null, _shoot));
+    public void PlayShoot() => PlaySfx(Resolve(Synth("shot"), Resolve(_library != null ? _library.PickShoot() : null, _shoot)));
 
     public void PlayEnemyHit() => PlaySfx(_enemyHit);
 
@@ -260,7 +316,7 @@ public class AudioManager : MonoBehaviour
         if (Time.unscaledTime < _nextDeathTime)
             return;
 
-        AudioClip clip = Resolve(_library != null ? _library.PickEnemyDeath() : null, _enemyDeath);
+        AudioClip clip = Resolve(Synth("enemy_death"), Resolve(_library != null ? _library.PickEnemyDeath() : null, _enemyDeath));
         if (clip == null)
             return;
 
@@ -268,28 +324,32 @@ public class AudioManager : MonoBehaviour
         PlaySfx(clip);
     }
 
-    public void PlayLevelUp() => PlaySfx(Resolve(_library != null ? _library.PickLevelUp() : null, _levelUp));
+    public void PlayLevelUp()
+    {
+        if (_playLevelUpSfx)
+            PlaySfx(Resolve(Synth("levelup"), Resolve(_library != null ? _library.PickLevelUp() : null, _levelUp)));
+    }
 
-    public void PlayOverheatStart() => PlaySfx(Resolve(_library != null ? _library.PickOverheatStart() : null, _overheatStart));
+    public void PlayOverheatStart() => PlaySfx(Resolve(Synth("overheat_start"), Resolve(_library != null ? _library.PickOverheatStart() : null, _overheatStart)));
 
-    public void PlayOverheatEnd() => PlaySfx(Resolve(_library != null ? _library.PickOverheatEnd() : null, _overheatEnd));
+    public void PlayOverheatEnd() => PlaySfx(Resolve(Synth("overheat_end"), Resolve(_library != null ? _library.PickOverheatEnd() : null, _overheatEnd)));
 
-    public void PlayJump() => PlaySfx(_library != null ? _library.PickJump() : null);
+    public void PlayJump() => PlaySfx(Resolve(Synth("jump"), _library != null ? _library.PickJump() : null));
 
     public void PlayLand()
     {
         if (Time.timeSinceLevelLoad < 0.75f)
             return;
 
-        PlaySfx(_library != null ? _library.PickLand() : null);
+        PlaySfx(Resolve(Synth("land"), _library != null ? _library.PickLand() : null));
     }
 
     public void PlayXp()
     {
-        if (Time.unscaledTime < _nextXpTime)
+        if (!_playXpSfx || Time.unscaledTime < _nextXpTime)
             return;
 
-        AudioClip clip = _library != null ? _library.PickXp() : null;
+        AudioClip clip = Resolve(Synth("xp"), _library != null ? _library.PickXp() : null);
         if (clip == null)
             return;
 
@@ -312,7 +372,7 @@ public class AudioManager : MonoBehaviour
         if (Time.unscaledTime < _nextPlayerHurtTime)
             return;
 
-        AudioClip clip = Resolve(_library != null ? _library.PickHurt() : null, _playerHurt);
+        AudioClip clip = Resolve(Synth("hurt"), Resolve(_library != null ? _library.PickHurt() : null, _playerHurt));
         if (clip == null)
             return;
 
@@ -321,6 +381,108 @@ public class AudioManager : MonoBehaviour
     }
 
     private static AudioClip Resolve(AudioClip variation, AudioClip fallback) => variation != null ? variation : fallback;
+
+    private AudioClip Synth(string key) => _synth != null ? _synth.Pick(key) : null;
+
+    public void PlayDash() => PlaySfx(Synth("dash"));
+
+    public void PlaySlide()
+    {
+        if (Time.unscaledTime < _nextSlideTime)
+            return;
+
+        _nextSlideTime = Time.unscaledTime + 0.25f;
+        PlaySfx(Synth("slide"));
+    }
+
+    public void PlayOverheatWarning() => PlaySfx(Synth("overheat_warning"));
+
+    /// <summary>Spawn de un enemigo del enjambre: sonido propio por tipo, posicional y con cooldown por tipo.</summary>
+    public void PlayEnemySpawn(GameObject enemy)
+    {
+        string kind = EnemyKind(enemy);
+        if (kind != null)
+            PlayAt(kind + "_spawn", enemy.transform.position, 0.3f);
+    }
+
+    /// <summary>Muerte de un enemigo: sonido propio por tipo; los tipos sin receta usan el genérico.</summary>
+    public void PlayEnemyDeath(GameObject enemy)
+    {
+        if (enemy == null)
+        {
+            PlayEnemyDeath();
+            return;
+        }
+
+        string kind = EnemyKind(enemy);
+        if (kind != null && PlayAt(kind + "_death", enemy.transform.position, 0.08f))
+            return;
+
+        if (_synth != null && PlayAt("enemy_death", enemy.transform.position, 0.07f))
+            return;
+
+        PlayEnemyDeath();
+    }
+
+    private static string EnemyKind(GameObject enemy)
+    {
+        if (enemy == null)
+            return null;
+        if (enemy.TryGetComponent<BomberDroneBehavior>(out _)) return "bomber";
+        if (enemy.TryGetComponent<ChargerEnemyBehavior>(out _)) return "charger";
+        if (enemy.TryGetComponent<DestroyerBehavior>(out _)) return "destroyer";
+        if (enemy.TryGetComponent<FlyingRangedBehavior>(out _)) return "flyer";
+        if (enemy.TryGetComponent<GigaWormBehavior>(out _)) return "worm";
+        if (enemy.TryGetComponent<HellfireSlimeBehavior>(out _)) return "slime";
+        return null;
+    }
+
+    /// <summary>One-shot 3D desde un pool chico. Devuelve false si no hay clip sintetizado; true si sonó o está en cooldown.</summary>
+    private bool PlayAt(string key, Vector3 position, float cooldown)
+    {
+        if (_synth == null || !_synth.Has(key))
+            return false;
+
+        float now = Time.unscaledTime;
+        if (_nextSpatialTime.TryGetValue(key, out float next) && now < next)
+            return true;
+
+        AudioClip clip = _synth.Pick(key);
+        if (clip == null)
+            return false;
+
+        if (_spatialVoices == null)
+            CreateSpatialVoices();
+
+        AudioSource voice = _spatialVoices[_nextSpatialVoice];
+        _nextSpatialVoice = (_nextSpatialVoice + 1) % _spatialVoices.Length;
+        _nextSpatialTime[key] = now + cooldown;
+
+        voice.transform.position = position;
+        voice.pitch = UnityEngine.Random.Range(0.94f, 1.06f);
+        voice.clip = clip;
+        voice.volume = _sfxVolumeScale;
+        voice.Play();
+        return true;
+    }
+
+    private void CreateSpatialVoices()
+    {
+        _spatialVoices = new AudioSource[10];
+        for (int i = 0; i < _spatialVoices.Length; i++)
+        {
+            GameObject go = new($"Spatial SFX Voice {i + 1}");
+            go.transform.SetParent(transform, false);
+            AudioSource source = go.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = false;
+            source.spatialBlend = 1f;
+            source.rolloffMode = AudioRolloffMode.Logarithmic;
+            source.minDistance = 8f;
+            source.maxDistance = 70f;
+            _spatialVoices[i] = source;
+        }
+    }
 
     public float SfxVolume
     {
@@ -361,6 +523,10 @@ public class AudioManager : MonoBehaviour
     public static void TryPlayEnemyHit() => Instance?.PlayEnemyHit();
 
     public static void TryPlayEnemyDeath() => Instance?.PlayEnemyDeath();
+
+    public static void TryPlayEnemyDeath(GameObject enemy) => Instance?.PlayEnemyDeath(enemy);
+
+    public static void TryPlayEnemySpawn(GameObject enemy) => Instance?.PlayEnemySpawn(enemy);
 
     public static void TryPlayPlayerHurt() => Instance?.PlayPlayerHurt();
 

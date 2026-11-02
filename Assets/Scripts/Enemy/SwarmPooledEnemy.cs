@@ -72,6 +72,8 @@ public class SwarmPooledEnemy : MonoBehaviour
         IEnemySpawnLifecycle[] lifecycles = GetComponents<IEnemySpawnLifecycle>();
         for (int i = 0; i < lifecycles.Length; i++)
             lifecycles[i].OnPoolSpawn();
+
+        AudioManager.TryPlayEnemySpawn(gameObject);
     }
 
     private void EnsureMetaDropComponents()

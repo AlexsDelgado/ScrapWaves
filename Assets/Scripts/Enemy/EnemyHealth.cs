@@ -174,7 +174,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
 
     private void CompleteDeath()
     {
-        AudioManager.TryPlayEnemyDeath();
+        AudioManager.TryPlayEnemyDeath(gameObject);
         ChallengeProgressTracker.NotifyEnemyKilled(this);
         OnDied?.Invoke();
         RunCombatStats.RegisterEnemyEliminated();

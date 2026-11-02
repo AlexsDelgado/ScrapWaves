@@ -1,0 +1,220 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d2e8a41c7b94f06a3e1d9b8f0c27a64, type: 3}
+  m_Name: SynthSfxLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::SynthSfxLibrary
+  _entries:
+  - Key: blade_dash
+    Clips:
+    - {fileID: 8300000, guid: 1328e6556cb0c8818bc2bca7ec7ced73, type: 3}
+    - {fileID: 8300000, guid: 3ac8797e61347cdafc3ce1551f3875fe, type: 3}
+    - {fileID: 8300000, guid: 5478ba5706455eaef5471d883357d05e, type: 3}
+  - Key: blade_slash
+    Clips:
+    - {fileID: 8300000, guid: 313001d600c6d4b1426624f4ca298bac, type: 3}
+    - {fileID: 8300000, guid: 1bc2655efed3ab5e43553091490f761e, type: 3}
+    - {fileID: 8300000, guid: 167ca70074fc14574809e69d1645a4c9, type: 3}
+  - Key: blade_thrust
+    Clips:
+    - {fileID: 8300000, guid: 93854379187c0abb712cbea1870d4a23, type: 3}
+    - {fileID: 8300000, guid: c465100a69fc042f503db3ac8330a7db, type: 3}
+    - {fileID: 8300000, guid: e24bcaaeeba581406d79fdbd7a0c9463, type: 3}
+  - Key: bomber_death
+    Clips:
+    - {fileID: 8300000, guid: 8a506a4602687ebb7f10fad36be00ba7, type: 3}
+    - {fileID: 8300000, guid: cc3b71206a700fcc019184d7211d4783, type: 3}
+    - {fileID: 8300000, guid: 1d138e2d28e02acc46c5fc32ba6bb6cb, type: 3}
+  - Key: bomber_spawn
+    Clips:
+    - {fileID: 8300000, guid: 715aa5977c3c990a4ea8fff20f48fcd7, type: 3}
+    - {fileID: 8300000, guid: 6114729ac751e59f695b31727dc10e0d, type: 3}
+    - {fileID: 8300000, guid: f6b5000a657ad87483cabaacf81ff96c, type: 3}
+  - Key: cannon_ability
+    Clips:
+    - {fileID: 8300000, guid: b61f15b4ca0a16adce20c556a6d52d4f, type: 3}
+    - {fileID: 8300000, guid: b2adb00974b7b19953583c25d240b345, type: 3}
+    - {fileID: 8300000, guid: 1236e7c0c161585697cfb73a7b2f2700, type: 3}
+  - Key: charger_death
+    Clips:
+    - {fileID: 8300000, guid: 75efcee856687df837c51c6ed397e611, type: 3}
+    - {fileID: 8300000, guid: deaac69cc976c5625c0317adb880936a, type: 3}
+    - {fileID: 8300000, guid: 8a36aa5276e7200032214eb3a8d2d31c, type: 3}
+  - Key: charger_spawn
+    Clips:
+    - {fileID: 8300000, guid: 2d56ed12188c3a6a0e2cd059b9b41555, type: 3}
+    - {fileID: 8300000, guid: abe74347d8a4bbc82f5459268cf4c04e, type: 3}
+    - {fileID: 8300000, guid: c59223fa41b14d22eefd2b0dc53c3da6, type: 3}
+  - Key: dash
+    Clips:
+    - {fileID: 8300000, guid: a5fbab572c3e2b311abf8a547476af79, type: 3}
+    - {fileID: 8300000, guid: dd57ab6cc719b58f390169b63b36e38a, type: 3}
+    - {fileID: 8300000, guid: f0c61ae98904f17690f5729ddc44de9b, type: 3}
+  - Key: destroyer_death
+    Clips:
+    - {fileID: 8300000, guid: 4182d522bc7efa401ebdad1404931067, type: 3}
+    - {fileID: 8300000, guid: 18b931e2839c62a1eac4db4081a2a246, type: 3}
+    - {fileID: 8300000, guid: ac441ba0ade81680239d7fd404d114fe, type: 3}
+  - Key: destroyer_spawn
+    Clips:
+    - {fileID: 8300000, guid: 5ebd32c096ec5d8d5bc534e5464190e3, type: 3}
+    - {fileID: 8300000, guid: 29d659d83e46426de21cde54c1893fca, type: 3}
+    - {fileID: 8300000, guid: 45133efa1fbeb7939728c0f48b192519, type: 3}
+  - Key: enemy_death
+    Clips:
+    - {fileID: 8300000, guid: 50990274890ed0d50ff212b49bfc4297, type: 3}
+    - {fileID: 8300000, guid: 9d8eb43fae72fcaa0602f48f8bf042bd, type: 3}
+    - {fileID: 8300000, guid: 531872ef953aeae81b40638d10b4a0c4, type: 3}
+    - {fileID: 8300000, guid: 6c248488d95b2746e0dd8a77071ae02c, type: 3}
+    - {fileID: 8300000, guid: 20778f314f8c3c87e98aab6856a40200, type: 3}
+  - Key: enemy_hit
+    Clips:
+    - {fileID: 8300000, guid: 8b4044b5bb29669eff439541160a36cb, type: 3}
+    - {fileID: 8300000, guid: 0f686807b10d2eb2129cca60aaa43bd5, type: 3}
+    - {fileID: 8300000, guid: 8c1bf8a11112efb9f416989eb7493efa, type: 3}
+    - {fileID: 8300000, guid: 2ee27f73e36f19d8cf62af70ca5c47ff, type: 3}
+    - {fileID: 8300000, guid: dedf943bc249b511e0639b25827302b3, type: 3}
+  - Key: flame_burst
+    Clips:
+    - {fileID: 8300000, guid: c2ddfa4f9be31779db0e9029bbb2c5a0, type: 3}
+    - {fileID: 8300000, guid: 4dfc187b10708bf4e34fb2599137c725, type: 3}
+    - {fileID: 8300000, guid: 9c82fefa3aa76c84b0790abd46633b4c, type: 3}
+  - Key: flame_loop
+    Clips:
+    - {fileID: 8300000, guid: 8d189b6d285bf51913e57714a11ada0d, type: 3}
+    - {fileID: 8300000, guid: 501d348bb0f2b5ecb8e5fc5a6e76f42c, type: 3}
+    - {fileID: 8300000, guid: 117c799dac70f59658d520f1de10be56, type: 3}
+  - Key: flyer_death
+    Clips:
+    - {fileID: 8300000, guid: 5a53e7117aae76653a9ae57ec3df61c4, type: 3}
+    - {fileID: 8300000, guid: f4bca9030c534b4304096b82459775d2, type: 3}
+    - {fileID: 8300000, guid: 332e7c08bfa23d688043566f9069c5e9, type: 3}
+  - Key: flyer_spawn
+    Clips:
+    - {fileID: 8300000, guid: c7d30945b5b5110d0607c4e31e0639a2, type: 3}
+    - {fileID: 8300000, guid: ab9c4d85e5953840aa73b44afcd3de0a, type: 3}
+    - {fileID: 8300000, guid: 24095d29322bf0b939618f36f013ad95, type: 3}
+  - Key: hurt
+    Clips:
+    - {fileID: 8300000, guid: a5d94d47d762df2a93709c32c5bb9b81, type: 3}
+    - {fileID: 8300000, guid: 66d383491408e1375796478ae0ee2710, type: 3}
+    - {fileID: 8300000, guid: d2b8d2b46d835ee701d3bbadd38ba627, type: 3}
+    - {fileID: 8300000, guid: 9eccd4071e02fdc99414ee382384e60e, type: 3}
+    - {fileID: 8300000, guid: e1c6ba7c9ab5f62e8ac4f27e3511a6b6, type: 3}
+  - Key: jump
+    Clips:
+    - {fileID: 8300000, guid: a02b52ba2f746d754d9a31856e4afaed, type: 3}
+    - {fileID: 8300000, guid: 36ffaddaba3584c753743a24776acd90, type: 3}
+    - {fileID: 8300000, guid: a9da18d4372c6fcff09b8881e97cd6d9, type: 3}
+    - {fileID: 8300000, guid: 2e49981688a660a8cfa48be7be0e1b17, type: 3}
+    - {fileID: 8300000, guid: da2deec0f380f5828f84ad8cae9cd2bb, type: 3}
+  - Key: land
+    Clips:
+    - {fileID: 8300000, guid: 815add621845a2681b7915cd9a030ed7, type: 3}
+    - {fileID: 8300000, guid: 30c88808efffab95ad89c602eb500b3a, type: 3}
+    - {fileID: 8300000, guid: 350aeb0d38afaa299bfbb3ac43a8e316, type: 3}
+    - {fileID: 8300000, guid: ff6d0bb3d71deb1e92eb8eccdcf433d0, type: 3}
+    - {fileID: 8300000, guid: bd2a00afa890ee6091237b9e72d42a94, type: 3}
+  - Key: levelup
+    Clips:
+    - {fileID: 8300000, guid: 0ffe5b0c130018d8740aa55122892126, type: 3}
+    - {fileID: 8300000, guid: eedc9065e3a4aa8f11c4459f681de225, type: 3}
+    - {fileID: 8300000, guid: 30de637ec9dbe68dd63ac8b080d178f8, type: 3}
+    - {fileID: 8300000, guid: 707cb66d1c6d42ca47db6f191424b130, type: 3}
+    - {fileID: 8300000, guid: 09b2088c87196938147c95a2afb879bf, type: 3}
+  - Key: mortar_ability
+    Clips:
+    - {fileID: 8300000, guid: ff5ae37ea51a9783f3aa0892253affb6, type: 3}
+    - {fileID: 8300000, guid: 6296e5d034f6c2e6d88a711d8048fa20, type: 3}
+    - {fileID: 8300000, guid: 7e92f5c63f7a2a5ab57682b132d47648, type: 3}
+  - Key: mortar_explosion
+    Clips:
+    - {fileID: 8300000, guid: 7054b4d92ec784e2f6d8c50593fdddc2, type: 3}
+    - {fileID: 8300000, guid: 1c60d166164f231ca4e53f13b7c94aa2, type: 3}
+    - {fileID: 8300000, guid: f6462e448446e57bee2941937d33f5ba, type: 3}
+  - Key: mortar_launch
+    Clips:
+    - {fileID: 8300000, guid: 1ca1259209243be8cd6fb5e1d0d0b422, type: 3}
+    - {fileID: 8300000, guid: bc2312ce4822d2c579aae1836b7f455e, type: 3}
+    - {fileID: 8300000, guid: 53ea86c7b28d8d50913c6ff0bbbc1146, type: 3}
+  - Key: overheat_end
+    Clips:
+    - {fileID: 8300000, guid: 6e9e99cae5f40e3c279ef270c254dab1, type: 3}
+    - {fileID: 8300000, guid: 77f46c88b8c1a091aff8135994a3886e, type: 3}
+    - {fileID: 8300000, guid: 53c4138f897e2201960394df36265def, type: 3}
+    - {fileID: 8300000, guid: 2a955cf5f655f53d48bec0a533e45432, type: 3}
+    - {fileID: 8300000, guid: 4d0d5e07b530035e4d64244819115e5a, type: 3}
+  - Key: overheat_start
+    Clips:
+    - {fileID: 8300000, guid: 0cee3824df55b889fc796d8652db7509, type: 3}
+    - {fileID: 8300000, guid: 8ac73e68875e88efa20a9c252041569d, type: 3}
+    - {fileID: 8300000, guid: 415a4c91049062a2cb78374a611a608e, type: 3}
+    - {fileID: 8300000, guid: 5fbba2d944091b79cb4e2d1fbc722355, type: 3}
+    - {fileID: 8300000, guid: 775f541c186b3253403180444e11047f, type: 3}
+  - Key: overheat_warning
+    Clips:
+    - {fileID: 8300000, guid: 9a7b4f7e7836b7af09f2f31bdfca92f8, type: 3}
+    - {fileID: 8300000, guid: 936966a2b7f4ec7e15be34ff436e89ee, type: 3}
+    - {fileID: 8300000, guid: af58a4f0a765244b2e3790712edc054b, type: 3}
+  - Key: rocket_ability
+    Clips:
+    - {fileID: 8300000, guid: bfd62e9d74d876c2606ab5c2c6ff127d, type: 3}
+    - {fileID: 8300000, guid: cbf9bfd8389137cc4f618de7abdd6b6b, type: 3}
+    - {fileID: 8300000, guid: f927d2ba8cd8898e00ec96f7ec957a61, type: 3}
+  - Key: rocket_explosion
+    Clips:
+    - {fileID: 8300000, guid: d9b38e5986220f409349aeae1942e717, type: 3}
+    - {fileID: 8300000, guid: eaef91d99a1cc363681d06b12f95d793, type: 3}
+    - {fileID: 8300000, guid: 21c6e3695f466b9385b130997ef7b584, type: 3}
+  - Key: rocket_launch
+    Clips:
+    - {fileID: 8300000, guid: c2d9ba4cb5ecd502e3625f92f861224a, type: 3}
+    - {fileID: 8300000, guid: c8d1d0662d2ec87aaad64a842a921ddd, type: 3}
+    - {fileID: 8300000, guid: b011d17a06b82073b8ef46e619a051fd, type: 3}
+  - Key: shot
+    Clips:
+    - {fileID: 8300000, guid: d318c15c622593a13e4ce7e8e9e18333, type: 3}
+    - {fileID: 8300000, guid: 20c29a4547cd4984384830508d28a514, type: 3}
+    - {fileID: 8300000, guid: 1766b2b200a0d0bc51e7d83719715387, type: 3}
+    - {fileID: 8300000, guid: 487f32b2773a23b07644cbcf6fd4c061, type: 3}
+    - {fileID: 8300000, guid: 06d30b761331eb3016e55238910726af, type: 3}
+  - Key: slide
+    Clips:
+    - {fileID: 8300000, guid: 2e345851d7013cd9634b0798242346ef, type: 3}
+    - {fileID: 8300000, guid: 533f83a298b1dcaed9516683caa2b776, type: 3}
+    - {fileID: 8300000, guid: 3a2b43f059a4a9f5e488107c6f9573f8, type: 3}
+  - Key: slime_death
+    Clips:
+    - {fileID: 8300000, guid: a619312112dfa916829ee5d604c24b72, type: 3}
+    - {fileID: 8300000, guid: 91599f6313e289d0442b10b8a3c9d722, type: 3}
+    - {fileID: 8300000, guid: 86724e5337c895e0607132836eace18a, type: 3}
+  - Key: slime_spawn
+    Clips:
+    - {fileID: 8300000, guid: 62cd28c9b9fd27878885187fbf9cf8c8, type: 3}
+    - {fileID: 8300000, guid: 0de4124ca0b08075dbe72f7f69dfe8d1, type: 3}
+    - {fileID: 8300000, guid: df426b680f93c743c824569a4a4419bb, type: 3}
+  - Key: worm_death
+    Clips:
+    - {fileID: 8300000, guid: 7a76f5dc942939458db49c9d0c11c579, type: 3}
+    - {fileID: 8300000, guid: fb5504b361cf8a799f0fd7f6811d4d2a, type: 3}
+    - {fileID: 8300000, guid: 0261e7ed2b84bc373ba858a9d47073d7, type: 3}
+  - Key: worm_spawn
+    Clips:
+    - {fileID: 8300000, guid: 9f202a7e40b01c209866083f59799541, type: 3}
+    - {fileID: 8300000, guid: 37dc52071a64de9ca756561b13982858, type: 3}
+    - {fileID: 8300000, guid: 44cd4eeff0d80ef954289e6c7046992e, type: 3}
+  - Key: xp
+    Clips:
+    - {fileID: 8300000, guid: 263a09937968802771db07199be20b49, type: 3}
+    - {fileID: 8300000, guid: 3e000b837afd493d4f764a5a64d2855d, type: 3}
+    - {fileID: 8300000, guid: 2b68d167f815fc0c38024ffa5eb1a155, type: 3}
+    - {fileID: 8300000, guid: b731bf34fd2ab3c4532783eafa3767ac, type: 3}
+    - {fileID: 8300000, guid: 2ebe09a5a59c4cb3bedaf78a920aa529, type: 3}

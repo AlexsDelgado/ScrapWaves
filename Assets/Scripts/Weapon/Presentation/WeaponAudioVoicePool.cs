@@ -68,6 +68,19 @@ public sealed class WeaponAudioVoicePool
         }
     }
 
+    /// <summary>Volumen del cue; si no tiene uno autorado (0) y hay sonido sintetizado, la ganancia por defecto de la familia.</summary>
+    public static float ResolveCueVolume(WeaponPresentationCueData cueData)
+    {
+        if (cueData == null)
+            return 0f;
+        if (cueData.Volume > 0f)
+            return cueData.Volume;
+
+        SynthSfxLibrary synth = SynthSfxLibrary.Active;
+        string key = synth != null ? SynthSfxLibrary.WeaponKey(cueData.Cue) : null;
+        return key != null && synth.Has(key) ? SynthSfxLibrary.DefaultGain(key) : 0f;
+    }
+
     public bool TryPlayOneShot(
         WeaponPresentationCueData cueData,
         Vector3 position,
@@ -103,7 +116,7 @@ public sealed class WeaponAudioVoicePool
             voice,
             clip,
             position,
-            cueData.Volume * globalVolume * Mathf.Clamp01(layerVolume),
+            ResolveCueVolume(cueData) * globalVolume * Mathf.Clamp01(layerVolume),
             pitch,
             loop: false);
         ConfigureCue(voice.Source, cueData);
@@ -126,7 +139,7 @@ public sealed class WeaponAudioVoicePool
 
         VoiceSlot voice = _voices[voiceIndex];
         float pitch = Random.Range(cueData.PitchMin, cueData.PitchMax);
-        ConfigureVoice(voice, clip, position, cueData.Volume * globalVolume, pitch, loop: true);
+        ConfigureVoice(voice, clip, position, ResolveCueVolume(cueData) * globalVolume, pitch, loop: true);
         ConfigureCue(voice.Source, cueData);
         voice.ReleaseTime = float.PositiveInfinity;
         voice.Source.Play();
@@ -258,6 +271,18 @@ public sealed class WeaponAudioVoicePool
         clip = null;
         if (cueData == null)
             return false;
+
+        SynthSfxLibrary synth = SynthSfxLibrary.Active;
+        if (synth != null)
+        {
+            string key = SynthSfxLibrary.WeaponKey(cueData.Cue);
+            AudioClip synthClip = key != null ? synth.Pick(key) : null;
+            if (synthClip != null)
+            {
+                clip = synthClip;
+                return true;
+            }
+        }
 
         PsxSfxLibrary library = PsxSfxLibrary.Active;
         if (library != null && library.TryGetWeaponClips(cueData.Cue, out AudioClip[] overrides))

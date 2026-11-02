@@ -107,7 +107,7 @@ public sealed class WeaponAudioDirector
             context.Origin,
             globalVolume * Mathf.Clamp01(context.EventIntensity) *
             ResolveMechanicalHeatScale(cueData, context.NormalizedHeat),
-            cueData.Volume);
+            WeaponAudioVoicePool.ResolveCueVolume(cueData));
         float intensityPitch = cueData.ApplyEventIntensityToPitch
             ? Mathf.Lerp(0.9f, 1.2f, Mathf.InverseLerp(0.65f, 1.25f, context.EventIntensity))
             : 1f;
