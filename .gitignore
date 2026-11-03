@@ -111,3 +111,7 @@ InitTestScene*.unity*
 /Tools/blender-mcp/
 Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF - Fallback.asset
 /Assets/TextMesh Pro/Resources
+
+# Python bytecode (Tools/SfxGen)
+__pycache__/
+*.pyc

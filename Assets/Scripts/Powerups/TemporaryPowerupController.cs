@@ -52,6 +52,7 @@ public class TemporaryPowerupController : MonoBehaviour
     private PlayerMovement _movement;
     private PlayerXP _xp;
     private WeaponManager _weapons;
+    private PlayerPowerupVfx _powerupVfx;
 
     private readonly object _buffSource = new();
     private float _buffEndsAt = -1f;
@@ -74,6 +75,9 @@ public class TemporaryPowerupController : MonoBehaviour
         _movement = GetComponent<PlayerMovement>();
         _xp = GetComponent<PlayerXP>();
         _weapons = GetComponent<WeaponManager>();
+        _powerupVfx = GetComponent<PlayerPowerupVfx>();
+        if (_powerupVfx == null)
+            _powerupVfx = gameObject.AddComponent<PlayerPowerupVfx>();
     }
 
     private void OnDestroy()
@@ -200,7 +204,8 @@ public class TemporaryPowerupController : MonoBehaviour
         _buffEndsAt = Time.time + duration;
         addModifiers?.Invoke();
         LogStatDeltasFor(type, tracked, before);
-        ShowBuffFx(color, duration);
+        if (_powerupVfx == null || !_powerupVfx.Show(type))
+            ShowBuffFx(color, duration);
     }
 
     private static StatType[] GetTrackedStats(TemporaryPowerupType type)
@@ -257,6 +262,9 @@ public class TemporaryPowerupController : MonoBehaviour
 
     private void ClearBuff()
     {
+        if (_hasActiveBuff && _powerupVfx != null)
+            _powerupVfx.Hide(_activeBuff);
+
         if (_stats != null)
             _stats.RemoveModifiersFromSource(_buffSource);
         _hasActiveBuff = false;
