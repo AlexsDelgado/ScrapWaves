@@ -20,7 +20,7 @@ MonoBehaviour:
   ManualMode: 0
   BaseDamage: 25
   BaseAttackRate: 0.9
-  BaseRange: 20
+  BaseRange: 35
   BaseKnockback: 1.5
   BaseManualAmmo: 40
   ActiveAbilityAmmoCost: 10
@@ -63,8 +63,8 @@ MonoBehaviour:
           Enabled: 0
           Value: 0
         AttackCyclesPerSecond:
-          Enabled: 0
-          Value: 0
+          Enabled: 1
+          Value: 0.7
         AmmoCapacity:
           Enabled: 0
           Value: 0
@@ -383,7 +383,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 0.95
+          Value: 0.75
         AmmoCapacity:
           Enabled: 1
           Value: 44
@@ -702,7 +702,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1
+          Value: 0.8
         AmmoCapacity:
           Enabled: 1
           Value: 48
@@ -1021,7 +1021,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.05
+          Value: 0.85
         AmmoCapacity:
           Enabled: 1
           Value: 52
@@ -1340,7 +1340,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.1
+          Value: 0.9
         AmmoCapacity:
           Enabled: 1
           Value: 56
@@ -1659,7 +1659,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.15
+          Value: 1
         AmmoCapacity:
           Enabled: 1
           Value: 60
@@ -1978,7 +1978,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.2
+          Value: 1.05
         AmmoCapacity:
           Enabled: 1
           Value: 64
@@ -2297,7 +2297,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.25
+          Value: 1.1
         AmmoCapacity:
           Enabled: 1
           Value: 68
@@ -2616,7 +2616,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.3
+          Value: 1.15
         AmmoCapacity:
           Enabled: 1
           Value: 72
@@ -2935,7 +2935,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.4
+          Value: 1.25
         AmmoCapacity:
           Enabled: 1
           Value: 75
@@ -3254,7 +3254,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.15
+          Value: 1
         AmmoCapacity:
           Enabled: 1
           Value: 60
@@ -3573,7 +3573,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.2
+          Value: 1.05
         AmmoCapacity:
           Enabled: 1
           Value: 64
@@ -3892,7 +3892,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.25
+          Value: 1.1
         AmmoCapacity:
           Enabled: 1
           Value: 68
@@ -4211,7 +4211,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.3
+          Value: 1.15
         AmmoCapacity:
           Enabled: 1
           Value: 72
@@ -4530,7 +4530,7 @@ MonoBehaviour:
           Value: 0
         AttackCyclesPerSecond:
           Enabled: 1
-          Value: 1.5
+          Value: 1.25
         AmmoCapacity:
           Enabled: 1
           Value: 75
