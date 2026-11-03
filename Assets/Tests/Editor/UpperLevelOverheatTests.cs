@@ -23,6 +23,9 @@ public sealed class UpperLevelOverheatTests
     private BoxCollider _base;
     private ParticleSystem _effect;
     private ChallengeProgressTracker _previousChallengeTracker;
+    private SaveManager _previousSaveManager;
+    private AudioManager _previousAudioManager;
+    private TemporaryPowerupController _previousPowerupController;
     private float _previousScale;
     private bool _previousStartupHeld;
 
@@ -35,6 +38,12 @@ public sealed class UpperLevelOverheatTests
         SetStartupHeld(false);
         Time.timeScale = 1f;
         GameplayPause.Reset();
+        _previousSaveManager = SaveManager.Instance;
+        _previousAudioManager = AudioManager.Instance;
+        _previousPowerupController = TemporaryPowerupController.Instance;
+        SetSingleton<SaveManager>(null);
+        SetSingleton<AudioManager>(null);
+        SetSingleton<TemporaryPowerupController>(null);
         _previousChallengeTracker = ChallengeProgressTracker.Instance;
         // EditMode AddComponent does not execute the gameplay singleton's Awake.
         var tracker = Track(new GameObject("Upper hazard challenge tracker")).AddComponent<ChallengeProgressTracker>();
@@ -108,6 +117,9 @@ public sealed class UpperLevelOverheatTests
             if (_cleanup[i] != null) Object.DestroyImmediate(_cleanup[i]);
         _cleanup.Clear();
         typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance)).SetValue(null, _previousChallengeTracker);
+        SetSingleton(_previousSaveManager);
+        SetSingleton(_previousAudioManager);
+        SetSingleton(_previousPowerupController);
         GameplayPause.Reset();
         SetStartupHeld(_previousStartupHeld);
         Time.timeScale = _previousScale;
@@ -397,27 +409,82 @@ public sealed class UpperLevelOverheatTests
     }
 
     [Test]
-    public void Damage_RespectsExistingGlobalHitInvulnerability()
+    public void Damage_BypassesOrdinaryHitRecovery()
     {
-        _health.GrantInvulnerability(10f);
+        Set(_health, "_hitInvulnerabilitySeconds", 10f);
+        _health.TakeDamage(5);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
+        Assert.That(_health.IsInvulnerable, Is.True);
+        _health.TakeDamage(5);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(95));
+
         Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(100));
-        Set(_health, "_invulnerableUntil", -1f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(94));
         Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Assert.That(_health.CurrentHealth, Is.EqualTo(93),
+            "Every due Overheat tick must bypass the recovery granted by the preceding hit.");
     }
 
-    [Test]
-    public void Damage_RespectsTemporaryPowerupInvulnerability()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Damage_BypassesGrantedInvulnerabilityWithoutShorteningProtection(bool shieldAbsorbsHeat)
     {
+        _health.ApplyBurn(10f, 4);
+        _health.GrantInvulnerability(10f);
+        AssertOverheatPreservesProtection(shieldAbsorbsHeat);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Damage_BypassesAppliedPowerupWithoutShorteningProtection(bool shieldAbsorbsHeat)
+    {
+        _health.ApplyBurn(10f, 4);
         var powerup = _player.AddComponent<TemporaryPowerupController>();
         Call(powerup, "Awake");
-        Set(powerup, "_invulnEndsAt", Time.time + 10f);
+        var fxObject = new GameObject("Powerup test FX", typeof(ParticleSystem));
+        fxObject.transform.SetParent(_player.transform, false);
+        var fx = fxObject.GetComponent<ParticleSystem>();
+        fx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        Set(powerup, "_buffParticles", fx);
+        Set(powerup, "_buffEmission", fx.emission);
+        powerup.Apply(TemporaryPowerupType.Invulnerability);
+        Assert.That(powerup.IsPowerupInvulnerable, Is.True);
+        AssertOverheatPreservesProtection(shieldAbsorbsHeat, powerup);
+    }
+
+    private void AssertOverheatPreservesProtection(bool shieldAbsorbsHeat, TemporaryPowerupController powerup = null)
+    {
+        Set(_health, "_hitInvulnerabilitySeconds", 1f);
+        if (shieldAbsorbsHeat) _health.SetShieldConfig(1, 30f);
+        float protectionDeadline = Get<float>(_health, "_invulnerableUntil");
+        float grantedDeadline = Get<float>(_health, "_grantedInvulnerabilityUntil");
+        float pickupDeadline = powerup != null ? Get<float>(powerup, "_invulnEndsAt") : 0f;
+
         Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(100));
-        Set(powerup, "_invulnEndsAt", -1f);
-        Tick(2f);
-        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        int healthAfterHeat = shieldAbsorbsHeat ? 100 : 99;
+        Assert.That(_health.CurrentHealth, Is.EqualTo(healthAfterHeat));
+        Assert.That(_health.ShieldCharges, Is.Zero);
+        Assert.That(Get<float>(_health, "_invulnerableUntil"), Is.EqualTo(protectionDeadline));
+        Assert.That(Get<float>(_health, "_grantedInvulnerabilityUntil"), Is.EqualTo(grantedDeadline));
+        if (powerup != null)
+            Assert.That(Get<float>(powerup, "_invulnEndsAt"), Is.EqualTo(pickupDeadline));
+
+        _health.TakeDamage(5);
+        _health.ApplyBurn(10f, 20);
+        Call(_health, "UpdateBurn", .5f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(healthAfterHeat),
+            "Overheat must not remove protection against ordinary hits, existing burn, or a new burn application.");
+        Assert.That(_health.IsBurning, Is.True, "The original burn keeps aging while its damage is blocked.");
+
+        // Deterministically cross the captured deadlines without waiting on the Editor clock.
+        Set(_health, "_invulnerableUntil", Time.time - 1f);
+        Set(_health, "_grantedInvulnerabilityUntil", Time.time - 1f);
+        if (powerup != null) Set(powerup, "_invulnEndsAt", Time.time - 1f);
+        _health.TakeDamage(5);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(healthAfterHeat - 5));
+        Call(_health, "UpdateBurn", .5f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(healthAfterHeat - 7),
+            "The original 4 DPS burn resumes at 2 per tick; the blocked 20 DPS application must not replace it.");
     }
 
     [Test]
@@ -437,12 +504,18 @@ public sealed class UpperLevelOverheatTests
     public void DeathAndExplicitHealthReset_ClearEffectsAndRestartGrace()
     {
         Set(_health, "_currentHealth", 1);
+        _health.GrantInvulnerability(10f);
+        int deaths = 0;
+        _health.OnPlayerDied += () => deaths++;
         Tick(2f);
         Assert.That(_health.IsAlive, Is.False);
         Assert.That(_effect.isPlaying, Is.False);
         Assert.That(_effect.particleCount, Is.Zero);
         Assert.That(_state.CanSpawnObjectives, Is.False);
+        Tick(2f);
+        Assert.That(deaths, Is.EqualTo(1));
         _health.FullHeal(resetPhase: true);
+        Assert.That(_health.IsInvulnerable, Is.False);
         Tick(1.9f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(100));
         _health.FullHeal(resetPhase: true);
@@ -515,6 +588,16 @@ public sealed class UpperLevelOverheatTests
 
     private static void SetStartupHeld(bool value) => typeof(EntranceCinematic)
         .GetField("<StartupHeld>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, value);
+
+    private static void SetSingleton<T>(T value) where T : Object => typeof(T)
+        .GetProperty("Instance", BindingFlags.Static | BindingFlags.Public).SetValue(null, value);
+
+    private static T Get<T>(object target, string field)
+    {
+        FieldInfo info = target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(info, Is.Not.Null, field);
+        return (T)info.GetValue(target);
+    }
 
     private static void Set(object target, string field, object value)
     {

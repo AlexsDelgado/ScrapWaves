@@ -112,7 +112,7 @@ public static class PlayerCombatHooks
             Debug.LogWarning("[PlayerCombatHooks] TrySlow: no se encontro PlayerMovement.");
     }
 
-    /// <summary>Quemadura (dano por segundo) durante <paramref name="seconds"/> (Hellfire). Ignora i-frames.</summary>
+    /// <summary>Hellfire burn ignores ordinary hit recovery, but respects pickup/ability protection.</summary>
     public static void TryBurn(float seconds, int damagePerSecond)
     {
         if (seconds <= 0f || damagePerSecond <= 0)

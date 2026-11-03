@@ -33,7 +33,7 @@ public class EnemyHealth : MonoBehaviour, IAuthoritativeDamageable
         _blockDotWhileInvincible = invincible && blockDot;
     }
 
-    /// <summary>Fija vida máxima y rellena al máximo (p. ej. boss spawneado por <see cref="BossManager"/>).</summary>
+    /// <summary>Fija vida máxima y rellena al máximo.</summary>
     public void ApplyConfiguredMaxHealth(int maxHealth)
     {
         _prefabMaxHealth = Mathf.Max(1, maxHealth);

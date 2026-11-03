@@ -22,9 +22,6 @@ public class BossManager : MonoBehaviour
     [SerializeField, Tooltip("Bosses only appear on even Overheats (2nd, 4th...). Odd Overheats spawn the elite wave.")]
     private bool _spawnOnlyOnEvenCycles = true;
 
-    [SerializeField, Min(1), Tooltip("Max health applied on spawn (replaces the prefab value).")]
-    private int _bossMaxHealth = 400;
-
     [SerializeField, Min(2f), Tooltip("XZ distance from the player where each boss appears.")]
     private float _spawnDistance = 12f;
 
@@ -386,7 +383,6 @@ public class BossManager : MonoBehaviour
                 break;
             }
 
-            health.ApplyConfiguredMaxHealth(_bossMaxHealth);
             if (!playedSpawn)
             {
                 AudioManager.TryPlayBossSpawn();
@@ -572,8 +568,6 @@ public class BossManager : MonoBehaviour
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        if (_bossMaxHealth < 1)
-            _bossMaxHealth = 1;
         if (_spawnDistance < 2f)
             _spawnDistance = 2f;
         if (_multiBossOverheatCycle < 1)

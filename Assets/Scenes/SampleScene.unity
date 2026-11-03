@@ -67227,7 +67227,6 @@ MonoBehaviour:
   _bossPrefab: {fileID: 200000, guid: 8b097ccb7f7e3be41937b7a7f46de3cf, type: 3}
   _secondBossPrefab: {fileID: 100000, guid: 0c7fe1cbcc1b00845bbd9f0f7939dae7, type: 3}
   _spawnOnlyOnEvenCycles: 1
-  _bossMaxHealth: 1500
   _spawnDistance: 35
   _multiBossOverheatCycle: 3
   _bossCountOnMultiCycle: 2

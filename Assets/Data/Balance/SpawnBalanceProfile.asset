@@ -58,7 +58,7 @@ MonoBehaviour:
   _difficultyRampSpeedMultiplier: 0.95
   _maxSpawnCountMultiplier: 3
   _scaleEnemyHealth: 1
-  _maxEnemyHealthMultiplier: 4
+  _maxEnemyHealthMultiplier: 10
   _scaleEnemyMoveSpeed: 1
   _maxEnemySpeedMultiplier: 2.5
   _scaleEnemyDamage: 1
@@ -77,13 +77,22 @@ MonoBehaviour:
       outWeight: 0.15759933
     - serializedVersion: 3
       time: 0.8
-      value: 0.15463868
+      value: 0.25
       inSlope: 0.1745843
       outSlope: 0.1745843
       tangentMode: 0
       weightedMode: 0
       inWeight: 0.13828182
       outWeight: 0.6146044
+    - serializedVersion: 3
+      time: 0.801
+      value: 0.6
+      inSlope: 8.430626
+      outSlope: 8.430626
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.22772638
     - serializedVersion: 3
       time: 0.846489
       value: 0.84234077
@@ -106,7 +115,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _maxSpawnCountMultiplierAtFullHeat: 2.5
-  _spawnIntervalScaleAtFullHeat: 0.25
+  _spawnIntervalScaleAtFullHeat: 0.2
   _completedCycleIntervalStep: 0.15
   _completedCycleIntervalFloor: 0.6
   _completedCycleBatchStep: 0.2
@@ -118,7 +127,7 @@ MonoBehaviour:
   _escalationPerOverheatCycle: 1.4
   _heatPerKill: 1
   _postOverheatDecayPerSecond: 25
-  _spawnInterval: 15
+  _spawnInterval: 14
   _wipeSpawnDelay: 3
   _maxActiveEnemies: 300
   _maxActiveEnemiesByCycle: 3c00000078000000f00000002c010000

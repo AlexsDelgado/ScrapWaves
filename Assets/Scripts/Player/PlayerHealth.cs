@@ -15,6 +15,8 @@ public class PlayerHealth : MonoBehaviour
     private float _regenerationDelaySeconds = 5f;
 
     private float _invulnerableUntil;
+    // Explicit pickup/ability protection also blocks burn; ordinary hit recovery does not.
+    private float _grantedInvulnerabilityUntil;
     private float _lastDamageTime;
     private float _regenerationRemainder;
     private bool _isDead;
@@ -48,7 +50,11 @@ public class PlayerHealth : MonoBehaviour
     /// <summary>Fresh player activation or explicit QA reset; cancels phase-local exposure and pending objectives.</summary>
     public event Action OnReset;
 
+    /// <summary>Blocks ordinary hits and enemy collisions; upper-level Overheat bypasses this protection.</summary>
     public bool IsInvulnerable => Time.time < _invulnerableUntil;
+
+    private bool IsBurnProtected => Time.time < _grantedInvulnerabilityUntil ||
+        (TemporaryPowerupController.Instance != null && TemporaryPowerupController.Instance.IsPowerupInvulnerable);
 
     public bool IsBurning => _burnRemaining > 0f;
 
@@ -58,12 +64,14 @@ public class PlayerHealth : MonoBehaviour
     /// <summary>Daño directo (no burn); para flash de impacto en HUD.</summary>
     public event Action OnHitDamageTaken;
 
+    /// <summary>Grants pickup/ability protection against hits and burn, without shortening an existing grant.</summary>
     public void GrantInvulnerability(float seconds)
     {
         if (seconds <= 0f)
             return;
 
         _invulnerableUntil = Mathf.Max(_invulnerableUntil, Time.time + seconds);
+        _grantedInvulnerabilityUntil = Mathf.Max(_grantedInvulnerabilityUntil, Time.time + seconds);
         SyncEnemyCollisionIgnores();
     }
 
@@ -155,6 +163,7 @@ public class PlayerHealth : MonoBehaviour
         _isDead = false;
         _currentHealth = _maxHealth;
         _invulnerableUntil = 0f;
+        _grantedInvulnerabilityUntil = 0f;
         _lastDamageTime = Time.time - _regenerationDelaySeconds;
         _regenerationRemainder = 0f;
         ClearBurn();
@@ -207,7 +216,13 @@ public class PlayerHealth : MonoBehaviour
 
         if (_burnTickTimer <= 0f)
         {
-            _burnTickTimer += BurnTickInterval;
+            // Consume suppressed ticks even when a long frame spans the end of a grant.
+            // Keep the remaining fraction of the cadence without queuing protected damage.
+            bool frameOverlapsProtection = IsBurnProtected ||
+                (_grantedInvulnerabilityUntil != 0f && _grantedInvulnerabilityUntil > Time.time - deltaTime);
+            _burnTickTimer = frameOverlapsProtection
+                ? BurnTickInterval - Mathf.Repeat(-_burnTickTimer, BurnTickInterval)
+                : _burnTickTimer + BurnTickInterval;
             int tickDamage = Mathf.Max(1, Mathf.RoundToInt(_burnDps * BurnTickInterval));
             ApplyBurnTick(tickDamage);
         }
@@ -218,12 +233,13 @@ public class PlayerHealth : MonoBehaviour
 
     /// <summary>
     /// Aplica una quemadura (DoT) por <paramref name="seconds"/> a <paramref name="dps"/> de daño
-    /// por segundo. IGNORA los i-frames globales (canal aparte de <see cref="TakeDamage"/>).
+    /// por segundo. Ignora la recuperacion tras impactos, pero respeta la proteccion de powerup/arma.
     /// Refresca la duración (no apila) y conserva el dps más alto.
     /// </summary>
     public void ApplyBurn(float seconds, int dps)
     {
         if (EntranceCinematic.StartupHeld) return;
+        if (IsBurnProtected) return;
         if (seconds <= 0f || dps <= 0 || _isDead || _currentHealth <= 0)
             return;
 
@@ -235,6 +251,7 @@ public class PlayerHealth : MonoBehaviour
 
     private void ApplyBurnTick(int amount)
     {
+        if (IsBurnProtected) return;
         if (amount <= 0 || _currentHealth <= 0 || _isDead)
             return;
 
@@ -278,6 +295,7 @@ public class PlayerHealth : MonoBehaviour
         _isDead = false;
         _currentHealth = _maxHealth;
         _invulnerableUntil = 0f;
+        _grantedInvulnerabilityUntil = 0f;
         _lastDamageTime = Time.time - _regenerationDelaySeconds;
         _regenerationRemainder = 0f;
         ClearBurn();
@@ -287,20 +305,31 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(int amount)
     {
+        TakeDamageInternal(amount, bypassInvulnerability: false);
+    }
+
+    /// <summary>Upper-level heat bypasses all i-frames, retaining shields and normal hit handling.</summary>
+    public void TakeUpperLevelOverheatDamage(int amount)
+    {
+        TakeDamageInternal(amount, bypassInvulnerability: true);
+    }
+
+    private void TakeDamageInternal(int amount, bool bypassInvulnerability)
+    {
         if (EntranceCinematic.StartupHeld) return;
         if (amount <= 0 || _currentHealth <= 0 || _isDead)
             return;
 
-        if (TemporaryPowerupController.Instance != null && TemporaryPowerupController.Instance.IsPowerupInvulnerable)
+        if (!bypassInvulnerability && TemporaryPowerupController.Instance != null && TemporaryPowerupController.Instance.IsPowerupInvulnerable)
             return;
 
-        if (Time.time < _invulnerableUntil)
+        if (!bypassInvulnerability && IsInvulnerable)
             return;
 
         if (_shieldCharges > 0)
         {
             _shieldCharges--;
-            _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
+            _invulnerableUntil = Mathf.Max(_invulnerableUntil, Time.time + _hitInvulnerabilitySeconds);
             SyncEnemyCollisionIgnores();
             RegisterDamageTaken(Time.time);
             ChallengeProgressTracker.NotifyPlayerDamaged(this, _currentHealth, _currentHealth);
@@ -314,7 +343,7 @@ public class PlayerHealth : MonoBehaviour
         if (_currentHealth < 0)
             _currentHealth = 0;
 
-        _invulnerableUntil = Time.time + _hitInvulnerabilitySeconds;
+        _invulnerableUntil = Mathf.Max(_invulnerableUntil, Time.time + _hitInvulnerabilitySeconds);
         SyncEnemyCollisionIgnores();
         RegisterDamageTaken(Time.time);
         ChallengeProgressTracker.NotifyPlayerDamaged(this, healthBefore, _currentHealth);

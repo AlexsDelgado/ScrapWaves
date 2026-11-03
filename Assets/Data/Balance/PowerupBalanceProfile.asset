@@ -25,51 +25,51 @@ MonoBehaviour:
   - 1
   _pickupRadius: 1.5
   _magnetRadius: 6
-  _magnetSpeed: 12
+  _magnetSpeed: 20
   _extraDamage:
     Duration: 15
     DamageMultiplier:
-      Min: 1.5
-      Max: 2.5
+      Min: 3
+      Max: 3
     AttackSpeedMultiplier:
-      Min: 1.75
+      Min: 3
       Max: 3
     CriticalChance:
-      Min: 50
-      Max: 100
+      Min: 25
+      Max: 25
   _extraSpeed:
     Duration: 15
     MovementSpeedMultiplier:
-      Min: 2
+      Min: 4
       Max: 4
     JumpHeightMultiplier:
-      Min: 2
-      Max: 3
+      Min: 2.5
+      Max: 2.5
     DashBonusFactor: 2
     AirJumpBonusFactor: 2
   _extraScavenging:
-    Duration: 7.5
+    Duration: 15
     PickupRangeMultiplier:
-      Min: 2
-      Max: 4
+      Min: 30
+      Max: 30
     Scavenging:
-      Min: 25
-      Max: 50
+      Min: 30
+      Max: 30
     DoubleDrop:
       Min: 25
       Max: 75
   _invulnerability:
-    Duration: 7.5
+    Duration: 10
   _fullHeal:
     RefillAmmoAndAbility: 1
     FxDuration: 1.75
   _nuke:
     Damage:
-      Min: 50
-      Max: 500
+      Min: 200
+      Max: 1000
     Radius:
       Min: 20
       Max: 40
-    FullDamageRadiusFraction: 0.5
+    FullDamageRadiusFraction: 0.75
     Knockback: 18
     FxDuration: 1.75
