@@ -2450,6 +2450,7 @@ GameObject:
   m_Component:
   - component: {fileID: 865451999294486288}
   - component: {fileID: 8225923384275243294}
+  - component: {fileID: 8891020005}
   m_Layer: 0
   m_Name: ColumnLeft
   m_TagString: Untagged
@@ -2473,6 +2474,7 @@ RectTransform:
   - {fileID: 3178225556110073228}
   - {fileID: 4588560387691203423}
   - {fileID: 8676802762835962602}
+  - {fileID: 8891030002}
   m_Father: {fileID: 6411296239271024343}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -2495,6 +2497,7 @@ MonoBehaviour:
   _overheatFill: {fileID: 5882663569490357245}
   _hpFill: {fileID: 8215257652575779006}
   _xpFill: {fileID: 7643872730908285457}
+  _shieldMeter: {fileID: 8891030004}
   _playerHealth: {fileID: 0}
   _playerXp: {fileID: 0}
   _heatManager: {fileID: 0}
@@ -11005,3 +11008,92 @@ RectTransform:
   m_AnchoredPosition: {x: 270.9, y: -17.1}
   m_SizeDelta: {x: 82.799995, y: 88.2}
   m_Pivot: {x: 0, y: 1}
+--- !u!114 &8891020005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2235010206508899945}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f2d83fc84d4459b6ada1de3b1688af3b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::HeatPresentationController
+  _heatManager: {fileID: 0}
+  _overheatManager: {fileID: 0}
+  _playerHealth: {fileID: 0}
+  _statusLabel: {fileID: 0}
+  _screenProfile: {fileID: 11400000, guid: f3b989a0e16d56cc8d19b4f5b64a7749, type: 2}
+  _edgeMaterial: {fileID: 2100000, guid: f28c0beaa88a49b79028a621f52be95a, type: 2}
+  _screenIntensity: 0.95
+  _transitionSeconds: 0.7
+--- !u!1 &8891030001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8891030002}
+  - component: {fileID: 8891030003}
+  - component: {fileID: 8891030004}
+  m_Layer: 0
+  m_Name: ShieldCharges
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &8891030002
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8891030001}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 865451999294486288}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 218, y: -5}
+  m_SizeDelta: {x: 222, y: 29}
+  m_Pivot: {x: 0, y: 1}
+--- !u!222 &8891030003
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8891030001}
+  m_CullTransparentMesh: 1
+--- !u!114 &8891030004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8891030001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdddba2c9f3946e68548d54520131806, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ShieldChargesGraphic
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  _frameArtwork: {fileID: 21300000, guid: 04ca21d7e2e10f84392003bb7d2af230, type: 3}
+  _rimColor: {r: 0.72, g: 0.73, b: 0.71, a: 1}
+  _chargedColor: {r: 0.07, g: 0.36, b: 1, a: 1}
+  _emptyColor: {r: 0.035, g: 0.05, b: 0.07, a: 1}
