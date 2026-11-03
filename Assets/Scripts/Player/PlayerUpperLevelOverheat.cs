@@ -124,10 +124,10 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
         if (_tickRemaining > 0f) return;
         _tickRemaining = Mathf.Max(.1f, _tickInterval);
         int damage = (int)System.Math.Min(int.MaxValue, System.Math.Max(1d, System.Math.Round(_nextDamage)));
-        // Advance per hazard tick even when shields or invulnerability absorb it. Advance first so
-        // synchronous death/reset callbacks from TakeDamage retain their freshly reset value.
+        // Advance per hazard tick even when a shield absorbs it. Advance first so
+        // synchronous death/reset callbacks retain their freshly reset value.
         _nextDamage = System.Math.Min(int.MaxValue, _nextDamage * _upperLevelVolume.DamageMultiplier);
-        _health.TakeDamage(damage);
+        _health.TakeUpperLevelOverheatDamage(damage);
     }
 
     private void HandleOverheatFinished(OverheatEndReason reason) => ResetHazard();
