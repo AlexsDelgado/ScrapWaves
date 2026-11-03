@@ -45,6 +45,20 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     [SerializeField, Min(0.1f)] private float _bulletSpeed = 16f;
     [SerializeField, Tooltip("Altura del cañon respecto al pivote del dron.")]
     private float _muzzleHeight = 0.2f;
+    [SerializeField, Tooltip("Optional muzzle socket. Without one, the animated drone body supplies the origin.")]
+    private Transform _muzzle;
+    private SkinnedMeshRenderer _muzzleBody;
+
+    [Header("Locking telegraph (visual only)")]
+    [SerializeField] private bool _showLockingLine = true;
+    [SerializeField, Min(.005f)] private float _lockingLineWidth = .045f;
+    private DroneAimLine _aimLine;
+    private EnemyHealth _aimHealth;
+    // Share the same model-relative origin between the warning and the actual shot.
+    // Bounds follow the animated model and spawn scale; the root pivot is below its body.
+    private Vector3 MuzzlePosition => _muzzle != null ? _muzzle.position
+        : _muzzleBody != null ? _muzzleBody.bounds.center
+        : transform.position + Vector3.up * _muzzleHeight;
 
     [Header("Orbit / strafe")]
     [SerializeField, Min(0f)] private float _approachOrbitWeight = 0.28f;
@@ -65,6 +79,8 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     protected override void Awake()
     {
         base.Awake();
+        _aimHealth = GetComponent<EnemyHealth>();
+        _muzzleBody = GetComponentInChildren<SkinnedMeshRenderer>(true);
         _statRandomizer = GetComponent<EnemyStatRandomizer>();
         _rb = GetComponent<Rigidbody>();
         if (_groundMask.value == 0)
@@ -74,6 +90,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     protected override void OnEnable()
     {
         base.OnEnable();
+        HideAimLine();
         SetGenericMovement(false);
         if (_rb != null)
             _rb.isKinematic = true;
@@ -85,13 +102,43 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     public override void OnPoolSpawn()
     {
         base.OnPoolSpawn();
+        HideAimLine();
         _hoverMotion = default;
         _orbitSign = Random.value < 0.5f ? -1f : 1f;
     }
 
     private void OnDisable()
     {
+        HideAimLine();
         SetGenericMovement(true);
+    }
+
+    public override void OnPoolDespawn()
+    {
+        HideAimLine();
+        base.OnPoolDespawn();
+    }
+
+    private void OnDestroy() => _aimLine?.Dispose();
+    private void HideAimLine() => _aimLine?.Hide();
+
+    private void LateUpdate()
+    {
+        // Read the final attack state after Update. Never advance or retarget the AI here.
+        Transform player = Player;
+        if (!_showLockingLine || !isActiveAndEnabled || _state != State.Locking ||
+            player == null || !player.gameObject.activeInHierarchy || _bulletPrefab == null ||
+            (_aimHealth != null && _aimHealth.CurrentHealth <= 0) || EmergenceBlocksGameplay ||
+            EnemyVerticalEngagement.IsDisengaged(this) || GameplayPause.IsUiPaused ||
+            Time.timeScale <= 0f || EntranceCinematic.StartupHeld)
+        {
+            HideAimLine();
+            return;
+        }
+
+        _aimLine ??= new DroneAimLine(transform);
+        float progress = _lockSeconds > 0f ? Mathf.Clamp01(1f - _stateTimer / _lockSeconds) : 1f;
+        _aimLine.Show(MuzzlePosition, player.position, progress, _lockingLineWidth, _lockSeconds);
     }
 
     private void Update()
@@ -272,7 +319,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             return;
         }
 
-        Vector3 muzzle = transform.position + Vector3.up * _muzzleHeight;
+        Vector3 muzzle = MuzzlePosition;
         Vector3 dir = _lockedTargetPosition - muzzle;
         if (dir.sqrMagnitude < 0.0001f)
             dir = transform.forward;

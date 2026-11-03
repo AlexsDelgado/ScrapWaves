@@ -36,6 +36,7 @@ public sealed class CombatTextView : MonoBehaviour
     private bool _burnReleased;
     private bool _allowLocalShake;
     private bool _reducedMotion;
+    private bool _healingMotion;
 
     public bool IsActive => _active;
     public bool IsBurnTally => _burnTally;
@@ -73,6 +74,7 @@ public sealed class CombatTextView : MonoBehaviour
 
         gameObject.SetActive(true);
         _active = true;
+        _healingMotion = false;
         _motion = presentation.Motion;
         _age = 0f;
         _displayAge = 0f;
@@ -109,6 +111,37 @@ public sealed class CombatTextView : MonoBehaviour
         _root.position = _position;
         _root.localScale = Vector3.one * Mathf.Max(0.01f, _resolvedScale * _motion.SpawnScale);
         ApplyRenderPose(camera);
+    }
+
+    public void PlayHealing(in CombatTextPresentation presentation, Camera camera)
+    {
+        Play(in presentation, camera);
+        if (!_active) return;
+        _healingMotion = true;
+        _spawnOffset = Vector3.zero;
+        _position = _anchorPosition;
+        // Drift toward screen-right regardless of the player's facing direction.
+        // Reduced motion keeps the same cue with a much shorter, gentler travel.
+        _velocity = _motionRight * (_reducedMotion ? .35f : 1.35f) +
+            Vector3.up * (_reducedMotion ? .12f : .3f);
+        SetHealingNumber(presentation.TotalAppliedDamage);
+        ApplyRenderPose(camera);
+    }
+
+    public void MergeHealing(in CombatTextMergePresentation merge)
+    {
+        Merge(in merge);
+        if (_active) SetHealingNumber(merge.TotalAppliedDamage);
+    }
+
+    private void SetHealingNumber(long restored)
+    {
+        int length = CombatTextFormatter.Write(restored, false, _numberBuffer);
+        for (int i = length; i > 0; i--) _numberBuffer[i] = _numberBuffer[i - 1];
+        _numberBuffer[0] = '+';
+        _text.SetCharArray(_numberBuffer, 0, length + 1);
+        _styleColor = new Color(.24f, 1f, .4f, 1f);
+        SetTextAlpha(_renderAlpha);
     }
 
     public void Merge(in CombatTextMergePresentation merge)
@@ -190,8 +223,9 @@ public sealed class CombatTextView : MonoBehaviour
             else
             {
                 _position += _velocity * delta;
-                _velocity += Vector3.down *
-                    (_motion.DownwardAcceleration * _profile.WorldUnitsPerMotionUnit * delta);
+                float gravity = _healingMotion ? .25f :
+                    _motion.DownwardAcceleration * _profile.WorldUnitsPerMotionUnit;
+                _velocity += Vector3.down * (gravity * delta);
             }
 
             float lifeAge = _burnTally ? _releaseAge : _displayAge;
@@ -245,6 +279,7 @@ public sealed class CombatTextView : MonoBehaviour
         _burnTally = false;
         _burnReleased = false;
         _reducedMotion = false;
+        _healingMotion = false;
         _motion = null;
         Priority = CombatTextPriority.Decorative;
         SetTextAlpha(0f);

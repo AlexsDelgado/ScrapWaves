@@ -95,6 +95,7 @@ public class TemporaryPowerupController : MonoBehaviour
     }
 
     public bool IsPowerupInvulnerable => _invulnEndsAt > 0f && Time.time < _invulnEndsAt;
+    public float InvulnerabilityRemaining => IsPowerupInvulnerable ? Mathf.Max(0f, _invulnEndsAt - Time.time) : 0f;
 
     public void Apply(TemporaryPowerupType type)
     {
@@ -269,7 +270,7 @@ public class TemporaryPowerupController : MonoBehaviour
     }
 
     // ApplyTimedBuff asigna _activeBuff antes de invocar las lambdas que llaman a estos
-    // helpers, asÃ­ que el buff en curso identifica al modificador sin propagar parÃ¡metros.
+    // helpers, así que el buff en curso identifica al modificador sin propagar parámetros.
     private string CurrentBuffLabel() => $"Powerup {_activeBuff}";
 
     private void AddMul(StatType type, float multiplier)
