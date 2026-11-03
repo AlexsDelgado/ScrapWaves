@@ -114,6 +114,7 @@ public sealed class WeaponAudioDirector
         ApplyHeatPitch(handle, context.NormalizedHeat, intensityPitch);
     }
 
+    public void SetPaused(bool paused) => _voices.SetPaused(paused);
     public void Release(WeaponAudioVoiceHandle handle) => _voices.Release(handle);
     public void Tick(float now) => _voices.Tick(now);
     public void ReleaseAll() => _voices.ReleaseAll();

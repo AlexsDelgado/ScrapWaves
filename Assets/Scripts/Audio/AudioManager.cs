@@ -74,8 +74,10 @@ public class AudioManager : MonoBehaviour
     private float _nextSlideTime;
     private PlayerPlatformState _subscribedPlatform;
     private float _nextUpperAlarmTime;
+    private bool _spatialPaused;
     private const float UpperAlarmGain = 2.5f;
-    private const float DashGain = 0.6f;
+    private const float DashGain = 0.35f;
+    private const float SlideGain = 0.35f;
     private const float EnemyDeathGain = 0.6f;
     private AudioSource[] _spatialVoices;
     private int _nextSpatialVoice;
@@ -175,7 +177,33 @@ public class AudioManager : MonoBehaviour
         _subscribedPlatform = null;
     }
 
-    private void Update() => TickUpperLevelAlarm();
+    private void Update()
+    {
+        TickUpperLevelAlarm();
+        TickPauseState();
+    }
+
+    /// <summary>Con el juego en pausa de UI se congelan las voces posicionales (muertes, spawns) para que no suenen de fondo.</summary>
+    private void TickPauseState()
+    {
+        bool paused = GameplayPause.IsUiPaused;
+        if (paused == _spatialPaused)
+            return;
+
+        _spatialPaused = paused;
+        if (_spatialVoices == null)
+            return;
+
+        foreach (AudioSource voice in _spatialVoices)
+        {
+            if (voice == null)
+                continue;
+            if (paused)
+                voice.Pause();
+            else
+                voice.UnPause();
+        }
+    }
 
     /// <summary>Alarma repetida mientras hay Overheat y el jugador sigue en el nivel superior, donde el fuego lo daña.</summary>
     private void TickUpperLevelAlarm()
@@ -408,7 +436,8 @@ public class AudioManager : MonoBehaviour
         if (Time.unscaledTime < _nextPlayerHurtTime)
             return;
 
-        AudioClip clip = Resolve(Synth("hurt"), Resolve(_library != null ? _library.PickHurt() : null, _playerHurt));
+        // El daño del jugador usa el banco PSX (o el clip original): sonaba mejor que la versión sintética.
+        AudioClip clip = Resolve(_library != null ? _library.PickHurt() : null, _playerHurt);
         if (clip == null)
             return;
 
@@ -428,7 +457,7 @@ public class AudioManager : MonoBehaviour
             return;
 
         _nextSlideTime = Time.unscaledTime + 0.25f;
-        PlaySfx(Synth("slide"));
+        PlaySfx(Synth("slide"), SlideGain);
     }
 
     public void PlayOverheatWarning() => PlaySfx(Synth("overheat_warning"));

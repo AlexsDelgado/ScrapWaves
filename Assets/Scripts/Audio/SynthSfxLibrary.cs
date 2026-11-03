@@ -61,6 +61,17 @@ public class SynthSfxLibrary : ScriptableObject
     /// <summary>Las armas automáticas (secundarias) suenan a esta fracción del volumen del arma manual.</summary>
     public const float AutomaticWeaponGain = 0.25f;
 
+    /// <summary>Ajuste fino de volumen por familia, sobre el volumen del cue. 1 = sin cambio.</summary>
+    public static float KeyGain(string key)
+    {
+        switch (key)
+        {
+            case "shot": return 1.6f;
+            case "cannon_ability": return 1.3f;
+            default: return 1f;
+        }
+    }
+
     public static float WeaponRoleGain(WeaponPresentationCue cue)
     {
         switch (cue)

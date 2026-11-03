@@ -279,6 +279,9 @@ public sealed class CombatFeedbackDirector
             _hitStop.Tick(unscaledDeltaTime);
     }
 
+    /// <summary>Congela el audio de armas (loops incluidos) mientras el juego está en pausa.</summary>
+    public void SetAudioPaused(bool paused) => _audio.SetPaused(paused);
+
     public void StopAll()
     {
         foreach (ActiveLoop loop in _activeSemanticLoops.Values)

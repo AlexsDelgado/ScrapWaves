@@ -78,7 +78,7 @@ public sealed class WeaponAudioVoicePool
         string key = synth != null ? SynthSfxLibrary.WeaponKey(cueData.Cue) : null;
         bool hasSynth = key != null && synth.Has(key);
         float volume = cueData.Volume > 0f ? cueData.Volume : hasSynth ? SynthSfxLibrary.DefaultGain(key) : 0f;
-        return hasSynth ? volume * SynthSfxLibrary.WeaponRoleGain(cueData.Cue) : volume;
+        return hasSynth ? volume * SynthSfxLibrary.WeaponRoleGain(cueData.Cue) * SynthSfxLibrary.KeyGain(key) : volume;
     }
 
     public bool TryPlayOneShot(
@@ -146,6 +146,22 @@ public sealed class WeaponAudioVoicePool
 
         handle = CreateHandle(voiceIndex, voice);
         return true;
+    }
+
+    /// <summary>Pausa o reanuda todas las voces activas (loops incluidos) mientras el juego está en pausa de UI.</summary>
+    public void SetPaused(bool paused)
+    {
+        for (int i = 0; i < _voices.Length; i++)
+        {
+            VoiceSlot voice = _voices[i];
+            if (!voice.Active || voice.Source == null)
+                continue;
+
+            if (paused)
+                voice.Source.Pause();
+            else
+                voice.Source.UnPause();
+        }
     }
 
     public bool TryGetSource(WeaponAudioVoiceHandle handle, out AudioSource source)

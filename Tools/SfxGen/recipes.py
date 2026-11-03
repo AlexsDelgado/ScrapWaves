@@ -15,15 +15,19 @@ def boom(n, f0, f1, decay, power=3):
 
 
 def shot(rng, v):
-    """Cañón: chasquido, bocanada de gas, cuerpo grave, cola de sala y un anillo de metal."""
-    n = int(0.5 * SR)
-    snap = transient(n, rng, 0.005, 2000) * 1.0
-    blast = lp_sweep(noise(n, rng), 7000, 700, 2.0) * env_exp(n, 0.11, 0.0005)
-    body = boom(n, 150 * (1 + 0.12 * v["a"]), 42, 0.16)
-    ring = modal(520 * (1 + 0.1 * v["b"]), 0.5, rng, 0.12) * 0.12
-    bolt = at(modal(1400, 0.05, rng, 0.02, ratios=(1.0, 2.4)) * 0.2, 0.045, n)
-    x = soft_clip(mix(snap * 0.9, blast * 0.9, body * 0.8, ring, bolt, n=n), 1.6)
-    return lofi(reverb(x, rng, 0.35, 0.22), 12)
+    """Autocannon: un disparo seco con pegada. Chasquido agudo, golpe de gas, cuerpo grave que cae y un clack metálico.
+
+    Corto (~0,4 s) y comprimido: el golpe llega al instante y la cola casi no existe, para que se sienta como un tiro
+    y no como un ruido largo.
+    """
+    n = int(0.42 * SR)
+    crack = lowpass(transient(n, rng, 0.012, 1500), 6500) * 1.6
+    gas = bandpass(noise(n, rng), 180, 3600) * env_exp(n, 0.085, 0.0003) * 3.2
+    thump = boom(n, 200 * (1 + 0.1 * v["a"]), 46, 0.14) * 0.75
+    sub = osc(lerp_curve(n, 70, 38, 2), "sine") * env_exp(n, 0.1, 0.001) * 0.35
+    clack = at(modal(640 * (1 + 0.08 * v["b"]), 0.2, rng, 0.07, ratios=(1.0, 2.3, 4.1)) * 0.18, 0.012, n)
+    x = soft_clip(mix(crack, gas, thump, sub, clack, n=n), 2.8)
+    return lofi(reverb(x, rng, 0.16, 0.1)[:n], 12)
 
 
 def jump(rng, v):

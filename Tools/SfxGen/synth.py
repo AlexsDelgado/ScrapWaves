@@ -196,3 +196,29 @@ def loopify(x, xfade_s=0.15):
     fade = np.linspace(0.0, 1.0, xf)
     body[:xf] = body[:xf] * fade + tail * (1.0 - fade)
     return body
+
+
+def pink(n, rng):
+    """Ruido rosa (-3 dB/octava): más cuerpo grave que el blanco; base del rugido de fuego."""
+    white = rng.uniform(-1.0, 1.0, n)
+    return signal.lfilter([0.049922035, -0.095993537, 0.050612699, -0.004408786],
+                          [1, -2.494956002, 2.017265875, -0.522189400], white)
+
+
+def smooth_noise(n, rng, rate_hz):
+    """Modulación lenta y aleatoria en [0, 1]: oleadas del fuego."""
+    x = lowpass(noise(n, rng), rate_hz, 1)
+    x = x - x.min()
+    return x / (x.max() + 1e-9)
+
+
+def crackle(n, rng, per_second, gain=0.5, low=600, high=5500):
+    """Chisporroteo de leña: pops de ruido de pocos ms, sin tono, con amplitudes muy desiguales."""
+    out = np.zeros(n)
+    count = int(per_second * n / SR)
+    for _ in range(count):
+        length = int(rng.uniform(0.002, 0.007) * SR)
+        start = int(rng.uniform(0, max(n - length - 1, 1)))
+        pop_ = bandpass(noise(length + 32, rng), low, high)[:length] * np.linspace(1, 0, length) ** 2
+        out[start:start + length] += pop_ * gain * rng.exponential(0.5)
+    return out

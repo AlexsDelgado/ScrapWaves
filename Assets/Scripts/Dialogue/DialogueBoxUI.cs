@@ -11,6 +11,9 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class DialogueBoxUI : MonoBehaviour
 {
+    // Los blips de texto suenan cada pocas letras: se atenúan para que no tapen el resto del audio.
+    private const float VoiceGain = 0.4f;
+
     [SerializeField] private CanvasGroup _group;
     [SerializeField] private RectTransform _panel;
     [SerializeField] private Image _portrait;
@@ -154,7 +157,7 @@ public class DialogueBoxUI : MonoBehaviour
         if (speaker == null || !speaker.HasVoice || _voiceSource == null)
             return;
         _voiceSource.pitch = speaker.PickVoicePitch();
-        _voiceSource.PlayOneShot(speaker.PickVoiceBlip(), speaker.VoiceVolume * AudioManager.EffectiveSfxVolume);
+        _voiceSource.PlayOneShot(speaker.PickVoiceBlip(), speaker.VoiceVolume * AudioManager.EffectiveSfxVolume * VoiceGain);
     }
 
     private IEnumerator Fade(float from, float to)

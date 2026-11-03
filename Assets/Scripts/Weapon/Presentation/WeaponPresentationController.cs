@@ -47,6 +47,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     [SerializeField] private HitStopController _hitStop = new();
 
     private readonly Dictionary<WeaponPresentationProfile, DirectorRuntime> _directors = new();
+    private bool _audioPaused;
     private readonly Dictionary<int, LegacyLoopRoute> _legacyLoopRoutes = new();
     private Transform _runtimeRoot;
     private CombatTextDirector _combatText;
@@ -445,7 +446,16 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void Update()
     {
-        if (GameplayPause.IsUiPaused)
+        bool uiPaused = GameplayPause.IsUiPaused;
+        if (uiPaused != _audioPaused)
+        {
+            // Con el juego en pausa nadie actualiza los loops (lanzallamas): hay que congelarlos para que no sigan sonando.
+            _audioPaused = uiPaused;
+            foreach (DirectorRuntime runtime in _directors.Values)
+                runtime.Director.SetAudioPaused(uiPaused);
+        }
+
+        if (uiPaused)
             return;
 
         bool hitStopWasActive = _hitStop.IsActive;
