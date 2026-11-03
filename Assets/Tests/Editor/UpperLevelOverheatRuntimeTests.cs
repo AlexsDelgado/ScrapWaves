@@ -124,6 +124,114 @@ public sealed class UpperLevelOverheatRuntimeTests
         yield return new ExitPlayMode();
     }
 
+    [UnityTest]
+    public IEnumerator NativeUpperDamage_PausesWhileAirborneInsideVolume_AndResumesOnPlatform()
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        yield return new EnterPlayMode();
+        GameObject world = new("Airborne upper overheat fixture");
+        Keyboard keyboard = InputSystem.AddDevice<Keyboard>();
+        keyboard.MakeCurrent();
+        SimulationMode oldMode = Physics.simulationMode;
+        Vector3 oldGravity = Physics.gravity;
+        float oldStep = Time.fixedDeltaTime;
+        try
+        {
+            Time.timeScale = 1f;
+            GameplayPause.Reset();
+            Physics.simulationMode = SimulationMode.FixedUpdate;
+            Physics.gravity = new Vector3(0f, -9.81f, 0f);
+            Time.fixedDeltaTime = .02f;
+            BoxCollider ground = Box(world.transform, "Base", new Vector3(0f, -30.5f, 0f), new Vector3(100f, 1f, 100f));
+            BoxCollider upper = Box(world.transform, "Upper support", new Vector3(0f, 10.5f, 0f), new Vector3(20f, 1f, 20f));
+            // The volume deliberately also covers the fall and the Base surface: only standing on an upper platform may hurt.
+            BoxCollider region = Box(world.transform, "Tall upper volume", new Vector3(0f, 5f, 0f), new Vector3(40f, 100f, 40f));
+            region.isTrigger = true;
+            var volume = region.gameObject.AddComponent<UpperLevelVolume>();
+            Set(volume, "_baseSurfaceRoots", new[] { ground.transform });
+
+            var player = new GameObject("Native player");
+            player.SetActive(false);
+            player.transform.SetParent(world.transform, false);
+            player.transform.position = new Vector3(0f, 12.02f, 0f);
+            var capsule = player.AddComponent<CapsuleCollider>();
+            capsule.height = 2f; capsule.radius = .5f;
+            var body = player.AddComponent<Rigidbody>();
+            body.useGravity = true;
+            var stats = player.AddComponent<PlayerStats>();
+            var definitions = new List<StatDefinition>();
+            foreach (string name in new[] { "MovementSpeed", "JumpHeight", "DashCharges", "AirJumps", "DashSpeed", "MaxHealth", "DamageResistance" })
+            {
+                var definition = AssetDatabase.LoadAssetAtPath<StatDefinition>($"Assets/ScriptableObjects/PlayerSO/Stats/{name}.asset");
+                Assert.That(definition, Is.Not.Null, name);
+                definitions.Add(definition);
+            }
+            Set(stats, "_statDefinitions", definitions);
+            var movement = player.AddComponent<PlayerMovement>();
+            Set(movement, "_cameraTransform", world.transform);
+            var health = player.AddComponent<PlayerHealth>();
+            var state = player.AddComponent<PlayerPlatformState>();
+            Set(state, "_upperLevelVolume", volume);
+            var managerObject = new GameObject("Overheat manager");
+            managerObject.SetActive(false);
+            managerObject.transform.SetParent(world.transform, false);
+            var overheat = managerObject.AddComponent<OverheatManager>();
+            Set(overheat, "_playerStats", stats);
+            var effectObject = new GameObject("Authored test fire");
+            effectObject.transform.SetParent(player.transform, false);
+            var effect = effectObject.AddComponent<ParticleSystem>();
+            var main = effect.main; main.playOnAwake = false; main.loop = true; main.maxParticles = 12;
+            var hazard = player.AddComponent<PlayerUpperLevelOverheat>();
+            Set(hazard, "_platformState", state); Set(hazard, "_health", health);
+            Set(hazard, "_upperLevelVolume", volume);
+            Set(hazard, "_overheatManager", overheat); Set(hazard, "_effects", new[] { effect });
+            managerObject.SetActive(true);
+            player.SetActive(true);
+            yield return Wait(() => movement.IsGroundedOnSurface, "settle on upper support");
+            Assert.That(state.IsOnUpperPlatform, Is.True, "Standing on authored upper geometry.");
+
+            typeof(OverheatManager).GetMethod("OnMaxHeatReached", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(overheat, null);
+            yield return Wait(() => health.CurrentHealth < 100, "first hazard hit on the platform");
+            Assert.That(health.CurrentHealth, Is.EqualTo(99));
+
+            // Drop off the platform. The whole fall happens inside the volume, which used to keep hurting.
+            upper.enabled = false;
+            yield return Wait(() => !movement.IsGroundedOnSurface, "start falling");
+            float deadline = Time.realtimeSinceStartup + 15f;
+            while (!(movement.TryGetGroundSupport(out Collider landing) && landing == ground) && Time.realtimeSinceStartup < deadline)
+            {
+                Assert.That(health.CurrentHealth, Is.EqualTo(99), "Falling off the platform inside the volume must not hurt.");
+                yield return null;
+            }
+            Assert.That(state.IsInsideUpper, Is.True, "The Base surface in this fixture is inside the volume on purpose.");
+            Assert.That(state.IsOnUpperPlatform, Is.False, "Base support is not an upper platform.");
+            yield return new WaitForSeconds(2.5f);
+            Assert.That(health.CurrentHealth, Is.EqualTo(99), "Standing on Base must stay safe even inside the volume.");
+            Assert.That(effect.isPlaying, Is.False);
+
+            // Back onto a platform: the hazard resumes.
+            upper.enabled = true;
+            player.transform.position = new Vector3(0f, 12.02f, 0f);
+            body.linearVelocity = Vector3.zero;
+            yield return Wait(() => state.IsOnUpperPlatform, "land on the upper platform again");
+            yield return Wait(() => health.CurrentHealth < 99, "hazard resumes on the platform");
+            Assert.That(health.CurrentHealth, Is.LessThan(99));
+            Assert.That(effect.isPlaying, Is.True);
+        }
+        finally
+        {
+            Object.Destroy(world);
+            InputSystem.RemoveDevice(keyboard);
+            Physics.simulationMode = oldMode;
+            Physics.gravity = oldGravity;
+            Time.fixedDeltaTime = oldStep;
+            Time.timeScale = 1f;
+            GameplayPause.Reset();
+        }
+        yield return null;
+        yield return new ExitPlayMode();
+    }
+
     private static BoxCollider Box(Transform parent, string name, Vector3 position, Vector3 size)
     {
         var go = new GameObject(name); go.transform.SetParent(parent, false); go.transform.position = position;

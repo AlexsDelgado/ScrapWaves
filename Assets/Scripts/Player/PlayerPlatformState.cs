@@ -27,4 +27,9 @@ public sealed class PlayerPlatformState : MonoBehaviour
         _upperLevelVolume != null && _upperLevelVolume.IsAvailable && !IsInsideUpper &&
         _movement.TryGetGroundSupport(out Collider support) && _upperLevelVolume.IsBaseSupport(support);
     public bool CanSpawnObjectives => IsSimulationActive && IsBaseSupported;
+
+    /// <summary>Standing on geometry that is not Base support. Airborne players and players on Base are not on an upper platform.</summary>
+    public bool IsOnUpperPlatform => _movement != null && _movement.isActiveAndEnabled &&
+        _upperLevelVolume != null && _upperLevelVolume.IsAvailable &&
+        _movement.TryGetGroundSupport(out Collider support) && !_upperLevelVolume.IsBaseSupport(support);
 }

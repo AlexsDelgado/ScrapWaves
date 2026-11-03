@@ -14,7 +14,11 @@ public sealed class UpperLevelVolume : MonoBehaviour
     [SerializeField, Min(1f), Tooltip("Multiplies unrounded damage after each hazard tick. Leaving and re-entering the volume does not reset escalation during the same event.")]
     private float _damageMultiplier = 1.3f;
 
+    [SerializeField, Min(0f), Tooltip("Meters below the last upper platform the player must fall before the hazard pauses. While above that height, jumping, air jumps and dashes keep the player exposed; dropping below it (falling off a ledge) pauses damage until the next landing on an upper platform.")]
+    private float _dropBelowPlatformMeters = 1.5f;
+
     public float StartingDamage => Mathf.Max(1f, _startingDamage);
+    public float DropBelowPlatformMeters => Mathf.Max(0f, _dropBelowPlatformMeters);
     public float DamageMultiplier => Mathf.Max(1f, _damageMultiplier);
 
     private BoxCollider _box;

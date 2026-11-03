@@ -41,6 +41,8 @@ public sealed class UpperLevelOverheatTests
         typeof(ChallengeProgressTracker).GetProperty(nameof(ChallengeProgressTracker.Instance)).SetValue(null, tracker);
 
         _base = Box("Authored Base", new Vector3(0f, -.5f, 0f), new Vector3(100f, 1f, 100f));
+        // The default start position stands on an upper platform: only grounded upper exposure is hazardous.
+        Box("Authored upper platform", new Vector3(0f, 10.49f, 0f), new Vector3(20f, 1f, 20f));
         _box = Box("One upper volume", new Vector3(0f, 20f, 0f), new Vector3(40f, 20f, 40f));
         _box.isTrigger = true;
         _volume = _box.gameObject.AddComponent<UpperLevelVolume>();
@@ -229,6 +231,46 @@ public sealed class UpperLevelOverheatTests
         Assert.That(_state.IsBaseSupported, Is.False);
         Tick(.75f);
         Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+    }
+
+    [Test]
+    public void AirborneAbovePlatform_StaysExposedHoweverLongTheJumpChainLasts()
+    {
+        Tick(2f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Move(new Vector3(0f, 17f, 0f)); // jumps, air jumps or a dash above the platform: inside the volume, no support
+        Assert.That(_state.IsOnUpperPlatform, Is.False);
+        Tick(2f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(98), "Chained jumps above the platform must not dodge the next hit.");
+        Tick(2f);
+        Tick(2f);
+        Assert.That(_health.CurrentHealth, Is.LessThan(98), "Airtime length must not matter while above the platform.");
+        Assert.That(_effect.isPlaying, Is.True);
+    }
+
+    [Test]
+    public void DropBelowPlatform_PausesExposureUntilLanding()
+    {
+        Set(_volume, "_dropBelowPlatformMeters", .5f); // the fixture volume only reaches 1 m below the platform
+        Tick(2f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(99));
+        Move(new Vector3(15f, 11.2f, 0f)); // off the ledge, feet ~.8 m below the platform top, still inside the volume
+        Assert.That(_state.IsInsideUpper, Is.True);
+        Assert.That(_state.IsOnUpperPlatform, Is.False);
+        _effect.Emit(6);
+        Tick(.1f);
+        Assert.That(_effect.isPlaying, Is.False, "Hazard fire stops once the player dropped below the platform.");
+        Tick(100f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(99), "Falling inside the volume must not hurt.");
+        Move(new Vector3(15f, 14f, 0f)); // air jumps back up above the platform height: still safe until a landing
+        Tick(100f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(99), "Air jumps do not re-expose a player who already dropped off.");
+        Move(new Vector3(0f, 12f, 0f));
+        Tick(1.9f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(99), "The tick clock resumes where it paused, it does not start over.");
+        Tick(.11f);
+        Assert.That(_health.CurrentHealth, Is.EqualTo(98));
+        Assert.That(_effect.isPlaying, Is.True);
     }
 
     [Test]

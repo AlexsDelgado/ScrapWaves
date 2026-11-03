@@ -21,6 +21,11 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
     private float _tickRemaining;
     private bool _effectsPlaying;
     private bool _effectsPaused;
+    // Height of the last upper platform stood on. No platform yet (entering the volume by air from Base) is not exposure.
+    private bool _hasPlatform;
+    private float _lastPlatformFeetY;
+    // Latched once the player drops well below that platform; cleared only by landing on an upper platform again.
+    private bool _droppedOff;
 
     private void Awake()
     {
@@ -74,6 +79,7 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
         if (!_platformState.IsInsideUpper)
         {
             StopEffects();
+            _hasPlatform = false;
             if (_platformState.IsSimulationActive && _platformState.IsBaseSupported) ResetExposure();
             return;
         }
@@ -83,8 +89,29 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
             return;
         }
 
-        PlayEffects();
+        // Exposed while standing on an upper platform, and while airborne above the last platform's height, so no
+        // number of jumps, air jumps or dashes dodges the hazard. Falling well below that height (off a ledge)
+        // pauses it (no exposure, no tick) until the next landing on an upper platform.
         float elapsed = Mathf.Max(0f, deltaTime);
+        float feetY = _platformState.FeetPosition.y;
+        if (_platformState.IsOnUpperPlatform)
+        {
+            _hasPlatform = true;
+            _droppedOff = false;
+            _lastPlatformFeetY = feetY;
+        }
+        else if (_hasPlatform && feetY < _lastPlatformFeetY - _upperLevelVolume.DropBelowPlatformMeters)
+        {
+            _droppedOff = true;
+        }
+
+        if (!_hasPlatform || _droppedOff)
+        {
+            StopEffects();
+            return;
+        }
+
+        PlayEffects();
         if (_exposure < _graceSeconds)
         {
             _exposure = Mathf.Min(_graceSeconds, _exposure + elapsed);
@@ -113,6 +140,8 @@ public sealed class PlayerUpperLevelOverheat : MonoBehaviour
 
     private void ResetExposure()
     {
+        _hasPlatform = false;
+        _droppedOff = false;
         _exposure = 0f;
         _tickRemaining = 0f;
         StopEffects();
