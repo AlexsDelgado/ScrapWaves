@@ -14,6 +14,9 @@ using Object = UnityEngine.Object;
 public sealed class StalkerRigAnimationPlayModeTests
 {
     private const string SetupKey = "StalkerRigAnimationTests.SceneSetup";
+    private const string SaveDirectoryVariable = "SCRAPWAVES_TEST_SAVE_DIRECTORY";
+    private const string PreviousSaveDirectoryKey = "StalkerRigAnimationTests.PreviousSaveDirectory";
+    private const string HadSaveDirectoryKey = "StalkerRigAnimationTests.HadSaveDirectory";
     private const string PrefabPath = "Assets/Prefabs/Stalker.prefab";
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     [Serializable] private sealed class SavedSetup { public SavedScene[] Scenes; }
@@ -52,7 +55,15 @@ public sealed class StalkerRigAnimationPlayModeTests
         yield return RunOverheatSpawn();
     }
 
-    private IEnumerator RunOverheatSpawn()
+    [UnityTest]
+    public IEnumerator SecondBoss_OverheatSpawnRetainsAuthoredHealth()
+    {
+        SaveAndClearScene();
+        yield return new EnterPlayMode();
+        yield return RunOverheatSpawn(secondBoss: true);
+    }
+
+    private IEnumerator RunOverheatSpawn(bool secondBoss = false)
     {
         Transform target = CreateScene();
         GameObject ground = GameObject.Find("Stalker rig test ground");
@@ -86,25 +97,47 @@ public sealed class StalkerRigAnimationPlayModeTests
         managerRoot.SetActive(false);
         BossManager manager = managerRoot.AddComponent<BossManager>();
         typeof(BossManager).GetField("_overheatManager", PrivateInstance).SetValue(manager, overheat);
-        typeof(BossManager).GetField("_bossPrefab", PrivateInstance)
-            .SetValue(manager, AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath));
-        // Match GameplayScene's first boss appearance, HP and spawn distance.
-        typeof(BossManager).GetField("_overheatCycleIndex", PrivateInstance).SetValue(manager, 1);
-        typeof(BossManager).GetField("_bossMaxHealth", PrivateInstance).SetValue(manager, 1500);
+        GameObject stalkerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        GameObject destroyerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Destroyer_Boss.prefab");
+        GameObject selectedPrefab = secondBoss ? destroyerPrefab : stalkerPrefab;
+        Assert.That(selectedPrefab, Is.Not.Null);
+        int authoredHealth = selectedPrefab.GetComponent<EnemyHealth>().MaxHealth;
+        typeof(BossManager).GetField("_bossPrefab", PrivateInstance).SetValue(manager, stalkerPrefab);
+        typeof(BossManager).GetField("_secondBossPrefab", PrivateInstance).SetValue(manager, destroyerPrefab);
+        // Match GameplayScene's alternating boss appearances and spawn distance.
+        typeof(BossManager).GetField("_overheatCycleIndex", PrivateInstance).SetValue(manager, secondBoss ? 3 : 1);
         typeof(BossManager).GetField("_spawnDistance", PrivateInstance).SetValue(manager, 35f);
         managerRoot.SetActive(true);
         int defeats = 0;
         manager.OnBossDefeated += () => defeats++;
         typeof(OverheatManager).GetMethod("OnMaxHeatReached", PrivateInstance).Invoke(overheat, null);
 
-        Assert.That(manager.CurrentOverheatCycle, Is.EqualTo(2));
+        Assert.That(manager.CurrentOverheatCycle, Is.EqualTo(secondBoss ? 4 : 2));
+        Assert.That(manager.ActiveBosses, Is.Empty, "Bosses must wait for ground preparation.");
+        typeof(OverheatManager).GetMethod("TickPreparation", PrivateInstance)
+            .Invoke(overheat, new object[] { overheat.ConfiguredPreparationDuration });
+        typeof(BossManager).GetMethod("TryReleasePendingSpawn", PrivateInstance).Invoke(manager, null);
         Assert.That(manager.ActiveBosses.Count, Is.EqualTo(1),
-            "The actual burrowing prefab must pass placement instead of clearing an empty Overheat.");
+            "The actual boss prefab must pass placement instead of clearing an empty Overheat.");
         EnemyHealth health = manager.PrimaryBoss;
         Assert.That(health, Is.Not.Null);
-        Assert.That(health.CurrentHealth, Is.EqualTo(1500));
-        Assert.That(health.MaxHealth, Is.EqualTo(1500));
+        Assert.That(health.CurrentHealth, Is.EqualTo(authoredHealth));
+        Assert.That(health.MaxHealth, Is.EqualTo(authoredHealth));
+        if (secondBoss)
+        {
+            Assert.That(health.GetComponent<DestroyerBehavior>(), Is.Not.Null);
+            yield return null;
+            Assert.That(health.CurrentHealth, Is.EqualTo(authoredHealth));
+            Assert.That(health.MaxHealth, Is.EqualTo(authoredHealth));
+            Assert.That(overheat.IsOverheating, Is.True);
+            health.ForceKill();
+            Assert.That(defeats, Is.EqualTo(1));
+            Assert.That(manager.HasActiveBosses, Is.False);
+            Assert.That(overheat.IsOverheating, Is.False);
+            yield break;
+        }
         StalkerRigAnimation rig = health.GetComponent<StalkerRigAnimation>();
+        Assert.That(rig, Is.Not.Null);
         yield return null;
         Assert.That(overheat.IsOverheating, Is.True);
         Assert.That(rig.CurrentPhase, Is.EqualTo(StalkerRigAnimation.Phase.Hidden));
@@ -115,12 +148,12 @@ public sealed class StalkerRigAnimationPlayModeTests
         for (int frame = 0; frame < 360 && rig.CurrentPhase == StalkerRigAnimation.Phase.Hidden; frame++)
             yield return null;
         Assert.That(rig.CurrentPhase, Is.EqualTo(StalkerRigAnimation.Phase.Emergence));
-        Assert.That(health.CurrentHealth, Is.EqualTo(1500));
+        Assert.That(health.CurrentHealth, Is.EqualTo(authoredHealth));
         Assert.That(health.GetComponentInChildren<SkinnedMeshRenderer>().enabled, Is.True);
         Assert.That(overheat.IsOverheating, Is.True);
         Assert.That(defeats, Is.Zero);
 
-        // The authored body takes only 20% damage; this hit must still be lethal.
+        // The authored body takes only 10% damage; this hit must still be lethal.
         Assert.That(health.ApplyDamage(health.MaxHealth * 10), Is.True);
         Assert.That(defeats, Is.EqualTo(1));
         Assert.That(manager.HasActiveBosses, Is.False);
@@ -668,6 +701,12 @@ public sealed class StalkerRigAnimationPlayModeTests
 
     private static void SaveAndClearScene()
     {
+        // Isolate persistence before SaveManager bootstraps on the Play Mode domain reload.
+        string previousDirectory = Environment.GetEnvironmentVariable(SaveDirectoryVariable);
+        SessionState.SetBool(HadSaveDirectoryKey, previousDirectory != null);
+        SessionState.SetString(PreviousSaveDirectoryKey, previousDirectory ?? string.Empty);
+        Environment.SetEnvironmentVariable(SaveDirectoryVariable,
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ScrapWaves-BossHealthSaves", Guid.NewGuid().ToString("N")));
         SessionState.SetString(SetupKey, JsonUtility.ToJson(new SavedSetup
         {
             Scenes = EditorSceneManager.GetSceneManagerSetup().Select(s => new SavedScene
@@ -685,6 +724,12 @@ public sealed class StalkerRigAnimationPlayModeTests
         string json = SessionState.GetString(SetupKey, string.Empty);
         SessionState.EraseString(SetupKey);
         if (string.IsNullOrEmpty(json)) yield break;
+        Environment.SetEnvironmentVariable(SaveDirectoryVariable,
+            SessionState.GetBool(HadSaveDirectoryKey, false)
+                ? SessionState.GetString(PreviousSaveDirectoryKey, string.Empty)
+                : null);
+        SessionState.EraseBool(HadSaveDirectoryKey);
+        SessionState.EraseString(PreviousSaveDirectoryKey);
         SavedSetup saved = JsonUtility.FromJson<SavedSetup>(json);
         SceneSetup[] setup = saved.Scenes.Where(s => !string.IsNullOrEmpty(s.Path)).Select(s =>
             new SceneSetup { path = s.Path, isLoaded = s.Loaded, isActive = s.Active }).ToArray();
