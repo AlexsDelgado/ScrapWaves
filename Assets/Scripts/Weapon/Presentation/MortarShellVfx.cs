@@ -24,6 +24,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
     [SerializeField] private Renderer[] _shellRenderers;
     [SerializeField] private TrailRenderer _trail;
     [SerializeField] private ParticleSystem _flightSmoke;
+    [SerializeField, Min(0.001f)] private float _authoredCollisionRadius = 0.18f;
 
     [Header("World landing prediction")]
     [SerializeField] private GameObject _landingRoot;
@@ -43,6 +44,11 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
     private Vector3 _countdownBaseScale = Vector3.one;
     private Quaternion _countdownBaseRotation = Quaternion.identity;
     private Vector3 _coreBaseScale = Vector3.one;
+    private Vector3 _shellBaseScale = Vector3.one;
+    private Vector3 _smokeBaseScale = Vector3.one;
+    private Vector3 _smokeBasePosition;
+    private ParticleSystemScalingMode _smokeScalingMode;
+    private float _flightSizeScale = 1f;
     private float _travelTime = 0.5f;
     private float _remainingRepeatTime;
     private float _repeatDelay = 1f;
@@ -79,7 +85,8 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         float normalizedHeat,
         bool detailed,
         bool showLanding,
-        Transform ignoredRoot = null)
+        Transform ignoredRoot = null,
+        float collisionRadius = 0.18f)
     {
         CacheLayers();
         _target = target;
@@ -93,6 +100,9 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         _lastGroundRefreshFrame = -1;
         _repeatCountdown = false;
         _spin = 0f;
+        _flightSizeScale = Mathf.Max(0f, collisionRadius) / Mathf.Max(0.001f, _authoredCollisionRadius);
+        if (_shellRoot != null)
+            _shellRoot.localScale = _shellBaseScale * _flightSizeScale;
         _styleColor = style switch
         {
             MortarShellVisualStyle.Grapeshot => _grapeshotColor,
@@ -245,7 +255,13 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
             _trail.Clear();
         }
         if (_flightSmoke != null)
+        {
             _flightSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            _flightSmoke.transform.localScale = _smokeBaseScale;
+            _flightSmoke.transform.localPosition = _smokeBasePosition;
+            ParticleSystem.MainModule main = _flightSmoke.main;
+            main.scalingMode = _smokeScalingMode;
+        }
         if (_landingRoot != null)
             _landingRoot.SetActive(false);
         if (_countdownRing != null)
@@ -256,7 +272,11 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         if (_flightRoot != null)
             _flightRoot.SetActive(false);
         if (_shellRoot != null)
+        {
+            _shellRoot.localScale = _shellBaseScale;
             _shellRoot.gameObject.SetActive(false);
+        }
+        _flightSizeScale = 1f;
     }
 
     private void Awake() => CacheLayers();
@@ -308,6 +328,14 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
         }
         if (_landingCore != null)
             _coreBaseScale = _landingCore.localScale;
+        if (_shellRoot != null)
+            _shellBaseScale = _shellRoot.localScale;
+        if (_flightSmoke != null)
+        {
+            _smokeBaseScale = _flightSmoke.transform.localScale;
+            _smokeBasePosition = _flightSmoke.transform.localPosition;
+            _smokeScalingMode = _flightSmoke.main.scalingMode;
+        }
     }
 
     private void ConfigureTrail(bool detailed)
@@ -316,7 +344,7 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
             return;
         _trail.Clear();
         _trail.time = detailed ? 0.2f : 0.08f;
-        _trail.widthMultiplier = detailed ? 0.11f : 0.045f;
+        _trail.widthMultiplier = (detailed ? 0.11f : 0.045f) * _flightSizeScale;
         _trail.emitting = true;
     }
 
@@ -324,9 +352,15 @@ public sealed class MortarShellVfx : MonoBehaviour, IWeaponVfxPrewarm
     {
         if (_flightSmoke == null)
             return;
+        _flightSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        // Local mode ignores ancestor scale. A single visual transform owns the size of
+        // particles, velocity and emitter shape; never multiply their curves as well.
+        _flightSmoke.transform.localScale = _smokeBaseScale * _flightSizeScale;
+        _flightSmoke.transform.localPosition = _smokeBasePosition * _flightSizeScale;
+        ParticleSystem.MainModule main = _flightSmoke.main;
+        main.scalingMode = ParticleSystemScalingMode.Hierarchy;
         ParticleSystem.EmissionModule emission = _flightSmoke.emission;
         emission.rateOverTime = detailed ? 14f : 0f;
-        _flightSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         if (detailed)
             _flightSmoke.Play(true);
     }

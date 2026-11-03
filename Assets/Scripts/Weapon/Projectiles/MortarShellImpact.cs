@@ -349,7 +349,8 @@ public sealed class MortarShellImpact : MonoBehaviour
                 _feedbackTemplate.NormalizedHeat,
                 _detailedPresentation,
                 showGroundLanding,
-                _ignoredRoot);
+                _ignoredRoot,
+                collisionRadius: _collisionRadius);
         }
         else
         {

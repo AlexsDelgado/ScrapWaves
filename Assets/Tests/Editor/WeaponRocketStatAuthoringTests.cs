@@ -96,6 +96,64 @@ public sealed class WeaponRocketStatAuthoringTests
         Assert.That(outside.CurrentHealth, Is.LessThan(10000));
     }
 
+    [TestCase(.5f)]
+    [TestCase(1f)]
+    [TestCase(2f)]
+    public void ProductionImpactFootprintMatchesFiredDamageRadiusAfterPlayerSizeChanges(float playerSize)
+    {
+        Create();
+        WeaponData production = AssetDatabase.LoadAssetAtPath<WeaponData>(
+            "Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset");
+        Assert.That(production, Is.Not.Null);
+        WeaponPresentationProfile profile = production.PresentationProfile;
+        Assert.That(profile.TryGetCueData(WeaponPresentationCue.RocketImpact, out var cue), Is.True);
+        _instance.Data.PresentationProfile = profile;
+        _instance.Data.RocketLauncher.RocketManualExplosionRadius = production.RocketLauncher.RocketManualExplosionRadius;
+        PlayerValue(StatType.ProjectileAreaSize, playerSize);
+        FootprintFeedbackSink sink = new();
+        _weapon.SetPresentationSink(sink);
+
+        Projectile shot = Fire(WeaponStatMode.Manual);
+        Assert.That(shot, Is.Not.Null);
+        float firedRadius = Read<float>(shot, "_explosionRadius");
+        Assert.That(firedRadius, Is.EqualTo(production.RocketLauncher.RocketManualExplosionRadius * playerSize).Within(.0001f));
+        Vector3 projectileScale = shot.transform.localScale;
+        float colliderRadius = shot.GetComponent<SphereCollider>().radius;
+        var inside = Target(_muzzle.position + Vector3.right * (firedRadius * .9f));
+        var outside = Target(_muzzle.position + Vector3.right * (firedRadius * 1.1f));
+
+        // Presentation must use the fired payload, not the owner's stat at detonation.
+        PlayerValue(StatType.ProjectileAreaSize, playerSize * 3f);
+        Explode(shot, _muzzle.position);
+        Assert.That(inside.CurrentHealth, Is.EqualTo(9990));
+        Assert.That(outside.CurrentHealth, Is.EqualTo(10000));
+        Assert.That(sink.ImpactCount, Is.EqualTo(1));
+        Assert.That(sink.LastImpact.ExplosionRadius, Is.EqualTo(firedRadius));
+
+        GameObject effect = Track(Object.Instantiate(cue.VfxPrefab));
+        WeaponPresentationContext context = WeaponPresentationContext.FromFeedback(
+            cue.Cue, sink.LastImpact, profile, cue, GameFeelQualityLevel.High, false);
+        effect.transform.SetPositionAndRotation(context.Position,
+            Quaternion.LookRotation(context.Direction, Vector3.up));
+        RocketLauncherCueVfx vfx = effect.GetComponent<RocketLauncherCueVfx>();
+        vfx.ApplyContext(in context);
+        Transform footprint = effect.transform.Find("Resolved Damage Footprint");
+        Assert.That(footprint, Is.Not.Null);
+        MeshFilter mesh = footprint.GetComponent<MeshFilter>();
+        Assert.That(mesh, Is.Not.Null);
+        foreach (float frame in new[] { 0f, .2f, .65f })
+        {
+            Call(vfx, "ApplyFrame", frame);
+            float maximumRadius = mesh.sharedMesh.vertices.Max(vertex =>
+                Vector3.ProjectOnPlane(footprint.TransformPoint(vertex) - context.Position, Vector3.up).magnitude);
+            Assert.That(maximumRadius, Is.EqualTo(firedRadius).Within(.003f),
+                "The visible outer boundary must match the real overlap radius throughout the flash.");
+        }
+        Assert.That(Read<float>(shot, "_explosionRadius"), Is.EqualTo(firedRadius));
+        Assert.That(shot.transform.localScale, Is.EqualTo(projectileScale));
+        Assert.That(shot.GetComponent<SphereCollider>().radius, Is.EqualTo(colliderRadius));
+    }
+
     [Test]
     public void R02_AcquisitionBoundaryAndExplicitArcTravelHaveIndependentRealConsumers()
     {
@@ -1173,6 +1231,30 @@ public sealed class WeaponRocketStatAuthoringTests
         runtime.SetBaseValue(value);
     }
     private T Track<T>(T value) where T : Object { _cleanup.Add(value); return value; }
+
+    private sealed class FootprintFeedbackSink : IWeaponFeedbackSink
+    {
+        public int ImpactCount { get; private set; }
+        public WeaponFeedbackContext LastImpact { get; private set; }
+        public void Emit(in WeaponPresentationContext context) { }
+        public WeaponPresentationLoopHandle BeginLoop(in WeaponPresentationContext context) => default;
+        public void UpdateLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
+        public void EndLoop(WeaponPresentationLoopHandle handle, in WeaponPresentationContext context) { }
+        public void OnChargeStarted(in WeaponFeedbackContext context) { }
+        public void OnChargeUpdated(in WeaponFeedbackContext context, float normalizedProgress) { }
+        public void OnChargeCancelled(in WeaponFeedbackContext context) { }
+        public void OnShotFired(in WeaponFeedbackContext context) { }
+        public void OnSustainedFireStarted(in WeaponFeedbackContext context) { }
+        public void OnSustainedFireStopped(in WeaponFeedbackContext context) { }
+        public void OnProjectileImpact(in WeaponFeedbackContext context) { ImpactCount++; LastImpact = context; }
+        public void OnDamageConfirmed(in WeaponFeedbackContext context) { }
+        public void OnStatusApplied(in WeaponFeedbackContext context) { }
+        public void OnAmmoEmpty(in WeaponFeedbackContext context) { }
+        public void OnHeatThresholdCrossed(in WeaponFeedbackContext context, float normalizedThreshold) { }
+        public void ConfigureProjectile(Projectile projectile, ProjectilePresentationArchetypeId archetype,
+            in WeaponFeedbackContext context) { }
+    }
+
     private static WeaponOptionalFloat Set(float value) => new() { Enabled = true, Value = value };
     private static WeaponOptionalInt SetInt(int value) => new() { Enabled = true, Value = value };
     private static void Field(object target, string name, object value) => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(target, value);

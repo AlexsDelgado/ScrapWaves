@@ -22,6 +22,7 @@ public class Projectile : MonoBehaviour
     private Rigidbody _rigidbody;
     private SphereCollider _sphereCollider;
     private Vector3 _baseScale;
+    private float _baseCollisionRadius;
     private bool _initialized;
     private bool _useExplosion;
     private float _explosionRadius;
@@ -94,6 +95,17 @@ public class Projectile : MonoBehaviour
     public bool UsesAutomaticRocketTrajectory => _usesAutomaticRocketTrajectory;
     public float ActiveLifetimeSeconds => _activeMaxLifetime;
 
+    /// <summary>Actual collision-envelope growth relative to the initialized projectile, for presentation only.</summary>
+    public float CollisionSizeMultiplier
+    {
+        get
+        {
+            EnsureInitialized();
+            float scale = GetScaledSphereRadius() / Mathf.Max(0.01f, _baseCollisionRadius);
+            return float.IsNaN(scale) || float.IsInfinity(scale) ? 1f : Mathf.Max(0f, scale);
+        }
+    }
+
     public void ConfigureLifetime(float seconds) => _activeMaxLifetime = Mathf.Max(0.05f, seconds);
     public void ConfigureClusterLifetime(float seconds) => _clusterProjectileLifetime = Mathf.Max(0.05f, seconds);
     public void ConfigureClusterTravelEndpointClamp() => _clusterClampTravelEndpoint = true;
@@ -126,6 +138,7 @@ public class Projectile : MonoBehaviour
         _sphereCollider = GetComponent<SphereCollider>();
         if (_sphereCollider != null)
             _sphereCollider.isTrigger = true;
+        _baseCollisionRadius = GetScaledSphereRadius();
 
         _activeMaxLifetime = _maxLifetime;
         _activeSpeed = _speed;
