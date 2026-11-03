@@ -75,6 +75,8 @@ public class AudioManager : MonoBehaviour
     private PlayerPlatformState _subscribedPlatform;
     private float _nextUpperAlarmTime;
     private const float UpperAlarmGain = 2.5f;
+    private const float DashGain = 0.6f;
+    private const float EnemyDeathGain = 0.6f;
     private AudioSource[] _spatialVoices;
     private int _nextSpatialVoice;
     private readonly System.Collections.Generic.Dictionary<string, float> _nextSpatialTime = new();
@@ -355,7 +357,7 @@ public class AudioManager : MonoBehaviour
             return;
 
         _nextDeathTime = Time.unscaledTime + 0.07f;
-        PlaySfx(clip);
+        PlaySfx(clip, EnemyDeathGain);
     }
 
     public void PlayLevelUp()
@@ -418,7 +420,7 @@ public class AudioManager : MonoBehaviour
 
     private AudioClip Synth(string key) => _synth != null ? _synth.Pick(key) : null;
 
-    public void PlayDash() => PlaySfx(Synth("dash"));
+    public void PlayDash() => PlaySfx(Synth("dash"), DashGain);
 
     public void PlaySlide()
     {
@@ -449,10 +451,10 @@ public class AudioManager : MonoBehaviour
         }
 
         string kind = EnemyKind(enemy);
-        if (kind != null && PlayAt(kind + "_death", enemy.transform.position, 0.08f))
+        if (kind != null && PlayAt(kind + "_death", enemy.transform.position, 0.08f, EnemyDeathGain))
             return;
 
-        if (_synth != null && PlayAt("enemy_death", enemy.transform.position, 0.07f))
+        if (_synth != null && PlayAt("enemy_death", enemy.transform.position, 0.07f, EnemyDeathGain))
             return;
 
         PlayEnemyDeath();
@@ -472,7 +474,7 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>One-shot 3D desde un pool chico. Devuelve false si no hay clip sintetizado; true si sonó o está en cooldown.</summary>
-    private bool PlayAt(string key, Vector3 position, float cooldown)
+    private bool PlayAt(string key, Vector3 position, float cooldown, float gain = 1f)
     {
         if (_synth == null || !_synth.Has(key))
             return false;
@@ -495,7 +497,7 @@ public class AudioManager : MonoBehaviour
         voice.transform.position = position;
         voice.pitch = UnityEngine.Random.Range(0.94f, 1.06f);
         voice.clip = clip;
-        voice.volume = _sfxVolumeScale;
+        voice.volume = Mathf.Clamp01(_sfxVolumeScale * gain);
         voice.Play();
         return true;
     }
