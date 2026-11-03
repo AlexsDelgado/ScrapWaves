@@ -1,15 +1,11 @@
 using UnityEngine;
 
 /// <summary>
-/// Al morir el enemigo, roll Spec de Temporary Power-up (1% normal / 5% elite-boss, escala con Scavenging).
+/// Al morir el enemigo, roll Spec de Temporary Power-up (por defecto 1% normal / 5% elite-boss, escala con Scavenging; valores en PowerupBalanceProfile).
 /// </summary>
 [RequireComponent(typeof(EnemyHealth))]
 public class EnemyTemporaryPowerupDrop : MonoBehaviour
 {
-    private const float BaseNormalChance = 0.01f;
-    private const float BaseEliteChance = 0.05f;
-    private const float BaseScavenging = 50f;
-
     private EnemyHealth _health;
     private PlayerStats _playerStats;
 
@@ -31,16 +27,15 @@ public class EnemyTemporaryPowerupDrop : MonoBehaviour
 
     private void OnEnemyDied()
     {
+        PowerupBalanceProfile balance = PowerupBalanceProfile.Current;
         bool elite = WeaponEnemyClassifier.CountsAsEliteOrBoss(transform);
-        float baseChance = elite ? BaseEliteChance : BaseNormalChance;
         float scavenging = _playerStats != null && _playerStats.GetDefinition(StatType.Scavenging) != null
             ? _playerStats.GetStat(StatType.Scavenging)
-            : BaseScavenging;
-        float chance = baseChance * (scavenging / BaseScavenging);
-        if (Random.value > Mathf.Clamp01(chance))
+            : balance.ReferenceScavenging;
+        if (Random.value > balance.DropChance(elite, scavenging))
             return;
 
-        TemporaryPowerupType type = (TemporaryPowerupType)Random.Range(0, 6);
+        TemporaryPowerupType type = balance.RollDropType();
         TemporaryPowerupPool.GetInstance()?.TrySpawn(transform.position, type);
     }
 }

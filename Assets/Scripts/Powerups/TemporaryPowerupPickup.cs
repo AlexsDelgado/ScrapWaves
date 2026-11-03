@@ -30,7 +30,10 @@ public class TemporaryPowerupPickup : MonoBehaviour, IPickable
         _type = type;
         _consumed = false;
         if (TryGetComponent(out WorldPickup worldPickup))
-            worldPickup.ConfigureForGameplayCollection(1.5f, 6f, 12f);
+        {
+            PowerupBalanceProfile balance = PowerupBalanceProfile.Current;
+            worldPickup.ConfigureForGameplayCollection(balance.PickupRadius, balance.MagnetRadius, balance.MagnetSpeed);
+        }
 
         if (!_useAuthoredVisual)
             ApplyVisual(type);

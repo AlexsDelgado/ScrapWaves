@@ -100,44 +100,64 @@ public class TemporaryPowerupController : MonoBehaviour
 
     public bool IsPowerupInvulnerable => _invulnEndsAt > 0f && Time.time < _invulnEndsAt;
 
+    /// <summary>Buff temporal de stats en curso, o null.</summary>
+    public TemporaryPowerupType? ActiveBuff => _hasActiveBuff ? _activeBuff : null;
+
+    public float BuffRemainingSeconds => _hasActiveBuff ? Mathf.Max(0f, _buffEndsAt - Time.time) : 0f;
+
+    public float InvulnerabilityRemainingSeconds => IsPowerupInvulnerable ? _invulnEndsAt - Time.time : 0f;
+
+    /// <summary>Factor de nivel 0–1 con el que se interpolan los valores (ya con el forzado del perfil).</summary>
+    public float CurrentLevelT => GetLevelT();
+
     public void Apply(TemporaryPowerupType type)
     {
+        PowerupBalanceProfile balance = PowerupBalanceProfile.Current;
         float t = GetLevelT();
         switch (type)
         {
             case TemporaryPowerupType.ExtraDamage:
-                ApplyTimedBuff(type, 15f, new Color(1f, 0.35f, 0.1f, 0.85f), () =>
+            {
+                PowerupBalanceProfile.DamageBuff buff = balance.ExtraDamage;
+                ApplyTimedBuff(type, buff.Duration, new Color(1f, 0.35f, 0.1f, 0.85f), () =>
                 {
-                    AddMul(StatType.DamageMultiplier, Mathf.Lerp(1.5f, 2.5f, t));
-                    AddMul(StatType.AttackSpeedMultiplier, Mathf.Lerp(1.75f, 3f, t));
-                    AddAdd(StatType.CriticalChance, Mathf.Lerp(50f, 100f, t));
+                    AddMul(StatType.DamageMultiplier, buff.DamageMultiplier.Evaluate(t));
+                    AddMul(StatType.AttackSpeedMultiplier, buff.AttackSpeedMultiplier.Evaluate(t));
+                    AddAdd(StatType.CriticalChance, buff.CriticalChance.Evaluate(t));
                 });
                 break;
+            }
             case TemporaryPowerupType.ExtraSpeed:
-                ApplyTimedBuff(type, 15f, new Color(0.35f, 0.75f, 1f, 0.85f), () =>
+            {
+                PowerupBalanceProfile.SpeedBuff buff = balance.ExtraSpeed;
+                ApplyTimedBuff(type, buff.Duration, new Color(0.35f, 0.75f, 1f, 0.85f), () =>
                 {
-                    AddMul(StatType.MovementSpeed, Mathf.Lerp(2f, 4f, t));
-                    AddMul(StatType.JumpHeight, Mathf.Lerp(2f, 3f, t));
+                    AddMul(StatType.MovementSpeed, buff.MovementSpeedMultiplier.Evaluate(t));
+                    AddMul(StatType.JumpHeight, buff.JumpHeightMultiplier.Evaluate(t));
                     int dashes = Mathf.Max(0, _stats != null ? _stats.GetStatInt(StatType.DashCharges) : 0);
                     int air = Mathf.Max(0, _stats != null ? _stats.GetStatInt(StatType.AirJumps) : 0);
-                    if (dashes > 0)
-                        AddAdd(StatType.DashCharges, dashes * 2);
-                    if (air > 0)
-                        AddAdd(StatType.AirJumps, air * 2);
+                    if (dashes > 0 && buff.DashBonusFactor > 0)
+                        AddAdd(StatType.DashCharges, dashes * buff.DashBonusFactor);
+                    if (air > 0 && buff.AirJumpBonusFactor > 0)
+                        AddAdd(StatType.AirJumps, air * buff.AirJumpBonusFactor);
                     _movement?.RefreshPassiveResources();
                 });
                 break;
+            }
             case TemporaryPowerupType.ExtraScavenging:
-                ApplyTimedBuff(type, 7.5f, new Color(0.25f, 0.9f, 0.35f, 0.85f), () =>
+            {
+                PowerupBalanceProfile.ScavengingBuff buff = balance.ExtraScavenging;
+                ApplyTimedBuff(type, buff.Duration, new Color(0.25f, 0.9f, 0.35f, 0.85f), () =>
                 {
-                    AddMul(StatType.PickupRange, Mathf.Lerp(2f, 4f, t));
-                    AddAdd(StatType.Scavenging, Mathf.Lerp(25f, 50f, t));
-                    AddAdd(StatType.DoubleDrop, Mathf.Lerp(25f, 75f, t));
+                    AddMul(StatType.PickupRange, buff.PickupRangeMultiplier.Evaluate(t));
+                    AddAdd(StatType.Scavenging, buff.Scavenging.Evaluate(t));
+                    AddAdd(StatType.DoubleDrop, buff.DoubleDrop.Evaluate(t));
                 });
                 break;
+            }
             case TemporaryPowerupType.Invulnerability:
             {
-                float duration = 7.5f;
+                float duration = balance.Invulnerability.Duration;
                 _invulnEndsAt = Time.time + duration;
                 _health?.GrantInvulnerability(duration);
                 ShowBuffFx(new Color(1f, 1f, 1f, 0.7f), duration);
@@ -145,24 +165,25 @@ public class TemporaryPowerupController : MonoBehaviour
                 break;
             }
             case TemporaryPowerupType.FullHeal:
-                ApplyFullHeal();
-                ShowBuffFx(new Color(1f, 0.3f, 0.55f, 0.85f), 1.75f);
+                ApplyFullHeal(balance.FullHeal.RefillAmmoAndAbility);
+                ShowBuffFx(new Color(1f, 0.3f, 0.55f, 0.85f), balance.FullHeal.FxDuration);
                 break;
             case TemporaryPowerupType.Nuke:
-                ApplyNuke(t);
-                ShowBuffFx(new Color(1f, 0.85f, 0.15f, 0.9f), 1.75f);
+                ApplyNuke(t, balance.Nuke);
+                ShowBuffFx(new Color(1f, 0.85f, 0.15f, 0.9f), balance.Nuke.FxDuration);
                 break;
         }
     }
 
-    private void ApplyFullHeal()
+    private void ApplyFullHeal(bool refillAmmoAndAbility)
     {
         int hpBefore = _health != null ? _health.CurrentHealth : 0;
         int hpMax = _health != null ? _health.MaxHealth : 0;
         float ammoBefore = _weapons != null ? _weapons.GetCurrentManualWeapon()?.CurrentAmmo ?? 0f : 0f;
         _health?.HealToFull();
         _movement?.RefreshPassiveResources();
-        _weapons?.RefillManualAmmoAndResetActiveCooldown();
+        if (refillAmmoAndAbility)
+            _weapons?.RefillManualAmmoAndResetActiveCooldown();
         float ammoAfter = _weapons != null ? _weapons.GetCurrentManualWeapon()?.CurrentAmmo ?? 0f : 0f;
         int hpAfter = _health != null ? _health.CurrentHealth : 0;
         EmitLog(
@@ -170,10 +191,10 @@ public class TemporaryPowerupController : MonoBehaviour
             $"[Powerup FullHeal] Ammo  base: {ammoBefore:0.00} || +buff: {ammoAfter:0.00}");
     }
 
-    private void ApplyNuke(float t)
+    private void ApplyNuke(float t, PowerupBalanceProfile.NukePowerup nuke)
     {
-        float damage = Mathf.Lerp(50f, 500f, t);
-        float radius = Mathf.Lerp(20f, 40f, t);
+        float damage = nuke.Damage.Evaluate(t);
+        float radius = nuke.Radius.Evaluate(t);
         Vector3 origin = transform.position;
         Collider[] hits = Physics.OverlapSphere(origin, radius);
         for (int i = 0; i < hits.Length; i++)
@@ -183,11 +204,11 @@ public class TemporaryPowerupController : MonoBehaviour
                 continue;
 
             float dist = Vector3.Distance(origin, enemy.transform.position);
-            float half = radius * 0.5f;
+            float half = radius * nuke.FullDamageRadiusFraction;
             float falloff = dist <= half ? 1f : Mathf.Lerp(1f, 0f, (dist - half) / half);
             int dmg = Mathf.Max(1, Mathf.RoundToInt(damage * falloff));
             enemy.ApplyDamage(dmg);
-            EnemyKnockbackReceiver.TryApply(enemy, origin, 18f * falloff);
+            EnemyKnockbackReceiver.TryApply(enemy, origin, nuke.Knockback * falloff);
         }
 
         ExplosionRadiusVfx.Spawn(origin, radius);
@@ -298,7 +319,7 @@ public class TemporaryPowerupController : MonoBehaviour
     {
         int level = _xp != null ? _xp.CurrentLevel : 1;
         int cap = _xp != null ? Mathf.Max(1, _xp.LevelCap) : 36;
-        return Mathf.Clamp01(level / (float)cap);
+        return PowerupBalanceProfile.Current.ResolveLevelT(Mathf.Clamp01(level / (float)cap));
     }
 
     private void ShowBuffFx(Color color, float duration)

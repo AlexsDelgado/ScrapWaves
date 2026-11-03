@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b0cba171f56e934eb696e08b060eae1, type: 3}
+  m_Name: PowerupBalanceProfile
+  m_EditorClassIdentifier: Assembly-CSharp::PowerupBalanceProfile
+  _forcedLevelT: -1
+  _normalDropChance: 0.01
+  _eliteDropChance: 0.05
+  _referenceScavenging: 50
+  _dropWeights:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  _pickupRadius: 1.5
+  _magnetRadius: 6
+  _magnetSpeed: 12
+  _extraDamage:
+    Duration: 15
+    DamageMultiplier:
+      Min: 1.5
+      Max: 2.5
+    AttackSpeedMultiplier:
+      Min: 1.75
+      Max: 3
+    CriticalChance:
+      Min: 50
+      Max: 100
+  _extraSpeed:
+    Duration: 15
+    MovementSpeedMultiplier:
+      Min: 2
+      Max: 4
+    JumpHeightMultiplier:
+      Min: 2
+      Max: 3
+    DashBonusFactor: 2
+    AirJumpBonusFactor: 2
+  _extraScavenging:
+    Duration: 7.5
+    PickupRangeMultiplier:
+      Min: 2
+      Max: 4
+    Scavenging:
+      Min: 25
+      Max: 50
+    DoubleDrop:
+      Min: 25
+      Max: 75
+  _invulnerability:
+    Duration: 7.5
+  _fullHeal:
+    RefillAmmoAndAbility: 1
+    FxDuration: 1.75
+  _nuke:
+    Damage:
+      Min: 50
+      Max: 500
+    Radius:
+      Min: 20
+      Max: 40
+    FullDamageRadiusFraction: 0.5
+    Knockback: 18
+    FxDuration: 1.75
