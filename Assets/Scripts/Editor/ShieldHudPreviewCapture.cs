@@ -33,8 +33,10 @@ public static class ShieldHudPreviewCapture
         try
         {
             Shader.SetGlobalInt("unity_GUIZTestMode", 8);
-            foreach (int shields in new[] { 6, 4, 0 })
+            foreach (var state in new[] { new Vector2Int(0, 0), new Vector2Int(1, 1),
+                new Vector2Int(3, 3), new Vector2Int(6, 6), new Vector2Int(6, 4), new Vector2Int(6, 0) })
             {
+                int capacity = state.x, shields = state.y;
                 RenderTexture.active = target;
                 GL.Clear(true, true, new Color(.025f, .035f, .03f, 1f));
                 GL.PushMatrix();
@@ -86,14 +88,16 @@ public static class ShieldHudPreviewCapture
                     EditorUtility.CopySerialized(shield, overlay);
                     overlay.rectTransform.pivot = Vector2.zero;
                     overlay.rectTransform.sizeDelta = shieldBounds.size;
-                    overlay.SetCharges(shields, 6);
+                    overlay.SetCharges(shields, capacity);
                     try { DrawGraphic(overlay, shieldBounds.position); }
                     finally { Object.DestroyImmediate(shieldGo); }
                 }
                 finally { GL.PopMatrix(); }
                 pixels.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0);
                 pixels.Apply();
-                File.WriteAllBytes(Path.GetFullPath($"Library/HudIntegrated-{shields}.png"), pixels.EncodeToPNG());
+                byte[] png = pixels.EncodeToPNG();
+                File.WriteAllBytes(Path.GetFullPath($"Library/HudIntegrated-capacity-{capacity}-charges-{shields}.png"), png);
+                if (capacity == 6) File.WriteAllBytes(Path.GetFullPath($"Library/HudIntegrated-{shields}.png"), png);
             }
         }
         finally
@@ -130,6 +134,8 @@ public static class ShieldHudPreviewCapture
                     .Invoke(graphic, new object[] { vertices });
                 vertices.FillMesh(mesh);
             }
+            if (mesh.vertexCount == 0 && graphic is ShieldChargesGraphic shield && shield.Capacity == 0)
+                return;
             if (mesh.vertexCount == 0 || graphic.rectTransform.rect.width <= 0f)
                 throw new System.InvalidOperationException("HUD preview geometry is empty: " + graphic.name);
             material.mainTexture = graphic.mainTexture;

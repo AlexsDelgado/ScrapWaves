@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Sprites;
 
-/// <summary>Separate shield strip above life: one framed compartment per charge.</summary>
+/// <summary>Shield strip above life: fixed-size compartments revealed by acquired capacity.</summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CanvasRenderer))]
 public sealed class ShieldChargesGraphic : MaskableGraphic
@@ -16,13 +16,14 @@ public sealed class ShieldChargesGraphic : MaskableGraphic
     private Vector4 _artUv;
     private Vector2 _artSize;
     private Vector2 _solidUv;
+    public const int VisibleSlots = 6;
     private int _charges;
     private int _capacity;
     public int DisplayedCharges => _charges;
     public int Capacity => _capacity;
     public void SetCharges(int charges, int capacity)
     {
-        capacity = Mathf.Max(0, capacity);
+        capacity = Mathf.Clamp(capacity, 0, VisibleSlots);
         charges = Mathf.Clamp(charges, 0, capacity);
         if (_charges == charges && _capacity == capacity) return;
         _charges = charges;
@@ -39,9 +40,16 @@ public sealed class ShieldChargesGraphic : MaskableGraphic
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
+        // Keep the Graphic alive so the first pickup can reveal it through OnShieldChanged.
         if (_capacity <= 0) return;
         Rect r = GetPixelAdjustedRect();
         if (r.width < 50f || r.height < 12f) return;
+        // Reserve the original six-slot layout; only shorten the visible frame.
+        // Acquiring capacity adds cells without resizing or moving existing ones.
+        float left = r.xMin + 32f, right = r.xMax - 7f;
+        float gap = Mathf.Min(6f, (right - left) / VisibleSlots * .25f);
+        float cellWidth = (right - left - gap * (VisibleSlots - 1)) / VisibleSlots;
+        r.xMax = left + cellWidth * _capacity + gap * (_capacity - 1) + 7f;
         _artUv = _frameArtwork != null ? DataUtility.GetOuterUV(_frameArtwork) : new Vector4(0f,0f,1f,1f);
         _artSize = _frameArtwork != null ? _frameArtwork.rect.size : Vector2.one;
         _solidUv = _frameArtwork != null ? ArtworkUv(820.5f,133.5f) : Vector2.zero;
@@ -69,11 +77,7 @@ public sealed class ShieldChargesGraphic : MaskableGraphic
         ShieldIcon(vh, new Vector2(r.xMin + 21f, r.center.y), 11f,
             _charges > 0 ? _chargedColor : rim * new Color(.5f,.5f,.5f,1f));
 
-        float left = r.xMin + 32f, right = r.xMax - 7f;
-        int cells = Mathf.Min(_capacity, 128);
-        float gap = Mathf.Min(6f, (right - left) / cells * .25f);
-        float cellWidth = (right - left - gap * (cells - 1)) / cells;
-        for (int i = 0; i < cells; i++)
+        for (int i = 0; i < _capacity; i++)
         {
             bool charged = i < _charges;
             Rect socket = new Rect(left + i * (cellWidth + gap), r.yMin + 6f, cellWidth, r.height - 12f);

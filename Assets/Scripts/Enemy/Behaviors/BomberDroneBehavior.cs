@@ -46,6 +46,16 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     [SerializeField, Min(0.1f)] private float _shootInterval = 1.5f;
     [SerializeField, Min(0.5f)] private float _droneStandoffDistance = 8f;
 
+    [Header("Shot warning (visual only)")]
+    [SerializeField] private bool _showLockingLine = true;
+    [SerializeField, Min(.005f)] private float _lockingLineWidth = .045f;
+    [SerializeField] private Transform _muzzle;
+    private SkinnedMeshRenderer _muzzleBody;
+    private DroneAimLine _aimLine;
+    private EnemyHealth _aimHealth;
+    private Vector3 MuzzlePosition => _muzzle != null ? _muzzle.position
+        : _muzzleBody != null ? _muzzleBody.bounds.center : transform.position;
+
     [Header("Orbit / strafe")]
     [SerializeField, Min(0f)] private float _engageOrbitWeight = 0.32f;
     [SerializeField, Min(0f)] private float _droneOrbitWeight = 0.6f;
@@ -67,6 +77,8 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     protected override void Awake()
     {
         base.Awake();
+        _aimHealth = GetComponent<EnemyHealth>();
+        _muzzleBody = GetComponentInChildren<SkinnedMeshRenderer>(true);
         _statRandomizer = GetComponent<EnemyStatRandomizer>();
         if (_groundMask.value == 0)
             _groundMask = LayerMask.GetMask("Terrain", "Default");
@@ -75,6 +87,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     protected override void OnEnable()
     {
         base.OnEnable();
+        HideAimLine();
         SetGenericMovement(false);
         if (TryGetComponent(out Rigidbody rb))
             rb.isKinematic = true;
@@ -86,13 +99,43 @@ public class BomberDroneBehavior : EnemyBehaviorBase
     public override void OnPoolSpawn()
     {
         base.OnPoolSpawn();
+        HideAimLine();
         _hoverMotion = default;
         _orbitSign = Random.value < 0.5f ? -1f : 1f;
     }
 
     private void OnDisable()
     {
+        HideAimLine();
         SetGenericMovement(true);
+    }
+
+    public override void OnPoolDespawn()
+    {
+        HideAimLine();
+        base.OnPoolDespawn();
+    }
+
+    private void OnDestroy() => _aimLine?.Dispose();
+    private void HideAimLine() => _aimLine?.Hide();
+
+    private void LateUpdate()
+    {
+        Transform player = Player;
+        if (!_showLockingLine || !isActiveAndEnabled || _state != State.DronePhase ||
+            player == null || !player.gameObject.activeInHierarchy || _bulletPrefab == null ||
+            (_aimHealth != null && _aimHealth.CurrentHealth <= 0) || EmergenceBlocksGameplay ||
+            EnemyVerticalEngagement.IsDisengaged(this) || GameplayPause.IsUiPaused ||
+            Time.timeScale <= 0f || EntranceCinematic.StartupHeld ||
+            _stateTimer < _shootTimer ||
+            !DroneAimLine.TryGetWarningProgress(_shootTimer, _shootInterval, out float progress))
+        {
+            HideAimLine();
+            return;
+        }
+        _aimLine ??= new DroneAimLine(transform);
+        _aimLine.Show(MuzzlePosition, player.position, progress, _lockingLineWidth,
+            Mathf.Min(_shootInterval, DroneAimLine.WarningSeconds));
     }
 
     private void Update()
@@ -310,7 +353,7 @@ public class BomberDroneBehavior : EnemyBehaviorBase
             return;
 
         Transform player = Player;
-        Vector3 muzzle = transform.position;
+        Vector3 muzzle = MuzzlePosition;
         Vector3 dir = (player != null ? player.position : muzzle + transform.forward) - muzzle;
         if (dir.sqrMagnitude < 0.0001f)
             dir = transform.forward;

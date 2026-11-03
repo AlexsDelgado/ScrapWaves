@@ -4,7 +4,18 @@ using UnityEngine.Rendering;
 /// <summary>Reusable, depth-tested attack warning. Owns no gameplay state or material instances.</summary>
 internal sealed class DroneAimLine
 {
+    public const float WarningSeconds = .5f;
+    private const float DistancePastTarget = 12f;
     private readonly LineRenderer _line;
+
+    public static bool TryGetWarningProgress(float remaining, float attackDuration, out float progress)
+    {
+        float window = Mathf.Min(WarningSeconds, Mathf.Max(0f, attackDuration));
+        progress = 0f;
+        if (window <= 0f || float.IsNaN(remaining) || remaining <= 0f || remaining > window) return false;
+        progress = Mathf.Clamp01(1f - remaining / window);
+        return true;
+    }
 
     public DroneAimLine(Transform owner)
     {
@@ -58,7 +69,7 @@ internal sealed class DroneAimLine
         _line.endColor = color;
         _line.widthMultiplier = Mathf.Max(.005f, width) * Mathf.Lerp(.8f, 1.4f, charge);
         _line.SetPosition(0, origin);
-        _line.SetPosition(1, target);
+        _line.SetPosition(1, target + (target - origin).normalized * DistancePastTarget);
         _line.enabled = true;
     }
 

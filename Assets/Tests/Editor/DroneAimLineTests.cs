@@ -68,15 +68,16 @@ public sealed class DroneAimLineTests
         Call(_drone, "LateUpdate");
         Assert.That(_root.GetComponentsInChildren<LineRenderer>(true), Is.Empty);
         Call(_drone, "TickApproaching");
+        Set(_drone, "_stateTimer", .5f);
         float timer = Get<float>(_drone, "_stateTimer");
         Call(_drone, "LateUpdate");
         LineRenderer line = Line();
         Assert.That(line.enabled, Is.True);
         Assert.That(line.GetPosition(0), Is.EqualTo(_root.transform.position + Vector3.up * .2f));
-        Assert.That(line.GetPosition(1), Is.EqualTo(_target.transform.position));
+        AssertExtendsPastTarget(line);
         _target.transform.position += new Vector3(2, 4, -1);
         Call(_drone, "LateUpdate");
-        Assert.That(line.GetPosition(1), Is.EqualTo(_target.transform.position));
+        AssertExtendsPastTarget(line);
         Assert.That(Get<float>(_drone, "_stateTimer"), Is.EqualTo(timer));
         Assert.That(_pool.transform.childCount, Is.Zero);
         Assert.That(line.GetComponent<Collider>(), Is.Null);
@@ -159,7 +160,7 @@ public sealed class DroneAimLineTests
         foreach (var state in new[] { _preferences.WithReducedMotion(true), _preferences.WithReducedFlash(true) })
         {
             PresentationAccessibilityRuntime.Apply(state);
-            Set(_drone, "_stateTimer", 3f); Call(_drone, "LateUpdate");
+            Set(_drone, "_stateTimer", .5f); Call(_drone, "LateUpdate");
             Color color = line.startColor; float width = line.widthMultiplier;
             Set(_drone, "_stateTimer", .01f); Call(_drone, "LateUpdate");
             Assert.That(line.startColor, Is.EqualTo(color));
@@ -189,18 +190,17 @@ public sealed class DroneAimLineTests
         float previous = 1f;
         for (int sample = 0; sample < 300; sample++)
         {
-            float elapsed = sample * .01f;
-            Set(_drone, "_stateTimer", 3f - elapsed);
+            float elapsed = sample * (.5f / 300f);
+            Set(_drone, "_stateTimer", .5f - elapsed);
             Call(_drone, "LateUpdate");
             float alpha = Line().startColor.a;
             Assert.That(alpha, Is.InRange(.05f, 1f));
             if (previous < .4f && alpha >= .4f)
             {
-                if (elapsed < 1.5f) early++; else late++;
+                if (elapsed < .25f) early++; else late++;
             }
             previous = alpha;
         }
-        Assert.That(early, Is.GreaterThanOrEqualTo(1));
         Assert.That(late, Is.GreaterThan(early), "More flashes in the last half of the same charge.");
         Lock();
         Assert.That(Line().startColor.a, Is.EqualTo(.6f).Within(.01f));
@@ -223,7 +223,7 @@ public sealed class DroneAimLineTests
             Call(behavior, "Awake"); Call(behavior, "OnEnable");
             typeof(EnemyBehaviorBase).GetField("_player", Hidden).SetValue(behavior, _target.transform);
             Set(behavior, "_bulletPrefab", _bullet); Set(behavior, "_moveSpeed", 0f);
-            Call(behavior, "TickApproaching"); Call(behavior, "LateUpdate");
+            Call(behavior, "TickApproaching"); Set(behavior, "_stateTimer", .5f); Call(behavior, "LateUpdate");
             var line = actor.GetComponentInChildren<LineRenderer>();
             var body = actor.GetComponentInChildren<SkinnedMeshRenderer>(true);
             Assert.That(line, Is.Not.Null);
@@ -248,7 +248,105 @@ public sealed class DroneAimLineTests
         }
     }
 
-    private void Lock() { Call(_drone, "TickApproaching"); Call(_drone, "LateUpdate"); }
+    [TestCase(.501f, false)]
+    [TestCase(.5f, true)]
+    [TestCase(.25f, true)]
+    [TestCase(.001f, true)]
+    [TestCase(0f, false)]
+    public void NormalAndElite_OnlyWarnDuringTheFinalHalfSecond(float remaining, bool visible)
+    {
+        Call(_drone, "TickApproaching");
+        Set(_drone, "_stateTimer", remaining);
+        Call(_drone, "LateUpdate");
+        Assert.That(Line() != null && Line().enabled, Is.EqualTo(visible));
+        var elite = Elite();
+        Set(elite, "_shootTimer", remaining);
+        Call(elite, "LateUpdate");
+        var line = elite.GetComponentInChildren<LineRenderer>(true);
+        Assert.That(line != null && line.enabled, Is.EqualTo(visible));
+        Assert.That(Get<float>(elite, "_shootTimer"), Is.EqualTo(remaining));
+        Assert.That(_pool.transform.childCount, Is.Zero);
+        if (visible) { AssertExtendsPastTarget(Line()); AssertExtendsPastTarget(line); }
+    }
+
+    [Test]
+    public void Elite_ShootsFromItsVisibleBodyAlongTheLine_ThenReusesIt()
+    {
+        var elite = Elite();
+        Call(elite, "LateUpdate");
+        var line = elite.GetComponentInChildren<LineRenderer>(true);
+        var body = elite.GetComponentInChildren<SkinnedMeshRenderer>(true);
+        Assert.That(line.enabled, Is.True);
+        Assert.That(body.bounds.Contains(line.GetPosition(0)), Is.True);
+        Vector3 origin = line.GetPosition(0), direction = (line.GetPosition(1) - origin).normalized;
+        Set(elite, "_shootTimer", 0f);
+        Call(elite, "TickDronePhase"); Call(elite, "LateUpdate");
+        Assert.That(line.enabled, Is.False);
+        var shot = _pool.transform.GetChild(0);
+        Assert.That(shot.position, Is.EqualTo(origin));
+        Assert.That(Vector3.Dot(shot.forward, direction), Is.GreaterThan(.9999f));
+        Assert.That(Get<float>(elite, "_shootTimer"), Is.EqualTo(1.5f));
+        Assert.That(Get<int>(elite, "_bulletDamage"), Is.EqualTo(35));
+        Set(elite, "_shootTimer", .5f); Call(elite, "LateUpdate");
+        Assert.That(elite.GetComponentInChildren<LineRenderer>(true), Is.SameAs(line));
+        Assert.That(line.enabled, Is.True);
+    }
+
+    [TestCase("Engage")]
+    [TestCase("Dash")]
+    [TestCase("BetweenDash")]
+    [TestCase("phase-ending")]
+    [TestCase("pool")]
+    [TestCase("death")]
+    [TestCase("pause")]
+    [TestCase("disabled")]
+    public void Elite_HidesWarningsWhenNoBulletIsAboutToFire(string reason)
+    {
+        var elite = Elite(); Call(elite, "LateUpdate");
+        var line = elite.GetComponentInChildren<LineRenderer>(true);
+        Assert.That(line.enabled, Is.True);
+        switch (reason)
+        {
+            case "phase-ending": Set(elite, "_stateTimer", .2f); break;
+            case "pool": elite.OnPoolDespawn(); break;
+            case "death": Set(elite.GetComponent<EnemyHealth>(), "_currentHealth", 0); break;
+            case "pause": GameplayPause.Push(); break;
+            case "disabled": elite.enabled = false; Call(elite, "OnDisable"); break;
+            default:
+                var field = typeof(BomberDroneBehavior).GetField("_state", Hidden);
+                field.SetValue(elite, Enum.Parse(field.FieldType, reason)); break;
+        }
+        if (reason != "pool") Call(elite, "LateUpdate");
+        Assert.That(line.enabled, Is.False);
+        Assert.That(_pool.transform.childCount, Is.Zero);
+    }
+
+    private BomberDroneBehavior Elite()
+    {
+        var actor = (GameObject)PrefabUtility.InstantiatePrefab(
+            AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Drone_Elite.prefab"), _scene);
+        foreach (var script in actor.GetComponentsInChildren<MonoBehaviour>(true)) script.enabled = false;
+        actor.transform.position = _root.transform.position;
+        var behavior = actor.GetComponent<BomberDroneBehavior>(); behavior.enabled = true;
+        actor.GetComponent<EnemyHealth>().ApplyConfiguredMaxHealth(30);
+        Set(actor.GetComponent<EnemyEmergence>(), "_excluded", true);
+        Call(behavior, "Awake"); Call(behavior, "OnEnable");
+        typeof(EnemyBehaviorBase).GetField("_player", Hidden).SetValue(behavior, _target.transform);
+        Set(behavior, "_bulletPrefab", _bullet); Set(behavior, "_moveSpeed", 0f);
+        var state = typeof(BomberDroneBehavior).GetField("_state", Hidden);
+        state.SetValue(behavior, Enum.Parse(state.FieldType, "DronePhase"));
+        Set(behavior, "_shootTimer", .5f); Set(behavior, "_stateTimer", 5f);
+        return behavior;
+    }
+
+    private void Lock() { Call(_drone, "TickApproaching"); Set(_drone, "_stateTimer", .5f); Call(_drone, "LateUpdate"); }
+    private void AssertExtendsPastTarget(LineRenderer line)
+    {
+        Vector3 direction = (_target.transform.position - line.GetPosition(0)).normalized;
+        Vector3 beyond = line.GetPosition(1) - _target.transform.position;
+        Assert.That(Vector3.Dot(beyond.normalized, direction), Is.GreaterThan(.9999f));
+        Assert.That(beyond.magnitude, Is.EqualTo(12f).Within(.01f));
+    }
     private LineRenderer Line() => _root.GetComponentInChildren<LineRenderer>(true);
     private GameObject Make(string name) { var go = new GameObject(name); SceneManager.MoveGameObjectToScene(go, _scene); return go; }
     private static FieldInfo PoolInstance() => typeof(EnemyProjectilePool).GetField("s_Instance", BindingFlags.NonPublic | BindingFlags.Static);

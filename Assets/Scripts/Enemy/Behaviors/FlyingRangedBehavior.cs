@@ -136,9 +136,14 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             return;
         }
 
+        if (!DroneAimLine.TryGetWarningProgress(_stateTimer, _lockSeconds, out float progress))
+        {
+            HideAimLine();
+            return;
+        }
         _aimLine ??= new DroneAimLine(transform);
-        float progress = _lockSeconds > 0f ? Mathf.Clamp01(1f - _stateTimer / _lockSeconds) : 1f;
-        _aimLine.Show(MuzzlePosition, player.position, progress, _lockingLineWidth, _lockSeconds);
+        _aimLine.Show(MuzzlePosition, player.position, progress, _lockingLineWidth,
+            Mathf.Min(_lockSeconds, DroneAimLine.WarningSeconds));
     }
 
     private void Update()

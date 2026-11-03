@@ -70,6 +70,9 @@ public sealed class HeatPresentationTests
         Assert.That(fill.fillMethod, Is.EqualTo(Image.FillMethod.Vertical));
         Assert.That(fill.fillOrigin, Is.Zero);
         var material = (Material)serialized.FindProperty("_edgeMaterial").objectReferenceValue;
+        Assert.That(material.GetTexture("_FlameTex"), Is.Not.Null, "The fire frame must be included in the HUD material.");
+        Assert.That(material.GetFloat("_FrameCount"), Is.GreaterThan(1f), "The fire must use the baked animation, not the previous static frame.");
+        Assert.That(material.GetFloat("_FrameRate"), Is.GreaterThan(0f));
         Assert.That(material.shader.isSupported, Is.True);
         Assert.That(ShaderUtil.ShaderHasError(material.shader), Is.False);
     }
@@ -221,8 +224,10 @@ public sealed class HeatPresentationTests
                 try
                 {
                     material.SetFloat("_Aspect", (float)size.x / size.y);
-                    foreach (float intensity in new[] { 1f, 0f })
+                    foreach (float animationTime in new[] { 0f, .75f, 3f, 9f })
+                    foreach (float intensity in new[] { 1f, .18f, 0f })
                     {
+                        material.SetFloat("_EffectTime", animationTime);
                         material.SetFloat("_Intensity", intensity);
                         RenderTexture.active = target;
                         GL.Clear(true, true, Color.clear);
@@ -235,11 +240,13 @@ public sealed class HeatPresentationTests
                         {
                             Color c = pixels.GetPixel(x, y);
                             float brightness = Mathf.Max(c.r, c.g, c.b);
-                            bool center = x > size.x * .15f && x < size.x * .85f && y > size.y * .15f && y < size.y * .85f;
+                            // The tunnel composition leaves a clear oval while allowing longer corner flames.
+                            var uv = new Vector2((x + .5f) / size.x, (y + .5f) / size.y);
+                            bool center = ((uv - Vector2.one * .5f) / .30f).sqrMagnitude <= 1f;
                             if (center || intensity == 0f) Assert.That(brightness, Is.LessThan(.005f));
                             else cornerBrightness = Mathf.Max(cornerBrightness, brightness);
                         }
-                        if (intensity > 0f) Assert.That(cornerBrightness, Is.GreaterThan(.04f));
+                        if (intensity > 0f) Assert.That(cornerBrightness, Is.GreaterThan(.04f * intensity));
                     }
                 }
                 finally

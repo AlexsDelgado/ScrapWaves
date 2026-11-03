@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
@@ -110,8 +111,10 @@ public sealed class ShieldHudTests
                 var target = RenderTexture.GetTemporary(size.x,size.y,0,RenderTextureFormat.ARGB32);
                 try
                 {
-                    for (int capacity = 1; capacity <= 6; capacity++)
-                    for (int charges = 0; charges <= capacity; charges++)
+                    List<Vector2Int> fullSlots = null;
+                    var frameWidths = new float[7];
+                    for (int capacity = 6; capacity >= 0; capacity--)
+                    for (int charges = capacity; charges >= 0; charges--)
                     {
                         view.SetCharges(charges, capacity);
                         using (var vertices = new VertexHelper())
@@ -119,7 +122,21 @@ public sealed class ShieldHudTests
                             typeof(ShieldChargesGraphic).GetMethod("OnPopulateMesh", Private, null, new[] { typeof(VertexHelper) }, null).Invoke(view, new object[] { vertices });
                             vertices.FillMesh(mesh);
                         }
-                        Assert.That(mesh.vertexCount, Is.GreaterThan(0));
+                        if (capacity == 0)
+                            Assert.That(mesh.vertexCount, Is.Zero, "Before acquiring a shield, the complete strip must be hidden.");
+                        else
+                        {
+                            Assert.That(mesh.vertexCount, Is.GreaterThan(0));
+                            if (charges == capacity)
+                            {
+                                frameWidths[capacity] = mesh.bounds.size.x;
+                                if (capacity < 6)
+                                    Assert.That(frameWidths[capacity], Is.LessThan(frameWidths[capacity + 1]),
+                                        "Only acquired compartments should extend the visible container.");
+                            }
+                            Assert.That(mesh.bounds.size.x, Is.EqualTo(frameWidths[capacity]).Within(.001f),
+                                "Damage and recharge must not hide or resize acquired compartments.");
+                        }
                         RenderTexture.active = target;
                         GL.Clear(true,true,new Color(.035f,.05f,.06f,1f));
                         GL.PushMatrix();
@@ -127,23 +144,30 @@ public sealed class ShieldHudTests
                         {
                             GL.LoadPixelMatrix(0,meterSize.x,0,meterSize.y);
                             Assert.That(material.SetPass(0), Is.True);
-                            Graphics.DrawMeshNow(mesh,Matrix4x4.identity);
+                            if (mesh.vertexCount > 0) Graphics.DrawMeshNow(mesh,Matrix4x4.identity);
                         }
                         finally { GL.PopMatrix(); }
                         pixels.ReadPixels(new Rect(0,0,size.x,size.y),0,0);
                         pixels.Apply();
-                        int illuminated = 0;
+                        var blueSpans = new List<Vector2Int>();
+                        int blueStart = -1;
                         bool previousBlue = false;
                         // Exclude only the shield icon on the left, never any compartment.
                         for (int x = Mathf.CeilToInt(32f / meterSize.x * size.x); x < size.x; x++)
                         {
                             Color c = pixels.GetPixel(x,size.y/2);
                             bool blue = c.b > .6f && c.b > c.r + .25f;
-                            if (blue && !previousBlue) illuminated++;
+                            if (blue && !previousBlue) blueStart = x;
+                            if (!blue && previousBlue) blueSpans.Add(new Vector2Int(blueStart, x - 1));
                             previousBlue = blue;
                         }
-                        Assert.That(illuminated, Is.EqualTo(charges),
+                        if (previousBlue) blueSpans.Add(new Vector2Int(blueStart, size.x - 1));
+                        Assert.That(blueSpans.Count, Is.EqualTo(charges),
                             $"Every charge must remain separately readable: {charges}/{capacity}, {size.x}px HUD.");
+                        if (capacity == 6 && charges == 6) fullSlots = blueSpans;
+                        for (int slot = 0; slot < blueSpans.Count; slot++)
+                            Assert.That(blueSpans[slot], Is.EqualTo(fullSlots[slot]),
+                                "Each blue cell must keep its six-slot width and position as capacity changes.");
                         if (capacity == 6 && size.x == 222 && (charges == 0 || charges == 4 || charges == 6))
                             File.WriteAllBytes(Path.GetFullPath($"Library/ShieldHud-six-{charges}.png"),pixels.EncodeToPNG());
                     }
@@ -159,7 +183,13 @@ public sealed class ShieldHudTests
             using (var vertices = new VertexHelper())
             {
                 typeof(ShieldChargesGraphic).GetMethod("OnPopulateMesh", Private, null, new[] { typeof(VertexHelper) }, null).Invoke(view, new object[] { vertices });
-                Assert.That(vertices.currentVertCount, Is.Zero);
+                Assert.That(vertices.currentVertCount, Is.Zero, "The frame and icon must also be hidden without shield capacity.");
+                view.SetCharges(0, 3);
+                typeof(ShieldChargesGraphic).GetMethod("OnPopulateMesh", Private, null, new[] { typeof(VertexHelper) }, null).Invoke(view, new object[] { vertices });
+                Assert.That(vertices.currentVertCount, Is.GreaterThan(0), "Acquired sockets remain visible while all charges recharge.");
+                view.SetCharges(0, 0);
+                typeof(ShieldChargesGraphic).GetMethod("OnPopulateMesh", Private, null, new[] { typeof(VertexHelper) }, null).Invoke(view, new object[] { vertices });
+                Assert.That(vertices.currentVertCount, Is.Zero, "Removing shield capacity clears the previous mesh.");
             }
         }
         finally
