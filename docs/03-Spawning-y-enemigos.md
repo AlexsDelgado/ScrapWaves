@@ -5,7 +5,7 @@ Reemplaza `DumpsterFire-DEV-Spawning.docx` en lo que el código hace hoy. La int
 ## Capas de presión
 
 1. **Constante.** `OrbitalSpawner` sigue al jugador en un anillo y tira de una ruleta de tipos.
-2. **Puntuada.** Oleada de elites o boss según la paridad del Overheat. `ZoneSpawner` existe para emboscadas por trigger y se rearma en cada Overheat; en `GameplayScene` no hay instancias.
+2. **Puntuada.** Oleada de elites o boss según la paridad del Overheat. Actualización del 03-11-2026: `ZoneSpawner` tiene tres instancias en las islas superiores de `GameplayScene` y se rearma al terminar normalmente el Overheat, no al iniciarlo ni al interrumpirlo. Ver [spawners de las islas superiores](upper-island-spawners.md).
 3. **Terminal.** `ExitSpawnPressure` mientras el jugador va a la puerta. Ver `04-Game-Loop.md`.
 4. **Acumulada, desde el 22-09.** Cada Overheat cerrado acorta el intervalo orbital, sube el batch y sube la vida de lo que nace, con techo. Ver `02-Overheat.md`. Eso queda aunque el heat residual ya haya llegado a 0.
 
@@ -21,7 +21,7 @@ El swarm común no se borra al cerrar el Overheat. La única pausa de spawn es e
 | `EnemyPoolRegistry` / `EnemyPrefabPool` / `SwarmPooledEnemy` | Pool por prefab de la ruleta | Activo. El DEV del 21-7 decía Instantiate/Destroy sin pool |
 | `OverheatEliteWaveSpawner` | Oleada impar | Activo. En escena: 9 elites |
 | `BossManager` | Boss en ciclo par, Instantiate (sin pool) | Activo |
-| `ZoneSpawner` | Emboscada por zona | Código listo, sin uso en la escena principal |
+| `ZoneSpawner` | Emboscada por zona | Tres instancias en `GameplayScene`: Drone, Slime y Chaser (actualizado 03-11-2026) |
 | `SwarmSpawner` + `SwarmEnemyPool` | Un solo prefab, pool viejo | Obsoleto. Solo QA legacy |
 | `DifficultyManager` | Escala cantidad y stats por tiempo de run. No es la cadencia | Activo, se compone con heat y ciclos |
 

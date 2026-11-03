@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Spawner de zona (emboscada). Se activa cuando el jugador entra al trigger:
 /// spawnea una cantidad fija de un tipo de enemigo en un area propia (no ligada al
-/// jugador) y se desactiva hasta el proximo ciclo de Overheat. Pensado para 3
+/// jugador) y se desactiva hasta completar el Overheat. Pensado para 3
 /// variantes en prefab, una por tipo de enemigo, con <see cref="_spawnCount"/>
 /// editable.
 /// </summary>
@@ -25,7 +25,7 @@ public class ZoneSpawner : MonoBehaviour
     private DifficultyManager _difficultyManager;
 
     [Header("Re-arme")]
-    [SerializeField, Tooltip("Se vuelve a armar al iniciar el siguiente ciclo de Overheat.")]
+    [SerializeField, Tooltip("Se vuelve a armar al completar Overheat; una interrupcion no refresca la zona.")]
     private bool _rearmOnOverheat = true;
 
     [SerializeField, Tooltip("Vacío = FindAnyObjectByType.")]
@@ -55,10 +55,32 @@ public class ZoneSpawner : MonoBehaviour
     [SerializeField, Min(0f)] private float _resolveStepOut = 0.06f;
 
     private bool _armed = true;
+    private PlayerHealth _playerHealth;
     private readonly HashSet<Collider> _preparationEntries = new();
     private readonly List<GameObject> _spawned = new(16);
 
     public bool IsArmed => _armed;
+
+    /// <summary>Persistent armed-state transitions; temporary gameplay gates do not consume the zone.</summary>
+    public event System.Action<bool> ArmedChanged;
+
+    /// <summary>Whether the armed zone can currently be used, independent of player distance or presence.</summary>
+    public bool IsAvailable
+    {
+        get
+        {
+            if (!isActiveAndEnabled || !_armed || EntranceCinematic.StartupHeld || TutorialDirector.IsActive ||
+                Time.timeScale <= 0f || GameplayPause.IsUiPaused ||
+                (GameManager.Instance != null && !GameManager.Instance.IsPlaying) ||
+                (_overheatManager != null && _overheatManager.IsPreparing))
+                return false;
+
+            Transform player = PlayerMovement.PlayerTransform;
+            if (player != null && (_playerHealth == null || _playerHealth.transform != player))
+                _playerHealth = player.GetComponent<PlayerHealth>();
+            return _playerHealth == null || _playerHealth.IsAlive;
+        }
+    }
 
     private void Awake()
     {
@@ -67,6 +89,7 @@ public class ZoneSpawner : MonoBehaviour
 
         if (_difficultyManager == null)
             _difficultyManager = FindAnyObjectByType<DifficultyManager>();
+        _playerHealth = FindAnyObjectByType<PlayerHealth>();
 
         if (_groundRaycastMask.value == 0)
             _groundRaycastMask = LayerMask.GetMask("Terrain");
@@ -81,20 +104,14 @@ public class ZoneSpawner : MonoBehaviour
         if (_overheatManager == null)
             _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_overheatManager != null)
-        {
-            if (_rearmOnOverheat) _overheatManager.OnOverheatStarted += Rearm;
-            _overheatManager.OnOverheatFinished += ClearPreparationEntries;
-        }
+            _overheatManager.OnOverheatFinished += HandleOverheatFinished;
     }
 
     private void OnDisable()
     {
         _preparationEntries.Clear();
         if (_overheatManager != null)
-        {
-            _overheatManager.OnOverheatStarted -= Rearm;
-            _overheatManager.OnOverheatFinished -= ClearPreparationEntries;
-        }
+            _overheatManager.OnOverheatFinished -= HandleOverheatFinished;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -106,18 +123,24 @@ public class ZoneSpawner : MonoBehaviour
         PlayerHealth health = other.GetComponentInParent<PlayerHealth>();
         if (health == null) return;
         if (!health.IsAlive || (GameManager.Instance != null && !GameManager.Instance.IsPlaying)) return;
+        _playerHealth = health;
         if (_overheatManager != null && _overheatManager.IsPreparing)
         {
             _preparationEntries.Add(other);
             return;
         }
-        if (Time.timeScale <= 0f || GameplayPause.IsUiPaused) return;
+        if (!IsAvailable) return;
         _preparationEntries.Clear();
-        _armed = false;
+        SetArmed(false);
         SpawnAmbush();
     }
 
-    private void ClearPreparationEntries(OverheatEndReason reason) => _preparationEntries.Clear();
+    private void HandleOverheatFinished(OverheatEndReason reason)
+    {
+        _preparationEntries.Clear();
+        if (_rearmOnOverheat && reason != OverheatEndReason.Interrupted)
+            Rearm();
+    }
 
     private void OnTriggerStay(Collider other)
     {
@@ -178,10 +201,14 @@ public class ZoneSpawner : MonoBehaviour
         }
     }
 
-    /// <summary>Re-arma la emboscada (al iniciar el siguiente Overheat).</summary>
-    public void Rearm()
+    /// <summary>Re-arms the ambush after a completed Overheat or an explicit QA reset.</summary>
+    public void Rearm() => SetArmed(true);
+
+    private void SetArmed(bool armed)
     {
-        _armed = true;
+        if (_armed == armed) return;
+        _armed = armed;
+        ArmedChanged?.Invoke(armed);
     }
 
     /// <summary>Devuelve al pool o destruye los enemigos que spawneo esta zona (QA / Clear all).</summary>
