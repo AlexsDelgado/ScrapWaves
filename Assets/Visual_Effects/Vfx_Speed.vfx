@@ -37,9 +37,9 @@ MonoBehaviour:
   categories: []
   uiBounds:
     serializedVersion: 2
-    x: 632
+    x: 1069
     y: 677
-    width: 913
+    width: 476
     height: 2280
 --- !u!114 &114350483966674976
 MonoBehaviour:
@@ -2443,7 +2443,7 @@ MonoBehaviour:
   AlphaComposition: 0
   SampleMode: 0
   Mode: 1
-  ColorMode: 2
+  ColorMode: 1
   channels: 6
 --- !u!114 &8926484042661615065
 MonoBehaviour:
@@ -2538,7 +2538,7 @@ MonoBehaviour:
       m_Type:
         m_SerializableType: UnityEngine.Texture2D, UnityEngine.CoreModule, Version=0.0.0.0,
           Culture=neutral, PublicKeyToken=null
-      m_SerializableObject: '{"obj":{"fileID":10300,"guid":"0000000000000000f000000000000000","type":0}}'
+      m_SerializableObject: '{"obj":{"fileID":2800000,"guid":"9fd059fb05a4e4f439f2421a07422263","type":3}}'
     m_Space: -1
   m_Property:
     name: mainTexture
