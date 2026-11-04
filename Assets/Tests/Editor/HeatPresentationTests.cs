@@ -14,6 +14,28 @@ using Object = UnityEngine.Object;
 public sealed class HeatPresentationTests
 {
     [Test]
+    public void ScreenFeedback_OnlyRampsAcrossTheEightyToHundredPercentWarningRange()
+    {
+        var root = new GameObject("Isolated heat warning range test");
+        root.SetActive(false);
+        try
+        {
+            var view = root.AddComponent<HeatPresentationController>();
+            var state = Get<HeatPresentationState>(view, "_state");
+            var advance = typeof(HeatPresentationController).GetMethod("AdvanceFeedback", BindingFlags.Instance | BindingFlags.NonPublic);
+            foreach (var sample in new[] { new Vector2(.2f, 0f), new Vector2(.79f, 0f),
+                new Vector2(.8f, 0f), new Vector2(.9f, .5f), new Vector2(1f, 1f), new Vector2(0f, 0f) })
+            {
+                state.Read(sample.x, false, false);
+                advance.Invoke(view, new object[] { 2f });
+                Assert.That(Get<float>(view, "_screenWeight"), Is.EqualTo(sample.y).Within(.0001f), "Tint at heat " + sample.x);
+                Assert.That(Get<float>(view, "_edgeWeight"), Is.EqualTo(sample.y).Within(.0001f), "Flames at heat " + sample.x);
+            }
+        }
+        finally { Object.DestroyImmediate(root); }
+    }
+
+    [Test]
     public void Warning_IsOneCrossing_RearmsBelow75_AndNeverReplaysDuringCooling()
     {
         var state = new HeatPresentationState();

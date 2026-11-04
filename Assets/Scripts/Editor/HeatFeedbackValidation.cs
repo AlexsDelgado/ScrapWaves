@@ -19,6 +19,7 @@ public static class HeatFeedbackValidation
         var tests = new HeatPresentationTests();
         try
         {
+            tests.ScreenFeedback_OnlyRampsAcrossTheEightyToHundredPercentWarningRange(); passed++;
             tests.Warning_IsOneCrossing_RearmsBelow75_AndNeverReplaysDuringCooling(); passed++;
             tests.InitialBindingAndDirectOverheat_AreSilent_AndResetRestoresNormal(); passed++;
             tests.GameplayPrefab_HasBoundPresentation_AndPreservesFilledGauge(); passed++;
@@ -30,7 +31,7 @@ public static class HeatFeedbackValidation
             hud.Shaders_RenderPartialAndFullFills_WithAtlasUvs(); passed++;
         }
         catch (Exception exception) { failure = exception.ToString(); Debug.LogException(exception); }
-        string result = $"Heat feedback: {passed}/8 isolated checks passed.\n{failure}";
+        string result = $"Heat feedback: {passed}/9 isolated checks passed.\n{failure}";
         File.WriteAllText(Path.GetFullPath("Library/HeatFeedbackValidation.txt"), result);
         if (failure.Length == 0) Debug.Log(result);
     }
