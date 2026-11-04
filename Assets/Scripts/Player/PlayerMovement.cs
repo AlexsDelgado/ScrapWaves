@@ -345,7 +345,19 @@ public class PlayerMovement : MonoBehaviour
         s_Instance = this;
 
         _rb.interpolation = RigidbodyInterpolation.Interpolate;
-        _rb.freezeRotation = true; ConfigureMovementColliderMaterial();
+        _rb.freezeRotation = true;
+        ConfigureCollisionDetection();
+        ConfigureMovementColliderMaterial();
+    }
+
+    private void ConfigureCollisionDetection()
+    {
+        // Fast falls can cross thin ground between physics steps. Sweep the body
+        // instead of changing gravity, clamping fall speed or snapping to the probe.
+        // The entrance cinematic can hold the body kinematic before Awake runs;
+        // defer sweep-based CCD until it releases the body back to gameplay.
+        if (!_rb.isKinematic && _rb.collisionDetectionMode != CollisionDetectionMode.ContinuousDynamic)
+            _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
     }
 
     // Give the player collider no surface friction so pushing into walls does not prevent sideways movement.
@@ -424,7 +436,9 @@ public class PlayerMovement : MonoBehaviour
     // Run physics movement, friction, dash timer, and grounded transitions.
     private void FixedUpdate()
     {
-        if (_rb == null || _cameraTransform == null || GameplayPause.IsUiPaused || Time.timeScale <= 0f) return;
+        if (_rb == null) return;
+        ConfigureCollisionDetection();
+        if (_cameraTransform == null || GameplayPause.IsUiPaused || Time.timeScale <= 0f) return;
 
         UpdateGroundedState();
         if (!_crouchHeld) StopCrouchOrSlide();
