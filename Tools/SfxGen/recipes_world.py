@@ -93,69 +93,96 @@ def mortar_explosion(rng, v):
     return lofi(explosion(rng, 1.8, 48 * (1 + 0.08 * v["a"]), 0.55, 10, 0.9, 0.35), 12)
 
 
+def swing_air(n, rng, f_start, f_end, peak=0.38, power=1.2, body_gain=1.0):
+    """Aire desplazado por la hoja: ruido rosa cuyo corte baja rápido (efecto Doppler) con cuerpo grave.
+
+    Más 'whoosh' de velocidad que roce de tela: el contenido está entre ~150 Hz y 3 kHz y cae al pasar.
+    """
+    t = np.linspace(0, 1, n)
+    bell = np.sin(np.pi * t ** (np.log(0.5) / np.log(peak))) ** 1.4
+    air = highpass(lp_sweep(pink(n, rng), f_start, f_end, power), 150)
+    body = lowpass(pink(n, rng), 420) * body_gain
+    return (air + body) * bell
+
+
+def steel_zing(n, rng, freq, start, amp=0.32, decay=0.1):
+    """Destello metálico de acero (parciales de barra), a mitad del tajo."""
+    return at(modal(freq, decay * 2.2, rng, decay, ratios=(1.0, 2.32, 4.1, 6.3), spread=0.015)[:n] * amp, start, n)
+
+
 def blade_slash(rng, v):
-    """Tajo: un corte de aire corto y un destello metálico breve. Termina antes de que acabe el golpe."""
-    n = int(0.22 * SR)
-    air = whoosh(n, rng, 1400, 6500, 0.38) * 0.95
-    shing = at(modal(2600 * (1 + 0.08 * v["a"]), 0.12, rng, 0.05, ratios=(1.0, 1.9, 3.3), spread=0.02) * 0.1, 0.04, n)
-    x = mix(air, shing, n=n)
+    """Tajo: whoosh de aire rápido con un zing de acero. Dura lo que dura el golpe."""
+    n = int(0.23 * SR)
+    air = swing_air(n, rng, 2600 * (1 + 0.06 * v["a"]), 380, body_gain=1.2)
+    zing = steel_zing(n, rng, 1750 * (1 + 0.06 * v["b"]), 0.05, 0.2)
+    x = mix(air * 1.2, zing, n=n)
     x[-int(0.03 * SR):] *= np.linspace(1, 0, int(0.03 * SR))
     return lofi(x, 12)
 
 
 def flame_loop(rng, v):
-    """Lanzallamas continuo sin costura: rugido de fuego (ruido rosa grave con oleadas) y chisporroteo de leña.
+    """Lanzallamas continuo sin costura: rugido de fuego con mucha base, oleadas lentas y chisporroteo de leña.
 
-    Todo el contenido está por debajo de ~5 kHz y sin tonos: sin siseo agudo ni sonidos metálicos.
+    Rugido grave de combustión (60-320 Hz) que "respira", cuerpo de ruido rosa y pops sin tono. Sin agudos ni metal.
     """
     n = int(2.6 * SR)
+    breath = 0.6 + 0.4 * smooth_noise(n, rng, 1.6)
     swell = 0.55 + 0.45 * smooth_noise(n, rng, 3.5)
     flutter = 0.88 + 0.12 * smooth_noise(n, rng, 14)
-    body = bandpass(pink(n, rng), 120, 2400) * swell
-    mid = bandpass(pink(n, rng), 400, 3200) * (0.5 + 0.5 * smooth_noise(n, rng, 5)) * 0.8
-    low = lowpass(noise(n, rng), 160) * (0.6 + 0.4 * smooth_noise(n, rng, 2)) * 0.15
-    base = (body + mid + low) * flutter
+    deep = bandpass(pink(n, rng), 55, 330) * breath * 1.3
+    rumble = lowpass(pink(n, rng), 130) * (0.5 + 0.5 * smooth_noise(n, rng, 1.0)) * 0.6
+    body = bandpass(pink(n, rng), 120, 2400) * swell * 1.4
+    mid = bandpass(pink(n, rng), 400, 3200) * (0.5 + 0.5 * smooth_noise(n, rng, 5)) * 1.0
+    base = (deep + rumble + body + mid) * flutter
     cap = 2.2 * float(np.sqrt(np.mean(base ** 2)))
-    pops = np.clip(crackle(n, rng, 13, 0.55), -cap, cap)
-    x = base + pops
-    x = lowpass(soft_clip(x, 1.6), 5200)
+    pops = np.clip(crackle(n, rng, 12, 0.5), -cap, cap)
+    x = lowpass(soft_clip(base + pops, 1.6), 4800)
     return lofi(loopify(x, 0.25), 12)
 
 
 def flame_burst(rng, v):
-    """Llamarada de la habilidad: ignición grave y un rugido de fuego denso que se apaga."""
+    """Llamarada de la habilidad: ignición grave, rugido de fuego con mucha base y chisporroteo que se apaga."""
     n = int(1.1 * SR)
-    whoomp = boom(n, 85, 36, 0.2) * 0.25
-    roar = bandpass(pink(n, rng), 120, 2600) * (np.minimum(np.arange(n) / SR / 0.04, 1) * env_exp(n, 0.7, 0.0)) * 5.0
-    mid = bandpass(pink(n, rng), 400, 3200) * env_exp(n, 0.5, 0.01) * 3.0
-    pops = crackle(n, rng, 16, 0.4) * env_exp(n, 0.9, 0.0)
-    x = lowpass(soft_clip(mix(whoomp, roar * 1.1, mid, pops, n=n), 1.7), 5200)
+    whoomp = boom(n, 85, 36, 0.22) * 0.3
+    deep = bandpass(pink(n, rng), 55, 330) * env_exp(n, 0.8, 0.02) * 2.0
+    roar = bandpass(pink(n, rng), 120, 2600) * (np.minimum(np.arange(n) / SR / 0.04, 1) * env_exp(n, 0.7, 0.0)) * 4.0
+    mid = bandpass(pink(n, rng), 400, 3200) * env_exp(n, 0.5, 0.01) * 2.6
+    pops = crackle(n, rng, 15, 0.4) * env_exp(n, 0.9, 0.0)
+    x = lowpass(soft_clip(mix(whoomp, deep, roar, mid, pops, n=n), 1.7), 4800)
     return finish_fx(x, rng, 0.35, 0.14)
 
 
 # ---------------------------------------------------------------- habilidades
 
 def cannon_ability(rng, v):
-    """Habilidad del autocannon: UN disparo, más grande y más fuerte que el normal (no una ráfaga)."""
-    n = int(0.75 * SR)
-    crack = lowpass(transient(n, rng, 0.014, 1300), 6500) * 1.6
-    blast = lp_sweep(noise(n, rng), 3800, 220, 1.7) * env_exp(n, 0.24, 0.0004) * 3.4
-    thump = boom(n, 150 * (1 + 0.06 * v["a"]), 34, 0.26) * 0.9
-    sub = osc(lerp_curve(n, 62, 30, 2), "sine") * env_exp(n, 0.2, 0.001) * 0.45
-    ring = modal(430 * (1 + 0.06 * v["b"]), 0.5, rng, 0.22, ratios=(1.0, 2.4, 4.3)) * 0.16
-    x = soft_clip(mix(crack, blast, thump, sub, ring, n=n), 3.0)
-    return lofi(reverb(x, rng, 0.35, 0.2)[:n], 12)
+    """Habilidad del autocannon: UN disparo más grande y fuerte que el normal (no una ráfaga). Misma familia sonora, más cuerpo."""
+    n = int(0.8 * SR)
+    kick = osc(lerp_curve(n, 170 * (1 + 0.06 * v["a"]), 38, 4), "sine") * env_exp(n, 0.24, 0.0004) * 0.55
+    crack = bandpass(noise(n, rng), 1200, 4400) * env_exp(n, 0.022, 0.0001) * 5.0
+    snap = lowpass(noise(n, rng), 2400) * env_exp(n, 0.07, 0.0002) * 2.2
+    bark = lowpass(osc(lerp_curve(n, 260, 90, 3), "saw"), 1000) * env_exp(n, 0.14, 0.0004) * 0.7
+    body = lowpass(noise(n, rng), 900) * env_exp(n, 0.35, 0.001) * 2.1
+    tail = lowpass(pink(n, rng), 200) * env_exp(n, 0.5, 0.01) * 0.25
+    x = lowpass(soft_clip(mix(kick, crack, snap, bark, body, tail, n=n), 3.0), 5000)
+    return lofi(reverb(x, rng, 0.5, 0.22, 2200)[:n], 12)
+
+
+def rocket_burst(rng, m, f0=150.0):
+    """Una salida de cohete: estampido seco con siseo corto. La usan el lanzamiento normal y la habilidad."""
+    kick = boom(m, f0, 42, 0.12) * 0.8
+    burst = lp_sweep(noise(m, rng), 3600, 300, 1.8) * env_exp(m, 0.15, 0.0004) * 2.3
+    hiss = bandpass(noise(m, rng), 1500, 5000) * env_exp(m, 0.1, 0.003) * 0.25
+    return mix(kick, burst, hiss, lowpass(transient(m, rng, 0.01, 1200), 6500), n=m)
 
 
 def rocket_ability(rng, v):
-    """Racimo: tres salidas escalonadas."""
-    n = int(1.3 * SR)
-    m = int(0.7 * SR)
+    """Racimo: tres salidas escalonadas, cada una un estampido como el lanzamiento normal."""
+    n = int(0.95 * SR)
+    m = int(0.5 * SR)
     out = np.zeros(n)
     for k in range(3):
-        s = mix(boom(m, 120, 45, 0.09), whoosh(m, rng, 800, 5500, 0.2) * 0.8, transient(m, rng, 0.004, 1500) * 0.5, n=m)
-        out += at(s, 0.16 * k, n)
-    return finish_fx(soft_clip(out, 1.5), rng, 0.4, 0.2)
+        out += at(rocket_burst(rng, m, 150 - 12 * k) * (1.0 - 0.08 * k), 0.13 * k, n)
+    return lofi(reverb(soft_clip(out, 2.2), rng, 0.25, 0.15)[:n], 12)
 
 
 def mortar_ability(rng, v):
@@ -172,24 +199,24 @@ def mortar_ability(rng, v):
 
 
 def blade_thrust(rng, v):
-    """Estocada: aire rápido, golpe seco y un destello corto."""
-    n = int(0.26 * SR)
-    air = whoosh(n, rng, 2500, 7000, 0.3) * 0.8
-    hit = boom(n, 150, 60, 0.06) * 0.7
-    shing = at(modal(3100, 0.14, rng, 0.05, ratios=(1.0, 2.1, 3.7), spread=0.02) * 0.12, 0.07, n)
-    x = mix(air, hit, shing, n=n)
+    """Estocada: aire más rápido y agudo que el tajo, un golpe seco y el zing de acero."""
+    n = int(0.25 * SR)
+    air = swing_air(n, rng, 3800, 700, 0.3, 1.0, 0.7)
+    hit = at(boom(int(0.12 * SR), 150, 60, 0.05) * 0.35, 0.08, n)
+    zing = steel_zing(n, rng, 2300 * (1 + 0.05 * v["a"]), 0.07, 0.24, 0.09)
+    x = mix(air * 1.1, hit, zing, n=n)
     x[-int(0.03 * SR):] *= np.linspace(1, 0, int(0.03 * SR))
     return lofi(x, 12)
 
 
 def blade_dash(rng, v):
-    """Dash atómico: barrido de aire, raspado de metal y un golpe corto al final."""
+    """Dash atómico: whoosh largo que baja de tono, raspado de acero y un golpe corto al final."""
     n = int(0.5 * SR)
     m = int(0.2 * SR)
-    air = whoosh(n, rng, 500, 6000, 0.5) * 0.9
-    scrape = bandpass(noise(n, rng), 1500, 6000) * np.minimum(np.arange(n) / SR / 0.04, 1) * env_exp(n, 0.15, 0.0) * 0.25
-    end = at(mix(boom(m, 110, 45, 0.08), modal(900, 0.15, rng, 0.06)[:m] * 0.15, n=m), 0.28, n)
-    x = mix(air, scrape, end, n=n)
+    air = swing_air(n, rng, 3400, 380, 0.45, 1.0, 0.3)
+    zing = steel_zing(n, rng, 1500, 0.12, 0.22, 0.14)
+    end = at(mix(boom(m, 110, 45, 0.08) * 0.4, steel_zing(m, rng, 900, 0.0, 0.2, 0.08), n=m), 0.3, n)
+    x = mix(air * 1.1, zing, end, n=n)
     x[-int(0.03 * SR):] *= np.linspace(1, 0, int(0.03 * SR))
     return lofi(x, 12)
 
@@ -233,6 +260,21 @@ def overheat_warning(rng, v):
     creak = lowpass(osc(lerp_curve(n, 90, 140, 1.0), "saw"), 500) * rise * 0.25
     x = soft_clip(mix(steam, rumble, ticks, creak, n=n), 1.8)
     x[-int(0.08 * SR):] *= np.linspace(1, 0, int(0.08 * SR))
+    return lofi(x, 12)
+
+
+def hurt_impact(rng, v):
+    """Capa de golpe físico para el daño del jugador: pegada grave, palmada de cuerpo y un chasquido corto.
+
+    Se reproduce JUNTO al sonido de daño (no lo reemplaza) para darle peso.
+    """
+    n = int(0.2 * SR)
+    thump = boom(n, 150 * (1 + 0.08 * v["a"]), 50, 0.07) * 0.55
+    slap = lowpass(noise(n, rng), 2400) * env_exp(n, 0.03, 0.0003) * 2.8
+    body = bandpass(noise(n, rng), 200, 1000) * env_exp(n, 0.06, 0.0005) * 3.2
+    crack = lowpass(transient(n, rng, 0.006, 800), 4000) * 0.6
+    x = soft_clip(mix(thump, slap, body, crack, n=n), 2.4)
+    x[-int(0.02 * SR):] *= np.linspace(1, 0, int(0.02 * SR))
     return lofi(x, 12)
 
 
@@ -416,6 +458,7 @@ WORLD_RECIPES = {
     "slide": slide,
     "overheat_warning": overheat_warning,
     "overheat_alarm": overheat_alarm,
+    "hurt_impact": hurt_impact,
     "bomber_spawn": bomber_spawn, "bomber_death": bomber_death,
     "charger_spawn": charger_spawn, "charger_death": charger_death,
     "destroyer_spawn": destroyer_spawn, "destroyer_death": destroyer_death,

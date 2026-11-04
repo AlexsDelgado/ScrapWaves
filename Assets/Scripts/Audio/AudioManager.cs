@@ -37,6 +37,9 @@ public class AudioManager : MonoBehaviour
     [SerializeField, Tooltip("Sonido al subir de nivel. Apagado a pedido de diseño.")]
     private bool _playLevelUpSfx;
 
+    [SerializeField, Tooltip("Golpe de caída al aterrizar. Apagado: para sonar bien tendría que adaptarse a la superficie.")]
+    private bool _playLandSfx;
+
     [SerializeField, Tooltip("Alarma repetida al estar en el nivel superior durante Overheat. Apagada a pedido de diseño.")]
     private bool _playUpperAlarmSfx;
 
@@ -78,6 +81,7 @@ public class AudioManager : MonoBehaviour
     private const float UpperAlarmGain = 2.5f;
     private const float DashGain = 0.35f;
     private const float SlideGain = 0.35f;
+    private const float HurtImpactGain = 0.9f;
     private const float EnemyDeathGain = 0.6f;
     private AudioSource[] _spatialVoices;
     private int _nextSpatialVoice;
@@ -402,7 +406,7 @@ public class AudioManager : MonoBehaviour
 
     public void PlayLand()
     {
-        if (Time.timeSinceLevelLoad < 0.75f)
+        if (!_playLandSfx || Time.timeSinceLevelLoad < 0.75f)
             return;
 
         PlaySfx(Resolve(Synth("land"), _library != null ? _library.PickLand() : null));
@@ -443,6 +447,8 @@ public class AudioManager : MonoBehaviour
 
         _nextPlayerHurtTime = Time.unscaledTime + _playerHurtCooldown;
         PlaySfx(clip);
+        // Capa de golpe físico sintetizada: suma peso sin reemplazar el sonido de daño.
+        PlaySfx(Synth("hurt_impact"), HurtImpactGain);
     }
 
     private static AudioClip Resolve(AudioClip variation, AudioClip fallback) => variation != null ? variation : fallback;

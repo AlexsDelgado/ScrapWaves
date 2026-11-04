@@ -15,19 +15,19 @@ def boom(n, f0, f1, decay, power=3):
 
 
 def shot(rng, v):
-    """Autocannon: un disparo seco con pegada. Chasquido agudo, golpe de gas, cuerpo grave que cae y un clack metálico.
+    """Autocannon: un disparo de arma de fuego, grave y seco. Golpe de bombo, estallido filtrado y cuerpo.
 
-    Corto (~0,4 s) y comprimido: el golpe llega al instante y la cola casi no existe, para que se sienta como un tiro
-    y no como un ruido largo.
+    Sin agudos ni resonancias metálicas (eso sonaba a granizo sobre chapa): todo pasa por un paso bajo y la
+    energía vive en el golpe grave y el estallido medio, con una cola corta.
     """
-    n = int(0.42 * SR)
-    crack = lowpass(transient(n, rng, 0.012, 1500), 6500) * 1.6
-    gas = bandpass(noise(n, rng), 180, 3600) * env_exp(n, 0.085, 0.0003) * 3.2
-    thump = boom(n, 200 * (1 + 0.1 * v["a"]), 46, 0.14) * 0.75
-    sub = osc(lerp_curve(n, 70, 38, 2), "sine") * env_exp(n, 0.1, 0.001) * 0.35
-    clack = at(modal(640 * (1 + 0.08 * v["b"]), 0.2, rng, 0.07, ratios=(1.0, 2.3, 4.1)) * 0.18, 0.012, n)
-    x = soft_clip(mix(crack, gas, thump, sub, clack, n=n), 2.8)
-    return lofi(reverb(x, rng, 0.16, 0.1)[:n], 12)
+    n = int(0.38 * SR)
+    kick = osc(lerp_curve(n, 210 * (1 + 0.08 * v["a"]), 52, 4), "sine") * env_exp(n, 0.1, 0.0004) * 0.8
+    crack = bandpass(noise(n, rng), 1400, 4600) * env_exp(n, 0.014, 0.0001) * 3.4
+    snap = lowpass(noise(n, rng), 2800) * env_exp(n, 0.04, 0.0002) * 1.8
+    bark = lowpass(osc(lerp_curve(n, 340, 130, 3), "saw"), 1400) * env_exp(n, 0.06, 0.0004) * 0.6
+    body = lowpass(noise(n, rng), 900) * env_exp(n, 0.16, 0.001) * 1.0
+    x = lowpass(soft_clip(mix(kick, crack, snap, bark, body, n=n), 3.0), 5500)
+    return lofi(reverb(x, rng, 0.2, 0.12, 2500)[:n], 12)
 
 
 def jump(rng, v):
