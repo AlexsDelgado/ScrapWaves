@@ -29,6 +29,8 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     [SerializeField, Tooltip("Capas de suelo para mantener la altura de vuelo.")]
     private LayerMask _groundMask;
     [SerializeField, Min(1f)] private float _hoverRaycastUp = 40f;
+    [SerializeField, Tooltip("Capas que cuentan como suelo o plataforma al comprobar si el disparo sale desde debajo de ellas. Vacío = Default + Terrain.")]
+    private LayerMask _shotBlockMask;
 
     [Header("Distancias")]
     [SerializeField, Min(0.5f), Tooltip("Empieza a lockear cuando el jugador esta a esta distancia o menos.")]
@@ -53,6 +55,8 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
     [SerializeField] private bool _showLockingLine = true;
     [SerializeField, Min(.005f)] private float _lockingLineWidth = .045f;
     private DroneAimLine _aimLine;
+    // Mientras el disparo saldría desde debajo del suelo, el dron sube sin esperar la zona muerta y no apunta.
+    private bool _climbForClearShot;
     private EnemyHealth _aimHealth;
     // Share the same model-relative origin between the warning and the actual shot.
     // Bounds follow the animated model and spawn scale; the root pivot is below its body.
@@ -104,6 +108,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
         base.OnPoolSpawn();
         HideAimLine();
         _hoverMotion = default;
+        _climbForClearShot = false;
         _orbitSign = Random.value < 0.5f ? -1f : 1f;
     }
 
@@ -121,6 +126,50 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
 
     private void OnDestroy() => _aimLine?.Dispose();
     private void HideAimLine() => _aimLine?.Hide();
+
+    private static readonly RaycastHit[] s_ShotHits = new RaycastHit[8];
+    private static readonly Collider[] s_ShotOverlaps = new Collider[8];
+
+    private int ShotBlockMask => _shotBlockMask.value != 0 ? _shotBlockMask.value : LayerMask.GetMask("Default", "Terrain");
+
+    /// <summary>
+    /// True si el disparo saldría desde debajo de un suelo o plataforma: la línea cañón-jugador cruza su cara inferior,
+    /// o el cañón quedó dentro de la geometría. Paredes y saltos del jugador no cuentan.
+    /// </summary>
+    private bool ShotComesFromBelowGround(Transform player)
+    {
+        if (player == null)
+            return false;
+
+        Vector3 muzzle = MuzzlePosition;
+        int mask = ShotBlockMask;
+        int overlaps = Physics.OverlapSphereNonAlloc(muzzle, 0.1f, s_ShotOverlaps, mask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < overlaps; i++)
+        {
+            if (!s_ShotOverlaps[i].transform.IsChildOf(transform))
+                return true;
+        }
+
+        Vector3 delta = player.position - muzzle;
+        float distance = delta.magnitude;
+        if (distance < 0.01f)
+            return false;
+
+        // Primer impacto que no sea del propio dron: solo cuenta si es la cara inferior de un suelo o plataforma.
+        int hits = Physics.RaycastNonAlloc(muzzle, delta / distance, s_ShotHits, distance, mask, QueryTriggerInteraction.Ignore);
+        float nearest = float.MaxValue;
+        bool underside = false;
+        for (int i = 0; i < hits; i++)
+        {
+            RaycastHit hit = s_ShotHits[i];
+            if (hit.distance >= nearest || hit.collider.transform.IsChildOf(transform))
+                continue;
+            nearest = hit.distance;
+            underside = hit.normal.y < -0.3f;
+        }
+
+        return underside;
+    }
 
     private void LateUpdate()
     {
@@ -193,7 +242,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             * (_statRandomizer != null ? _statRandomizer.MovementSpeedMultiplier : 1f)
             * DebugSpeedTool.EnemyScale;
         pos.y = _hoverMotion.Step(pos.y, player.position.y + hoverHeight, minimumY,
-            _upwardDeadZone, _downwardDeadZone, verticalSpeed, deltaTime);
+            _climbForClearShot ? 0f : _upwardDeadZone, _downwardDeadZone, verticalSpeed, deltaTime);
         transform.position = pos;
     }
 
@@ -215,6 +264,7 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
 
         if (dist > _approachUntilDistance)
         {
+            _climbForClearShot = false;
             Vector3 slotDir = PlanarDirectionToPoint(PlanarPointAroundPlayer(SteeringSlotAngle, standoff));
             EnemyMovementSteering.RefreshPositionCacheIfNeeded();
             Vector3 weave = EnemyMovementSteering.GetWeaveOffset(
@@ -250,12 +300,27 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             return;
         }
 
+        // A distancia de tiro pero por debajo del suelo del jugador: sube (MaintainHover) antes de apuntar.
+        _climbForClearShot = ShotComesFromBelowGround(Player);
+        if (_climbForClearShot)
+            return;
+
         _state = State.Locking;
         _stateTimer = _lockSeconds;
     }
 
     private void TickLocking()
     {
+        _climbForClearShot = ShotComesFromBelowGround(Player);
+        if (_climbForClearShot)
+        {
+            // El jugador quedó sobre una plataforma respecto al dron: cancela el apuntado, no dispara.
+            _state = State.Approaching;
+            _stateTimer = 0f;
+            HideAimLine();
+            return;
+        }
+
         Vector3 dir = PlanarDirectionToPlayer();
         FacePlanar(dir, _rotationSpeed * 1.5f);
 
@@ -323,6 +388,9 @@ public class FlyingRangedBehavior : EnemyBehaviorBase
             Debug.LogWarning("[FlyingRangedBehavior] _bulletPrefab is not assigned.", this);
             return;
         }
+
+        if (ShotComesFromBelowGround(Player))
+            return;
 
         Vector3 muzzle = MuzzlePosition;
         Vector3 dir = _lockedTargetPosition - muzzle;
