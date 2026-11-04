@@ -143,11 +143,11 @@ public class TemporaryPowerupController : MonoBehaviour
             }
             case TemporaryPowerupType.FullHeal:
                 ApplyFullHeal();
-                ShowBuffFx(new Color(1f, 0.3f, 0.55f, 0.85f), 1.75f);
+                PowerupPickupVfx.Ensure(gameObject)?.PlayFullHeal();
                 break;
             case TemporaryPowerupType.Nuke:
                 ApplyNuke(t);
-                ShowBuffFx(new Color(1f, 0.85f, 0.15f, 0.9f), 1.75f);
+                // The Nuke owns its world-space effect inside ApplyNuke.
                 break;
         }
     }
@@ -187,7 +187,7 @@ public class TemporaryPowerupController : MonoBehaviour
             EnemyKnockbackReceiver.TryApply(enemy, origin, 18f * falloff);
         }
 
-        ExplosionRadiusVfx.Spawn(origin, radius);
+        PowerupPickupVfx.Ensure(gameObject)?.PlayNuke(origin, radius);
         EmitLog($"[Powerup Nuke] Damage  base: 0.00 || +buff: {damage:0.00}\n[Powerup Nuke] Radius  base: 0.00 || +buff: {radius:0.00}");
     }
 
