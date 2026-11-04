@@ -9146,7 +9146,7 @@ MonoBehaviour:
   _levelUpChoiceUi: {fileID: 0}
   _participatesInRotation: 1
   _initialBreakChancePercent: 0
-  _breakChanceIncrementPercent: 5
+  _breakChanceIncrementPercent: 7.5
   _activeVisual: {fileID: 8104504730386754421}
   _brokenVisual: {fileID: 4644862359743419618}
 --- !u!1 &2579995419015019862

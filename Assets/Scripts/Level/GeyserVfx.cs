@@ -15,7 +15,7 @@ public sealed class GeyserVfx : MonoBehaviour
     [Header("Continuous updraft")]
     [SerializeField] private Color _flowColor = new(.83f, .79f, .64f, .65f);
     [SerializeField, Range(1f, 40f)] private float _particlesPerSecond = 24f;
-    [SerializeField, Range(.5f, 15f), InspectorName("Flow speed")] private float _upwardSpeed = 7f;
+    [SerializeField, Range(.5f, 45f), InspectorName("Flow speed")] private float _upwardSpeed = 7f;
     [SerializeField, Range(1f, 5f)] private float _lifetime = 1.8f;
     [SerializeField, Range(.25f, 2f)] private float _wispSize = .5f;
     [SerializeField, Range(.5f, 2f)] private float _openingRadius = 1.25f;
