@@ -89,10 +89,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
-          Enabled: 0
-          Value: 0
+          Enabled: 1
+          Value: 8
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -408,10 +408,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 7
+          Value: 9.5
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -727,10 +727,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 8
+          Value: 11
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -1046,10 +1046,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 9
+          Value: 12.5
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -1365,10 +1365,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 10
+          Value: 14
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -1684,10 +1684,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 11
+          Value: 15.5
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -2003,10 +2003,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 12
+          Value: 17
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -2322,10 +2322,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 13
+          Value: 18.5
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -2641,10 +2641,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 14
+          Value: 20
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -2960,10 +2960,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 1
+          Value: 3
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 15
+          Value: 24
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -3279,10 +3279,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 2
+          Value: 5
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 11
+          Value: 15.5
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -3598,10 +3598,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 2
+          Value: 5
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 12
+          Value: 17
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -3917,10 +3917,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 2
+          Value: 5
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 13
+          Value: 18.5
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -4236,10 +4236,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 2
+          Value: 5
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 14
+          Value: 20
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
@@ -4555,10 +4555,10 @@ MonoBehaviour:
           Value: 0
         KnockbackStrength:
           Enabled: 1
-          Value: 2
+          Value: 5
         ExplosionRadiusMeters:
           Enabled: 1
-          Value: 15
+          Value: 24
       Cannon:
         ManualProjectileLifetimeSeconds:
           Enabled: 0
