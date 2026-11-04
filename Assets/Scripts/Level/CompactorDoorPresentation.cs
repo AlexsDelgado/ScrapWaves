@@ -7,6 +7,7 @@ using UnityEngine.Playables;
 /// Clip duration never changes when the exit becomes ready, and the final pose is held.
 /// </summary>
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(-70)]
 public sealed class CompactorDoorPresentation : MonoBehaviour, System.IDisposable
 {
     [SerializeField] private ExitDoor _exitDoor;
@@ -14,6 +15,9 @@ public sealed class CompactorDoorPresentation : MonoBehaviour, System.IDisposabl
     [SerializeField] private AnimationClip _openingClip;
     [SerializeField] private Renderer _suctionRenderer;
     [SerializeField] private Collider _closedDoorCollider;
+    [SerializeField] private Transform _movingPanel;
+    [SerializeField] private float _closedPanelHeight;
+    [SerializeField] private Vector3 _closedColliderLocalPosition;
 
     private static readonly int ActivityId = Shader.PropertyToID("_Activity");
 
@@ -50,6 +54,17 @@ public sealed class CompactorDoorPresentation : MonoBehaviour, System.IDisposabl
         }
     }
 
+    /// <summary>The solid panel follows the sampled rig, including partial opening and resets.</summary>
+    public void ConfigureMovingPanel(Transform panel)
+    {
+        _movingPanel = panel;
+        if (_movingPanel != null)
+            _closedPanelHeight = transform.InverseTransformPoint(_movingPanel.position).y;
+        if (_closedDoorCollider != null)
+            _closedColliderLocalPosition = _closedDoorCollider.transform.localPosition;
+        Synchronize();
+    }
+
     private void OnEnable()
     {
         if (_exitDoor == null)
@@ -75,6 +90,12 @@ public sealed class CompactorDoorPresentation : MonoBehaviour, System.IDisposabl
     private void OnDisable() => Dispose();
 
     private void OnDestroy() => Dispose();
+
+    private void FixedUpdate()
+    {
+        // ExitDoor advances first; transforms are sampled before the following physics step.
+        Synchronize();
+    }
 
     private void LateUpdate()
     {
@@ -123,24 +144,34 @@ public sealed class CompactorDoorPresentation : MonoBehaviour, System.IDisposabl
 
     private void ApplyPresentation(ExitDoorState state, float chargeProgress)
     {
-        bool isOpen = state == ExitDoorState.Ready || state == ExitDoorState.Used;
+        bool isOpen = state == ExitDoorState.Ready;
         bool isCharging = state == ExitDoorState.Charging;
-        float progress = isOpen ? 1f : isCharging ? Mathf.Clamp01(chargeProgress) : 0f;
+        bool hasStarted = isCharging || state == ExitDoorState.Used;
+        float progress = isOpen ? 1f : hasStarted ? Mathf.Clamp01(chargeProgress) : 0f;
 
         if (_closedDoorCollider != null)
-            _closedDoorCollider.enabled = !isOpen;
+            _closedDoorCollider.enabled = true;
 
-        SetSuctionActivity(isOpen ? 1f : isCharging ? Mathf.Lerp(0.2f, 1f, progress) : 0f);
+        SetSuctionActivity(isOpen ? 1f : hasStarted ? Mathf.Lerp(0.2f, 1f, progress) : 0f);
 
-        if (!EnsureGraph() || progress == _sampledProgress)
+        if (!EnsureGraph())
             return;
 
-        // The graph never advances itself. At 100%, sampling the exact non-looping
-        // clip end keeps the entire door and its hydraulics in their fully open pose.
-        _openingPlayable.SetTime(progress * (double)_openingClip.length);
-        _openingPlayable.SetDone(false);
-        _graph.Evaluate(0f);
-        _sampledProgress = progress;
+        if (progress != _sampledProgress)
+        {
+            // Used may occur before 100%; hold the winning pose without jumping to the clip end.
+            _openingPlayable.SetTime(progress * (double)_openingClip.length);
+            _openingPlayable.SetDone(false);
+            _graph.Evaluate(0f);
+            _sampledProgress = progress;
+        }
+        if (_movingPanel != null && _closedDoorCollider != null)
+        {
+            float displacement = transform.InverseTransformPoint(_movingPanel.position).y - _closedPanelHeight;
+            Vector3 offset = _closedDoorCollider.transform.parent.InverseTransformVector(
+                transform.TransformVector(Vector3.up * displacement));
+            _closedDoorCollider.transform.localPosition = _closedColliderLocalPosition + offset;
+        }
     }
 
     private bool EnsureGraph()

@@ -48,7 +48,7 @@ Cosas que el código deja abiertas y un spec “final” no debería pintar como
 
 1. **Config muerta de multi-boss.** Ciclo 3, bosses solo en ciclos pares. Nunca spawnea el segundo boss de ese ciclo con los valores de escena.
 2. **Presión de salida y cadencia orbital.** El batch y la velocidad suben. El intervalo de `OrbitalSpawner` no usa `SpawnRateMultiplier`.
-3. **`ZoneSpawner` sin colocar** en la escena principal. El diseño de emboscadas regionales no está en el mapa que se juega.
+3. **`ZoneSpawner`: situación actualizada el 03-11-2026.** Ya hay tres instancias en las islas superiores de `GameplayScene` (Drone, Slime y Chaser). El rearme al terminar Overheat y la presentación editable se describen en [spawners de las islas superiores](upper-island-spawners.md); la ausencia de instancias ya no es un hueco vigente.
 4. **Dos pisos del GDD.** Dirección de nivel, no regla del loop.
 5. **Crítico saturado** por la definición de `CriticalChance` y por el powerup de daño extra. Documentado por el spec de armas como defecto de corrección.
 6. **Cooldown de ciclo manual** no se aplica en `EndManualMode`. Con una sola arma, la munición se rellena y el manual vuelve a empezar enseguida.

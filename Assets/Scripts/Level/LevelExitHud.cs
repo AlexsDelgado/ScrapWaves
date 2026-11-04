@@ -15,6 +15,23 @@ public class LevelExitHud : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _statusText;
     [SerializeField] private GameObject _root;
 
+    [Header("Status text")]
+    [SerializeField, TextArea(1, 3)] private string _discoveryText = "Find a way to escape";
+    [SerializeField, Tooltip("Available tokens: {collected}, {required}.")]
+    private string _batteryProgressText = "Batteries: {collected}/{required}";
+    [SerializeField, TextArea(1, 3)] private string _activationText = "¡Salida desbloqueada! Acercate a la puerta y pulsa [E]";
+    [SerializeField, TextArea(1, 3), Tooltip("Available token: {progress}.")]
+    private string _chargingText = "Abriendo: {progress}% - salta y atravesala";
+    [SerializeField, TextArea(1, 3)] private string _readyText = "Salida abierta - atravesala para escapar";
+    [SerializeField, TextArea(1, 3), Tooltip("Available token: {multiplier}.")]
+    private string _pressureText = "¡Salida desbloqueada! Oleadas x{multiplier} — encontrá la puerta";
+
+    [Header("Status colors")]
+    [SerializeField] private Color _objectiveColor = new(0.95f, 0.85f, 0.35f, 1f);
+    [SerializeField] private Color _unlockedColor = new(0.4f, 1f, 0.55f, 1f);
+    [SerializeField] private Color _chargingColor = new(0.55f, 0.9f, 1f, 1f);
+    [SerializeField] private Color _pressureColor = new(1f, 0.45f, 0.3f, 1f);
+
     private void Awake()
     {
         ResolveRefs();
@@ -123,17 +140,38 @@ public class LevelExitHud : MonoBehaviour
         _root = new GameObject("LevelExitHud", typeof(RectTransform));
         _root.transform.SetParent(parent, false);
         var rootRt = _root.GetComponent<RectTransform>();
-        // Arriba a la derecha: el centro de arriba es del panel de diálogo de jefes.
-        rootRt.anchorMin = new Vector2(1f, 1f);
-        rootRt.anchorMax = new Vector2(1f, 1f);
-        rootRt.pivot = new Vector2(1f, 1f);
-        rootRt.anchoredPosition = new Vector2(-28f, -24f);
-        rootRt.sizeDelta = new Vector2(360f, 44f);
-
         _statusText = HudUiFactory.CreateLabel(_root.transform, "Text", string.Empty, 24f, TextAlignmentOptions.MidlineRight);
-        _statusText.fontStyle = FontStyles.Bold;
-        _statusText.color = new Color(0.95f, 0.85f, 0.35f, 1f);
+        ConfigureObjectivePanel(rootRt, _statusText);
+        _statusText.color = _objectiveColor;
         UnityEditor.EditorUtility.SetDirty(this);
+    }
+
+    /// <summary>Shared editor defaults for newly authored panels and explicit HUD art updates.</summary>
+    public static void ConfigureObjectivePanel(RectTransform panel, TextMeshProUGUI text)
+    {
+        // The centered boss bar occupies the first row; the objective sits beside the dialogue below it.
+        panel.anchorMin = panel.anchorMax = panel.pivot = Vector2.one;
+        panel.anchoredPosition = new Vector2(-28f, -96f);
+        panel.sizeDelta = new Vector2(360f, 88f);
+        Image background = panel.GetComponent<Image>();
+        if (background == null) background = panel.gameObject.AddComponent<Image>();
+        background.sprite = HudUiFactory.WhiteSprite;
+        background.color = new Color(0f, 0f, 0f, .55f);
+        background.raycastTarget = false;
+
+        if (text == null) return;
+        text.rectTransform.anchorMin = Vector2.zero;
+        text.rectTransform.anchorMax = Vector2.one;
+        text.rectTransform.offsetMin = new Vector2(16f, 10f);
+        text.rectTransform.offsetMax = new Vector2(-16f, -10f);
+        text.fontSize = 24f;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 20f;
+        text.fontSizeMax = 24f;
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.alignment = TextAlignmentOptions.MidlineRight;
+        text.fontStyle = FontStyles.Bold;
+        text.raycastTarget = false;
     }
 #endif
 
@@ -149,28 +187,34 @@ public class LevelExitHud : MonoBehaviour
             return;
         }
 
+        if (_exitDoor != null && _exitDoor.State == ExitDoorState.Used)
+        {
+            _root.SetActive(false);
+            return;
+        }
+
         if (_exitDoor != null && _exitDoor.State == ExitDoorState.Ready)
         {
             _root.SetActive(true);
-            _statusText.text = "Salida lista — acercate y pulsa [E] para salir";
-            _statusText.color = new Color(0.4f, 1f, 0.55f, 1f);
+            _statusText.text = _readyText;
+            _statusText.color = _unlockedColor;
             return;
         }
 
         if (_exitDoor != null && _exitDoor.State == ExitDoorState.AwaitingActivation)
         {
             _root.SetActive(true);
-            _statusText.text = "¡Salida desbloqueada! Acercate a la puerta y pulsa [E]";
-            _statusText.color = new Color(0.4f, 1f, 0.55f, 1f);
+            _statusText.text = _activationText;
+            _statusText.color = _unlockedColor;
             return;
         }
 
         if (_exitDoor != null && _exitDoor.State == ExitDoorState.Charging)
         {
             _root.SetActive(true);
-            float pct = Mathf.RoundToInt(_exitDoor.ChargeNormalized * 100f);
-            _statusText.text = $"Abriendo salida… {pct}%";
-            _statusText.color = new Color(0.55f, 0.9f, 1f, 1f);
+            int pct = Mathf.RoundToInt(_exitDoor.ChargeNormalized * 100f);
+            _statusText.text = (_chargingText ?? string.Empty).Replace("{progress}", pct.ToString());
+            _statusText.color = _chargingColor;
             return;
         }
 
@@ -178,16 +222,20 @@ public class LevelExitHud : MonoBehaviour
         {
             _root.SetActive(true);
             int mult = Mathf.RoundToInt(_exitPressure.CurrentSpawnMultiplier);
-            _statusText.text = $"¡Salida desbloqueada! Oleadas x{mult} — encontrá la puerta";
-            _statusText.color = new Color(1f, 0.45f, 0.3f, 1f);
+            _statusText.text = (_pressureText ?? string.Empty).Replace("{multiplier}", mult.ToString());
+            _statusText.color = _pressureColor;
             return;
         }
 
         if (!_exitObjective.AllKeysCollected)
         {
             _root.SetActive(true);
-            _statusText.text = $"Batteries: {_exitObjective.KeysCollected}/{_exitObjective.KeysRequired}";
-            _statusText.color = new Color(0.95f, 0.85f, 0.35f, 1f);
+            _statusText.text = _exitObjective.KeysCollected == 0
+                ? _discoveryText
+                : (_batteryProgressText ?? string.Empty)
+                    .Replace("{collected}", _exitObjective.KeysCollected.ToString())
+                    .Replace("{required}", _exitObjective.KeysRequired.ToString());
+            _statusText.color = _objectiveColor;
             return;
         }
 

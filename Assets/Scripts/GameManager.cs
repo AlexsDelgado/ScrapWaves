@@ -87,7 +87,7 @@ public class GameManager : MonoBehaviour
         RunSessionStats.RegisterBossKill();
     }
 
-    /// <summary>Victoria al interactuar con la puerta de salida.</summary>
+    /// <summary>Victoria al atravesar por completo la puerta de salida activada.</summary>
     public void TriggerVictory()
     {
         if (_state != GameState.Playing)

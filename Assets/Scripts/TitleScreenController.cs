@@ -273,12 +273,19 @@ public sealed class TitleScreenController : MonoBehaviour
 
     private void ApplyLeaderboardVisibility()
     {
+        if (Application.isPlaying)
+        {
+            if (DemoLeaderboardEnabled && _demoLeaderboardSettings.UseOnlineLeaderboard)
+                DemoLeaderboardOnline.Configure(_demoLeaderboardSettings);
+            else
+                DemoLeaderboardOnline.ClearConfiguration();
+        }
         if (_leaderboardView == null)
             return;
         _leaderboardView.SetVisible(DemoLeaderboardEnabled);
         // Edit-mode authoring validation must not access the user's demonstration save.
         if (DemoLeaderboardEnabled && Application.isPlaying)
-            _leaderboardView.RefreshFromStore();
+            _leaderboardView.Refresh(_demoLeaderboardSettings);
     }
 
     private void LoadWeaponSandbox()

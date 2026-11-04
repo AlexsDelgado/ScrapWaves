@@ -85,6 +85,344 @@ public sealed class RocketLauncherPresentationTests
         }
     }
 
+    [TestCase(0.001f, GameFeelQualityLevel.High, false)]
+    [TestCase(1f, GameFeelQualityLevel.High, false)]
+    [TestCase(4f, GameFeelQualityLevel.High, false)]
+    [TestCase(8f, GameFeelQualityLevel.High, false)]
+    [TestCase(0.001f, GameFeelQualityLevel.Low, true)]
+    [TestCase(1f, GameFeelQualityLevel.Low, true)]
+    [TestCase(4f, GameFeelQualityLevel.Low, true)]
+    [TestCase(8f, GameFeelQualityLevel.Low, true)]
+    public void ProductionRocketMainBlast_FillsCapturedDamageSphereWithoutRingOrParticles(
+        float radius, GameFeelQualityLevel quality, bool reducedFlash)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        foreach (WeaponPresentationCue cueId in ExplosionCues)
+        {
+            Assert.That(profile.TryGetCueData(cueId, out WeaponPresentationCueData cue), Is.True);
+            GameObject instance = Object.Instantiate(cue.VfxPrefab);
+            try
+            {
+                instance.transform.SetPositionAndRotation(new Vector3(3f, 2f, -4f), Quaternion.Euler(37f, 51f, 19f));
+                RocketLauncherCueVfx vfx = instance.GetComponent<RocketLauncherCueVfx>();
+                WeaponPresentationContext context = new(cueId, null, instance.transform.position,
+                    instance.transform.forward, explosionRadius: radius, quality: quality,
+                    reducedFlash: reducedFlash, reducedFlashIntensity: 0.35f,
+                    fragmentConeRange: 7.5f, fragmentConeAngle: 30f);
+                vfx.ApplyContext(in context);
+
+                Transform core = instance.transform.Find("Explosion Core");
+                Transform authoredCore = cue.VfxPrefab.transform.Find("Explosion Core");
+                Assert.That(core.GetComponent<MeshFilter>().sharedMesh,
+                    Is.SameAs(authoredCore.GetComponent<MeshFilter>().sharedMesh), "Keep the authored blast artwork.");
+                Assert.That(core.GetComponent<Renderer>().sharedMaterial,
+                    Is.SameAs(authoredCore.GetComponent<Renderer>().sharedMaterial));
+
+                foreach (float age in new[] { 0f, 0.08f, 0.2f, 0.45f })
+                {
+                    typeof(RocketLauncherCueVfx).GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .Invoke(vfx, new object[] { age });
+                    // These other layers cannot make this assertion pass: inspect only the solid core mesh.
+                    instance.transform.Find("Resolved Damage Footprint").GetComponent<Renderer>().enabled = false;
+                    foreach (ParticleSystem particles in instance.GetComponentsInChildren<ParticleSystem>(true))
+                        particles.GetComponent<Renderer>().enabled = false;
+                    AssertMainBlast(instance, radius);
+                }
+
+                Transform fragments = instance.transform.Find("Forward Mini Explosions");
+                if (fragments != null)
+                    Assert.That(fragments.localScale, Is.EqualTo(Vector3.one * 7.5f),
+                        "The independent fragmentation reach must not inherit the spherical blast size.");
+                Assert.That(instance.transform.localScale, Is.EqualTo(Vector3.one));
+            }
+            finally { Object.DestroyImmediate(instance); }
+        }
+    }
+
+    [Test]
+    public void ProductionRocketMainBlast_PoolReuseRestoresCoverageAfterLargeAndZeroRadius()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Assert.That(profile.TryGetCueData(WeaponPresentationCue.RocketImpact, out WeaponPresentationCueData production), Is.True);
+        GameObject root = new("Main rocket blast pool test");
+        WeaponPresentationCueData cue = new()
+        {
+            Cue = production.Cue, VfxPrefab = production.VfxPrefab, Duration = production.Duration,
+            PrewarmCount = 1, MaxSimultaneous = 1
+        };
+        WeaponVfxPool pool = new(cue, root.transform);
+        PooledWeaponVfx previous = null;
+        try
+        {
+            foreach (float radius in new[] { 8f, 0f, 1f, 4f })
+            {
+                WeaponPresentationContext context = new(cue.Cue, null, Vector3.zero,
+                    new Vector3(1f, 1f, 0.5f), explosionRadius: radius);
+                Assert.That(pool.TryPlay(in context, 0f, false, out PooledWeaponVfx current), Is.True);
+                if (previous != null) Assert.That(current, Is.SameAs(previous));
+                AssertMainBlast(current.gameObject, radius);
+                pool.Release(current);
+                previous = current;
+            }
+        }
+        finally
+        {
+            pool.ReleaseAll();
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    [TestCase(0f, GameFeelQualityLevel.High)]
+    [TestCase(0.001f, GameFeelQualityLevel.Low)]
+    [TestCase(0.5f, GameFeelQualityLevel.High)]
+    [TestCase(0.5f, GameFeelQualityLevel.Low)]
+    [TestCase(1f, GameFeelQualityLevel.High)]
+    [TestCase(1f, GameFeelQualityLevel.Low)]
+    [TestCase(2f, GameFeelQualityLevel.High)]
+    [TestCase(2f, GameFeelQualityLevel.Low)]
+    [TestCase(20f, GameFeelQualityLevel.High)]
+    [TestCase(20f, GameFeelQualityLevel.Low)]
+    public void ProductionRocketImpacts_ShowExactCapturedBlastBoundary(float radius, GameFeelQualityLevel quality)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        foreach (WeaponPresentationCue cueId in ExplosionCues)
+        {
+            Assert.That(profile.TryGetCueData(cueId, out WeaponPresentationCueData cue), Is.True);
+            GameObject instance = Object.Instantiate(cue.VfxPrefab);
+            try
+            {
+                instance.transform.SetPositionAndRotation(new Vector3(3f, 2f, -4f), Quaternion.Euler(37f, 51f, 0f));
+                RocketLauncherCueVfx vfx = instance.GetComponent<RocketLauncherCueVfx>();
+                WeaponPresentationContext context = new(cueId, null, instance.transform.position,
+                    instance.transform.forward, explosionRadius: radius, quality: quality,
+                    fragmentConeRange: 7.5f, fragmentConeAngle: 30f);
+                vfx.ApplyContext(in context);
+                AssertFootprint(instance, radius);
+                typeof(RocketLauncherCueVfx).GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(vfx, new object[] { 0.6f });
+                AssertFootprint(instance, radius);
+
+                Transform fragmentRoot = instance.transform.Find("Forward Mini Explosions");
+                if (fragmentRoot != null)
+                    Assert.That(fragmentRoot.localScale, Is.EqualTo(Vector3.one * 7.5f),
+                        "Resolved fragment range must not also receive the radial explosion scale.");
+                Assert.That(instance.transform.localScale, Is.EqualTo(Vector3.one),
+                    "Scaling the whole cue would multiply the already resolved fragment range.");
+            }
+            finally { Object.DestroyImmediate(instance); }
+        }
+    }
+
+    [TestCase(0.5f, GameFeelQualityLevel.High)]
+    [TestCase(0.5f, GameFeelQualityLevel.Low)]
+    [TestCase(1f, GameFeelQualityLevel.High)]
+    [TestCase(1f, GameFeelQualityLevel.Low)]
+    [TestCase(2f, GameFeelQualityLevel.High)]
+    [TestCase(2f, GameFeelQualityLevel.Low)]
+    [TestCase(20f, GameFeelQualityLevel.High)]
+    [TestCase(20f, GameFeelQualityLevel.Low)]
+    public void ProductionRocketParticles_ScaleSampledMotionWithoutChangingLifetimeOrBudget(
+        float radius, GameFeelQualityLevel quality)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        foreach (WeaponPresentationCue cueId in ExplosionCues)
+        {
+            Assert.That(profile.TryGetCueData(cueId, out WeaponPresentationCueData cue), Is.True);
+            GameObject reference = Object.Instantiate(cue.VfxPrefab);
+            GameObject scaled = Object.Instantiate(cue.VfxPrefab);
+            try
+            {
+                ConfigureParticleSample(reference, cueId, 1f, quality);
+                ConfigureParticleSample(scaled, cueId, radius, quality);
+                ParticleSystem[] referenceSystems = reference.GetComponentsInChildren<ParticleSystem>(true);
+                ParticleSystem[] scaledSystems = scaled.GetComponentsInChildren<ParticleSystem>(true);
+                Assert.That(scaledSystems.Length, Is.EqualTo(referenceSystems.Length));
+                for (int i = 0; i < referenceSystems.Length; i++)
+                {
+                    ParticleSystem original = referenceSystems[i];
+                    ParticleSystem enlarged = scaledSystems[i];
+                    Assert.That(enlarged.main.maxParticles, Is.EqualTo(original.main.maxParticles),
+                        "Radius must not increase the quality-controlled particle budget.");
+                    ParticleSystem.Particle[] originalParticles = new ParticleSystem.Particle[original.main.maxParticles];
+                    ParticleSystem.Particle[] enlargedParticles = new ParticleSystem.Particle[enlarged.main.maxParticles];
+                    int count = original.GetParticles(originalParticles);
+                    Assert.That(count, Is.GreaterThan(0), original.name);
+                    Assert.That(enlarged.GetParticles(enlargedParticles), Is.EqualTo(count), original.name);
+                    for (int p = 0; p < count; p++)
+                    {
+                        Assert.That(Vector3.Distance(enlargedParticles[p].position, originalParticles[p].position * radius),
+                            Is.LessThan(0.002f), $"{cueId}/{original.name}: sampled world-space particle position");
+                        Assert.That(enlargedParticles[p].remainingLifetime,
+                            Is.EqualTo(originalParticles[p].remainingLifetime).Within(0.0001f));
+                    }
+                    Assert.That(enlarged.transform.localScale, Is.EqualTo(original.transform.localScale * radius),
+                        "Local particle scaling also scales the rendered billboard or debris mesh size.");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(reference);
+                Object.DestroyImmediate(scaled);
+            }
+        }
+    }
+
+    [Test]
+    public void ProductionRocketImpactPool_LargeThenSmallRestoresAuthoredBaselinesAndQuality()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        foreach (WeaponPresentationCue cueId in ExplosionCues)
+        {
+            Assert.That(profile.TryGetCueData(cueId, out WeaponPresentationCueData production), Is.True);
+            GameObject root = new("Rocket impact pool test");
+            WeaponPresentationCueData cue = new()
+            {
+                Cue = cueId, VfxPrefab = production.VfxPrefab, Duration = production.Duration,
+                PrewarmCount = 1, MaxSimultaneous = 1
+            };
+            WeaponVfxPool pool = new(cue, root.transform);
+            try
+            {
+                WeaponPresentationContext large = new(cueId, null, Vector3.zero, Vector3.forward,
+                    explosionRadius: 20f, quality: GameFeelQualityLevel.Low);
+                Assert.That(pool.TryPlay(in large, 0f, false, out PooledWeaponVfx first), Is.True);
+                RocketLauncherCueVfx vfx = first.GetComponent<RocketLauncherCueVfx>();
+                typeof(RocketLauncherCueVfx).GetMethod("OnValidate", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(vfx, null);
+                pool.Release(first);
+                WeaponPresentationContext small = new(cueId, null, Vector3.zero, Vector3.forward,
+                    explosionRadius: 0.5f, quality: GameFeelQualityLevel.High);
+                Assert.That(pool.TryPlay(in small, 1f, false, out PooledWeaponVfx second), Is.True);
+                Assert.That(second, Is.SameAs(first));
+                AssertFootprint(second.gameObject, 0.5f);
+                ParticleSystem[] authored = production.VfxPrefab.GetComponentsInChildren<ParticleSystem>(true);
+                ParticleSystem[] reused = second.GetComponentsInChildren<ParticleSystem>(true);
+                for (int i = 0; i < authored.Length; i++)
+                {
+                    Assert.That(reused[i].transform.localScale, Is.EqualTo(authored[i].transform.localScale * 0.5f));
+                    Assert.That(reused[i].transform.localPosition, Is.EqualTo(authored[i].transform.localPosition * 0.5f));
+                    Assert.That(reused[i].main.maxParticles, Is.EqualTo(authored[i].main.maxParticles));
+                }
+                SerializedObject asset = new(production.VfxPrefab.GetComponent<RocketLauncherCueVfx>());
+                SerializedProperty roots = asset.FindProperty("_animatedRoots");
+                float expectedScale = asset.FindProperty("_size").floatValue *
+                    asset.FindProperty("_explosionRadiusMultiplier").floatValue * 0.5f *
+                    asset.FindProperty("_scaleOverLife").animationCurveValue.Evaluate(0f);
+                for (int i = 0; i < roots.arraySize; i++)
+                {
+                    Transform authoredRoot = (Transform)roots.GetArrayElementAtIndex(i).objectReferenceValue;
+                    if (authoredRoot.name == "Explosion Core")
+                        continue; // The main volume follows the captured damage sphere, not decorative expansion.
+                    Transform reusedRoot = second.transform.Find(authoredRoot.name);
+                    Assert.That(Vector3.Distance(reusedRoot.localScale, authoredRoot.localScale * expectedScale),
+                        Is.LessThan(0.0001f), "Validation/pool reuse must not recapture an animated scale as authored.");
+                }
+                AssertMainBlast(second.gameObject, 0.5f);
+            }
+            finally
+            {
+                pool.ReleaseAll();
+                Object.DestroyImmediate(root);
+            }
+        }
+    }
+
+    private static readonly WeaponPresentationCue[] ExplosionCues =
+    {
+        WeaponPresentationCue.RocketImpact, WeaponPresentationCue.RocketKineticImpact,
+        WeaponPresentationCue.RocketFragmentImpact, WeaponPresentationCue.RocketFragmentChildImpact,
+        WeaponPresentationCue.RocketKillImpact, WeaponPresentationCue.RocketClusterDetonation
+    };
+
+    private static void ConfigureParticleSample(GameObject instance, WeaponPresentationCue cueId,
+        float radius, GameFeelQualityLevel quality)
+    {
+        instance.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        WeaponPresentationContext context = new(cueId, null, Vector3.zero, Vector3.forward,
+            explosionRadius: radius, quality: quality);
+        instance.GetComponent<RocketLauncherCueVfx>().ApplyContext(in context);
+        instance.SetActive(true);
+        foreach (ParticleSystem particles in instance.GetComponentsInChildren<ParticleSystem>(true))
+        {
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particles.useAutoRandomSeed = false;
+            particles.randomSeed = 1421;
+            particles.Simulate(0.2f, false, true, true);
+        }
+    }
+
+    private static void AssertFootprint(GameObject instance, float radius)
+    {
+        Transform footprint = instance.transform.Find("Resolved Damage Footprint");
+        Assert.That(footprint, Is.Not.Null);
+        MeshRenderer renderer = footprint.GetComponent<MeshRenderer>();
+        Assert.That(renderer.enabled, Is.EqualTo(radius > 0f), "Zero radius must not present a fake damage footprint.");
+        Assert.That(footprint.position.y - instance.transform.position.y, Is.EqualTo(0.02f).Within(0.0001f),
+            "The anti-flicker offset must remain a constant world distance, including pooled reuse.");
+        if (radius <= 0f) return;
+        Vector3[] vertices = footprint.GetComponent<MeshFilter>().sharedMesh.vertices;
+        for (int i = 0; i < vertices.Length; i += 2)
+        {
+            Vector3 edge = footprint.TransformPoint(vertices[i]) - instance.transform.position;
+            Assert.That(edge.y, Is.EqualTo(0.02f).Within(0.0001f), "Flight direction must not tilt the blast plane.");
+            Assert.That(new Vector2(edge.x, edge.z).magnitude, Is.EqualTo(radius).Within(0.0001f));
+        }
+        MaterialPropertyBlock properties = new();
+        renderer.GetPropertyBlock(properties);
+        Assert.That(properties.GetFloat("_VertexJitter"), Is.Zero,
+            "The shared shader must not move the resolved damage boundary.");
+    }
+
+    private static void AssertMainBlast(GameObject instance, float radius)
+    {
+        Transform core = instance.transform.Find("Explosion Core");
+        Assert.That(core, Is.Not.Null, "The test must measure the main explosion, not the radius ring or debris.");
+        Renderer renderer = core.GetComponent<Renderer>();
+        Assert.That(renderer.enabled, Is.EqualTo(radius > 0f), "A zero-radius shot must not leave a visible blast volume.");
+        if (radius <= 0f) return;
+
+        Mesh mesh = core.GetComponent<MeshFilter>().sharedMesh;
+        Vector3[] vertices = mesh.vertices;
+        float tolerance = Mathf.Max(0.00001f, radius * 0.001f);
+        float greatestRadius = 0f;
+        float[] horizontalSupport = new float[12];
+        float[] axisSupport = new float[6];
+        foreach (Vector3 vertex in vertices)
+        {
+            Vector3 relative = core.TransformPoint(vertex) - instance.transform.position;
+            greatestRadius = Mathf.Max(greatestRadius, relative.magnitude);
+            Assert.That(relative.magnitude, Is.LessThanOrEqualTo(radius + tolerance),
+                "The bright volume must not imply damage beyond the captured sphere.");
+            for (int direction = 0; direction < horizontalSupport.Length; direction++)
+            {
+                float angle = direction * Mathf.PI * 2f / horizontalSupport.Length;
+                float support = Vector3.Dot(relative, new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)));
+                horizontalSupport[direction] = Mathf.Max(horizontalSupport[direction], support);
+            }
+            axisSupport[0] = Mathf.Max(axisSupport[0], relative.x);
+            axisSupport[1] = Mathf.Max(axisSupport[1], -relative.x);
+            axisSupport[2] = Mathf.Max(axisSupport[2], relative.y);
+            axisSupport[3] = Mathf.Max(axisSupport[3], -relative.y);
+            axisSupport[4] = Mathf.Max(axisSupport[4], relative.z);
+            axisSupport[5] = Mathf.Max(axisSupport[5], -relative.z);
+        }
+        Assert.That(greatestRadius, Is.EqualTo(radius).Within(tolerance));
+        foreach (float support in horizontalSupport)
+            Assert.That(support, Is.GreaterThanOrEqualTo(radius * 0.97f - tolerance),
+                "The main blast must fill the damage footprint in every direction, allowing mesh faceting.");
+        foreach (float support in axisSupport)
+            Assert.That(support, Is.GreaterThanOrEqualTo(radius * 0.97f - tolerance),
+                "A flat marker or stretched sliver cannot stand in for the damage volume.");
+
+        MaterialPropertyBlock properties = new();
+        renderer.GetPropertyBlock(properties);
+        Assert.That(properties.GetFloat("_VertexJitter"), Is.Zero,
+            "Shader displacement must not make the measured bright envelope exceed the damage sphere.");
+        Assert.That(properties.GetColor("_BaseColor").a, Is.GreaterThan(0f));
+        Assert.That(properties.GetFloat("_EmissionIntensity"), Is.GreaterThan(0f),
+            "Reduced flash may reduce brightness, but must retain a visible main volume.");
+    }
+
     [Test]
     public void FragmentationImpact_PresentsTheSameForwardConeAsDamage()
     {

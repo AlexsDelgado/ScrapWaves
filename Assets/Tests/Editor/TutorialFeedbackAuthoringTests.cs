@@ -7,44 +7,24 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-/// <summary>Checks saved lesson content without authoring, saving or entering Play Mode.</summary>
+/// <summary>Checks saved lesson content in an isolated preview scene without authoring or saving.</summary>
 public sealed class TutorialFeedbackAuthoringTests
 {
     private const string GameplayScenePath = "Assets/Scenes/GameplayScene.unity";
-    private SceneSetup[] _previousSetup;
     private Scene _scene;
-    private bool _openedScene;
 
     [OneTimeSetUp]
     public void OpenSavedGameplayScene()
     {
         Assert.That(EditorApplication.isPlayingOrWillChangePlaymode, Is.False,
             "Authoring validation runs only in Edit Mode.");
-        for (int i = 0; i < SceneManager.sceneCount; i++)
-        {
-            Scene scene = SceneManager.GetSceneAt(i);
-            Assert.That(scene.isDirty, Is.False,
-                "Save or discard dirty scenes before running authoring validation: " + scene.name);
-            Assert.That(string.IsNullOrEmpty(scene.path) && scene.rootCount > 0, Is.False,
-                "Save an untitled scene with content before running authoring validation.");
-        }
-        _previousSetup = EditorSceneManager.GetSceneManagerSetup();
-        Assert.That(_previousSetup.Length > 1 && _previousSetup.Any(item => string.IsNullOrEmpty(item.path)), Is.False,
-            "Save untitled additive scenes before running authoring validation so the setup can be restored.");
-        _scene = EditorSceneManager.OpenScene(GameplayScenePath, OpenSceneMode.Single);
-        _openedScene = true;
+        _scene = EditorSceneManager.OpenPreviewScene(GameplayScenePath);
     }
 
     [OneTimeTearDown]
-    public void RestorePreviousSceneSetup()
+    public void CloseSavedScenePreview()
     {
-        if (!_openedScene) return;
-        // Only the clean scene opened by this fixture is discarded; no assets are saved.
-        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        if (_previousSetup != null && _previousSetup.Length > 0
-            && _previousSetup.All(item => !string.IsNullOrEmpty(item.path)))
-            EditorSceneManager.RestoreSceneManagerSetup(_previousSetup);
-        _openedScene = false;
+        if (_scene.IsValid()) EditorSceneManager.ClosePreviewScene(_scene);
     }
 
     [Test]
@@ -86,12 +66,27 @@ public sealed class TutorialFeedbackAuthoringTests
     }
 
     [Test]
-    public void SavedMovementMarker_IsHiddenUntilItsLesson()
+    public void SavedMovementMarker_HasLessonBindingAndGeometry()
     {
         GameObject marker = Reference<GameObject>(Director(), "_marker");
         Assert.That(marker.transform.IsChildOf(World()), Is.True);
-        Assert.That(marker.activeSelf, Is.False,
-            "The movement destination is authored hidden so Welcome cannot reveal it.");
+        // Begin/SetStep own visibility; the runtime walkthrough checks Welcome and Movement.
+        MeshFilter mesh = marker.GetComponent<MeshFilter>();
+        MeshRenderer renderer = marker.GetComponent<MeshRenderer>();
+        Assert.That(mesh, Is.Not.Null);
+        Assert.That(mesh.sharedMesh, Is.Not.Null);
+        Assert.That(mesh.sharedMesh.vertexCount, Is.GreaterThan(0));
+        Assert.That(renderer, Is.Not.Null);
+        Assert.That(renderer.sharedMaterial, Is.Not.Null);
+    }
+
+    [Test]
+    public void SavedLesson_StationIsExcludedFromNormalRotation()
+    {
+        CraftingStation station = Reference<CraftingStation>(Director(), "_station");
+        Assert.That(station.transform.IsChildOf(World()), Is.True);
+        Assert.That(station.ParticipatesInRotation, Is.False,
+            "The required lesson table must remain usable independently of normal station rotation.");
     }
 
     [Test]

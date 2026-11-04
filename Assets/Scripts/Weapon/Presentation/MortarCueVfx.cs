@@ -21,6 +21,7 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
     private static readonly int HeatId = Shader.PropertyToID("_Heat");
     private static readonly int PulseId = Shader.PropertyToID("_Pulse");
     private static readonly int DissolveId = Shader.PropertyToID("_Dissolve");
+    private static readonly int VertexJitterId = Shader.PropertyToID("_VertexJitter");
 
     [SerializeField] private MortarCueStyle _style;
     [SerializeField] private Color _primaryColor = new(1f, 0.42f, 0.06f, 0.95f);
@@ -43,6 +44,10 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
     private float _intensity = 1f;
     private float _heat;
     private float _radiusScale = 1f;
+    private float _explosionRadius;
+    private Renderer _damageFootprint;
+    private Vector3 _footprintBaseScale;
+    private float _footprintMeshRadius;
     private bool _cached;
 
     public MortarCueStyle Style => _style;
@@ -67,6 +72,7 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
         }
         _intensity = Mathf.Max(0.25f, context.Intensity);
         _heat = context.NormalizedHeat;
+        _explosionRadius = Mathf.Max(0f, context.ExplosionRadius);
         _radiusScale = ResolveRadiusScale(context.ExplosionRadius);
         ApplyParticleBudget(context.HeatSmokeMultiplier, context.HeatSparkMultiplier, context.Quality);
         ApplyFrame(0f);
@@ -79,6 +85,12 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
         CacheLayers();
         _elapsed = 0f;
         ApplyFrame(0f);
+    }
+
+    private void OnDisable()
+    {
+        _explosionRadius = 0f;
+        _radiusScale = 1f;
     }
 
     private void Update()
@@ -122,7 +134,56 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
         for (int i = 0; i < _particleLayers.Length; i++)
         {
             if (_particleLayers[i] != null)
+            {
                 _baseMaxParticles[i] = _particleLayers[i].main.maxParticles;
+                // Authored Local-mode particles ignore the animated parent. Hierarchy
+                // applies its radius once to particle size, motion and emitter shape.
+                if (_style != MortarCueStyle.Launch)
+                {
+                    ParticleSystem.MainModule main = _particleLayers[i].main;
+                    main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+                }
+            }
+        }
+        CacheDamageFootprint();
+    }
+
+    private void CacheDamageFootprint()
+    {
+        if (_damageFootprint != null || _style == MortarCueStyle.Launch
+            || _style == MortarCueStyle.GrapeshotAirburst || _style == MortarCueStyle.BarrageWarning)
+            return;
+
+        for (int i = 0; i < _meshLayers.Length; i++)
+        {
+            Renderer renderer = _meshLayers[i];
+            if (renderer == null || renderer.name != "Ground Pressure Ring")
+                continue;
+            MeshFilter filter = renderer.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null)
+                continue;
+
+            _damageFootprint = renderer;
+            // The damage boundary must not grow from 20% to 130% with the decorative
+            // response. Keep its authored pose, but remove that animated ancestor.
+            renderer.transform.SetParent(transform, true);
+            _footprintBaseScale = renderer.transform.localScale;
+            Mesh mesh = filter.sharedMesh;
+            if (mesh.isReadable)
+            {
+                foreach (Vector3 vertex in mesh.vertices)
+                {
+                    Vector3 scaled = Vector3.Scale(vertex, _footprintBaseScale);
+                    _footprintMeshRadius = Mathf.Max(_footprintMeshRadius,
+                        new Vector2(scaled.x, scaled.z).magnitude);
+                }
+            }
+            else
+            {
+                Vector3 extent = Vector3.Scale(mesh.bounds.extents, _footprintBaseScale);
+                _footprintMeshRadius = Mathf.Max(Mathf.Abs(extent.x), Mathf.Abs(extent.z));
+            }
+            break;
         }
     }
 
@@ -152,7 +213,10 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
             _propertyBlock.SetFloat(EmissionIntensityId, emission);
             _propertyBlock.SetFloat(HeatId, _heat);
             _propertyBlock.SetFloat(PulseId, barrage ? rhythmicPulse : Mathf.Lerp(1f, 0.1f, normalized));
-            _propertyBlock.SetFloat(DissolveId, dissolve);
+            bool footprint = renderer == _damageFootprint;
+            _propertyBlock.SetFloat(DissolveId, footprint ? 0f : dissolve);
+            if (footprint)
+                _propertyBlock.SetFloat(VertexJitterId, 0f);
             renderer.SetPropertyBlock(_propertyBlock);
         }
 
@@ -164,6 +228,23 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
             float radius = _style == MortarCueStyle.Launch ? 1f : _radiusScale;
             _animatedRoots[i].localScale = _baseScales[i] * lifeScale * radius;
         }
+        ApplyDamageFootprint();
+    }
+
+    private void ApplyDamageFootprint()
+    {
+        if (_damageFootprint == null)
+            return;
+        bool visible = _explosionRadius > 0f && _footprintMeshRadius > 0f;
+        _damageFootprint.enabled = visible;
+        if (!visible)
+            return;
+
+        float scale = _explosionRadius / _footprintMeshRadius;
+        Vector3 parentScale = transform.lossyScale;
+        _damageFootprint.transform.localScale = Vector3.Scale(_footprintBaseScale,
+            new Vector3(scale / Mathf.Max(0.000001f, Mathf.Abs(parentScale.x)), 1f,
+                scale / Mathf.Max(0.000001f, Mathf.Abs(parentScale.z))));
     }
 
     private float ResolveRadiusScale(float explosionRadius)
@@ -173,8 +254,8 @@ public sealed class MortarCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxC
         if (_style == MortarCueStyle.GrapeshotAirburst)
             return Mathf.Max(0.8f, explosionRadius * 0.55f);
         if (_style == MortarCueStyle.GrapeshotImpact)
-            return Mathf.Clamp(explosionRadius * 2.1f, 0.42f, 1.15f);
-        return Mathf.Clamp(explosionRadius * 2f, 1.6f, 13f);
+            return Mathf.Max(0f, explosionRadius) * 2.1f;
+        return Mathf.Max(0f, explosionRadius) * 2f;
     }
 
     private void ApplyParticleBudget(float smokeMultiplier, float sparkMultiplier, GameFeelQualityLevel quality)

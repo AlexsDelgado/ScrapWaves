@@ -95,5 +95,7 @@ public static class DemoLeaderboardSession
         var store = new DemoLeaderboardStore();
         if (!store.Submit(entry) && !string.IsNullOrEmpty(store.LastError))
             Debug.LogWarning($"Demo leaderboard could not save this run: {store.LastError}");
+        // Upload every qualifying attempt, even when it does not enter this PC's local top ten.
+        DemoLeaderboardOnline.RecordResult(entry);
     }
 }

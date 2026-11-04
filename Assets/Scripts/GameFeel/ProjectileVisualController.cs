@@ -18,6 +18,13 @@ public sealed class ProjectileVisualController : MonoBehaviour
     private MaterialPropertyBlock _propertyBlock;
     private Vector3 _defaultScale = Vector3.one;
     private Quaternion _defaultRotation = Quaternion.identity;
+    private Projectile _projectile;
+    private float _defaultTrailStartWidth;
+    private float _defaultTrailEndWidth;
+    private ParticleSystem.MinMaxCurve _defaultSmokeSize;
+    private ParticleSystem.MinMaxCurve _defaultSmokeSpeed;
+    private Vector3 _defaultSmokeShapeScale;
+    private Vector3 _defaultSmokeShapePosition;
     private bool _cached;
 
     private void Awake()
@@ -62,8 +69,14 @@ public sealed class ProjectileVisualController : MonoBehaviour
         if (_meshRenderer != null && archetype.Material != null)
             _meshRenderer.sharedMaterial = archetype.Material;
 
-        _visualRoot.localScale = Vector3.Scale(_defaultScale, archetype.LocalScale);
-        _visualRoot.localRotation = _defaultRotation * Quaternion.Euler(archetype.LocalEulerAngles);
+        // The mesh already inherits physical projectile growth. Never apply that scale twice,
+        // and never let a missing visual child turn cosmetic setup into a collider/root edit.
+        if (_visualRoot != transform && _visualRoot.IsChildOf(transform))
+        {
+            _visualRoot.localScale = Vector3.Scale(_defaultScale, archetype.LocalScale);
+            _visualRoot.localRotation = _defaultRotation * Quaternion.Euler(archetype.LocalEulerAngles);
+        }
+        float collisionSize = _projectile != null ? _projectile.CollisionSizeMultiplier : 1f;
 
         float heatValue = heatEnabled ? Mathf.Clamp01(normalizedHeat) : 0f;
         float emission = archetype.BaseEmission;
@@ -91,8 +104,8 @@ public sealed class ProjectileVisualController : MonoBehaviour
             _trail.Clear();
             _trail.enabled = archetype.TrailLifetime > 0f && archetype.TrailStartWidth > 0f;
             _trail.time = archetype.TrailLifetime;
-            _trail.startWidth = archetype.TrailStartWidth * trailWidthScale;
-            _trail.endWidth = archetype.TrailEndWidth * trailWidthScale;
+            _trail.startWidth = archetype.TrailStartWidth * trailWidthScale * collisionSize;
+            _trail.endWidth = archetype.TrailEndWidth * trailWidthScale * collisionSize;
             _trail.colorGradient = archetype.TrailColor;
             if (archetype.TrailMaterial != null)
                 _trail.sharedMaterial = archetype.TrailMaterial;
@@ -105,8 +118,16 @@ public sealed class ProjectileVisualController : MonoBehaviour
                                 archetype.FlightSmokeLifetime > 0f;
             ParticleSystem.MainModule main = _flightSmoke.main;
             main.startLifetime = archetype.FlightSmokeLifetime;
-            main.startSize = archetype.FlightSmokeSize;
+            // Local/Shape particle sizes do not inherit the projectile's parent scale.
+            // Hierarchy particles already do; preserve their authored dimensions exactly once.
+            float smokeSize = main.scalingMode == ParticleSystemScalingMode.Hierarchy ? 1f : collisionSize;
+            main.startSize = archetype.FlightSmokeSize * smokeSize;
+            main.startSpeed = ScaleCurve(_defaultSmokeSpeed, smokeSize);
             main.simulationSpace = ParticleSystemSimulationSpace.World;
+            ParticleSystem.ShapeModule shape = _flightSmoke.shape;
+            float shapeSize = main.scalingMode == ParticleSystemScalingMode.Local ? collisionSize : 1f;
+            shape.scale = _defaultSmokeShapeScale * shapeSize;
+            shape.position = _defaultSmokeShapePosition * shapeSize;
             ParticleSystem.EmissionModule smokeEmission = _flightSmoke.emission;
             smokeEmission.rateOverTime = smokeEnabled ? archetype.FlightSmokeRate : 0f;
             ParticleSystemRenderer smokeRenderer = _flightSmoke.GetComponent<ParticleSystemRenderer>();
@@ -127,14 +148,28 @@ public sealed class ProjectileVisualController : MonoBehaviour
 
     public void ResetVisual()
     {
-        if (_visualRoot != null)
+        CacheReferences();
+        if (_visualRoot != null && _visualRoot != transform && _visualRoot.IsChildOf(transform))
         {
             _visualRoot.localScale = _defaultScale;
             _visualRoot.localRotation = _defaultRotation;
         }
-        _trail?.Clear();
+        if (_trail != null)
+        {
+            _trail.Clear();
+            _trail.startWidth = _defaultTrailStartWidth;
+            _trail.endWidth = _defaultTrailEndWidth;
+        }
         if (_flightSmoke != null)
+        {
             _flightSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ParticleSystem.MainModule main = _flightSmoke.main;
+            main.startSize = _defaultSmokeSize;
+            main.startSpeed = _defaultSmokeSpeed;
+            ParticleSystem.ShapeModule shape = _flightSmoke.shape;
+            shape.scale = _defaultSmokeShapeScale;
+            shape.position = _defaultSmokeShapePosition;
+        }
         if (_light != null)
             _light.enabled = false;
     }
@@ -146,6 +181,7 @@ public sealed class ProjectileVisualController : MonoBehaviour
 
         _cached = true;
         _propertyBlock ??= new MaterialPropertyBlock();
+        _projectile = GetComponent<Projectile>();
         if (_visualRoot == null)
             _visualRoot = transform.Find("Visual");
         if (_visualRoot == null)
@@ -162,5 +198,35 @@ public sealed class ProjectileVisualController : MonoBehaviour
             _light = _visualRoot.GetComponentInChildren<Light>(true);
         _defaultScale = _visualRoot.localScale;
         _defaultRotation = _visualRoot.localRotation;
+        if (_trail != null)
+        {
+            _defaultTrailStartWidth = _trail.startWidth;
+            _defaultTrailEndWidth = _trail.endWidth;
+        }
+        if (_flightSmoke != null)
+        {
+            _defaultSmokeSize = _flightSmoke.main.startSize;
+            _defaultSmokeSpeed = _flightSmoke.main.startSpeed;
+            _defaultSmokeShapeScale = _flightSmoke.shape.scale;
+            _defaultSmokeShapePosition = _flightSmoke.shape.position;
+        }
+    }
+
+    private static ParticleSystem.MinMaxCurve ScaleCurve(ParticleSystem.MinMaxCurve curve, float scale)
+    {
+        switch (curve.mode)
+        {
+            case ParticleSystemCurveMode.Constant:
+                curve.constant *= scale;
+                break;
+            case ParticleSystemCurveMode.TwoConstants:
+                curve.constantMin *= scale;
+                curve.constantMax *= scale;
+                break;
+            default:
+                curve.curveMultiplier *= scale;
+                break;
+        }
+        return curve;
     }
 }

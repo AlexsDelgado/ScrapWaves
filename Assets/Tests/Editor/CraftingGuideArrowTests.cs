@@ -14,19 +14,23 @@ public sealed class CraftingGuideArrowTests
     private readonly List<Object> _cleanup=new();
     private float _previousRunStart;
     private UnityEngine.Random.State _previousRandom;
-    [SetUp] public void Setup(){_previousRunStart=(float)typeof(RunSessionStats).GetField("_runStartTime",BindingFlags.Static|BindingFlags.NonPublic).GetValue(null);_previousRandom=UnityEngine.Random.state;}
-    [TearDown] public void Cleanup(){Time.timeScale=1;GameplayPause.Reset();typeof(RunSessionStats).GetField("_runStartTime",BindingFlags.Static|BindingFlags.NonPublic).SetValue(null,_previousRunStart);UnityEngine.Random.state=_previousRandom;for(int i=_cleanup.Count-1;i>=0;i--)if(_cleanup[i]!=null)Object.DestroyImmediate(_cleanup[i]);_cleanup.Clear();}
+    private Scene _fixtureScene;
+    private Scene _normalScene;
+    [SetUp] public void Setup(){_previousRunStart=(float)typeof(RunSessionStats).GetField("_runStartTime",BindingFlags.Static|BindingFlags.NonPublic).GetValue(null);_previousRandom=UnityEngine.Random.state;_normalScene=SceneManager.GetActiveScene();}
+    [TearDown] public void Cleanup(){Time.timeScale=1;GameplayPause.Reset();typeof(RunSessionStats).GetField("_runStartTime",BindingFlags.Static|BindingFlags.NonPublic).SetValue(null,_previousRunStart);foreach(var obj in _cleanup)if(obj is GameObject root)foreach(var controller in root.GetComponentsInChildren<GuideArrowController>(true))Call(controller,"OnDisable");for(int i=_cleanup.Count-1;i>=0;i--)if(_cleanup[i]!=null){if(_cleanup[i] is GameObject go)foreach(var station in go.GetComponentsInChildren<CraftingStation>(true))CraftingStationRotation.Unregister(station);Object.DestroyImmediate(_cleanup[i]);}_cleanup.Clear();if(_fixtureScene.IsValid()&&_fixtureScene.isLoaded)EditorSceneManager.ClosePreviewScene(_fixtureScene);UnityEngine.Random.state=_previousRandom;}
     private T Track<T>(T o)where T:Object{_cleanup.Add(o);return o;}
     private static void Set(object o,string n,object v)=>o.GetType().GetField(n,Flags).SetValue(o,v);
     private static T Get<T>(object o,string n)=>(T)o.GetType().GetField(n,Flags).GetValue(o);
     private static void Call(object o,string n,params object[] args)=>o.GetType().GetMethod(n,Flags).Invoke(o,args);
-    private Harness Create(int level=1,bool basic=false)
+    private Harness Create(int level=1,bool basic=false,float initialChance=0f)
     {
-        var player=Track(new GameObject("Crafting eligibility"));player.SetActive(false);var inventory=player.AddComponent<MaterialInventory>();var manager=player.AddComponent<WeaponManager>();var service=player.AddComponent<WeaponCraftingService>();Set(service,"_inventory",inventory);Set(service,"_weaponManager",manager);service.SetMaterialBalance(AssetDatabase.LoadAssetAtPath<MaterialUsageBalanceSO>("Assets/ScriptableObjects/Economy/MaterialUsageBalance.asset"));
+        _fixtureScene=EditorSceneManager.NewPreviewScene();
+        var player=Track(new GameObject("Crafting eligibility"));SceneManager.MoveGameObjectToScene(player,_fixtureScene);player.SetActive(false);var inventory=player.AddComponent<MaterialInventory>();var manager=player.AddComponent<WeaponManager>();var service=player.AddComponent<WeaponCraftingService>();Set(service,"_inventory",inventory);Set(service,"_weaponManager",manager);service.SetMaterialBalance(AssetDatabase.LoadAssetAtPath<MaterialUsageBalanceSO>("Assets/ScriptableObjects/Economy/MaterialUsageBalance.asset"));
         var data=AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset");var runtime=new WeaponInstance{Data=data,Level=level,State=WeaponState.Manual};Get<List<IWeaponBehaviour>>(manager,"_equipped").Add(new Probe(runtime));
         Set(service,"_weaponPool",new List<WeaponData>{AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Flamethrower.asset"),AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/Mortar.asset")});
-        var arrow=Track(Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/Arrow_Guide.prefab")));arrow.SetActive(false);var guide=arrow.AddComponent<GuideArrow>();var controller=arrow.AddComponent<GuideArrowController>();Call(guide,"Awake");
-        var table=Track(new GameObject("Crafting target"));table.SetActive(false);var station=table.AddComponent<CraftingStation>();Set(controller,"_guideArrow",guide);Set(controller,"_craftingStation",station);Set(controller,"_crafting",service);Set(controller,"_dialogueDriven",true);
+        var arrow=Track((GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/Arrow_Guide.prefab"),_fixtureScene));arrow.SetActive(false);var guide=arrow.AddComponent<GuideArrow>();var controller=arrow.AddComponent<GuideArrowController>();Call(guide,"Awake");
+        var table=Track(new GameObject("Crafting target"));SceneManager.MoveGameObjectToScene(table,_fixtureScene);table.SetActive(false);var station=table.AddComponent<CraftingStation>();Set(controller,"_guideArrow",guide);Set(controller,"_craftingStation",station);Set(controller,"_crafting",service);Set(controller,"_dialogueDriven",true);
+        Set(station,"_initialBreakChancePercent",initialChance);table.SetActive(true);CraftingStationRotation.Register(station);CraftingStationRotation.InitializeScene(_fixtureScene);Call(controller,"OnEnable");
         var costs=basic?service.GetTinkeringCost(2):level==5?service.GetAdvancedTinkeringCost(data):service.GetUpgradeCost(data,WeaponUpgradePath.None,level+1);
         return new Harness{Player=player,Inventory=inventory,Manager=manager,Service=service,Guide=guide,Controller=controller,Station=station,Costs=costs};
     }
@@ -36,7 +40,7 @@ public sealed class CraftingGuideArrowTests
     {
         var h=Create(level,basic);Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.Null);Fund(h);
         Assert.That(h.Service.HasAnyAvailableCraftingAction(),Is.True);var random=UnityEngine.Random.state;Call(h.Controller,"Update");
-        Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));Assert.That(Get<bool>(h.Controller,"_craftingHintShown"),Is.True);Assert.That(UnityEngine.Random.state,Is.EqualTo(random),"Guide polling must not roll an offer.");
+        Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));Assert.That(UnityEngine.Random.state,Is.EqualTo(random),"Guide polling must not roll an offer.");
         foreach(var renderer in h.Guide.GetComponentsInChildren<Renderer>(true))Assert.That(renderer.enabled,Is.True);
     }
     [Test] public void SpendingThenRegainingAffordability_RearmsGuideWithoutAnotherDialogue()
@@ -54,7 +58,7 @@ public sealed class CraftingGuideArrowTests
     }
     [Test] public void ExitGuide_HasPriorityOverNewAffordabilityAndCraftingDialogue()
     {
-        var h=Create();var door=Track(new GameObject("Exit"));door.SetActive(false);var exit=door.AddComponent<ExitDoor>();Set(h.Controller,"_exitDoor",exit);Call(h.Controller,"HandleAllKeysCollected");Assert.That(h.Guide.Target,Is.SameAs(exit.transform));
+        var h=Create();var door=Track(new GameObject("Exit"));SceneManager.MoveGameObjectToScene(door,_fixtureScene);door.SetActive(false);var exit=door.AddComponent<ExitDoor>();Set(h.Controller,"_exitDoor",exit);Call(h.Controller,"HandleAllKeysCollected");Assert.That(h.Guide.Target,Is.SameAs(exit.transform));
         Fund(h);Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.SameAs(exit.transform));var entry=Track(ScriptableObject.CreateInstance<DialogueEntry>());Set(entry,"_showsCraftingGuide",true);Call(h.Controller,"HandleDialogueStarted",entry);Assert.That(h.Guide.Target,Is.SameAs(exit.transform));
         Set(h.Controller,"_hideAtTime",0f);Call(h.Controller,"Update");Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));
     }
@@ -74,7 +78,71 @@ public sealed class CraftingGuideArrowTests
     }
     [Test] public void LateCraftingService_IsResolvedBeforeHintIsConsumed()
     {
-        var h=Create();Fund(h);Set(h.Controller,"_crafting",null);h.Player.SetActive(true);Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));
+        var h=Create();Fund(h);Set(h.Controller,"_crafting",null);SceneManager.MoveGameObjectToScene(h.Player,_normalScene);h.Player.SetActive(true);Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));
+    }
+    [Test] public void Rotation_RearmsContinuousAffordabilityAndUnsubscribesTheOldTarget()
+    {
+        var h=Create(initialChance:100f);
+        var next=AddStation();
+        Fund(h);Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));
+        Assert.That(h.Station.CompleteTransaction(),Is.True);
+        Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(next.transform));
+        ((Action)typeof(CraftingStation).GetField("OnInteracted",Flags).GetValue(h.Station))?.Invoke();
+        Assert.That(h.Guide.Target,Is.SameAs(next.transform),"The previous station must no longer dismiss this guide.");
+        Set(h.Controller,"_hideAtTime",0f);Call(h.Controller,"Update");Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.Null,"A rotation earns one guide, not an endless repeat.");
+    }
+    [Test] public void SoleStationReactivation_RearmsEvenWhenTargetIdentityIsUnchanged()
+    {
+        var h=Create(initialChance:100f);Fund(h);Call(h.Controller,"Update");
+        Set(h.Controller,"_hideAtTime",0f);Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.Null);
+        Assert.That(h.Station.CompleteTransaction(),Is.True);
+        Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));
+    }
+    [TestCase(false)] [TestCase(true)]
+    public void Rotation_WaitsForPauseOrTheReplacementMenuToClose(bool menuOpen)
+    {
+        var h=Create(initialChance:100f);var next=AddStation();Fund(h);Call(h.Controller,"Update");
+        if(menuOpen)Set(next,"_isOpen",true);else GameplayPause.Push();
+        h.Station.CompleteTransaction();Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.Null);
+        if(menuOpen)Set(next,"_isOpen",false);else GameplayPause.Pop();
+        Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.SameAs(next.transform));
+    }
+    [Test] public void Rotation_PreservesExitPriorityAndDefersItsOwnHint()
+    {
+        var h=Create(initialChance:100f);var next=AddStation();Fund(h);Call(h.Controller,"Update");
+        var door=Track(new GameObject("Priority exit"));SceneManager.MoveGameObjectToScene(door,_fixtureScene);door.SetActive(false);var exit=door.AddComponent<ExitDoor>();
+        Set(h.Controller,"_exitDoor",exit);Call(h.Controller,"HandleAllKeysCollected");
+        h.Station.CompleteTransaction();Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(exit.transform));
+        Set(h.Controller,"_hideAtTime",0f);Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(next.transform));
+    }
+    [Test] public void MissingUsableStation_HidesGuideAndDoesNotConsumeLaterAvailability()
+    {
+        var h=Create();Fund(h);Call(h.Controller,"Update");
+        CraftingStationRotation.Unregister(h.Station);Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.Null);
+        CraftingStationRotation.Register(h.Station);Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(h.Station.transform));
+    }
+    [Test] public void RotationAfterSpending_DoesNotGuideUntilAnotherActionIsAffordable()
+    {
+        var h=Create(initialChance:100f);var next=AddStation();Fund(h);Call(h.Controller,"Update");
+        h.Inventory.TrySpend(new[]{new MaterialCost(h.Costs[0].Material,1)});
+        h.Station.CompleteTransaction();Call(h.Controller,"Update");Assert.That(h.Guide.Target,Is.Null);
+        h.Inventory.Add(h.Costs[0].Material,1);Call(h.Controller,"Update");
+        Assert.That(h.Guide.Target,Is.SameAs(next.transform));
+    }
+    private CraftingStation AddStation()
+    {
+        var root=Track(new GameObject("Next crafting target"));SceneManager.MoveGameObjectToScene(root,_fixtureScene);
+        var station=root.AddComponent<CraftingStation>();CraftingStationRotation.Register(station);return station;
     }
     [Test] public void ActualGameplayScene_ResolvesAuthoredArrowStationPlayerAndDialogueWithAffordableUpgrade()
     {
@@ -83,7 +151,7 @@ public sealed class CraftingGuideArrowTests
             GuideArrowController controller=null;WeaponCraftingService service=null;
             foreach(var root in scene.GetRootGameObjects()){if(controller==null)controller=root.GetComponentInChildren<GuideArrowController>(true);if(service==null)service=root.GetComponentInChildren<WeaponCraftingService>(true);}
             Assert.That(controller,Is.Not.Null);Assert.That(service,Is.Not.Null);Call(service,"Awake");var manager=service.GetComponent<WeaponManager>();var data=AssetDatabase.LoadAssetAtPath<WeaponData>("Assets/ScriptableObjects/WeaponSO/RocketLauncher.asset");Get<List<IWeaponBehaviour>>(manager,"_equipped").Add(new Probe(new WeaponInstance{Data=data,Level=1}));var inventory=service.GetComponent<MaterialInventory>();foreach(var cost in service.GetUpgradeCost(data,WeaponUpgradePath.None,2))inventory.Add(cost.Material,cost.Amount);
-            Call(controller,"Awake");var guide=Get<GuideArrow>(controller,"_guideArrow");Call(guide,"Awake");Assert.That(Get<bool>(controller,"_dialogueDriven"),Is.True);Call(controller,"Update");Assert.That(guide.Target,Is.SameAs(Get<CraftingStation>(controller,"_craftingStation").transform));foreach(var renderer in guide.GetComponentsInChildren<Renderer>(true))Assert.That(renderer.enabled,Is.True);
+            CraftingStationRotation.InitializeScene(scene);Call(controller,"Awake");var guide=Get<GuideArrow>(controller,"_guideArrow");Call(guide,"Awake");Assert.That(Get<bool>(controller,"_dialogueDriven"),Is.True);Call(controller,"Update");Assert.That(guide.Target,Is.SameAs(Get<CraftingStation>(controller,"_craftingStation").transform));foreach(var renderer in guide.GetComponentsInChildren<Renderer>(true))Assert.That(renderer.enabled,Is.True);
         }finally{EditorSceneManager.CloseScene(scene,true);}
     }
     private sealed class Harness{public GameObject Player;public MaterialInventory Inventory;public WeaponManager Manager;public WeaponCraftingService Service;public GuideArrow Guide;public GuideArrowController Controller;public CraftingStation Station;public IReadOnlyList<MaterialCost> Costs;}

@@ -18,6 +18,12 @@ public static class DemoLeaderboardPreview
 {
     private const string ScenePath = "Assets/Scenes/TitleScreen.unity";
 
+    public static void AuthorAndCaptureOnline()
+    {
+        DemoLeaderboardAuthoring.AddOnlineStatus();
+        Capture();
+    }
+
     [MenuItem("Tools/ScrapWaves/Demo Leaderboard/Capture Menu Previews")]
     public static void Capture()
     {
@@ -126,6 +132,19 @@ public static class DemoLeaderboardPreview
             Frame("menu-scores-720.png", 1280, 720, false);
             Frame("menu-scores-16x10.png", 1600, 1000, false);
             Frame("menu-scores-4x3.png", 1440, 1080, false);
+            view.ShowOnlineSnapshot(new DemoLeaderboardOnlineSnapshot
+            {
+                IsGlobal = true, Data = SampleScores(), PendingCount = 3,
+                Status = "GLOBAL | Updated 12:30 | 3 run(s) waiting to upload"
+            });
+            Frame("menu-global-pending-720.png", 1280, 720, false);
+            view.ShowOnlineSnapshot(new DemoLeaderboardOnlineSnapshot
+            {
+                IsGlobal = false, Status = "GLOBAL | Unavailable. 3 run(s) saved for retry."
+            });
+            Frame("menu-global-offline-4x3.png", 1440, 1080, false);
+            view.ShowStatus("GLOBAL | Not configured. Local play only.");
+            Frame("menu-global-setup-1080.png", 1920, 1080, false);
             DemoLeaderboardData stress = SampleScores();
             stress.MostKills[0].Name = "WWWWWWWWWWWWWWWW";
             stress.MostKills[0].Kills = int.MaxValue;

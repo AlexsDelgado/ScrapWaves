@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public enum RocketLauncherVfxStyle
@@ -17,11 +18,13 @@ public enum RocketLauncherVfxStyle
 [DisallowMultipleComponent]
 public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWeaponVfxContextReceiver
 {
+    private const float DamageFootprintHeightOffset = 0.02f;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
     private static readonly int EmissionIntensityId = Shader.PropertyToID("_EmissionIntensity");
     private static readonly int PulseId = Shader.PropertyToID("_Pulse");
     private static readonly int DissolveId = Shader.PropertyToID("_Dissolve");
+    private static readonly int VertexJitterId = Shader.PropertyToID("_VertexJitter");
 
     [SerializeField] private RocketLauncherVfxStyle _style;
     [SerializeField] private Color _primaryColor = new(1f, 0.3f, 0.025f, 1f);
@@ -74,6 +77,31 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
     private Vector3[] _fragmentMiniLocalPositions;
     private Vector3[] _fragmentMiniRootPositions;
     private int[] _fragmentMeshMiniIndex;
+    private readonly Dictionary<Transform, Vector3> _authoredScales = new();
+    private readonly Dictionary<ParticleSystem, ParticleBaseline> _particleBaselines = new();
+    private MeshRenderer _damageFootprint;
+    private Mesh _damageFootprintMesh;
+    private bool _showDamageFootprint;
+    private MeshRenderer _mainBlastRenderer;
+    private Vector3 _mainBlastScalePerMetre;
+    private float _mainBlastAuthoredJitter;
+    private bool _mainBlastAuthoredEnabled;
+    private bool _usesResolvedBlastVolume;
+    private float _resolvedBlastRadius;
+
+    private readonly struct ParticleBaseline
+    {
+        public readonly Vector3 Scale;
+        public readonly Vector3 Position;
+        public readonly int Maximum;
+
+        public ParticleBaseline(ParticleSystem particles)
+        {
+            Scale = particles.transform.localScale;
+            Position = particles.transform.localPosition;
+            Maximum = particles.main.maxParticles;
+        }
+    }
 
     public RocketLauncherVfxStyle Style => _style;
     public int RuntimeParticleSystemCount => _particleLayers?.Length ?? 0;
@@ -90,8 +118,22 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
         CacheLayers();
         _intensity = Mathf.Max(0f, context.Intensity);
         _contextScale = _scaleFromExplosionRadius
-            ? Mathf.Max(0.05f, context.ExplosionRadius * _explosionRadiusMultiplier)
+            ? context.ExplosionRadius * _explosionRadiusMultiplier
             : 1f;
+        _usesResolvedBlastVolume = _scaleFromExplosionRadius && IsExplosionCue(context.Cue);
+        _resolvedBlastRadius = context.ExplosionRadius;
+        _showDamageFootprint = IsExplosionCue(context.Cue) && context.ExplosionRadius > 0f;
+        if (_damageFootprint != null)
+        {
+            // Explosion feedback's normal is the reverse flight direction, not
+            // a ground contact. Keep this radial guide in the ground plane;
+            // the forward fragmentation sector retains its separate rotation.
+            _damageFootprint.transform.rotation = Quaternion.identity;
+            // A fixed world offset avoids coplanar floor flicker at every radius.
+            _damageFootprint.transform.position = transform.position + Vector3.up * DamageFootprintHeightOffset;
+            _damageFootprint.transform.localScale = Vector3.one * context.ExplosionRadius;
+        }
+        ApplyParticleScale(_scaleFromExplosionRadius && IsExplosionCue(context.Cue) ? context.ExplosionRadius : 1f);
         if (_forwardMiniExplosionRoot != null)
         {
             float coneRange = context.HasFragmentGeometry ? context.FragmentConeRange
@@ -235,6 +277,11 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
 
     private void OnDestroy()
     {
+        if (_damageFootprintMesh != null)
+        {
+            if (Application.isPlaying) Destroy(_damageFootprintMesh);
+            else DestroyImmediate(_damageFootprintMesh);
+        }
         if (_fragmentRuntimeMeshes == null) return;
         foreach (Mesh mesh in _fragmentRuntimeMeshes)
             if (mesh != null)
@@ -278,7 +325,7 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
         for (int i = 0; i < _animatedRoots.Length; i++)
         {
             if (_animatedRoots[i] != null)
-                _baseScales[i] = _animatedRoots[i].localScale;
+                _baseScales[i] = AuthoredScale(_animatedRoots[i]);
         }
 
         _miniExplosionBaseScales = new Vector3[_forwardMiniExplosions.Length];
@@ -288,8 +335,9 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
         {
             if (_forwardMiniExplosions[i] != null)
             {
-                _miniExplosionBaseScales[i] = _forwardMiniExplosions[i].localScale;
-                float depth = _forwardMiniExplosions[i].localPosition.z;
+                _miniExplosionBaseScales[i] = AuthoredScale(_forwardMiniExplosions[i]);
+                float depth = _fragmentMiniLocalPositions != null && i < _fragmentMiniLocalPositions.Length
+                    ? _fragmentMiniLocalPositions[i].z : _forwardMiniExplosions[i].localPosition.z;
                 _nearestMiniExplosionDepth = Mathf.Min(_nearestMiniExplosionDepth, depth);
                 _furthestMiniExplosionDepth = Mathf.Max(_furthestMiniExplosionDepth, depth);
             }
@@ -304,8 +352,152 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
         for (int i = 0; i < _particleLayers.Length; i++)
         {
             if (_particleLayers[i] != null)
-                _baseMaxParticles[i] = _particleLayers[i].main.maxParticles;
+            {
+                ParticleSystem particles = _particleLayers[i];
+                if (!_particleBaselines.TryGetValue(particles, out ParticleBaseline baseline))
+                {
+                    baseline = new ParticleBaseline(particles);
+                    _particleBaselines.Add(particles, baseline);
+                }
+                _baseMaxParticles[i] = baseline.Maximum;
+            }
         }
+        CacheMainBlastVolume();
+        CacheDamageFootprint();
+    }
+
+    private void CacheMainBlastVolume()
+    {
+        if (_mainBlastRenderer != null) return;
+        // Every authored rocket blast has this centered sphere. Forward mini blasts
+        // and pressure fronts keep their own geometry and animation.
+        Transform core = transform.Find("Explosion Core");
+        if (core == null || !core.TryGetComponent(out MeshFilter filter)
+            || filter.sharedMesh == null || !core.TryGetComponent(out MeshRenderer renderer)) return;
+
+        Vector3 authoredScale = AuthoredScale(core);
+        Mesh mesh = filter.sharedMesh;
+        float radius = 0f;
+        if (mesh.isReadable)
+        {
+            foreach (Vector3 vertex in mesh.vertices)
+                radius = Mathf.Max(radius, Vector3.Scale(vertex, authoredScale).magnitude);
+        }
+        else
+        {
+            Vector3 extent = Vector3.Scale(mesh.bounds.extents, authoredScale);
+            radius = Mathf.Max(Mathf.Abs(extent.x), Mathf.Abs(extent.y), Mathf.Abs(extent.z));
+        }
+        if (radius <= 0f) return;
+        _mainBlastRenderer = renderer;
+        _mainBlastScalePerMetre = authoredScale / radius;
+        _mainBlastAuthoredEnabled = renderer.enabled;
+        Material material = renderer.sharedMaterial;
+        _mainBlastAuthoredJitter = material != null && material.HasProperty(VertexJitterId)
+            ? material.GetFloat(VertexJitterId) : 0f;
+    }
+
+    private void ApplyMainBlastVolume(float normalizedLife)
+    {
+        if (_mainBlastRenderer == null) return;
+        _mainBlastRenderer.enabled = _mainBlastAuthoredEnabled && (!_usesResolvedBlastVolume
+            || (_resolvedBlastRadius > 0f && normalizedLife < 1f));
+        if (!_usesResolvedBlastVolume) return;
+
+        // Damage is instantaneous. Show its full volume from the first visible frame;
+        // brightness/dissolve provide the animation instead of delayed, undersized growth.
+        Vector3 scale = _mainBlastScalePerMetre * _resolvedBlastRadius;
+        Vector3 parentScale = _mainBlastRenderer.transform.parent.lossyScale;
+        _mainBlastRenderer.transform.localScale = new Vector3(
+            scale.x / Mathf.Max(0.000001f, Mathf.Abs(parentScale.x)),
+            scale.y / Mathf.Max(0.000001f, Mathf.Abs(parentScale.y)),
+            scale.z / Mathf.Max(0.000001f, Mathf.Abs(parentScale.z)));
+    }
+
+    private Vector3 AuthoredScale(Transform target)
+    {
+        if (!_authoredScales.TryGetValue(target, out Vector3 scale))
+        {
+            scale = target.localScale;
+            _authoredScales.Add(target, scale);
+        }
+        return scale;
+    }
+
+    private static bool IsExplosionCue(WeaponPresentationCue cue) => cue is
+        WeaponPresentationCue.RocketImpact or WeaponPresentationCue.RocketKineticImpact or
+        WeaponPresentationCue.RocketFragmentImpact or WeaponPresentationCue.RocketFragmentChildImpact or
+        WeaponPresentationCue.RocketKillImpact or WeaponPresentationCue.RocketClusterDetonation;
+
+    private void ApplyParticleScale(float radiusScale)
+    {
+        foreach (ParticleSystem particles in _particleLayers)
+        {
+            if (particles == null) continue;
+            ParticleBaseline baseline = _particleBaselines[particles];
+            // These authored impact emitters are siblings of the animated mesh
+            // roots. Local scaling handles their authored shape, launch motion
+            // and particle size without scaling the blast twice. Their curves
+            // and quality budgets remain authored; one metre is the reference.
+            ParticleSystem.MainModule main = particles.main;
+            main.scalingMode = ParticleSystemScalingMode.Local;
+            particles.transform.localScale = baseline.Scale * radiusScale;
+            particles.transform.localPosition = baseline.Position * radiusScale;
+        }
+    }
+
+    private void CacheDamageFootprint()
+    {
+        if (_damageFootprint != null || !_scaleFromExplosionRadius) return;
+        Material material = null;
+        foreach (Renderer layer in _meshLayers)
+        {
+            if (layer == null || layer is ParticleSystemRenderer || layer.sharedMaterial == null) continue;
+            material = layer.sharedMaterial;
+            break;
+        }
+        if (material == null) return;
+
+        const int segments = 72;
+        Vector3[] vertices = new Vector3[segments * 2];
+        Vector3[] normals = new Vector3[vertices.Length];
+        Color[] colors = new Color[vertices.Length];
+        Vector2[] uv = new Vector2[vertices.Length];
+        int[] triangles = new int[segments * 6];
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = i * Mathf.PI * 2f / segments;
+            Vector3 edge = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            vertices[i * 2] = edge;
+            vertices[i * 2 + 1] = edge * 0.975f;
+            normals[i * 2] = normals[i * 2 + 1] = Vector3.up;
+            colors[i * 2] = colors[i * 2 + 1] = Color.white;
+            uv[i * 2] = new Vector2(i / (float)segments, 1f);
+            uv[i * 2 + 1] = new Vector2(i / (float)segments, 0f);
+            int next = (i + 1) % segments * 2;
+            int triangle = i * 6;
+            triangles[triangle] = i * 2;
+            triangles[triangle + 1] = i * 2 + 1;
+            triangles[triangle + 2] = next;
+            triangles[triangle + 3] = next;
+            triangles[triangle + 4] = i * 2 + 1;
+            triangles[triangle + 5] = next + 1;
+        }
+        _damageFootprintMesh = new Mesh { name = "Resolved rocket blast footprint", hideFlags = HideFlags.DontSave };
+        _damageFootprintMesh.vertices = vertices;
+        _damageFootprintMesh.normals = normals;
+        _damageFootprintMesh.colors = colors;
+        _damageFootprintMesh.uv = uv;
+        _damageFootprintMesh.triangles = triangles;
+        _damageFootprintMesh.RecalculateBounds();
+        GameObject footprint = new("Resolved Damage Footprint");
+        footprint.transform.SetParent(transform, false);
+        footprint.AddComponent<MeshFilter>().sharedMesh = _damageFootprintMesh;
+        _damageFootprint = footprint.AddComponent<MeshRenderer>();
+        _damageFootprint.sharedMaterial = material;
+        _damageFootprint.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        _damageFootprint.receiveShadows = false;
+        _damageFootprint.enabled = false;
     }
 
     private void ApplyFrame(float normalizedLife)
@@ -332,6 +524,8 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             _propertyBlock.SetFloat(EmissionIntensityId, emission);
             _propertyBlock.SetFloat(PulseId, Mathf.Clamp01(_intensity * (1f - normalizedLife)) * flashScale);
             _propertyBlock.SetFloat(DissolveId, dissolve);
+            if (renderer == _mainBlastRenderer)
+                _propertyBlock.SetFloat(VertexJitterId, _usesResolvedBlastVolume ? 0f : _mainBlastAuthoredJitter);
             renderer.SetPropertyBlock(_propertyBlock);
         }
 
@@ -341,7 +535,22 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             if (_animatedRoots[i] != null)
                 _animatedRoots[i].localScale = _baseScales[i] * scale;
         }
+        ApplyMainBlastVolume(normalizedLife);
         ApplyForwardMiniExplosions(normalizedLife);
+        if (_damageFootprint != null)
+        {
+            _damageFootprint.enabled = _showDamageFootprint && normalizedLife < 1f;
+            Color footprintColor = color;
+            footprintColor.a *= 1f - Mathf.SmoothStep(0f, 1f, normalizedLife);
+            _damageFootprint.GetPropertyBlock(_propertyBlock);
+            _propertyBlock.SetColor(BaseColorId, footprintColor);
+            _propertyBlock.SetColor(EmissionColorId, footprintColor * emission);
+            _propertyBlock.SetFloat(EmissionIntensityId, emission);
+            _propertyBlock.SetFloat(PulseId, flashScale);
+            _propertyBlock.SetFloat(DissolveId, 0f);
+            _propertyBlock.SetFloat(VertexJitterId, 0f);
+            _damageFootprint.SetPropertyBlock(_propertyBlock);
+        }
 
         if (_lightPulse != null)
         {

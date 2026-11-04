@@ -9,11 +9,13 @@ public sealed class CompactorEscapeTestController : MonoBehaviour
     public ExitDoor Door => _exitDoor;
     public bool IsCharging => _exitDoor != null && _exitDoor.State == ExitDoorState.Charging;
     public string Status => _exitDoor == null ? "Compactor unavailable" :
-        _exitDoor.State == ExitDoorState.Ready || _exitDoor.State == ExitDoorState.Used
-            ? "100% — Ready to leave (door held open)"
-            : _exitDoor.State == ExitDoorState.Charging
-                ? $"Opening: {_exitDoor.ChargeNormalized:P0}"
-                : "Closed — Start Escape Test to open";
+        _exitDoor.State == ExitDoorState.Used
+            ? $"Escaped at {_exitDoor.ChargeNormalized:P0} open"
+            : _exitDoor.State == ExitDoorState.Ready
+                ? "100% - Cross the doorway to escape"
+                : _exitDoor.State == ExitDoorState.Charging
+                    ? $"Opening: {_exitDoor.ChargeNormalized:P0} - Jump through when clear"
+                    : "Closed - Start Escape Test to open";
 
     public void Configure(ExitDoor door, LevelExitObjective objective)
     {

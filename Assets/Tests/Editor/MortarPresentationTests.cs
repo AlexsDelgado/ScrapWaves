@@ -826,6 +826,160 @@ public sealed class MortarPresentationTests
         Assert.That(maximumRadius, Is.GreaterThan(1.5f), "The impact ring must extend visibly around the model footprint.");
     }
 
+    [TestCase(true)]
+    [TestCase(false)]
+    public void AuthoredFlight_UsesResolvedCollisionRadiusAndRestoresSizeAcrossPoolReuse(bool detailed)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        MortarShellVfx source = profile.Mortar.ShellPrefab.GetComponent<MortarShellVfx>();
+        Vector3 shellScale = GetField<Transform>(source, "_shellRoot").localScale;
+        ParticleSystem sourceSmoke = GetField<ParticleSystem>(source, "_flightSmoke");
+        Vector3 smokeScale = sourceSmoke.transform.localScale;
+        MortarShellImpact shell = null;
+        GameObject floor = null;
+        Vector3 origin = new(7200f, 0f, 7200f);
+        try
+        {
+            floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.transform.position = origin + Vector3.down * .1f;
+            floor.transform.localScale = new Vector3(80f, .2f, 80f);
+            Physics.SyncTransforms();
+            foreach (float collisionRadius in new[] { .72f, .09f, .18f })
+            {
+                MortarShellImpact previous = shell;
+                if (shell != null)
+                    Invoke(shell, "ReleaseShell");
+                shell = MortarShellImpact.LaunchAuthored(
+                    origin + Vector3.up * 4f, origin + Vector3.forward * 6f, .5f, 2f,
+                    10, 3.5f, .5f, 1f, collisionRadius, null, MortarUpgradePayload.None,
+                    false, default, profile.Mortar.ShellPrefab, profile.Mortar.ShellPoolCapacity,
+                    detailed, true, null, default);
+                if (previous != null)
+                    Assert.That(shell, Is.SameAs(previous), "Exercise the same pooled visual instance.");
+                MortarShellVfx vfx = shell.GetComponent<MortarShellVfx>();
+                float scale = collisionRadius / .18f;
+                Assert.That(Vector3.Distance(GetField<Transform>(vfx, "_shellRoot").localScale,
+                    shellScale * scale), Is.LessThan(.0001f));
+                Assert.That(GetField<TrailRenderer>(vfx, "_trail").widthMultiplier,
+                    Is.EqualTo((detailed ? .11f : .045f) * scale).Within(.0001f));
+                ParticleSystem smoke = GetField<ParticleSystem>(vfx, "_flightSmoke");
+                Assert.That(Vector3.Distance(smoke.transform.localScale, smokeScale * scale), Is.LessThan(.0001f));
+                Assert.That(smoke.main.scalingMode, Is.EqualTo(ParticleSystemScalingMode.Hierarchy));
+                Assert.That(smoke.main.maxParticles, Is.EqualTo(sourceSmoke.main.maxParticles));
+                Assert.That(smoke.emission.rateOverTime.constant, Is.EqualTo(detailed ? 14f : 0f));
+                Assert.That(GetField<float>(shell, "_collisionRadius"), Is.EqualTo(collisionRadius));
+                Assert.That(GetField<float>(shell, "_explosionRadius"), Is.EqualTo(3.5f));
+                Assert.That(shell.transform.localScale, Is.EqualTo(Vector3.one), "Visual sizing cannot scale gameplay root.");
+                Transform ring = GetField<Transform>(vfx, "_blastRadiusRing");
+                Assert.That(ring.localScale.x, Is.EqualTo(7f).Within(.0001f), "Flight sizing must not multiply the blast marker.");
+                Assert.That(ring.localScale.z, Is.EqualTo(7f).Within(.0001f));
+                Vector3 anchored = vfx.LandingIndicatorPosition;
+                shell.transform.position += Vector3.right * 20f;
+                vfx.UpdateFlight(Vector3.forward, .5f);
+                Assert.That(Vector3.Distance(vfx.LandingIndicatorPosition, anchored), Is.LessThan(.001f));
+            }
+        }
+        finally
+        {
+            if (shell != null) Object.DestroyImmediate(shell.gameObject);
+            if (floor != null) Object.DestroyImmediate(floor);
+        }
+    }
+
+    [TestCase(WeaponPresentationCue.MortarImpact)]
+    [TestCase(WeaponPresentationCue.MortarGrapeshotImpact)]
+    [TestCase(WeaponPresentationCue.MortarMultiChargedImpact)]
+    [TestCase(WeaponPresentationCue.MortarMultiChargedRepeat)]
+    public void ImpactFootprint_UsesExactResolvedRadiusThroughoutLifetimeAndPooledReuse(WeaponPresentationCue cue)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Assert.That(profile.TryGetCueData(cue, out WeaponPresentationCueData data), Is.True);
+        GameObject instance = Object.Instantiate(data.VfxPrefab);
+        try
+        {
+            PooledWeaponVfx pooled = instance.GetComponent<PooledWeaponVfx>();
+            pooled.Initialize();
+            MortarCueVfx vfx = instance.GetComponent<MortarCueVfx>();
+            Vector3 normal = new Vector3(.3f, 1f, -.2f).normalized;
+            foreach (float radius in new[] { .08f, 2f, 20f, 0f, .2f })
+            {
+                WeaponPresentationContext context = new(cue, null, Vector3.zero, Vector3.forward,
+                    impactNormal: normal, explosionRadius: radius, quality: GameFeelQualityLevel.Low);
+                pooled.Play(in context, 2f, 0f, false);
+                Renderer footprint = GetField<Renderer>(vfx, "_damageFootprint");
+                Assert.That(footprint, Is.Not.Null);
+                Assert.That(footprint.enabled, Is.EqualTo(radius > 0f));
+                Assert.That(Vector3.Dot(footprint.transform.up, normal), Is.GreaterThan(.999f));
+                foreach (float age in new[] { 0f, .16f, .5f, .95f })
+                {
+                    Invoke(vfx, "ApplyFrame", age);
+                    if (radius <= 0f) continue;
+                    float actualRadius = 0f;
+                    foreach (Vector3 vertex in footprint.GetComponent<MeshFilter>().sharedMesh.vertices)
+                    {
+                        Vector3 offset = footprint.transform.TransformPoint(vertex) - footprint.transform.position;
+                        actualRadius = Mathf.Max(actualRadius, Vector3.ProjectOnPlane(offset, normal).magnitude);
+                    }
+                    Assert.That(actualRadius, Is.EqualTo(radius).Within(.001f), "The ring must neither grow past nor understate damage.");
+                    MaterialPropertyBlock properties = new();
+                    footprint.GetPropertyBlock(properties);
+                    Assert.That(properties.GetFloat("_Dissolve"), Is.Zero);
+                    Assert.That(properties.GetFloat("_VertexJitter"), Is.Zero);
+                }
+                pooled.Release();
+            }
+        }
+        finally { Object.DestroyImmediate(instance); }
+    }
+
+    [Test]
+    public void ImpactParticles_FollowUncappedRadiusWithStableQualityBudgetAndNoCompounding()
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Assert.That(profile.TryGetCueData(WeaponPresentationCue.MortarImpact, out WeaponPresentationCueData data), Is.True);
+        GameObject instance = Object.Instantiate(data.VfxPrefab);
+        try
+        {
+            PooledWeaponVfx pooled = instance.GetComponent<PooledWeaponVfx>();
+            pooled.Initialize();
+            MortarCueVfx vfx = instance.GetComponent<MortarCueVfx>();
+            ParticleSystem[] particles = GetField<ParticleSystem[]>(vfx, "_particleLayers");
+            int[] budgets = GetField<int[]>(vfx, "_baseMaxParticles");
+            foreach (float radius in new[] { 1f, 12f, .5f, 1f })
+            {
+                WeaponPresentationContext context = new(WeaponPresentationCue.MortarImpact, null,
+                    Vector3.zero, Vector3.forward, explosionRadius: radius, quality: GameFeelQualityLevel.Low);
+                pooled.Play(in context, 2f, 0f, false);
+                Invoke(vfx, "ApplyFrame", .16f);
+                for (int i = 0; i < particles.Length; i++)
+                {
+                    Assert.That(particles[i].main.scalingMode, Is.EqualTo(ParticleSystemScalingMode.Hierarchy));
+                    Assert.That(particles[i].transform.lossyScale.x, Is.EqualTo(radius * 2f).Within(.001f));
+                    Assert.That(particles[i].main.maxParticles, Is.EqualTo(Mathf.Max(1, Mathf.RoundToInt(budgets[i] * .45f))));
+                }
+                pooled.Release();
+            }
+        }
+        finally { Object.DestroyImmediate(instance); }
+    }
+
+    [TestCase(WeaponPresentationCue.MortarGrapeshotAirburst)]
+    [TestCase(WeaponPresentationCue.MortarAutomaticLaunch)]
+    public void NonDamagingMortarCues_DoNotAcquireDamageFootprint(WeaponPresentationCue cue)
+    {
+        WeaponPresentationProfile profile = AssetDatabase.LoadAssetAtPath<WeaponPresentationProfile>(ProfilePath);
+        Assert.That(profile.TryGetCueData(cue, out WeaponPresentationCueData data), Is.True);
+        GameObject instance = Object.Instantiate(data.VfxPrefab);
+        try
+        {
+            MortarCueVfx vfx = instance.GetComponent<MortarCueVfx>();
+            WeaponPresentationContext context = new(cue, null, Vector3.zero, Vector3.forward, explosionRadius: 20f);
+            vfx.ApplyContext(in context);
+            Assert.That(GetField<Renderer>(vfx, "_damageFootprint"), Is.Null);
+        }
+        finally { Object.DestroyImmediate(instance); }
+    }
+
     private static MortarShellImpact LaunchAuthored(
         WeaponPresentationProfile profile,
         Vector3 target,

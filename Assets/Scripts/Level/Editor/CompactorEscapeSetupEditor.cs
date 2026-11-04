@@ -13,6 +13,7 @@ public static class CompactorEscapeSetupEditor
 {
     public const string ModelPath = "Assets/Art/Level/CompactorDoor/Compactor_Open.fbx";
     public const string PrefabPath = "Assets/Prefabs/Level/Compactor/CompactorExitDoor.prefab";
+    public const string DownwardClipPath = "Assets/Art/Level/CompactorDoor/Compactor_OpenDown.anim";
     private const string MaterialFolder = "Assets/Art/Level/CompactorDoor/Materials";
     private const string SuctionPath = MaterialFolder + "/CompactorSuction.mat";
     private const string SandboxPath = "Assets/Scenes/Testing/WeaponTestingSandbox.unity";
@@ -104,11 +105,33 @@ public static class CompactorEscapeSetupEditor
         importer.SaveAndReimport();
     }
 
-    public static AnimationClip OpeningClip => AssetDatabase.LoadAllAssetsAtPath(ModelPath)
+    public static AnimationClip ImportedOpeningClip => AssetDatabase.LoadAllAssetsAtPath(ModelPath)
         .OfType<AnimationClip>().Single(c => c.name == "Open");
+
+    public static AnimationClip OpeningClip => AssetDatabase.LoadAssetAtPath<AnimationClip>(DownwardClipPath);
+
+    [MenuItem("Tools/ScrapWaves/Upgrade Compactor Downward Escape")]
+    public static void UpgradeDownwardEscape()
+    {
+        CompactorDownwardAuthoring.BuildOpeningClip();
+        GameObject root = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            CompactorDownwardAuthoring.ConfigurePrefab(root);
+            PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+        }
+        finally
+        {
+            root.GetComponent<CompactorDoorPresentation>()?.Dispose();
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log("COMPACTOR_DOWNWARD_UPGRADE_COMPLETE");
+    }
 
     private static GameObject CreatePrefab()
     {
+        CompactorDownwardAuthoring.BuildOpeningClip();
         Directory.CreateDirectory(Path.GetDirectoryName(PrefabPath));
         var root = new GameObject("CompactorExitDoor");
         GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath));
@@ -151,6 +174,7 @@ public static class CompactorEscapeSetupEditor
         suctionMat.SetFloat("_Activity", 0f);
         suction.sharedMaterial = suctionMat;
         root.AddComponent<CompactorDoorPresentation>().Configure(door, animator, OpeningClip, suction, blocker);
+        CompactorDownwardAuthoring.ConfigurePrefab(root);
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
         root.GetComponent<CompactorDoorPresentation>().Dispose();
         Object.DestroyImmediate(root);

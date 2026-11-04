@@ -53,6 +53,9 @@ public sealed class TutorialDirector : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        // The lesson owns this station even when the saved scene predates rotation.
+        // Do this before normal stations select their first active destination in Start.
+        _station?.ConfigureForTutorial();
         bool requested = _replayRequested; _replayRequested = false;
         _active = requested || (SaveManager.Instance != null && SaveManager.Instance.ShouldAutoPlayTutorial);
         if (!_active) { if (_world != null) _world.SetActive(false); return; }

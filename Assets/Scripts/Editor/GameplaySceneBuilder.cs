@@ -17,6 +17,7 @@ public static class GameplaySceneBuilder
     {
         EnsureSceneAssetExists();
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        WarnAboutLegacyExitDoors(scene);
         EnsureGameplayPools();
         ApplyBuildSettings();
         EditorSceneManager.MarkSceneDirty(scene);
@@ -32,6 +33,16 @@ public static class GameplaySceneBuilder
 
         if (!AssetDatabase.CopyAsset(SourceScenePath, ScenePath))
             Debug.LogError($"No se pudo copiar {SourceScenePath} → {ScenePath}.");
+    }
+
+    private static void WarnAboutLegacyExitDoors(Scene scene)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+            foreach (ExitDoor door in root.GetComponentsInChildren<ExitDoor>(true))
+                if (door.GetComponent<ExitDoorTraversal>() == null)
+                    Debug.LogWarning("GameplaySceneBuilder: this scene contains a legacy exit without ExitDoorTraversal; "
+                        + "it cannot complete an escape. Migrate that door to the current compactor while preserving its scene bindings "
+                        + "and approach direction. SampleScene still contains the old placeholder; this builder does not migrate doors automatically.", door);
     }
 
     private static void EnsureGameplayPools()

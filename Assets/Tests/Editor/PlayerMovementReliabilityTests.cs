@@ -326,6 +326,75 @@ public sealed class PlayerMovementReliabilityTests
         Assert.That(_movement.IsSliding, Is.False);
     }
 
+    [Test]
+    public void KinematicIntroRelease_EnablesCollisionSweepBeforeMovementCanRun()
+    {
+        _body.collisionDetectionMode = CollisionDetectionMode.Discrete;
+        _body.isKinematic = true;
+        Call(_movement, "ConfigureCollisionDetection");
+        Assert.That(_body.isKinematic, Is.True, "The motor must leave cinematic ownership intact.");
+        Assert.That(_body.collisionDetectionMode, Is.EqualTo(CollisionDetectionMode.Discrete));
+
+        _body.isKinematic = false;
+        Set(_movement, "_cameraTransform", null);
+        Call(_movement, "FixedUpdate");
+        Assert.That(_body.collisionDetectionMode, Is.EqualTo(CollisionDetectionMode.ContinuousDynamic),
+            "Physics must remain protected even before the camera/input is available.");
+    }
+
+    [TestCase(10f, .02f, 0)]
+    [TestCase(100f, .02f, 0)]
+    [TestCase(200f, .02f, 0)]
+    [TestCase(10f, .02f, 1)]
+    [TestCase(100f, .02f, 1)]
+    [TestCase(100f, 1f / 30f, 1)]
+    [TestCase(10f, .02f, 2)]
+    [TestCase(100f, .02f, 2)]
+    public void FallingPlayer_LandsWithoutTunnelling(float fallSpeed, float step, int groundKind)
+    {
+        Object.DestroyImmediate(GameObject.Find("Floor"));
+        if (groundKind == 2)
+        {
+            TerrainData data = Track(new TerrainData { heightmapResolution = 33, size = new Vector3(20f, 1f, 20f) });
+            GameObject floor = Track(Terrain.CreateTerrainGameObject(data));
+            floor.layer = 7; // Production terrain's Ground layer.
+            floor.transform.position = new Vector3(-10f, 0f, -10f);
+        }
+        else if (groundKind == 1)
+        {
+            GameObject floor = Track(GameObject.CreatePrimitive(PrimitiveType.Plane));
+            floor.name = "Single-sided mesh floor";
+        }
+        else
+            Box("Thin floor", new Vector3(0f, -.025f, 0f), new Vector3(20f, .05f, 20f));
+
+        Time.fixedDeltaTime = step;
+        _body.useGravity = true;
+        _body.maxLinearVelocity = Mathf.Max(_body.maxLinearVelocity, fallSpeed + 100f);
+        _body.position = new Vector3(0f, 2.3f, 0f);
+        _body.linearVelocity = Vector3.down * fallSpeed;
+        Set(_movement, "_isGrounded", false);
+        int landings = 0;
+        _movement.OnLanded += () => landings++;
+        Physics.SyncTransforms();
+
+        float minimumFeet = float.PositiveInfinity;
+        for (int tick = 0; tick < 60; tick++)
+        {
+            Call(_movement, "FixedUpdate");
+            Physics.Simulate(step);
+            // Rigidbody position is authoritative; the rendered transform may be interpolated.
+            minimumFeet = Mathf.Min(minimumFeet, _body.position.y - 1.2f);
+        }
+
+        TestContext.WriteLine($"fall={fallSpeed} m/s; step={step:F4}; ground={groundKind}; minimumFeet={minimumFeet:F4}; finalY={_body.position.y:F4}");
+        Assert.That(minimumFeet, Is.GreaterThan(-.03f), "The capsule must never cross the ground during descent.");
+        Assert.That(_body.position.y, Is.EqualTo(1.2f).Within(.03f));
+        Assert.That(_body.linearVelocity.y, Is.EqualTo(0f).Within(.01f));
+        Assert.That(_movement.IsGroundedOnSurface, Is.True);
+        Assert.That(landings, Is.EqualTo(1));
+    }
+
     private void Keys(params Key[] keys)
     {
         InputSystem.QueueStateEvent(_keyboard, new KeyboardState(keys));

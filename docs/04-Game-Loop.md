@@ -4,13 +4,13 @@ El GDD del 21-7 cita `DumpsterFire-DEV-GameLoop`. Ese archivo no estaba en `docs
 
 ## Scripts
 
-`GameManager`, `DifficultyManager`, `RunSessionStats`, `RunCombatStats`, `LevelExitObjective`, `BossKeyDrop`, `KeyPickup`, `WorldPickup`, `ExitDoor`, `LevelExitPressure`, `ExitSpawnPressure`, `LevelExitHud`, `GuideArrowController`, `CompactorDoorPresentation`, `PlayerXP`.
+`GameManager`, `DifficultyManager`, `RunSessionStats`, `RunCombatStats`, `LevelExitObjective`, `BossKeyDrop`, `KeyPickup`, `WorldPickup`, `ExitDoor`, `ExitDoorTraversal`, `LevelExitPressure`, `ExitSpawnPressure`, `LevelExitHud`, `GuideArrowController`, `CompactorDoorPresentation`, `PlayerXP`.
 
 ## Estados de la run
 
 `GameManager` distingue juego en curso, game over por muerte y victoria. `OnBossDefeated` cuenta para las stats de la run. No gana la partida. El campo de “bosses necesarios para victoria” está obsoleto.
 
-La victoria solo sale de `ExitDoor` en estado Ready, que llama a `TriggerVictory()`. La derrota es vida del jugador a 0.
+La victoria sale de `ExitDoor` al atravesar por completo la abertura desde la arena hacia el interior del compactador, con la puerta activada y la partida en curso. Puede ocurrir durante Charging o Ready; llama a `TriggerVictory()` una sola vez. La derrota es vida del jugador a 0.
 
 Al cerrar, `RunEndScreenUI` muestra tiempo, kills, nivel y bosses, con reintentar o volver al menú. El estilo de esa pantalla se rehízo el 21-09. `SaveManager` recibe el reporte para scrap, desbloqueos y logros.
 
@@ -21,9 +21,11 @@ Al cerrar, `RunEndScreenUI` muestra tiempo, kills, nivel y bosses, con reintenta
 3. `KeyPickup` llama a `LevelExitObjective.RegisterKey()`.
 4. Con `_keysRequired = 2` en la escena, `OnAllKeysCollected` pasa la puerta de Locked a AwaitingActivation.
 
-`ExitDoor`: el jugador interactúa, la puerta carga (5 s por defecto en el componente, radio 3) y, al quedar Ready, otra interacción termina la run.
+`ExitDoor`: tras recoger las dos baterías, el jugador pulsa [E] para activar la apertura. La hoja baja y su colisión acompaña el movimiento: se puede saltar por encima y escapar en cuanto la cápsula completa del jugador quepa y cruce la abertura. No hay que esperar al 100% ni volver a pulsar [E]. La escena usa 20 s de apertura y radio de interacción 20 (el componente tiene defaults de 5 s y radio 3). Al escapar se conserva la pose alcanzada, incluso si la apertura estaba incompleta.
 
 `GuideArrowController` apunta a una estación de crafting durante una ventana inicial (20 s) y, al juntar las llaves, apunta a la puerta. `CompactorDoorPresentation` es la presentación visual de esa puerta.
+
+`SampleScene`, deshabilitada en el build, conserva el antiguo prefab de puerta de cubo y todavía requiere migración: esa puerta no permite completar el escape con el nuevo flujo. Los configuradores de salida y de GameplayScene advierten sobre puertas sin `ExitDoorTraversal`; no reemplazan automáticamente los objetos existentes ni sus ajustes de escena. Las nuevas salidas usan `CompactorExitDoor`.
 
 ## Fase de salida
 
@@ -51,5 +53,7 @@ La pausa de gameplay (`GameplayPause`) la usan el level-up, el crafting y el men
 ## Qué no es el cierre de la run
 
 - Llenar el heat.
+- Terminar la animación de apertura sin atravesar la puerta.
+- Estar detrás de la puerta al activarla, cruzar hacia la arena o rodear el marco.
 - Matar dos bosses sin recoger las llaves y usar la puerta.
 - Un temporizador de Overheat. Ese campo ya no corta nada.

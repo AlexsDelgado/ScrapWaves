@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 public sealed class CraftingDialogueHintTests
@@ -12,6 +14,7 @@ public sealed class CraftingDialogueHintTests
     private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.NonPublic;
     private readonly List<Object> _cleanup = new();
     private SaveManager _previousSave;
+    private Scene _fixtureScene;
 
     [SetUp]
     public void SetUp()
@@ -24,8 +27,15 @@ public sealed class CraftingDialogueHintTests
     public void TearDown()
     {
         for (int i = _cleanup.Count - 1; i >= 0; i--)
-            if (_cleanup[i] != null) Object.DestroyImmediate(_cleanup[i]);
+            if (_cleanup[i] != null)
+            {
+                if (_cleanup[i] is GameObject go)
+                    foreach (var station in go.GetComponentsInChildren<CraftingStation>(true))
+                        CraftingStationRotation.Unregister(station);
+                Object.DestroyImmediate(_cleanup[i]);
+            }
         _cleanup.Clear();
+        if (_fixtureScene.IsValid() && _fixtureScene.isLoaded) EditorSceneManager.ClosePreviewScene(_fixtureScene);
         SetSave(_previousSave);
     }
 
@@ -123,9 +133,56 @@ public sealed class CraftingDialogueHintTests
         Assert.That(h.Group.alpha, Is.EqualTo(1f));
     }
 
+    [Test]
+    public void FundedCraftingHint_WaitsForAUsableStationAndRechecksTheVisibleHint()
+    {
+        Harness h = Create();
+        Fund(h, h.Service.GetUpgradeCost(h.Weapon.Data, WeaponUpgradePath.None, 2));
+        CraftingStationRotation.Unregister(h.Station);
+        h.Director.Play(h.Entry);
+        Assert.That(Queue(h).Count, Is.Zero);
+        Assert.That((bool)Call(h.Director, "CanShow", h.Entry), Is.False);
+        CraftingStationRotation.Register(h.Station);
+        Assert.That((bool)Call(h.Director, "CanShow", h.Entry), Is.True);
+        Set(h.Box, "<CurrentEntry>k__BackingField", h.Entry);
+        h.Group.alpha = 1f;
+        CraftingStationRotation.Unregister(h.Station);
+        Call(h.Director, "RefreshCraftingHint");
+        Assert.That(h.Box.CurrentEntry, Is.Null);
+        Assert.That(h.Group.alpha, Is.Zero);
+    }
+
+    [Test]
+    public void VisitingAReplacementStation_StopsTheUnvisitedGuide()
+    {
+        Harness h = Create();
+        Fund(h, h.Service.GetUpgradeCost(h.Weapon.Data, WeaponUpgradePath.None, 2));
+        var replacementRoot = Track(new GameObject("Visited replacement"));
+        SceneManager.MoveGameObjectToScene(replacementRoot, _fixtureScene);
+        var replacement = replacementRoot.AddComponent<CraftingStation>();
+        CraftingStationRotation.Register(replacement);
+        CraftingStationRotation.Unregister(h.Station);
+        var entry = Track(ScriptableObject.CreateInstance<DialogueEntry>());
+        Set(entry, "_trigger", DialogueTrigger.CraftingNotVisitedFor);
+        Set(entry, "_seconds", 0f);
+        Set(h.Set, "_entries", new List<DialogueEntry> { entry });
+        Call(h.Director, "OnEnable");
+        try
+        {
+            var notify = typeof(CraftingStationRotation).GetMethod("NotifyInteracted", BindingFlags.Static | BindingFlags.NonPublic);
+            notify.Invoke(null, new object[] { replacement });
+            Assert.That(Get<bool>(h.Director, "_craftingVisited"), Is.True);
+            Call(h.Director, "EvaluateGuides");
+            Assert.That(Queue(h).Count, Is.Zero);
+        }
+        finally { Call(h.Director, "OnDisable"); }
+    }
+
     private Harness Create(int level = 1)
     {
+        _fixtureScene = EditorSceneManager.NewPreviewScene();
         var root = Track(new GameObject("Crafting dialogue fixture"));
+        SceneManager.MoveGameObjectToScene(root, _fixtureScene);
         root.SetActive(false);
         var manager = root.AddComponent<WeaponManager>();
         var inventory = root.AddComponent<MaterialInventory>();
@@ -147,13 +204,18 @@ public sealed class CraftingDialogueHintTests
         Set(director, "_crafting", service);
         Set(director, "_box", box);
         Set(director, "_runTime", 61f);
+        var table = Track(new GameObject("Crafting dialogue target"));
+        SceneManager.MoveGameObjectToScene(table, _fixtureScene);
+        var station = table.AddComponent<CraftingStation>();
+        CraftingStationRotation.Register(station);
+        CraftingStationRotation.InitializeScene(_fixtureScene);
         var entry = AssetDatabase.LoadAssetAtPath<DialogueEntry>("Assets/ScriptableObjects/Dialogue/Dialogue_Stalker_Guide_Crafting.asset");
         Assert.That(entry, Is.Not.Null);
         var set = Track(ScriptableObject.CreateInstance<DialogueSet>());
         Set(set, "_entries", new List<DialogueEntry> { entry });
         Set(director, "_set", set);
         return new Harness { Manager = manager, Inventory = inventory, Service = service, Weapon = weapon,
-            Box = box, Director = director, Group = group, Entry = entry, Set = set };
+            Box = box, Director = director, Group = group, Entry = entry, Set = set, Station = station };
     }
 
     private static void Fund(Harness h, IReadOnlyList<MaterialCost> cost)
@@ -171,6 +233,7 @@ public sealed class CraftingDialogueHintTests
         public WeaponManager Manager; public MaterialInventory Inventory; public WeaponCraftingService Service;
         public WeaponInstance Weapon; public DialogueBoxUI Box; public DialogueDirector Director;
         public CanvasGroup Group; public DialogueEntry Entry; public DialogueSet Set;
+        public CraftingStation Station;
     }
     private sealed class StubWeapon : IWeaponBehaviour
     {
