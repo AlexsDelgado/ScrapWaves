@@ -63,6 +63,7 @@ public static class DemoLeaderboardAuthoring
             BuildTable(board, font, "LongestSurvival", "TIME SURVIVED", "TIME", true,
                 viewFields.FindProperty("_longestSurvivalRows"));
             viewFields.ApplyModifiedPropertiesWithoutUndo();
+            EnsureOnlineStatus(view, font);
 
             RectTransform modal = Rect("PlayerNameEntry", safe);
             Stretch(modal);
@@ -79,7 +80,7 @@ public static class DemoLeaderboardAuthoring
                 new Vector2(0f, 1f), new Vector2(32f, -35f), new Vector2(580f, 28f));
             Label("Title", panel, font, "YOUR NAME", 42f, Bone,
                 new Vector2(0f, 1f), new Vector2(32f, -83f), new Vector2(580f, 56f));
-            Label("Description", panel, font, "Make your mark on the leaderboard.", 22f, Muted,
+            Label("Description", panel, font, "Pick a unique name on this PC.", 22f, Muted,
                 new Vector2(0f, 1f), new Vector2(32f, -137f), new Vector2(580f, 34f));
 
             Image fieldBackground = Image("NameInput", panel, Steel);
@@ -233,6 +234,67 @@ public static class DemoLeaderboardAuthoring
             throw new InvalidOperationException("Keep the demo switch easy to find in the scene hierarchy.");
     }
 
+    [MenuItem("Tools/ScrapWaves/Demo Leaderboard/Add Online Status")]
+    public static void AddOnlineStatus()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            throw new InvalidOperationException("Author the online status outside Play Mode.");
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+            if (SceneManager.GetSceneAt(i).isDirty)
+                throw new InvalidOperationException("Unsaved scene work is present. No scene was changed.");
+        SceneSetup[] previous = EditorSceneManager.GetSceneManagerSetup();
+        try
+        {
+            Scene scene = EditorSceneManager.OpenScene(ScenePath);
+            DemoLeaderboardView view = All<DemoLeaderboardView>(scene).Single();
+            TMP_FontAsset font = All<TitleScreenController>(scene).Single().PlayButton
+                .GetComponentInChildren<TMP_Text>(true).font;
+            bool added = EnsureOnlineStatus(view, font);
+            Validate(scene);
+            if (!view.HasStatusReference)
+                throw new InvalidOperationException("The leaderboard status label is missing.");
+            if (added)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+            }
+            Debug.Log(added
+                ? "DEMO_LEADERBOARD_ONLINE_STATUS_AUTHORED: Added one status label; preserved the tables and menu layout."
+                : "Demo leaderboard status already authored; existing designer changes preserved.");
+        }
+        finally
+        {
+            if (previous.Length > 0) EditorSceneManager.RestoreSceneManagerSetup(previous);
+        }
+    }
+
+    private static bool EnsureOnlineStatus(DemoLeaderboardView view, TMP_FontAsset font)
+    {
+        if (view.HasStatusReference)
+            return false;
+        Transform existing = view.transform.Find("LeaderboardStatus");
+        TMP_Text status = existing != null ? existing.GetComponent<TMP_Text>() : null;
+        if (existing != null && status == null)
+            throw new InvalidOperationException("LeaderboardStatus exists without its text component; it was preserved.");
+        if (status == null)
+        {
+            status = Label("LeaderboardStatus", view.transform, font, "GLOBAL \u2022 Connect to view scores", 18f, Muted);
+            RectTransform rect = status.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -5f);
+            rect.sizeDelta = new Vector2(0f, 28f);
+            status.enableAutoSizing = true;
+            status.fontSizeMin = 13f;
+            status.fontSizeMax = 18f;
+        }
+        var fields = new SerializedObject(view);
+        fields.FindProperty("_status").objectReferenceValue = status;
+        fields.ApplyModifiedPropertiesWithoutUndo();
+        return true;
+    }
+
     // Narrow migration for the original demo tables; never moves the existing logo or action stack.
     public static void RefineTableLayout()
     {
@@ -271,7 +333,11 @@ public static class DemoLeaderboardAuthoring
         var store = new DemoLeaderboardStore();
         if (!store.Clear()) { Debug.LogWarning("Demo leaderboard: " + store.LastError); return; }
         foreach (DemoLeaderboardView view in Object.FindObjectsByType<DemoLeaderboardView>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            view.ShowData(new DemoLeaderboardData());
+        {
+            DemoLeaderboardSettings settings = All<DemoLeaderboardSettings>(view.gameObject.scene).FirstOrDefault();
+            if (settings == null || !settings.UseOnlineLeaderboard)
+                view.RefreshFromStore();
+        }
         Debug.Log("Cleared only local demo leaderboard scores.");
     }
 
