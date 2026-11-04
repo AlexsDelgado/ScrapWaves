@@ -365,13 +365,8 @@ public static class HudArtApplier
         Transform exit = HudUiWire.FindDeepChild(canvas, "LevelExitHud");
         if (exit == null)
             return;
-        var rt = (RectTransform)exit;
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-28f, -24f);
-        rt.sizeDelta = new Vector2(360f, 44f);
         TextMeshProUGUI text = HudUiWire.FindTmp(exit, "Text");
-        if (text != null)
-            text.alignment = TextAlignmentOptions.MidlineRight;
+        LevelExitHud.ConfigureObjectivePanel((RectTransform)exit, text);
     }
 
     private const int DashPipCount = 3;
