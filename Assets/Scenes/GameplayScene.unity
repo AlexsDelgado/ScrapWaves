@@ -43263,7 +43263,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &704383682
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -58346,7 +58346,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &910000002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -61060,7 +61060,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &978389638
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -114121,7 +114121,7 @@ MonoBehaviour:
     Count: 3
   _overheatManager: {fileID: 0}
   _difficultyManager: {fileID: 1443009583}
-  _logState: 1
+  _logState: 0
   _minSpawnRadius: 25
   _maxSpawnRadius: 35
   _spawnHeightOffset: 0
@@ -114159,7 +114159,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1700000211
 Transform:
   m_ObjectHideFlags: 0
@@ -118505,7 +118505,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1800000300}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a4cafb504c364414f862f66c3fbff415, type: 3}
   m_Name: 
@@ -128780,7 +128780,7 @@ MonoBehaviour:
   _spawnDistance: 35
   _multiBossOverheatCycle: 3
   _bossCountOnMultiCycle: 2
-  _logState: 1
+  _logState: 0
   _groundRaycastMask:
     serializedVersion: 2
     m_Bits: 0
@@ -135086,6 +135086,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 766184711586426333, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
       propertyPath: _logStateChanges
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 766184711586426333, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
+      propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3355374661182279102, guid: 8996325517cf50a4cb685418ded6441a, type: 3}
