@@ -101,6 +101,83 @@ public sealed class DroneAimLineTests
         Assert.That(Get<float>(_drone, "_bulletSpeed"), Is.EqualTo(16f));
     }
 
+    // Plataforma en el mundo físico principal (las consultas globales no ven la escena de previsualización de los demás tests).
+    private GameObject NewPlatformBetween(float topY)
+    {
+        var platform = new GameObject("Test floating platform");
+        platform.transform.position = new Vector3(9000, topY - .5f, 9003);
+        platform.AddComponent<BoxCollider>().size = new Vector3(40, 1, 40);
+        Physics.SyncTransforms();
+        return platform;
+    }
+
+    [Test]
+    public void DroneUnderTheFloatingPlatform_DoesNotLock_AndClimbsEvenInsideTheDeadZone()
+    {
+        GameObject platform = NewPlatformBetween(9000f); // el jugador (y=9000) está parado sobre ella
+        try
+        {
+            // 0,4 m bajo la cara inferior: el error de altura (4,9 m) está dentro de la zona muerta de 5 m.
+            _root.transform.position = new Vector3(9000, 8998.6f, 9000);
+            Set(_drone, "_moveSpeed", 5f); // el escenario base lo deja quieto (0)
+            Call(_drone, "TickApproaching");
+            Assert.That(Get<object>(_drone, "_state").ToString(), Is.EqualTo("Approaching"),
+                "A distancia de tiro pero bajo el suelo del jugador no debe apuntar.");
+            float before = _root.transform.position.y;
+            for (int i = 0; i < 5; i++)
+                typeof(FlyingRangedBehavior).GetMethod("MaintainHover", Hidden).Invoke(_drone, new object[] { .1f });
+            Assert.That(_root.transform.position.y, Is.GreaterThan(before + .2f), "Debe subir de inmediato.");
+        }
+        finally { Object.DestroyImmediate(platform); }
+    }
+
+    [Test]
+    public void DroneLockedThenPlayerClimbsOntoAPlatform_CancelsTheShot()
+    {
+        Lock(); // apuntando con aire libre
+        Assert.That(Get<object>(_drone, "_state").ToString(), Is.EqualTo("Locking"));
+        GameObject platform = NewPlatformBetween(9000f);
+        try
+        {
+            _root.transform.position = new Vector3(9000, 8998.6f, 9000);
+            Set(_drone, "_stateTimer", 0f);
+            Call(_drone, "TickLocking");
+            Assert.That(_pool.transform.childCount, Is.Zero, "No debe salir ningún disparo desde debajo de la plataforma.");
+            Assert.That(Get<object>(_drone, "_state").ToString(), Is.EqualTo("Approaching"));
+        }
+        finally { Object.DestroyImmediate(platform); }
+    }
+
+    [Test]
+    public void DroneInsideThePlatformGeometry_DoesNotLock()
+    {
+        GameObject platform = NewPlatformBetween(9000f);
+        try
+        {
+            _root.transform.position = new Vector3(9000, 8999.5f, 9003); // dentro del collider de la plataforma
+            Call(_drone, "TickApproaching");
+            Assert.That(Get<object>(_drone, "_state").ToString(), Is.EqualTo("Approaching"));
+        }
+        finally { Object.DestroyImmediate(platform); }
+    }
+
+    [Test]
+    public void DroneAbovePlatformOrInOpenAir_StillLocks_EvenWhenThePlayerJumps()
+    {
+        GameObject platform = NewPlatformBetween(9000f);
+        try
+        {
+            Call(_drone, "TickApproaching"); // dron a 9003, sobre la plataforma
+            Assert.That(Get<object>(_drone, "_state").ToString(), Is.EqualTo("Locking"));
+            Set(_drone, "_state", Enum.ToObject(typeof(FlyingRangedBehavior).GetNestedType("State", BindingFlags.NonPublic), 0));
+            _target.transform.position = new Vector3(9000, 9006, 9007); // salto grande: el dron queda bajo los pies, pero sin suelo en medio
+            Call(_drone, "TickApproaching");
+            Assert.That(Get<object>(_drone, "_state").ToString(), Is.EqualTo("Locking"),
+                "Saltar no debe cambiar el comportamiento: solo cuenta el suelo.");
+        }
+        finally { Object.DestroyImmediate(platform); }
+    }
+
     [TestCase("death")]
     [TestCase("inactive-target")]
     [TestCase("disabled")]
