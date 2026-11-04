@@ -51,6 +51,7 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
     private readonly Dictionary<int, LegacyLoopRoute> _legacyLoopRoutes = new();
     private Transform _runtimeRoot;
     private CombatTextDirector _combatText;
+    private PlayerHealth _healingSource;
     private bool? _combatTextCompactOverride;
     private bool _hasLocalAccessibilityOverride;
     private HeadHunterChargeVfx _debugChargeVfx;
@@ -432,6 +433,14 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
 
     private void OnEnable()
     {
+        if (Application.isPlaying) PlayerInvulnerabilityVfx.Ensure(gameObject);
+        _healingSource = GetComponent<PlayerHealth>();
+        if (_healingSource != null)
+        {
+            _healingSource.OnHealed += HandlePlayerHealed;
+            _healingSource.OnReset += ClearHealingText;
+            _healingSource.OnPlayerDied += ClearHealingText;
+        }
         PresentationAccessibilityRuntime.Changed += HandleAccessibilityChanged;
         HandleAccessibilityChanged(PresentationAccessibilityRuntime.Current);
         ResolveSceneDependencies();
@@ -470,8 +479,26 @@ public sealed class WeaponPresentationController : MonoBehaviour, IWeaponFeedbac
             _combatText?.Tick(Time.unscaledTime, Time.unscaledDeltaTime);
     }
 
+    private void HandlePlayerHealed(int restored)
+    {
+        if (!isActiveAndEnabled || _healingSource == null || !_healingSource.IsAlive ||
+            EntranceCinematic.StartupHeld || GameplayPause.IsUiPaused || Time.timeScale <= 0f)
+            return;
+        EnsureCombatTextDirector();
+        _combatText.TryEmitHealing(restored, _healingSource.transform, Time.unscaledTime);
+    }
+
+    private void ClearHealingText() => _combatText?.StopHealing();
+
     private void OnDisable()
     {
+        if (_healingSource != null)
+        {
+            _healingSource.OnHealed -= HandlePlayerHealed;
+            _healingSource.OnReset -= ClearHealingText;
+            _healingSource.OnPlayerDied -= ClearHealingText;
+            _healingSource = null;
+        }
         PresentationAccessibilityRuntime.Changed -= HandleAccessibilityChanged;
         ReleaseRuntimeState();
         _combatText?.StopAll();

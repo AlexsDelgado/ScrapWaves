@@ -40,6 +40,7 @@ public sealed class OverheatWarningHud : MonoBehaviour
     private float _lastBarHeight = -1f;
     private float _lastMessageGap = -1f;
     private string _layoutMessage;
+    private bool _reducedMotion;
 
     public float ScrollSpeed => Mathf.Max(1f, _scrollSpeed);
     public float FontSize => Mathf.Max(16f, _fontSize);
@@ -154,6 +155,10 @@ public sealed class OverheatWarningHud : MonoBehaviour
     {
         if (_root == null || _root.transform is not RectTransform band || _text == null || _motion == null) return;
         float viewportWidth = Mathf.Max(1f, band.rect.width);
+        bool reducedMotion = PresentationAccessibilityRuntime.Current.ReducedMotion ||
+            (UserSettingsService.Instance != null && UserSettingsService.Instance.ReducedMotion);
+        force |= reducedMotion != _reducedMotion;
+        _reducedMotion = reducedMotion;
         if (!force && _lastViewportWidth == viewportWidth && _lastFontSize == FontSize &&
             _lastBarHeight == BarHeight && _lastMessageGap == _messageGap && _layoutMessage == _text.text) return;
 
@@ -161,7 +166,8 @@ public sealed class OverheatWarningHud : MonoBehaviour
         band.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, BarHeight);
         ConfigureText(_text);
         if (_repeatText != null) ConfigureText(_repeatText);
-        _messageWidth = Mathf.Max(viewportWidth, _text.GetPreferredValues(_text.text, Mathf.Infinity, Mathf.Infinity).x + 8f);
+        _messageWidth = _reducedMotion ? viewportWidth
+            : Mathf.Max(viewportWidth, _text.GetPreferredValues(_text.text, Mathf.Infinity, Mathf.Infinity).x + 8f);
         _repeatDistance = _messageWidth + Mathf.Clamp(_messageGap, 0f, viewportWidth * .5f);
         ConfigureRect(_motion);
         if (_repeatText != null) ConfigureRect(_repeatText.rectTransform);
@@ -174,11 +180,13 @@ public sealed class OverheatWarningHud : MonoBehaviour
 
     private void ConfigureText(TextMeshProUGUI label)
     {
-        label.enableAutoSizing = false;
+        label.enableAutoSizing = _reducedMotion;
+        label.fontSizeMin = 24f;
+        label.fontSizeMax = FontSize;
         label.fontSize = FontSize;
         label.textWrappingMode = TextWrappingModes.NoWrap;
         label.overflowMode = TextOverflowModes.Overflow;
-        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.alignment = _reducedMotion ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft;
         label.raycastTarget = false;
     }
 
@@ -192,7 +200,8 @@ public sealed class OverheatWarningHud : MonoBehaviour
     private void ApplyMotion()
     {
         if (_motion == null) return;
-        _motion.anchoredPosition = new Vector2(-_scrollDistance, _motionY);
+        _motion.anchoredPosition = new Vector2(_reducedMotion ? 0f : -_scrollDistance, _motionY);
+        if (_repeatText != null) _repeatText.enabled = !_reducedMotion;
         if (_repeatText != null)
             _repeatText.rectTransform.anchoredPosition = new Vector2(_repeatDistance - _scrollDistance, _motionY);
     }

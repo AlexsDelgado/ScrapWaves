@@ -5,7 +5,7 @@ using UnityEngine;
 /// One scene-level owner for combat-text aggregation, visibility, pooling and motion.
 /// Gameplay emits immutable feedback; this class never queries or changes health.
 /// </summary>
-public sealed class CombatTextDirector
+public sealed partial class CombatTextDirector
 {
     private struct AggregateSlot
     {
@@ -246,6 +246,7 @@ public sealed class CombatTextDirector
                 ClearSlot(i);
         }
 
+        TickHealing(unscaledDeltaTime);
         RetryPendingViews(now);
         _startsThisFrame = 0;
         UpdateLiveMetrics();
@@ -271,6 +272,7 @@ public sealed class CombatTextDirector
         for (int i = 0; i < _slots.Length; i++)
             _slots[i] = default;
         _pool.ReleaseAll();
+        StopHealing();
         _activeAggregateCount = 0;
         _visibleBurnCount = 0;
         _startsThisFrame = 0;
@@ -309,6 +311,8 @@ public sealed class CombatTextDirector
             if (view != null)
                 view.ApplyRenderPose(_camera);
         }
+        for (int i = 0; i < _healingSlots.Length; i++)
+            _healingSlots[i].View?.ApplyRenderPose(_camera);
     }
 
     public void ResetMetrics()
@@ -721,9 +725,12 @@ public sealed class CombatTextDirector
 
     private void ApplyAccessibilityInternal(PresentationAccessibilityState accessibility)
     {
+        if (_accessibility.ReducedMotion != accessibility.ReducedMotion)
+            StopHealing();
         _accessibility = accessibility;
         if (_accessibility.CombatText != CombatTextMode.Off)
             return;
+        StopHealing();
         for (int i = 0; i < _slots.Length; i++)
         {
             if (_slots[i].Active)
