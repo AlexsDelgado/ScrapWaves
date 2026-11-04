@@ -236,6 +236,9 @@ public sealed class DroneAimLineTests
             Call(behavior, "LateUpdate");
             Assert.That(Vector3.Distance(line.GetPosition(0),before+new Vector3(1,2,0)), Is.LessThan(.01f));
             Vector3 origin = line.GetPosition(0), target = line.GetPosition(1);
+            // TickLocking turns the drone toward the player with Time.deltaTime, which moves the muzzle slightly;
+            // freeze the turn so the test compares the line origin and the shot origin of the same pose.
+            Set(behavior, "_rotationSpeed", 0f);
             Set(behavior, "_stateTimer", 0f); Call(behavior, "TickLocking"); Call(behavior, "LateUpdate");
             var shot = _pool.transform.GetChild(0);
             Assert.That(shot.position, Is.EqualTo(origin));
