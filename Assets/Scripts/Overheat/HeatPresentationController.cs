@@ -217,8 +217,9 @@ public sealed class HeatPresentationController : MonoBehaviour
 
     private void AdvanceFeedback(float dt)
     {
-        float heat = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.2f, 1f, _state.Heat));
-        float edges = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.55f, 1f, _state.Heat));
+        // Reveal both the tint and flames over the displayed warning range (80-100%).
+        float heat = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(HeatPresentationState.WarningThreshold, 1f, _state.Heat));
+        float edges = heat;
         float step = dt / Mathf.Max(.1f, _transitionSeconds);
         _screenWeight = Mathf.MoveTowards(_screenWeight, heat, step);
         _edgeWeight = Mathf.MoveTowards(_edgeWeight, edges, step);
