@@ -18,7 +18,34 @@ public sealed class CompactorEscapeIntegrationTests
     private float _previousTimeScale;
 
     [Test]
-    public void GameplayScene_UsesNewModelsAndRetainsGameplayBindings()
+    public void GameplayExit_SpawnExclusionVolumesCannotBeInvisibleWallsAcrossThePassage()
+    {
+        var scene = EditorSceneManager.OpenPreviewScene(GameplayModelsSetupEditor.ScenePath);
+        try
+        {
+            var roots = scene.GetRootGameObjects();
+            ExitDoorTraversal exit = roots.SelectMany(r => r.GetComponentsInChildren<ExitDoorTraversal>(true)).Single();
+            Bounds local = exit.Aperture;
+            Bounds world = new(exit.transform.TransformPoint(local.center), Vector3.zero);
+            for (int x = -1; x <= 1; x += 2)
+                for (int y = -1; y <= 1; y += 2)
+                    for (int z = -1; z <= 1; z += 2)
+                        world.Encapsulate(exit.transform.TransformPoint(local.center
+                            + Vector3.Scale(local.extents, new Vector3(x, y, z))));
+            Physics.SyncTransforms();
+            foreach (EnemySpawnBlockVolume volume in roots.SelectMany(r => r.GetComponentsInChildren<EnemySpawnBlockVolume>(true)))
+            {
+                BoxCollider box = volume.GetComponent<BoxCollider>();
+                if (box.enabled && volume.gameObject.activeInHierarchy && box.bounds.Intersects(world))
+                    Assert.That(box.isTrigger, Is.True,
+                        volume.name + " should reject enemy spawns without physically sealing the exit aperture.");
+            }
+        }
+        finally { EditorSceneManager.ClosePreviewScene(scene); }
+    }
+
+    [Test]
+    public void GameplayScene_UsesDescendingExitAndRetainsGameplayBindings()
     {
         var scene = EditorSceneManager.OpenPreviewScene(GameplayModelsSetupEditor.ScenePath);
         try
@@ -31,22 +58,15 @@ public sealed class CompactorEscapeIntegrationTests
             Assert.That(GetField<AnimationClip>(presentation, "_openingClip"), Is.SameAs(LoadClip()));
             Assert.That(GetField<Animator>(presentation, "_animator"), Is.Not.Null);
             Assert.That(GetField<Collider>(presentation, "_closedDoorCollider"), Is.Not.Null);
-            Assert.That(GetField<Renderer>(presentation, "_suctionRenderer").sharedMaterial.shader.name,
-                Is.EqualTo("ScrapWaves/Level/Compactor Suction"));
+            Assert.That(GetField<Renderer>(presentation, "_suctionRenderer").sharedMaterial,
+                Is.SameAs(GetField<Renderer>(LoadPrefab().GetComponent<CompactorDoorPresentation>(), "_suctionRenderer").sharedMaterial),
+                "The scene must retain the designer's current opening material binding.");
             Assert.That(GetField<LevelExitObjective>(door, "_exitObjective"), Is.Not.Null);
             Assert.That(GetField<float>(door, "_chargeDurationSeconds"), Is.EqualTo(20f));
             Assert.That(GetField<float>(door, "_interactionRadius"), Is.EqualTo(20f));
             Assert.That(GetField<Transform>(door, "_interactionPoint").IsChildOf(door.transform), Is.True);
+            Assert.That(door.GetComponent<ExitDoorTraversal>(), Is.Not.Null);
             Assert.That(roots.SelectMany(r => r.GetComponentsInChildren<CompactorEscapeTestController>(true)), Is.Empty);
-            var station = roots.SelectMany(r => r.GetComponentsInChildren<CraftingStation>(true)).Single();
-            Assert.That(GetField<float>(station, "_interactionRadius"), Is.EqualTo(2.5f));
-            Assert.That(GetField<Transform>(station, "_interactionPoint"), Is.SameAs(station.transform));
-            var model = station.transform.Find("Workbench");
-            Assert.That(model, Is.Not.Null);
-            Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(model.gameObject),
-                Is.EqualTo(GameplayModelsSetupEditor.WorkbenchPath));
-            Assert.That(station.GetComponentInChildren<Collider>(), Is.Not.Null);
-            Assert.That(station.transform.Find("Cube"), Is.Null);
         }
         finally { EditorSceneManager.ClosePreviewScene(scene); }
     }
@@ -77,7 +97,7 @@ public sealed class CompactorEscapeIntegrationTests
     }
 
     [Test]
-    public void ImportedPrefab_UsesOneNonLoopingGenericOpeningClipAndPlainModelMaterials()
+    public void ImportedPrefab_UsesNonLoopingDownwardClipAndPlainModelMaterials()
     {
         GameObject prefab = LoadPrefab();
         ModelImporter importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
@@ -116,9 +136,11 @@ public sealed class CompactorEscapeIntegrationTests
 
         Renderer suction = GetField<Renderer>(presentation, "_suctionRenderer");
         Assert.That(suction, Is.Not.Null);
-        Assert.That(suction.sharedMaterial.shader.name, Is.EqualTo("ScrapWaves/Level/Compactor Suction"));
+        Assert.That(suction.sharedMaterial, Is.Not.Null, "The migration must retain the authored opening material.");
         Assert.That(suction.GetComponent<Collider>(), Is.Null, "The effect must not introduce invisible collision.");
         Assert.That(GetField<Collider>(presentation, "_closedDoorCollider"), Is.Not.Null);
+        Assert.That(prefab.GetComponent<ExitDoorTraversal>(), Is.Not.Null);
+        Assert.That(AssetDatabase.GetAssetPath(clip), Does.EndWith("Compactor_OpenDown.anim"));
     }
 
     [Test]
@@ -140,8 +162,10 @@ public sealed class CompactorEscapeIntegrationTests
 
         Transform lift = FindPart(animator.transform, "Door_Lift");
         Transform[] pistons = { FindPart(animator.transform, "Piston_1"), FindPart(animator.transform, "Piston_2") };
+        Physics.SyncTransforms();
         Vector3 closedDoorPosition = instance.transform.InverseTransformPoint(lift.position);
         PartPose[] closedPistons = pistons.Select(p => new PartPose(p)).ToArray();
+        Vector3 closedCollisionCenter = blocker.bounds.center;
         Assert.That(blocker.enabled, Is.True);
 
         // A separate imported instance provides the authored mechanical pose for each clip time.
@@ -157,8 +181,10 @@ public sealed class CompactorEscapeIntegrationTests
         Assert.That(door.ChargeNormalized, Is.EqualTo(0.5f).Within(0.0001f));
         AssertRigMatchesClip(animator.transform, reference, clip, 0.5f);
         Vector3 middleDoorPosition = instance.transform.InverseTransformPoint(lift.position);
-        Assert.That(middleDoorPosition.y, Is.GreaterThan(closedDoorPosition.y + 0.25f), "The door must move upwards.");
-        Assert.That(blocker.enabled, Is.True, "The escape stays blocked while its charge is incomplete.");
+        Assert.That(middleDoorPosition.y, Is.LessThan(closedDoorPosition.y - 0.25f), "The door must open downwards.");
+        Assert.That(blocker.enabled, Is.True, "The descending panel stays solid while passage above it becomes available.");
+        Assert.That(blocker.bounds.center.y - closedCollisionCenter.y,
+            Is.EqualTo(middleDoorPosition.y - closedDoorPosition.y).Within(.002f));
         for (int i = 0; i < pistons.Length; i++)
             Assert.That(closedPistons[i].Difference(pistons[i]), Is.GreaterThan(0.01f), pistons[i].name + " must follow the lift.");
 
@@ -166,8 +192,10 @@ public sealed class CompactorEscapeIntegrationTests
         Assert.That(door.State, Is.EqualTo(ExitDoorState.Ready));
         Assert.That(door.ChargeNormalized, Is.EqualTo(1f));
         AssertRigMatchesClip(animator.transform, reference, clip, 1f);
-        Assert.That(instance.transform.InverseTransformPoint(lift.position).y, Is.GreaterThan(middleDoorPosition.y + 0.25f));
-        Assert.That(blocker.enabled, Is.False);
+        Assert.That(instance.transform.InverseTransformPoint(lift.position).y, Is.LessThan(middleDoorPosition.y - 0.25f));
+        Assert.That(blocker.enabled, Is.True, "Fully open collision is below the sill, rather than disabled.");
+        Assert.That(instance.transform.InverseTransformPoint(blocker.bounds.max).y, Is.LessThan(.345f),
+            "The open panel must clear the authored sill without requiring another jump.");
         PartPose openedDoor = new(lift);
         PartPose[] openedPistons = pistons.Select(p => new PartPose(p)).ToArray();
 
@@ -224,7 +252,7 @@ public sealed class CompactorEscapeIntegrationTests
         Assert.That(controller.Status, Does.Contain("100%"));
         Assert.That(_gameManager.State, Is.EqualTo(GameManager.GameState.Playing), "Completion of the test must not trigger victory.");
         Assert.That(Time.timeScale, Is.EqualTo(1f));
-        Assert.That(door.TryStartCharging(), Is.False, "Ready must hold until reset or a separate escape interaction.");
+        Assert.That(door.TryStartCharging(), Is.False, "Ready must hold until reset or a physical traversal.");
 
         controller.ResetSequence();
         Assert.That(objective.AllKeysCollected, Is.True);
@@ -275,11 +303,9 @@ public sealed class CompactorEscapeIntegrationTests
 
     private static AnimationClip LoadClip()
     {
-        AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(ModelPath).OfType<AnimationClip>()
-            .Where(c => !c.name.StartsWith("__preview__")).ToArray();
-        Assert.That(clips, Has.Length.EqualTo(1));
-        Assert.That(clips[0].name, Is.EqualTo("Open"));
-        return clips[0];
+        AnimationClip clip = CompactorEscapeSetupEditor.OpeningClip;
+        Assert.That(clip, Is.Not.Null, "Run the compactor migration to author its downward opening clip.");
+        return clip;
     }
 
     private static Transform FindPart(Transform root, string name)
@@ -333,6 +359,7 @@ public sealed class CompactorEscapeIntegrationTests
         MethodInfo method = typeof(ExitDoor).GetMethod("TickCharge", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(method, Is.Not.Null);
         method.Invoke(door, new object[] { seconds });
+        Physics.SyncTransforms();
     }
 
     private static void SetGameManagerInstance(GameManager value)

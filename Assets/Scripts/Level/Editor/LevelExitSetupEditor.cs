@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 public static class LevelExitSetupEditor
 {
     const string KeyPickupPrefabPath = "Assets/Prefabs/Pickups/CellBattery.prefab";
-    const string ExitDoorPrefabPath = "Assets/Prefabs/Level/ExitDoor.prefab";
+    const string ExitDoorPrefabPath = CompactorEscapeSetupEditor.PrefabPath;
     const string BossPrefabPath = "Assets/Prefabs/Boss.prefab";
     const string Boss2PrefabPath = "Assets/Prefabs/Boss_2.prefab";
     const string GameplayHudV2Path = "Assets/Prefabs/UI/GameplayHud V2.prefab";
@@ -17,11 +17,23 @@ public static class LevelExitSetupEditor
     [MenuItem("ScrapWaves/Level/Setup Exit System")]
     public static void SetupExitSystem()
     {
+        GameObject doorPrefab = LoadExitDoorPrefab();
+        if (doorPrefab == null)
+            return;
+
+        ExitDoor existingDoor = Object.FindAnyObjectByType<ExitDoor>();
+        if (existingDoor != null && existingDoor.GetComponent<ExitDoorTraversal>() == null)
+        {
+            Debug.LogWarning("LevelExitSetup: the existing exit has no ExitDoorTraversal and cannot complete an escape. "
+                + "Migrate its presentation and collision to CompactorExitDoor, preserving scene bindings, scale and approach direction, "
+                + "then retry setup. Existing doors are not replaced automatically.", existingDoor);
+            return;
+        }
+
         EnsureDirectory("Assets/Prefabs/Pickups");
         EnsureDirectory("Assets/Prefabs/Level");
 
         GameObject keyPrefab = CreateOrLoadKeyPickupPrefab();
-        GameObject doorPrefab = CreateOrLoadExitDoorPrefab();
         WireBossPrefabs(keyPrefab);
 
         Scene scene = SceneManager.GetActiveScene();
@@ -83,38 +95,22 @@ public static class LevelExitSetupEditor
             root.AddComponent<KeyPickup>();
     }
 
-    private static GameObject CreateOrLoadExitDoorPrefab()
+    private static GameObject LoadExitDoorPrefab()
     {
         GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(ExitDoorPrefabPath);
-        if (existing != null)
-            return existing;
-
-        var root = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        root.name = "ExitDoor";
-        root.transform.localScale = new Vector3(3f, 4f, 0.6f);
-
-        var collider = root.GetComponent<BoxCollider>();
-        if (collider != null)
-            collider.isTrigger = false;
-
-        var renderer = root.GetComponent<Renderer>();
-        if (renderer != null)
+        if (existing == null)
         {
-            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"));
-            mat.color = new Color(0.25f, 0.55f, 0.95f, 1f);
-            renderer.sharedMaterial = mat;
-            AssetDatabase.CreateAsset(mat, "Assets/Prefabs/Level/ExitDoor_Mat.mat");
+            Debug.LogError($"LevelExitSetup: missing {ExitDoorPrefabPath}. Restore the authored compactor prefab before retrying; "
+                + "exit setup no longer creates placeholder cubes.");
+            return null;
         }
-
-        root.AddComponent<ExitDoor>();
-
-        var interaction = new GameObject("InteractionPoint");
-        interaction.transform.SetParent(root.transform, false);
-        interaction.transform.localPosition = new Vector3(0f, 0f, 1.2f);
-
-        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, ExitDoorPrefabPath);
-        Object.DestroyImmediate(root);
-        return prefab;
+        if (existing.GetComponent<ExitDoorTraversal>() == null)
+        {
+            Debug.LogError("LevelExitSetup: the compactor prefab needs its traversal upgrade. "
+                + "Run Tools/ScrapWaves/Upgrade Compactor Downward Escape, then retry setup.", existing);
+            return null;
+        }
+        return existing;
     }
 
     private static void WireBossPrefabs(GameObject keyPrefab)

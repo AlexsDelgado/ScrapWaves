@@ -149,10 +149,16 @@ public class LevelExitHud : MonoBehaviour
             return;
         }
 
+        if (_exitDoor != null && _exitDoor.State == ExitDoorState.Used)
+        {
+            _root.SetActive(false);
+            return;
+        }
+
         if (_exitDoor != null && _exitDoor.State == ExitDoorState.Ready)
         {
             _root.SetActive(true);
-            _statusText.text = "Salida lista — acercate y pulsa [E] para salir";
+            _statusText.text = "Salida abierta - atravesala para escapar";
             _statusText.color = new Color(0.4f, 1f, 0.55f, 1f);
             return;
         }
@@ -169,7 +175,7 @@ public class LevelExitHud : MonoBehaviour
         {
             _root.SetActive(true);
             float pct = Mathf.RoundToInt(_exitDoor.ChargeNormalized * 100f);
-            _statusText.text = $"Abriendo salida… {pct}%";
+            _statusText.text = $"Abriendo: {pct}% - salta y atravesala";
             _statusText.color = new Color(0.55f, 0.9f, 1f, 1f);
             return;
         }

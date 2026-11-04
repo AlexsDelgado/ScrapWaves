@@ -16,10 +16,12 @@ public sealed class CompactorDoorPresentationTests
     private BoxCollider _collider;
     private AnimationClip _clip;
     private CompactorDoorPresentation _presentation;
+    private bool _panelConfigured;
 
     [SetUp]
     public void SetUp()
     {
+        _panelConfigured = false;
         _root = new GameObject("Compactor presentation test");
         _door = _root.AddComponent<ExitDoor>();
         // The exit's game loop is not relevant to synchronous edit-mode sampling.
@@ -35,13 +37,14 @@ public sealed class CompactorDoorPresentationTests
         _panel.SetParent(model.transform, false);
         _suctionRenderer = new GameObject("Suction rectangle").AddComponent<MeshRenderer>();
         _suctionRenderer.transform.SetParent(_root.transform, false);
-        _collider = _root.AddComponent<BoxCollider>();
+        _collider = new GameObject("Moving panel collision").AddComponent<BoxCollider>();
+        _collider.transform.SetParent(_root.transform, false);
 
         _clip = new AnimationClip { name = "Open", frameRate = 30f, wrapMode = WrapMode.ClampForever };
         AnimationUtility.SetEditorCurve(
             _clip,
             EditorCurveBinding.FloatCurve("Door Panel", typeof(Transform), "m_LocalPosition.y"),
-            AnimationCurve.Linear(0f, 0f, 2.67f, 4f));
+            AnimationCurve.Linear(0f, 0f, 2.67f, -4f));
         AnimationClipSettings clipSettings = AnimationUtility.GetAnimationClipSettings(_clip);
         clipSettings.loopTime = false;
         AnimationUtility.SetAnimationClipSettings(_clip, clipSettings);
@@ -72,33 +75,47 @@ public sealed class CompactorDoorPresentationTests
 
         SetCharge(ExitDoorState.Charging, 0.5f);
         RaiseProgress(0.5f);
-        AssertPose(2f, true, 0.6f);
+        AssertPose(-2f, true, 0.6f);
         Assert.That(_door.ChargeNormalized, Is.EqualTo(0.5f).Within(0.0001f));
 
         // The progress event can reach 1 before the authoritative state becomes Ready.
         SetCharge(ExitDoorState.Charging, 1f);
         RaiseProgress(1f);
-        AssertPose(4f, true, 1f);
+        AssertPose(-4f, true, 1f);
 
         SetCharge(ExitDoorState.Ready, 1f);
         RaiseEvent(_door, "OnDoorReady");
-        AssertPose(4f, false, 1f);
+        AssertPose(-4f, true, 1f);
     }
 
-    [TestCase(ExitDoorState.Ready)]
-    [TestCase(ExitDoorState.Used)]
-    public void ReadyOrUsed_HoldsExactEndPose_WhenGraphEvaluatesForLongerThanClip(ExitDoorState state)
+    [Test]
+    public void Ready_HoldsExactEndPose_WhenGraphEvaluatesForLongerThanClip()
     {
         // Completion wins over any stale charge value when binding an already open exit.
-        SetCharge(state, 0.2f);
+        SetCharge(ExitDoorState.Ready, 0.2f);
         Configure();
-        AssertPose(4f, false, 1f);
+        AssertPose(-4f, true, 1f);
 
         PlayableGraph graph = GetField<PlayableGraph>(_presentation, "_graph");
         graph.Evaluate(30f);
-        AssertPose(4f, false, 1f);
+        AssertPose(-4f, true, 1f);
         Invoke(_presentation, "LateUpdate");
-        AssertPose(4f, false, 1f);
+        AssertPose(-4f, true, 1f);
+    }
+
+    [TestCase(0f)]
+    [TestCase(0.45f)]
+    [TestCase(1f)]
+    public void Used_HoldsActualEscapePose_WithoutFinishingTheOpening(float progress)
+    {
+        SetCharge(ExitDoorState.Used, progress);
+        Configure();
+        float activity = Mathf.Lerp(0.2f, 1f, progress);
+        AssertPose(-4f * progress, true, activity);
+        Assert.That(_door.ChargeNormalized, Is.EqualTo(progress).Within(0.0001f));
+        GetField<PlayableGraph>(_presentation, "_graph").Evaluate(30f);
+        Invoke(_presentation, "LateUpdate");
+        AssertPose(-4f * progress, true, activity);
     }
 
     [Test]
@@ -106,11 +123,11 @@ public sealed class CompactorDoorPresentationTests
     {
         SetCharge(ExitDoorState.Charging, 0.75f);
         Configure();
-        AssertPose(3f, true, 0.8f);
+        AssertPose(-3f, true, 0.8f);
 
         SetCharge(ExitDoorState.Ready, 1f);
         RaiseEvent(_door, "OnDoorReady");
-        AssertPose(4f, false, 1f);
+        AssertPose(-4f, true, 1f);
 
         _door.ResetCharge();
         Assert.That(_door.State, Is.EqualTo(ExitDoorState.Locked));
@@ -126,7 +143,7 @@ public sealed class CompactorDoorPresentationTests
     {
         SetCharge(ExitDoorState.Charging, 0.5f);
         Configure();
-        AssertPose(2f, true, 0.6f);
+        AssertPose(-2f, true, 0.6f);
 
         _presentation.enabled = false;
         Invoke(_presentation, "OnDisable");
@@ -144,7 +161,7 @@ public sealed class CompactorDoorPresentationTests
             "Configuring a disabled presentation must not create a running graph.");
         _presentation.enabled = true;
         Invoke(_presentation, "OnEnable");
-        AssertPose(4f, false, 1f);
+        AssertPose(-4f, true, 1f);
         Assert.That(GetField<PlayableGraph>(_presentation, "_graph").IsValid(), Is.True);
     }
 
@@ -164,18 +181,30 @@ public sealed class CompactorDoorPresentationTests
         Assert.That(Activity(), Is.EqualTo(0.6f).Within(0.001f));
     }
 
-    private void Configure() => _presentation.Configure(_door, _animator, _clip, _suctionRenderer, _collider);
+    private void Configure()
+    {
+        if (!_panelConfigured)
+        {
+            _presentation.ConfigureMovingPanel(_panel);
+            _panelConfigured = true;
+        }
+        _presentation.Configure(_door, _animator, _clip, _suctionRenderer, _collider);
+    }
 
     private void SetCharge(ExitDoorState state, float normalized)
     {
         SetField(_door, "_state", state);
         SetField(_door, "_chargeRemaining", 19f * (1f - normalized));
+        SetField(_door, "_escapeProgress", normalized);
     }
 
     private void AssertPose(float height, bool collisionEnabled, float activity)
     {
+        Physics.SyncTransforms();
         Assert.That(_panel.localPosition.y, Is.EqualTo(height).Within(0.001f));
         Assert.That(_collider.enabled, Is.EqualTo(collisionEnabled));
+        Assert.That(_collider.bounds.center.y, Is.EqualTo(height).Within(0.001f),
+            "The physical panel must follow the visible panel at every sample, including early Used.");
         Assert.That(Activity(), Is.EqualTo(activity).Within(0.001f));
     }
 

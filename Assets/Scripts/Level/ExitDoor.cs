@@ -12,18 +12,18 @@ public enum ExitDoorState
     AwaitingActivation,
     /// <summary>Charging after the first interaction.</summary>
     Charging,
-    /// <summary>Charge complete; the player presses [E] to exit and win.</summary>
+    /// <summary>Fully open; crossing the doorway completes the level.</summary>
     Ready,
     /// <summary>Level completed.</summary>
     Used
 }
 
 /// <summary>
-/// Puerta de salida del nivel.
-/// Flujo: Locked → AwaitingActivation (llaves recogidas) → Charging ([E] primera vez)
-///        → Ready (carga completa) → Used ([E] segunda vez) → victoria.
+/// Batteries unlock the door; the first interaction starts its opening.
+/// A complete arena-to-exit traversal while opening or ready wins the run.
 /// </summary>
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(-80)]
 public class ExitDoor : MonoBehaviour
 {
     [SerializeField, Min(0.1f), Tooltip("Segundos que tarda la carga tras activar la puerta con [E].")]
@@ -41,9 +41,12 @@ public class ExitDoor : MonoBehaviour
 
     private ExitDoorState _state = ExitDoorState.Locked;
     private float _chargeRemaining;
+    private float _escapeProgress;
 
     public ExitDoorState State => _state;
-    public float ChargeNormalized => _state == ExitDoorState.Ready || _state == ExitDoorState.Used
+    public float ChargeNormalized => _state == ExitDoorState.Used
+        ? _escapeProgress
+        : _state == ExitDoorState.Ready
         ? 1f
         : _state == ExitDoorState.Charging
             ? 1f - Mathf.Clamp01(_chargeRemaining / Mathf.Max(0.1f, _chargeDurationSeconds))
@@ -53,6 +56,17 @@ public class ExitDoor : MonoBehaviour
     public event Action OnChargeStarted;
     public event Action<float> OnChargeProgress;
     public event Action OnDoorReady;
+    public event Action OnChargeReset;
+
+    internal bool CanTraverse => isActiveAndEnabled
+        && (_state == ExitDoorState.Charging || _state == ExitDoorState.Ready)
+        && _exitObjective != null && _exitObjective.AllKeysCollected
+        && GameManager.Instance != null && GameManager.Instance.IsPlaying
+        && !IsInteractionPaused;
+
+    private bool IsInteractionPaused => GameplayPause.IsUiPaused || Time.timeScale <= 0f
+        || (_craftingUi != null && _craftingUi.IsVisible)
+        || (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible);
 
     private void Awake()
     {
@@ -87,12 +101,10 @@ public class ExitDoor : MonoBehaviour
 
         // No reaccionar a [E] mientras haya una UI modal abierta (Crafting / Level-up choice),
         // igual que hace PauseMenuUI.CanPause() con Escape.
-        if ((_craftingUi != null && _craftingUi.IsVisible) || (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible))
+        if (IsInteractionPaused)
             return;
 
-        TickCharge(Time.deltaTime);
-
-        if (_state != ExitDoorState.AwaitingActivation && _state != ExitDoorState.Ready)
+        if (_state != ExitDoorState.AwaitingActivation)
             return;
 
         Transform player = PlayerMovement.PlayerTransform;
@@ -108,15 +120,28 @@ public class ExitDoor : MonoBehaviour
         if (!WasInteractPressed())
             return;
 
-        if (_state == ExitDoorState.AwaitingActivation)
-        {
-            TryStartCharging();
-        }
-        else if (_state == ExitDoorState.Ready)
-        {
-            _state = ExitDoorState.Used;
-            GameManager.Instance?.TriggerVictory();
-        }
+        TryStartCharging();
+    }
+
+    private void FixedUpdate()
+    {
+        if ((GameManager.Instance != null && !GameManager.Instance.IsPlaying) || IsInteractionPaused)
+            return;
+        TickCharge(Time.fixedDeltaTime);
+    }
+
+    // Only the traversal component calls this after validating the complete swept body.
+    internal bool TryCompleteTraversal(PlayerMovement player)
+    {
+        if (!CanTraverse || player == null || player.transform != PlayerMovement.PlayerTransform
+            || !player.isActiveAndEnabled || !player.TryGetComponent(out PlayerHealth health) || !health.IsAlive)
+            return false;
+
+        _escapeProgress = ChargeNormalized;
+        _state = ExitDoorState.Used;
+        OnChargeProgress?.Invoke(_escapeProgress);
+        GameManager.Instance.TriggerVictory();
+        return true;
     }
 
     private void HandleAllKeysCollected()
@@ -131,7 +156,7 @@ public class ExitDoor : MonoBehaviour
     /// <summary>Starts the normal escape sequence after its key objective is complete.</summary>
     public bool TryStartCharging()
     {
-        if (!isActiveAndEnabled || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+        if (!isActiveAndEnabled || IsInteractionPaused || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
             return false;
         if (_state == ExitDoorState.Locked && _exitObjective != null && _exitObjective.AllKeysCollected)
             HandleAllKeysCollected();
@@ -139,6 +164,7 @@ public class ExitDoor : MonoBehaviour
             return false;
 
         _state = ExitDoorState.Charging;
+        _escapeProgress = 0f;
         _chargeRemaining = Mathf.Max(0.1f, _chargeDurationSeconds);
         OnChargeStarted?.Invoke();
         OnChargeProgress?.Invoke(0f);
@@ -149,9 +175,11 @@ public class ExitDoor : MonoBehaviour
     public void ResetCharge()
     {
         _chargeRemaining = 0f;
+        _escapeProgress = 0f;
         _state = _exitObjective != null && _exitObjective.AllKeysCollected
             ? ExitDoorState.AwaitingActivation
             : ExitDoorState.Locked;
+        OnChargeReset?.Invoke();
         OnChargeProgress?.Invoke(0f);
     }
 
