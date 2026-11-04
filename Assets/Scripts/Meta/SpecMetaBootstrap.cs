@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Registra challenges Spec (página 23), Path B unlockables, y asegura power-up / meta en el player.
@@ -8,8 +9,19 @@ public static class SpecMetaBootstrap
 {
     private static bool s_Registered;
 
+    // Este hook corre UNA sola vez, al abrir el juego. Si se entra desde el menú, esa vez es la de TitleScreen (sin player),
+    // y al cargar GameplayScene ya no vuelve a correr: el player quedaba sin TemporaryPowerupController ni
+    // MetaProgressionApplier, y los VFX de powerups se quedaban siempre encendidos. Por eso también se engancha cada carga de escena.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void OnSceneLoaded()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+        EnsurePlayerComponents();
+        EnsureRegistered();
+    }
+
+    private static void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         EnsurePlayerComponents();
         EnsureRegistered();
