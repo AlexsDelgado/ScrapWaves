@@ -7,7 +7,7 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField, Min(1)] private int _maxHealth = 100;
     [SerializeField] private PlayerStats _playerStats;
 
-    [SerializeField, Min(0f), Tooltip("Tras recibir daño, no se puede volver a dañar hasta pasados estos segundos (i-frames globales).")]
+    [SerializeField, Min(0f), Tooltip("Tras recibir daÃ±o, no se puede volver a daÃ±ar hasta pasados estos segundos (i-frames globales).")]
     private float _hitInvulnerabilitySeconds = 1.5f;
 
     [SerializeField]private int _currentHealth;
@@ -63,14 +63,14 @@ public class PlayerHealth : MonoBehaviour
 
     public bool IsBurning => _burnRemaining > 0f;
 
-    /// <summary>Cambios de vida actuales/máxima (daño, subida de max, etc.).</summary>
+    /// <summary>Cambios de vida actuales/mÃ¡xima (daÃ±o, subida de max, etc.).</summary>
     public event Action OnHealthChanged;
 
     /// <summary>Actual HP restored by gameplay healing, including regeneration and lifesteal.
     /// Initialization, stat changes and QA resets do not emit healing feedback.</summary>
     public event Action<int> OnHealed;
 
-    /// <summary>Daño directo (no burn); para flash de impacto en HUD.</summary>
+    /// <summary>DaÃ±o directo (no burn); para flash de impacto en HUD.</summary>
     public event Action OnHitDamageTaken;
 
     /// <summary>Grants pickup/ability protection against hits and burn, without shortening an existing grant.</summary>
@@ -132,8 +132,8 @@ public class PlayerHealth : MonoBehaviour
     }
 
     /// <summary>
-    /// Sincroniza el máximo de cargas de escudo y su delay de recarga (Electromagnetic Shield).
-    /// Un aumento de máximo otorga la diferencia como cargas disponibles de inmediato.
+    /// Sincroniza el mÃ¡ximo de cargas de escudo y su delay de recarga (Electromagnetic Shield).
+    /// Un aumento de mÃ¡ximo otorga la diferencia como cargas disponibles de inmediato.
     /// </summary>
     public void SetShieldConfig(int maxCharges, float rechargeDelaySeconds)
     {
@@ -155,7 +155,7 @@ public class PlayerHealth : MonoBehaviour
         OnShieldChanged?.Invoke();
     }
 
-    /// <summary>Rellena vida al máximo (power-up Full Heal).</summary>
+    /// <summary>Rellena vida al mÃ¡ximo (power-up Full Heal).</summary>
     public void HealToFull()
     {
         if (_isDead)

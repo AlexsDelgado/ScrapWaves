@@ -299,7 +299,7 @@ public class TemporaryPowerupController : MonoBehaviour
     }
 
     // ApplyTimedBuff asigna _activeBuff antes de invocar las lambdas que llaman a estos
-    // helpers, así que el buff en curso identifica al modificador sin propagar parámetros.
+    // helpers, asÃ­ que el buff en curso identifica al modificador sin propagar parÃ¡metros.
     private string CurrentBuffLabel() => $"Powerup {_activeBuff}";
 
     private void AddMul(StatType type, float multiplier)
