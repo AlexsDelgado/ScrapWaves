@@ -272,8 +272,8 @@ MonoBehaviour:
   _growSeconds: 0.12
   _holdSeconds: 1.5
   _shrinkSeconds: 0.45
-  _width: 2.8
-  _height: 0.6
+  _width: 7
+  _height: 1
   _groundTolerance: 3
 --- !u!1 &127129105812091392
 GameObject:
