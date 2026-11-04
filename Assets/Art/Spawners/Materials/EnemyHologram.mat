@@ -19,17 +19,17 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties:
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Opacity: 0.7
-    - _RimPower: 2.2
-    - _RimStrength: 0.75
-    - _ScanlineDensity: 2
-    - _ScanlineSpeed: 0.2
+    - _Opacity: 1
+    - _RimPower: 0.5
+    - _RimStrength: 1
+    - _ScanlineDensity: 1.9
+    - _ScanlineSpeed: 2
     - _ScanlineStrength: 0.12
     m_Colors:
     - _BaseColor: {r: 0.16, g: 0.65, b: 0.46, a: 1}
