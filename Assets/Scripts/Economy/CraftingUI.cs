@@ -16,6 +16,8 @@ public class CraftingUI : MonoBehaviour
     private WeaponCraftingService _crafting;
     private MaterialInventory _inventory;
     private WeaponManager _weaponManager;
+    private CraftingStation _station;
+    private bool _stationSessionBound;
     private ThirdPersonCamera _resolvedCamera;
     private Action _onClosed;
     private UnityAction[] _slotActions;
@@ -93,19 +95,24 @@ public class CraftingUI : MonoBehaviour
             if (_view.Candidates[i]?.Button != null) _view.Candidates[i].Button.onClick.RemoveListener(_candidateActions[i]);
     }
 
-    public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed)
+    public IEnumerator PresentCoroutine(WeaponCraftingService crafting, MaterialInventory inventory, Action onClosed,
+        CraftingStation station = null)
     {
-        if (_isVisible) { onClosed?.Invoke(); yield break; }
+        if (_isVisible || (station != null && !station.IsAvailable)) { onClosed?.Invoke(); yield break; }
+        _station = station;
+        _stationSessionBound = station != null;
         bool done = false;
-        _onClosed = () => done = true;
+        // Release the originating station immediately, even when its coroutine host is disabled.
+        _onClosed = () => { done = true; onClosed?.Invoke(); };
         if (!Show(crafting, inventory))
         {
             _onClosed = null;
+            _station = null;
+            _stationSessionBound = false;
             onClosed?.Invoke();
             yield break;
         }
         while (!done) yield return null;
-        onClosed?.Invoke();
     }
 
     private bool Show(WeaponCraftingService crafting, MaterialInventory inventory)
@@ -117,6 +124,11 @@ public class CraftingUI : MonoBehaviour
         }
         _crafting = crafting;
         _inventory = inventory;
+        if (HasPendingChoice)
+        {
+            _station = crafting.PendingTransactionStation;
+            _stationSessionBound = crafting.HasStationBoundPendingChoice;
+        }
         _weaponManager = crafting.GetComponent<WeaponManager>();
         if (_weaponManager == null)
         {
@@ -167,6 +179,8 @@ public class CraftingUI : MonoBehaviour
         SetCameraBlocked(false);
         Action closed = _onClosed;
         _onClosed = null;
+        _station = null;
+        _stationSessionBound = false;
         closed?.Invoke();
     }
     private void SetCameraBlocked(bool blocked)
@@ -309,7 +323,7 @@ public class CraftingUI : MonoBehaviour
         if (!_isVisible || !IsChoosingWeapon || !_view.TinkerChoicePanel.activeSelf || _applyingAction) return;
         IReadOnlyList<WeaponData> offer = _crafting.GetTinkeringOffer();
         if (index < 0 || index >= offer.Count) return;
-        ApplyAction(() => _crafting.TryTinkerWeapon(offer[index]), "New weapon crafted. The other offer is excluded for this run.");
+        ApplyAction(() => _crafting.TryTinkerWeapon(offer[index], _station), "New weapon crafted. The other offer is excluded for this run.");
         if (_isVisible && !IsChoosingWeapon && EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(_view.Slots[_selectedSlot].Button.gameObject);
     }
@@ -372,12 +386,12 @@ public class CraftingUI : MonoBehaviour
     {
         WeaponInstance weapon = SelectedWeapon();
         if (!_isVisible || HasPendingChoice || weapon?.Data == null || weapon.Level >= 10) return;
-        ApplyAction(() => _crafting.TryUpgradeWeapon(weapon.Data, weapon.Level + 1), "Weapon upgraded.");
+        ApplyAction(() => _crafting.TryUpgradeWeapon(weapon.Data, weapon.Level + 1, _station), "Weapon upgraded.");
     }
     private void Tinker()
     {
         if (!_isVisible || HasPendingChoice || !_view.TinkerPanel.activeSelf || SelectedWeapon() != null) return;
-        ApplyAction(() => _crafting.TryBeginTinkering(), string.Empty);
+        ApplyAction(() => _crafting.TryBeginTinkering(_station), string.Empty);
         if (_isVisible && IsChoosingWeapon && EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(_view.Candidates[0].Button.gameObject);
     }
@@ -387,7 +401,7 @@ public class CraftingUI : MonoBehaviour
     {
         WeaponInstance weapon = SelectedWeapon();
         if (!_isVisible || HasPendingChoice || !_view.AdvancedPanel.activeSelf || weapon?.Data == null) return;
-        ApplyAction(() => _crafting.TryBeginAdvancedTinkering(weapon.Data), string.Empty);
+        ApplyAction(() => _crafting.TryBeginAdvancedTinkering(weapon.Data, _station), string.Empty);
     }
     private void ResolveAdvanced(bool accept)
     {
@@ -400,10 +414,16 @@ public class CraftingUI : MonoBehaviour
     private void ApplyAction(Func<CraftingActionResult> action, string successMessage)
     {
         if (_applyingAction) return;
+        if (!HasPendingChoice && _stationSessionBound && (_station == null || !_station.IsAvailable))
+        {
+            ClosePresentation();
+            return;
+        }
+        CraftingActionResult result = default;
         _applyingAction = true;
         try
         {
-            CraftingActionResult result = action();
+            result = action();
             if (result.Success)
                 AudioManager.TryPlayCraft();
             else
@@ -411,6 +431,14 @@ public class CraftingUI : MonoBehaviour
             SetStatus(result.Success ? successMessage : "Crafting unavailable. Check your materials and the selected offer.");
         }
         finally { _applyingAction = false; }
+        // A completed attempt may rotate to another table (or reactivate this sole table).
+        // Close after the action stack releases its guard; never abandon a paid modal.
+        if (!HasPendingChoice && (result.StationBroke
+            || (_stationSessionBound && (_station == null || !_station.IsAvailable))))
+        {
+            ClosePresentation();
+            return;
+        }
         Refresh();
     }
     private void SetStatus(string message)

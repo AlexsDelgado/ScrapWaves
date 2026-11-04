@@ -44,6 +44,18 @@ public static class InteractPromptBuilder
     public static GameObject BuildPrefab()
     {
         AssetDatabase.Refresh();
+        // Upgrade the authored prefab in place. Re-running this command must not discard
+        // a designer's positions, materials, or the disabled-state presentation.
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) != null)
+        {
+            var contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+            try
+            {
+                EnsureStateVisuals(contents);
+                return PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(contents); }
+        }
         RemapMaterials();
         var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
         if (model == null)
@@ -64,6 +76,7 @@ public static class InteractPromptBuilder
                 r.receiveShadows = false;
             }
             root.AddComponent<InteractPrompt>();
+            EnsureStateVisuals(root);
 
             EnsureFolder(Path.GetDirectoryName(PrefabPath).Replace('\\', '/'));
             return PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -72,6 +85,93 @@ public static class InteractPromptBuilder
         {
             Object.DestroyImmediate(root);
         }
+    }
+
+    public static void UpgradeStateVisuals(InteractPrompt prompt) => EnsureStateVisuals(prompt.gameObject);
+
+    private static void EnsureStateVisuals(GameObject root)
+    {
+        var prompt = root.GetComponent<InteractPrompt>();
+        var settings = new SerializedObject(prompt);
+        if (settings.FindProperty("_availableVisual").objectReferenceValue != null
+            && settings.FindProperty("_unavailableVisual").objectReferenceValue != null)
+            return;
+
+        Transform available = settings.FindProperty("_visual").objectReferenceValue as Transform;
+        if (available == null) available = root.transform.GetChild(0);
+        var common = new GameObject("State Visuals").transform;
+        common.SetParent(root.transform, false);
+        available.SetParent(common, false);
+        available.name = "Available";
+        var unavailable = Object.Instantiate(available.gameObject, common, false);
+        unavailable.name = "Unavailable - Grey E and Cross";
+        EnsureFolder(MaterialFolder);
+        foreach (Renderer renderer in unavailable.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] materials = renderer.sharedMaterials;
+            for (int i = 0; i < materials.Length; i++)
+            {
+                Material original = materials[i];
+                if (original == null) continue;
+                string path = $"{MaterialFolder}/Unavailable_{original.name}.mat";
+                Material grey = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (grey == null)
+                {
+                    Color color = original.HasProperty("_BaseColor") ? original.GetColor("_BaseColor") : original.color;
+                    float luminance = color.grayscale;
+                    float value = Mathf.Lerp(.12f, .56f, luminance);
+                    grey = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Unavailable_" + original.name };
+                    grey.SetColor("_BaseColor", new Color(value, value, value));
+                    grey.SetFloat("_Metallic", .25f);
+                    grey.SetFloat("_Smoothness", .2f);
+                    AssetDatabase.CreateAsset(grey, path);
+                }
+                materials[i] = grey;
+            }
+            renderer.sharedMaterials = materials;
+        }
+        // The cross is authored geometry, not a runtime overlay. Keep the E readable
+        // and use a small oxidized-metal X overlapping the lower-right corner.
+        var cross = new GameObject("Unavailable Cross").transform;
+        cross.SetParent(unavailable.transform, false);
+        cross.SetParent(common, true);
+        cross.localScale = Vector3.one;
+        cross.localRotation = Quaternion.identity;
+        Bounds bounds = new Bounds();
+        bool first = true;
+        foreach (Renderer renderer in unavailable.GetComponentsInChildren<Renderer>(true))
+        {
+            if (first) { bounds = renderer.bounds; first = false; }
+            else bounds.Encapsulate(renderer.bounds);
+        }
+        Vector3 size = common.InverseTransformVector(bounds.size);
+        Vector3 center = common.InverseTransformPoint(bounds.center);
+        cross.localPosition = center + new Vector3(size.x * .34f, -size.y * .32f, -size.z * .5f - .035f);
+        Material crossMaterial = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialFolder}/Unavailable_Cross.mat");
+        if (crossMaterial == null)
+        {
+            crossMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Unavailable_Cross" };
+            crossMaterial.SetColor("_BaseColor", new Color(.65f, .28f, .16f));
+            crossMaterial.SetFloat("_Metallic", .4f);
+            crossMaterial.SetFloat("_Smoothness", .2f);
+            AssetDatabase.CreateAsset(crossMaterial, $"{MaterialFolder}/Unavailable_Cross.mat");
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            var stroke = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            stroke.name = i == 0 ? "Cross Slash" : "Cross Backslash";
+            stroke.transform.SetParent(cross, false);
+            stroke.transform.localScale = new Vector3(size.x * .42f, size.y * .085f, .04f);
+            stroke.transform.localRotation = Quaternion.Euler(0, 0, i == 0 ? 45f : -45f);
+            Object.DestroyImmediate(stroke.GetComponent<Collider>());
+            stroke.GetComponent<Renderer>().sharedMaterial = crossMaterial;
+        }
+        cross.SetParent(unavailable.transform, true);
+        unavailable.SetActive(false);
+        settings.FindProperty("_visual").objectReferenceValue = common;
+        settings.FindProperty("_availableVisual").objectReferenceValue = available.gameObject;
+        settings.FindProperty("_unavailableVisual").objectReferenceValue = unavailable;
+        settings.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static bool Place(CraftingStation station, GameObject prefab)

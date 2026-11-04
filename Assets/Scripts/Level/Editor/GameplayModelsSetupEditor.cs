@@ -43,15 +43,17 @@ public static class GameplayModelsSetupEditor
             Object.DestroyImmediate(oldDoor.gameObject);
         }
 
-        var station = Find<CraftingStation>(scene).Single();
-        if (station.transform.Find("Workbench") == null)
+        foreach (var station in Find<CraftingStation>(scene))
         {
+            if (station.transform.Find("Workbench") != null) continue;
             var placeholder = station.transform.Find("Cube");
-            if (placeholder == null) throw new InvalidOperationException("Expected crafting placeholder Cube.");
+            if (placeholder == null || placeholder.GetComponent<Renderer>() == null) continue;
+            // Only replace the original bare placeholder. Authored station visuals belong to the designer.
+            if (station.GetComponentsInChildren<Renderer>(true).Any(renderer =>
+                !(renderer is SpriteRenderer) && !renderer.transform.IsChildOf(placeholder))) continue;
             float width = placeholder.GetComponent<Renderer>().bounds.size.x;
             Object.DestroyImmediate(placeholder.gameObject);
-            // Preserve the station and its interaction point, removing only placeholder geometry.
-            station.transform.localScale = Vector3.one;
+            // Preserve the station root, its scale and its interaction point.
             var model = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(WorkbenchPath), scene);
             model.name = "Workbench";
             model.transform.SetParent(station.transform, false);
@@ -61,13 +63,13 @@ public static class GameplayModelsSetupEditor
             model.transform.position += new Vector3(station.transform.position.x - bounds.center.x,
                 station.transform.position.y - bounds.min.y, station.transform.position.z - bounds.center.z);
             PrefabUtility.RecordPrefabInstancePropertyModifications(model.transform);
-            bounds = BoundsOf(model);
+            bounds = BoundsInLocalSpace(model, station.transform);
             var collision = new GameObject("Workbench Collision");
             collision.transform.SetParent(station.transform, false);
             var box = collision.AddComponent<BoxCollider>();
-            box.center = station.transform.InverseTransformPoint(bounds.center);
+            box.center = bounds.center;
             box.size = bounds.size;
-            Debug.Log($"Workbench bounds: {bounds}");
+            Debug.Log($"Workbench local collision bounds: {bounds}");
         }
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -87,6 +89,25 @@ public static class GameplayModelsSetupEditor
         return bounds;
     }
 
+    private static Bounds BoundsInLocalSpace(GameObject model, Transform space)
+    {
+        var result = new Bounds();
+        bool initialized = false;
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>())
+        {
+            Bounds bounds = renderer.localBounds;
+            Matrix4x4 toLocal = space.worldToLocalMatrix * renderer.localToWorldMatrix;
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 point = toLocal.MultiplyPoint3x4(bounds.center + Vector3.Scale(bounds.extents,
+                    new Vector3((corner & 1) == 0 ? -1 : 1, (corner & 2) == 0 ? -1 : 1, (corner & 4) == 0 ? -1 : 1)));
+                if (!initialized) { result = new Bounds(point, Vector3.zero); initialized = true; }
+                else result.Encapsulate(point);
+            }
+        }
+        return result;
+    }
+
     public static void RenderPreviews()
     {
         var scene = EditorSceneManager.OpenScene(ScenePath);
@@ -101,7 +122,8 @@ public static class GameplayModelsSetupEditor
         properties.SetFloat("_Activity", 1f);
         suction.SetPropertyBlock(properties);
         Render(door.gameObject, "door-open");
-        Render(Find<CraftingStation>(scene).Single().gameObject, "workbench");
+        var station = Find<CraftingStation>(scene).FirstOrDefault(candidate => candidate.ParticipatesInRotation);
+        if (station != null) Render(station.gameObject, "workbench");
         foreach (var presentation in Find<CompactorDoorPresentation>(scene)) presentation.Dispose();
     }
 

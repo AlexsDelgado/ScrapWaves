@@ -57,7 +57,7 @@ public class DialogueDirector : MonoBehaviour
         if (_weaponManager == null) _weaponManager = FindAnyObjectByType<WeaponManager>();
         if (_overheatManager == null) _overheatManager = FindAnyObjectByType<OverheatManager>();
         if (_bossManager == null) _bossManager = FindAnyObjectByType<BossManager>();
-        if (_craftingStation == null) _craftingStation = FindAnyObjectByType<CraftingStation>();
+        _craftingStation = CraftingStationRotation.GetActiveStation(gameObject.scene);
     }
 
     private void OnEnable()
@@ -72,8 +72,7 @@ public class DialogueDirector : MonoBehaviour
             _bossManager.OnActiveBossesChanged += HandleBossesChanged;
             _bossManager.OnBossDefeated += HandleBossDefeated;
         }
-        if (_craftingStation != null)
-            _craftingStation.OnInteracted += HandleCraftingOpened;
+        CraftingStationRotation.StationInteracted += HandleCraftingOpened;
         RunCombatStats.OnEnemiesEliminatedChanged += HandleKillsChanged;
         _lastKillCount = RunCombatStats.EnemiesEliminated;
         _inventory = MaterialInventory.Instance != null ? MaterialInventory.Instance : FindAnyObjectByType<MaterialInventory>();
@@ -93,8 +92,7 @@ public class DialogueDirector : MonoBehaviour
             _bossManager.OnActiveBossesChanged -= HandleBossesChanged;
             _bossManager.OnBossDefeated -= HandleBossDefeated;
         }
-        if (_craftingStation != null)
-            _craftingStation.OnInteracted -= HandleCraftingOpened;
+        CraftingStationRotation.StationInteracted -= HandleCraftingOpened;
         RunCombatStats.OnEnemiesEliminatedChanged -= HandleKillsChanged;
         if (_inventory != null)
             _inventory.OnMaterialsSpent -= HandleMaterialsSpent;
@@ -157,7 +155,11 @@ public class DialogueDirector : MonoBehaviour
     private void HandleBatteryProgress(int collected, int required) =>
         Fire(DialogueTrigger.BatteryCollected, collected);
 
-    private void HandleCraftingOpened() => _craftingVisited = true;
+    private void HandleCraftingOpened(CraftingStation station)
+    {
+        if (station != null && station.gameObject.scene == gameObject.scene)
+            _craftingVisited = true;
+    }
 
     private void HandleMaterialsSpent() => _materialsSpent = true;
 
@@ -266,6 +268,9 @@ public class DialogueDirector : MonoBehaviour
     private bool CanShow(DialogueEntry entry)
     {
         if (!IsCraftingHint(entry)) return true;
+        _craftingStation = CraftingStationRotation.GetActiveStation(gameObject.scene);
+        if (_craftingStation == null || !_craftingStation.IsAvailable
+            || !TutorialDirector.AllowsStation(_craftingStation)) return false;
         if (_crafting == null && _weaponManager != null)
             _crafting = _weaponManager.GetComponent<WeaponCraftingService>();
         if (_crafting == null) _crafting = FindAnyObjectByType<WeaponCraftingService>();

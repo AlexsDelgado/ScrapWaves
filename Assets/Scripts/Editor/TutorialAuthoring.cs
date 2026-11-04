@@ -58,9 +58,11 @@ public static class TutorialAuthoring
         if(!markerMaterial){markerMaterial=new Material(Shader.Find("ScrapWaves/TutorialMarker"));AssetDatabase.CreateAsset(markerMaterial,Folder+"/Marker.mat");}
         marker.GetComponent<MeshRenderer>().sharedMaterial=markerMaterial;
         marker.SetActive(false);
-        var sourceStation=Find<CraftingStation>();
+        var sourceStation=Object.FindObjectsByType<CraftingStation>(FindObjectsInactive.Include,FindObjectsSortMode.InstanceID)
+            .First(x=>x.ParticipatesInRotation);
         var station=Object.Instantiate(sourceStation,world.transform);
         station.name="Tutorial tinkering table";station.transform.position=center;
+        station.ConfigureForTutorial();
         Bind(station,"_craftingUi",player.GetComponent<CraftingUI>());
         Bind(station,"_craftingService",player.GetComponent<WeaponCraftingService>());
         Bind(station,"_inventory",player.GetComponent<MaterialInventory>());

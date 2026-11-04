@@ -1,5 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -15,14 +14,32 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private MaterialInventory _inventory;
     [SerializeField] private LevelUpChoiceUI _levelUpChoiceUi;
 
+    [Header("Station rotation")]
+    [SerializeField, Tooltip("Normal stations automatically join the rotation for their scene. Tutorial stations opt out.")]
+    private bool _participatesInRotation = true;
+    [SerializeField, Range(0f, 100f), Tooltip("Break chance on the first completed transaction after each activation.")]
+    private float _initialBreakChancePercent;
+    [SerializeField, Range(0f, 100f), Tooltip("Percentage points added after each transaction that does not break the station.")]
+    private float _breakChanceIncrementPercent = 5f;
+    [SerializeField] private GameObject _activeVisual;
+    [SerializeField] private GameObject _brokenVisual;
+
     private bool _isOpen;
+    private bool _isAvailable;
+    private float _currentBreakChancePercent;
 
     /// <summary>Se dispara cada vez que el jugador abre esta estación (para la flecha guía, por ejemplo).</summary>
     public event System.Action OnInteracted;
+    public event Action<CraftingStation> AvailabilityChanged;
 
     public Vector3 InteractionPosition => _interactionPoint != null ? _interactionPoint.position : transform.position;
     public float InteractionRadius => _interactionRadius;
     public bool IsOpen => _isOpen;
+    public bool IsAvailable => isActiveAndEnabled && _isAvailable;
+    public bool ParticipatesInRotation => _participatesInRotation;
+    public float InitialBreakChancePercent => ClampPercent(_initialBreakChancePercent);
+    public float BreakChanceIncrementPercent => ClampPercent(_breakChanceIncrementPercent);
+    public float CurrentBreakChancePercent => _currentBreakChancePercent;
 
     private void Awake()
     {
@@ -38,7 +55,7 @@ public class CraftingStation : MonoBehaviour
 
     private void Update()
     {
-        if (TutorialInput.WasConsumed || !TutorialDirector.AllowsStation(this) || GameplayPause.IsUiPaused || _isOpen || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
+        if (!IsAvailable || TutorialInput.WasConsumed || !TutorialDirector.AllowsStation(this) || GameplayPause.IsUiPaused || _isOpen || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
             return;
 
         // Otra estación (o el level-up choice) puede tener el CraftingUI compartido abierto:
@@ -58,13 +75,98 @@ public class CraftingStation : MonoBehaviour
 
     public void OpenCrafting()
     {
-        if (_craftingUi == null)
+        if (!IsAvailable || _isOpen || _craftingUi == null || _craftingUi.IsVisible
+            || (_levelUpChoiceUi != null && _levelUpChoiceUi.IsVisible)
+            || GameplayPause.IsUiPaused || TutorialInput.WasConsumed
+            || (GameManager.Instance != null && !GameManager.Instance.IsPlaying))
             return;
 
         if (!TutorialDirector.AllowsStation(this)) return;
         _isOpen = true;
         OnInteracted?.Invoke();
-        StartCoroutine(_craftingUi.PresentCoroutine(_craftingService, _inventory, () => _isOpen = false));
+        CraftingStationRotation.NotifyInteracted(this);
+        StartCoroutine(_craftingUi.PresentCoroutine(_craftingService, _inventory, () => _isOpen = false, this));
+    }
+
+    private void OnEnable()
+    {
+        if (_participatesInRotation)
+            CraftingStationRotation.Register(this);
+        else
+            SetAvailability(true);
+        ApplyVisuals();
+    }
+
+    private void Start()
+    {
+        if (_participatesInRotation)
+            CraftingStationRotation.InitializeScene(gameObject.scene);
+    }
+
+    private void OnDisable()
+    {
+        _isOpen = false;
+        SetAvailability(false);
+        CraftingStationRotation.Unregister(this);
+    }
+
+    public void ConfigureForTutorial() => SetParticipation(false);
+
+    public void SetParticipation(bool participates)
+    {
+        if (_participatesInRotation == participates)
+        {
+            if (!participates) SetAvailability(true);
+            return;
+        }
+        _participatesInRotation = participates;
+        CraftingStationRotation.Unregister(this);
+        if (participates)
+        {
+            SetAvailability(false);
+            if (isActiveAndEnabled) CraftingStationRotation.Register(this);
+        }
+        else
+            SetAvailability(true);
+    }
+
+    /// <summary>Called exactly once by the crafting service after a paid transaction is fully resolved.</summary>
+    public bool CompleteTransaction()
+    {
+        if (!IsAvailable || !_participatesInRotation)
+            return false;
+        return CraftingStationRotation.CompleteTransaction(this);
+    }
+
+    internal void SetAvailability(bool available)
+    {
+        bool changed = _isAvailable != available;
+        _isAvailable = available;
+        if (available) _currentBreakChancePercent = InitialBreakChancePercent;
+        ApplyVisuals();
+        if (changed) AvailabilityChanged?.Invoke(this);
+    }
+
+    internal void IncreaseBreakChance()
+    {
+        _currentBreakChancePercent = Mathf.Min(100f, _currentBreakChancePercent + BreakChanceIncrementPercent);
+    }
+
+    private void ApplyVisuals()
+    {
+        if (_activeVisual != null && _activeVisual != gameObject)
+            _activeVisual.SetActive(_isAvailable);
+        if (_brokenVisual != null && _brokenVisual != gameObject)
+            _brokenVisual.SetActive(!_isAvailable);
+    }
+
+    private static float ClampPercent(float value) => float.IsNaN(value) ? 0f : Mathf.Clamp(value, 0f, 100f);
+
+    private void OnValidate()
+    {
+        _initialBreakChancePercent = InitialBreakChancePercent;
+        _breakChanceIncrementPercent = BreakChanceIncrementPercent;
+        _interactionRadius = Mathf.Max(0.5f, _interactionRadius);
     }
 
     private static bool WasInteractPressed()

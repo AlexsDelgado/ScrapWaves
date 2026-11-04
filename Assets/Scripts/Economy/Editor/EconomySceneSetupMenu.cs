@@ -60,8 +60,15 @@ public static class EconomySceneSetupMenu
     [MenuItem("ScrapWaves/Economy/Create Crafting Station In Scene")]
     public static void CreateCraftingStationInScene()
     {
-        var station = new GameObject("CraftingStation");
-        station.AddComponent<CraftingStation>();
+        const string stationPath = "Assets/Prefabs/Props/CraftingStation.prefab";
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(stationPath);
+        if (prefab == null || prefab.GetComponent<CraftingStation>() == null)
+        {
+            Debug.LogError($"Missing complete crafting station prefab at {stationPath}");
+            return;
+        }
+
+        var station = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         Selection.activeGameObject = station;
         Undo.RegisterCreatedObjectUndo(station, "Create Crafting Station");
     }

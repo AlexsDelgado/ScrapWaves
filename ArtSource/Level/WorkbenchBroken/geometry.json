@@ -1,0 +1,38 @@
+{
+  "source_bounds_blender": [
+    [
+      -2.424999952316284,
+      -1.115033507347107,
+      0.04158109799027443
+    ],
+    [
+      2.3781564235687256,
+      1.0750000476837158,
+      3.6125802993774414
+    ]
+  ],
+  "dimensions_blender": [
+    4.80315637588501,
+    2.190033435821533,
+    3.5709991455078125
+  ],
+  "vertices": 17831,
+  "triangles": 34454,
+  "materials": [
+    "Broken dark bronze",
+    "Broken dark recess",
+    "Broken charcoal steel",
+    "Broken lighter wood",
+    "Broken brown wood",
+    "Broken machined steel",
+    "Broken ochre paint",
+    "Broken warm ivory lamp",
+    "Broken steel work surface",
+    "Broken exposed rust",
+    "Broken cable rubber",
+    "Broken cable conductor"
+  ],
+  "unity_global_scale": 0.5,
+  "axis_forward": "-Z",
+  "axis_up": "Y"
+}

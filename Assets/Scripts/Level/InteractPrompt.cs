@@ -11,6 +11,10 @@ public class InteractPrompt : MonoBehaviour
     [SerializeField] private CraftingStation _station;
     [Tooltip("Hijo con el modelo; se escala entre 0 y su escala original.")]
     [SerializeField] private Transform _visual;
+    [Tooltip("Authored normal E model, beneath the animated visual root.")]
+    [SerializeField] private GameObject _availableVisual;
+    [Tooltip("Authored grey E and cross model, beneath the animated visual root.")]
+    [SerializeField] private GameObject _unavailableVisual;
     [Tooltip("Multiplica el radio de interacción de la estación para mostrar el prompt un poco antes.")]
     [SerializeField, Min(0.1f)] private float _radiusMultiplier = 1.15f;
     [SerializeField, Min(0.1f)] private float _showSpeed = 10f;
@@ -37,6 +41,7 @@ public class InteractPrompt : MonoBehaviour
             _visual.localScale = Vector3.zero;
             _visual.gameObject.SetActive(false);
         }
+        RefreshAvailability();
     }
 
     private void LateUpdate()
@@ -44,6 +49,7 @@ public class InteractPrompt : MonoBehaviour
         if (_visual == null)
             return;
 
+        RefreshAvailability();
         float target = ShouldShow() ? 1f : 0f;
         _shown = Mathf.MoveTowards(_shown, target, Time.unscaledDeltaTime * _showSpeed);
         bool visible = _shown > 0.001f;
@@ -57,6 +63,15 @@ public class InteractPrompt : MonoBehaviour
         _visual.localScale = _visualScale * (eased * (1f + _pulse * Mathf.Sin(t * _bobSpeed * 2f)));
         _visual.localPosition = _visualPosition + Vector3.up * (_bobHeight * Mathf.Sin(t * _bobSpeed));
         FaceCamera();
+    }
+
+    private void RefreshAvailability()
+    {
+        bool available = _station != null && _station.IsAvailable && TutorialDirector.AllowsStation(_station);
+        if (_availableVisual != null && _availableVisual.activeSelf != available)
+            _availableVisual.SetActive(available);
+        if (_unavailableVisual != null && _unavailableVisual.activeSelf == available)
+            _unavailableVisual.SetActive(!available);
     }
 
     private bool ShouldShow()

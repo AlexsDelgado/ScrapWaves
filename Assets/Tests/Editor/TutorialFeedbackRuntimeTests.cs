@@ -88,11 +88,12 @@ public sealed class TutorialFeedbackRuntimeTests
         }
         Check(!marker.activeInHierarchy, "The marker hides after reaching the movement target");
         Check(Object.FindObjectsByType<TutorialEnemy>(FindObjectsSortMode.None).Length == 1, "Exactly one scripted first enemy is active");
-        KillAndCollect();
+        yield return KillAndCollect();
         yield return Settle(.08f);
         Assert.That(Director.Step, Is.EqualTo(TutorialStep.Upgrade), "Combat setup must reach the upgrade page.");
 
         var station = Get<CraftingStation>(Director, "_station");
+        Check(!station.ParticipatesInRotation, "The required tutorial table is excluded from normal station rotation");
         var craftingUi = Get<CraftingUI>(Director, "_craftingUi");
         var crafting = Player.GetComponent<WeaponCraftingService>();
         var definition = Get<TutorialDefinition>(Director, "_definition");
@@ -126,7 +127,7 @@ public sealed class TutorialFeedbackRuntimeTests
         Check(!craftingUi.IsVisible && !GameplayPause.IsUiPaused, "Successful upgrade closes crafting and releases pause");
         yield return Press(Key.E);
         Check(Director.Step == TutorialStep.Ability, "Physical E advances the Heat explanation");
-        KillAndCollect();
+        yield return KillAndCollect();
         yield return Settle(.08f);
         Assert.That(Director.Step, Is.EqualTo(TutorialStep.Tinker));
         yield return Press(Key.E);
@@ -144,7 +145,7 @@ public sealed class TutorialFeedbackRuntimeTests
         view.Candidates[0].Button.onClick.Invoke();
         yield return Until(() => Director.Step == TutorialStep.AutomaticCombat, 3f, "Choosing a real candidate starts the final wave");
         Check(Object.FindObjectsByType<TutorialEnemy>(FindObjectsSortMode.None).Length == 4, "All four later scripted enemies remain present");
-        KillAndCollect();
+        yield return KillAndCollect();
         yield return SelectPassiveChoice(lessonChoice);
         yield return Until(() => Director.Step == TutorialStep.Escape, 4f, "Chosen passive reaches Escape");
         Measure("08-escape", true);
@@ -321,12 +322,20 @@ public sealed class TutorialFeedbackRuntimeTests
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private void KillAndCollect()
+    private IEnumerator KillAndCollect()
     {
         foreach (var actor in Object.FindObjectsByType<TutorialEnemy>(FindObjectsSortMode.None))
         {
+            if (actor == null || actor.IsDead) continue;
             string actorName = actor != null ? actor.name : "<destroyed>";
             string stage = Director != null ? Director.Step.ToString() : "<no director>";
+            // Tutorial spawns now use the same emergence immunity as normal enemies.
+            // Wait for the public readiness condition instead of silently losing this setup hit.
+            EnemyEmergence emergence = actor.GetComponent<EnemyEmergence>();
+            if (emergence != null && emergence.BlocksGameplayNow)
+                yield return Until(() => actor == null || actor.IsDead || !EnemyEmergence.BlocksGameplay(actor),
+                    Mathf.Max(3f, emergence.MaximumDuration + 1f), "Emergence releases tutorial combat: " + actorName);
+            if (actor == null || actor.IsDead) continue;
             Note("COMBAT_SETUP kill " + actorName + " at " + stage);
             try
             {
@@ -334,10 +343,12 @@ public sealed class TutorialFeedbackRuntimeTests
                 EnemyHealth health = actor.GetComponent<EnemyHealth>();
                 Assert.That(health, Is.Not.Null, actorName + " needs EnemyHealth. Components: " +
                     string.Join(",", actor.GetComponents<Component>().Select(c => c != null ? c.GetType().Name : "missing")));
-                health.ApplyDamage(100000);
+                Assert.That(health.ApplyDamage(100000), Is.True, "Accelerated combat damage must be applied after emergence.");
+                Assert.That(actor.IsDead, Is.True, "The actual death event must notify the tutorial director.");
             }
             catch (Exception error) { throw new Exception("Tutorial combat setup failed killing '" + actorName + "' at " + stage, error); }
         }
+        Assert.That(Director.RemainingEnemies, Is.Zero, "Combat setup must finish the active lesson wave before collecting its loot.");
         foreach (var drop in Object.FindObjectsByType<TutorialPickup>(FindObjectsSortMode.None))
         {
             string dropName = drop != null ? drop.name : "<destroyed>";
@@ -485,6 +496,17 @@ public sealed class TutorialFeedbackRuntimeTests
     public IEnumerator RestoreEnvironment()
     {
         (_input as IDisposable)?.Dispose(); _input = null;
+        if (Application.isPlaying)
+        {
+            // Stop fixture actors while their persistent follow brain still exists. Enemy
+            // cleanup can restore followers; unordered ExitPlayMode destruction could recreate it.
+            foreach (var producer in Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (producer is OrbitalSpawner || producer is SwarmSpawner || producer is ZoneSpawner || producer is OverheatEliteWaveSpawner)
+                    producer.enabled = false;
+            foreach (var enemy in Object.FindObjectsByType<EnemyHealth>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                enemy.gameObject.SetActive(false);
+            yield return null;
+        }
         // Unity's EditMode runner requires ExitPlayMode at the top level of teardown.
         IEnumerator restore = new EntranceCinematicLaunchRuntimeTests().RestoreEnvironment();
         while (restore.MoveNext()) yield return restore.Current;

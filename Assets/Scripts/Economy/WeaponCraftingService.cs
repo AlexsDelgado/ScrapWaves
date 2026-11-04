@@ -10,14 +10,18 @@ public enum CraftingActionKind
 
 public readonly struct CraftingActionResult
 {
-    public CraftingActionResult(bool success, string message)
+    public CraftingActionResult(bool success, string message, bool transactionCompleted = false, bool stationBroke = false)
     {
         Success = success;
         Message = message;
+        TransactionCompleted = transactionCompleted;
+        StationBroke = stationBroke;
     }
 
     public bool Success { get; }
     public string Message { get; }
+    public bool TransactionCompleted { get; }
+    public bool StationBroke { get; }
 }
 
 [DisallowMultipleComponent]
@@ -34,15 +38,27 @@ public class WeaponCraftingService : MonoBehaviour
     private WeaponUpgradePath _pendingAdvancedPath;
     private List<MaterialCost> _reservedAdvancedCost;
     private bool _advancedTinkering;
+    private CraftingStation _reservedAdvancedStation;
+    private bool _reservedAdvancedHasStation;
     // Owned by the run's player, never written to the meta-progression save.
     private readonly HashSet<string> _tinkerDiscards = new();
     private readonly List<WeaponData> _tinkerOffer = new(2);
     private List<MaterialCost> _reservedTinkerCost;
     private int _reservedTinkerSlot;
     private bool _tinkering;
+    private bool _upgrading;
+    private bool _settlingStation;
+    private CraftingStation _reservedTinkerStation;
+    private bool _reservedTinkerHasStation;
+    private bool IsBusy => _tinkering || _advancedTinkering || _upgrading || _settlingStation;
     public bool HasPendingTinkeringChoice => _reservedTinkerCost != null;
     public bool HasPendingAdvancedChoice => _reservedAdvancedCost != null;
     public WeaponData PendingAdvancedWeapon => _pendingAdvancedWeapon;
+    // The paid attempt owns its original station even if its presenter is disabled or recreated.
+    public CraftingStation PendingTransactionStation => HasPendingTinkeringChoice
+        ? _reservedTinkerStation : HasPendingAdvancedChoice ? _reservedAdvancedStation : null;
+    public bool HasStationBoundPendingChoice => HasPendingTinkeringChoice
+        ? _reservedTinkerHasStation : HasPendingAdvancedChoice && _reservedAdvancedHasStation;
     public IReadOnlyList<MaterialCost> GetPendingAdvancedCost() =>
         _reservedAdvancedCost != null ? _reservedAdvancedCost.AsReadOnly() : System.Array.Empty<MaterialCost>();
 
@@ -79,11 +95,11 @@ public class WeaponCraftingService : MonoBehaviour
         return WeaponCraftingCostCalculator.GetAdvancedTinkeringCost(_materialBalance, slot, rejected);
     }
 
-    public CraftingActionResult TryUpgradeWeapon(WeaponData weapon, int targetLevel)
+    public CraftingActionResult TryUpgradeWeapon(WeaponData weapon, int targetLevel, CraftingStation station = null)
     {
-        if (HasPendingTinkeringChoice || HasPendingAdvancedChoice || _tinkering || _advancedTinkering)
+        if (HasPendingTinkeringChoice || HasPendingAdvancedChoice || IsBusy)
             return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
-        if (!TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon, targetLevel) || weapon == null || _weaponManager == null || _inventory == null)
+        if ((station != null && !station.IsAvailable) || !TutorialDirector.AllowsCrafting(CraftingActionKind.UpgradeLevel, weapon, targetLevel) || weapon == null || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
         if (!_weaponManager.TryGetEquippedWeapon(weapon, out WeaponInstance instance))
@@ -95,26 +111,30 @@ public class WeaponCraftingService : MonoBehaviour
         if (targetLevel == 6 && instance.Level == 5 && instance.SelectedPath == WeaponUpgradePath.None)
             return new CraftingActionResult(false, "Requiere Advanced Tinkering.");
 
-        List<MaterialCost> costs = new(GetUpgradeCost(weapon, instance.SelectedPath, targetLevel));
-        if (!_inventory.TrySpend(costs))
-            return new CraftingActionResult(false, "Materiales insuficientes.");
+        _upgrading = true;
+        try
+        {
+            List<MaterialCost> costs = new(GetUpgradeCost(weapon, instance.SelectedPath, targetLevel));
+            if (!_inventory.TrySpend(costs))
+                return new CraftingActionResult(false, "Materiales insuficientes.");
 
-        while (instance.Level < targetLevel)
-            _weaponManager.UpgradeWeapon(instance);
-
-        return new CraftingActionResult(true, $"{weapon.DisplayName} nivel {instance.Level}.");
+            while (instance.Level < targetLevel)
+                _weaponManager.UpgradeWeapon(instance);
+        }
+        finally { _upgrading = false; }
+        return CompleteTransaction(station, $"{weapon.DisplayName} nivel {instance.Level}.");
     }
 
     // Availability queries never roll or cache offers, spend materials, or mutate progression.
     public bool CanTinkerNewWeapon() => TutorialDirector.AllowsCrafting(CraftingActionKind.TinkerNewWeapon)
-        && !HasPendingTinkeringChoice && !HasPendingAdvancedChoice && !_tinkering && !_advancedTinkering
+        && !HasPendingTinkeringChoice && !HasPendingAdvancedChoice && !IsBusy
         && _weaponManager != null && _inventory != null
         && _weaponManager.CanAddWeapon() && BuildUnequippedWeapons().Count >= 2
         && _inventory.CanAfford(GetTinkeringCost(_weaponManager.GetEquippedWeapons().Count + 1));
 
     public CraftingActionKind? GetAvailableAction(WeaponInstance weapon)
     {
-        if (HasPendingTinkeringChoice || HasPendingAdvancedChoice || _tinkering || _advancedTinkering
+        if (HasPendingTinkeringChoice || HasPendingAdvancedChoice || IsBusy
             || weapon?.Data == null || _weaponManager == null || _inventory == null
             || !_weaponManager.TryGetEquippedWeapon(weapon.Data, out WeaponInstance equipped)
             || equipped != weapon || weapon.Level >= 10) return null;
@@ -163,12 +183,12 @@ public class WeaponCraftingService : MonoBehaviour
         return _tinkerOffer.AsReadOnly();
     }
 
-    public CraftingActionResult TryBeginTinkering()
+    public CraftingActionResult TryBeginTinkering(CraftingStation station = null)
     {
-        if (HasPendingAdvancedChoice || _advancedTinkering)
+        if (HasPendingAdvancedChoice || IsBusy)
             return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
-        if (_tinkering) return new CraftingActionResult(false, "Tinkering en curso.");
         if (HasPendingTinkeringChoice) return new CraftingActionResult(true, "Elegí una de las dos armas.");
+        if (station != null && !station.IsAvailable) return new CraftingActionResult(false, "Estación no disponible.");
         if (!CanTinkerNewWeapon()) return new CraftingActionResult(false, "Tinkering no disponible.");
         if (GetTinkeringOffer().Count != 2) return new CraftingActionResult(false, "No hay dos armas disponibles.");
         _tinkering = true;
@@ -177,9 +197,13 @@ public class WeaponCraftingService : MonoBehaviour
             _reservedTinkerSlot = _weaponManager.GetEquippedWeapons().Count + 1;
             var cost = new List<MaterialCost>(GetTinkeringCost(_reservedTinkerSlot));
             _reservedTinkerCost = cost;
+            _reservedTinkerStation = station;
+            _reservedTinkerHasStation = station != null;
             if (!_inventory.TrySpend(cost))
             {
                 _reservedTinkerCost = null;
+                _reservedTinkerStation = null;
+                _reservedTinkerHasStation = false;
                 return new CraftingActionResult(false, "Materiales insuficientes.");
             }
             return new CraftingActionResult(true, "Elegí una de las dos armas.");
@@ -187,9 +211,9 @@ public class WeaponCraftingService : MonoBehaviour
         finally { _tinkering = false; }
     }
 
-    public CraftingActionResult TryTinkerWeapon(WeaponData chosen)
+    public CraftingActionResult TryTinkerWeapon(WeaponData chosen, CraftingStation station = null)
     {
-        if (_tinkering || _advancedTinkering || HasPendingAdvancedChoice || _weaponManager == null || _inventory == null)
+        if (IsBusy || HasPendingAdvancedChoice || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
 
         if (!_weaponManager.CanAddWeapon() && !HasPendingTinkeringChoice)
@@ -204,11 +228,12 @@ public class WeaponCraftingService : MonoBehaviour
         {
             if (!candidates.Contains(_tinkerOffer[0]) || !candidates.Contains(_tinkerOffer[1]))
                 return new CraftingActionResult(false, "La oferta ya no está disponible.");
-            CraftingActionResult begin = TryBeginTinkering();
+            CraftingActionResult begin = TryBeginTinkering(station);
             if (!begin.Success) return begin;
             candidates = BuildUnequippedWeapons();
         }
 
+        CraftingStation source = _reservedTinkerStation;
         _tinkering = true;
         try
         {
@@ -220,26 +245,30 @@ public class WeaponCraftingService : MonoBehaviour
             {
                 List<MaterialCost> costs = _reservedTinkerCost;
                 _reservedTinkerCost = null;
+                _reservedTinkerStation = null;
+                _reservedTinkerHasStation = false;
                 foreach (MaterialCost cost in costs) _inventory.Add(cost.Material, cost.Amount);
                 return new CraftingActionResult(false, "No se pudo equipar el arma.");
             }
             _reservedTinkerCost = null;
+            _reservedTinkerStation = null;
+            _reservedTinkerHasStation = false;
             _tinkerDiscards.Add(discarded.WeaponId);
             _tinkerOffer.Clear();
-            return new CraftingActionResult(true, $"Nueva arma: {chosen.DisplayName}.");
         }
         finally { _tinkering = false; }
+        return CompleteTransaction(source, $"Nueva arma: {chosen.DisplayName}.");
     }
 
-    public CraftingActionResult TryBeginAdvancedTinkering(WeaponData weapon)
+    public CraftingActionResult TryBeginAdvancedTinkering(WeaponData weapon, CraftingStation station = null)
     {
-        if (_advancedTinkering || _tinkering || HasPendingTinkeringChoice)
+        if (IsBusy || HasPendingTinkeringChoice)
             return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
         // Reopening or repeated clicks resume the paid offer; they never charge or roll again.
         if (HasPendingAdvancedChoice)
             return new CraftingActionResult(weapon != null && weapon == _pendingAdvancedWeapon,
                 "Resuelve la oferta pendiente primero.");
-        if (!TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon)
+        if ((station != null && !station.IsAvailable) || !TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon)
             || weapon == null || _weaponManager == null || _inventory == null
             || !_weaponManager.TryGetEquippedWeapon(weapon, out WeaponInstance instance)
             || instance.Level != 5 || instance.SelectedPath != WeaponUpgradePath.None)
@@ -250,6 +279,7 @@ public class WeaponCraftingService : MonoBehaviour
             return new CraftingActionResult(false, "La ruta ya no esta disponible.");
 
         _advancedTinkering = true;
+        bool hasStation = station != null;
         try
         {
             var cost = new List<MaterialCost>(GetAdvancedTinkeringCost(weapon));
@@ -263,6 +293,8 @@ public class WeaponCraftingService : MonoBehaviour
             _pendingAdvancedWeapon = weapon;
             _pendingAdvancedPath = path;
             _reservedAdvancedCost = cost;
+            _reservedAdvancedStation = station;
+            _reservedAdvancedHasStation = hasStation;
             return new CraftingActionResult(true, "Oferta comprada. Acepta o rechaza la mejora.");
         }
         finally { _advancedTinkering = false; }
@@ -294,7 +326,7 @@ public class WeaponCraftingService : MonoBehaviour
 
     public CraftingActionResult TryAdvancedTinkering(WeaponData weapon, WeaponUpgradePath path, bool accept)
     {
-        if (_advancedTinkering || _tinkering || HasPendingTinkeringChoice)
+        if (IsBusy || HasPendingTinkeringChoice)
             return new CraftingActionResult(false, "Resuelve la oferta pendiente primero.");
         if (!TutorialDirector.AllowsCrafting(CraftingActionKind.AdvancedTinkering, weapon) || weapon == null || _weaponManager == null || _inventory == null)
             return new CraftingActionResult(false, "Sistema de crafting no configurado.");
@@ -312,6 +344,7 @@ public class WeaponCraftingService : MonoBehaviour
         if (!accept && !CanRejectAdvancedOffer(weapon))
             return new CraftingActionResult(false, "No hay otra ruta disponible para este intento.");
 
+        CraftingStation source = _reservedAdvancedStation;
         _advancedTinkering = true;
         try
         {
@@ -329,13 +362,28 @@ public class WeaponCraftingService : MonoBehaviour
                 _guaranteedPath[weapon.WeaponId] = GetGuaranteedAlternatePath(weapon, path);
             }
             _reservedAdvancedCost = null;
+            _reservedAdvancedStation = null;
+            _reservedAdvancedHasStation = false;
             _pendingAdvancedWeapon = null;
             _pendingAdvancedPath = WeaponUpgradePath.None;
-            return new CraftingActionResult(true, accept
-                ? $"Path {path} aplicado. Nivel {instance.Level}."
-                : "Oferta rechazada. El siguiente intento usa el costo configurado para una oferta rechazada.");
         }
         finally { _advancedTinkering = false; }
+        return CompleteTransaction(source, accept
+            ? $"Path {path} aplicado. Nivel {instance.Level}."
+            : "Oferta rechazada. El siguiente intento usa el costo configurado para una oferta rechazada.");
+    }
+
+    private CraftingActionResult CompleteTransaction(CraftingStation station, string message)
+    {
+        // Only committed outcomes reach here. Reservations and mutation guards have already been
+        // released, so changing the active station cannot interrupt a paid choice or its award.
+        _settlingStation = true;
+        try
+        {
+            bool broke = station != null && station.CompleteTransaction();
+            return new CraftingActionResult(true, message, transactionCompleted: true, stationBroke: broke);
+        }
+        finally { _settlingStation = false; }
     }
 
     public List<WeaponData> BuildUnequippedWeapons()
