@@ -154,6 +154,7 @@ public class Projectile : MonoBehaviour
         _visualOnly = false;
         _visualOnlyIgnoresCollisions = false;
         _useWeaponDamageContext = false;
+        _weaponDamageContext = default;
     }
 
     public void ConfigurePooled(float maxLifetimeSeconds, int damageForThisShot)
@@ -182,6 +183,7 @@ public class Projectile : MonoBehaviour
         _visualOnly = true;
         _visualOnlyIgnoresCollisions = ignoreCollisions;
         _useWeaponDamageContext = false;
+        _weaponDamageContext = default;
     }
 
     public void ConfigureWeaponDamage(WeaponDamageContext context)
@@ -278,6 +280,9 @@ public class Projectile : MonoBehaviour
     {
         ClearPresentation();
         ClearAutomaticRocketTrajectory();
+        _useWeaponDamageContext = false;
+        _weaponDamageContext = default;
+        _clusterDamageContext = default;
     }
 
     // Launches projectile and resets runtime damage mode state.
@@ -568,7 +573,7 @@ public class Projectile : MonoBehaviour
             DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
                 damageable,
                 finalDamage,
-                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
+                sourceWeaponId: _weaponDamageContext.SourceWeaponId);
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
@@ -690,7 +695,7 @@ public class Projectile : MonoBehaviour
                 DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
                 damageable,
                 finalDamage,
-                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
+                sourceWeaponId: _weaponDamageContext.SourceWeaponId);
                 if (result.Applied)
                 {
                     EnemyKnockbackReceiver.TryApply(damageable, impactPosition, ResolveKnockback(finalDamage));
@@ -801,7 +806,7 @@ public class Projectile : MonoBehaviour
             DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
                 damageable,
                 finalDamage,
-                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
+                sourceWeaponId: _weaponDamageContext.SourceWeaponId);
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(damageable, transform.position, ResolveKnockback(finalDamage, falloffScale));
@@ -921,7 +926,7 @@ public class Projectile : MonoBehaviour
             DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
                 damageable,
                 damage,
-                sourceWeaponId: _presentationWeapon?.Data != null ? _presentationWeapon.Data.WeaponId : null);
+                sourceWeaponId: _weaponDamageContext.SourceWeaponId);
             if (result.Applied)
             {
                 EmitAreaDamageConfirmed(

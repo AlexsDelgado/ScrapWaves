@@ -91,6 +91,9 @@ public static class DemoLeaderboardPreview
                 group.alpha = 1f;
             view.SetVisible(true);
             nameScreen.gameObject.SetActive(false);
+            TMP_Text welcome = Named(menu, "WelcomeLabel").GetComponent<TMP_Text>();
+            welcome.text = "Welcome back, SCRAP QUEEN!";
+            Named(menu, "PlayerProfile").gameObject.SetActive(true);
 
             Camera camera = new GameObject("Leaderboard preview camera", typeof(Camera)).GetComponent<Camera>();
             SceneManager.MoveGameObjectToScene(camera.gameObject, preview);
@@ -129,6 +132,8 @@ public static class DemoLeaderboardPreview
                 if (start != null) start.interactable = true;
             }
             Frame("name-entry-1080.png", 1920, 1080, true);
+            nameView.Prepare("SCRAP QUEEN", true);
+            Frame("change-name-720.png", 1280, 720, true);
             Frame("menu-scores-720.png", 1280, 720, false);
             Frame("menu-scores-16x10.png", 1600, 1000, false);
             Frame("menu-scores-4x3.png", 1440, 1080, false);
@@ -150,6 +155,7 @@ public static class DemoLeaderboardPreview
             stress.MostKills[0].Kills = int.MaxValue;
             stress.LongestSurvival[0].Name = "WWWWWWWWWWWWWWWW";
             stress.LongestSurvival[0].SurvivalSeconds = int.MaxValue;
+            welcome.text = "Welcome back, WWWWWWWWWWWWWWWW!";
             view.ShowData(stress);
             Frame("menu-stress-4x3.png", 1440, 1080, false);
             evidence.AppendLine("Stress frame uses a 16-character wide name and int.MaxValue scores; it is intentionally synthetic.");

@@ -250,6 +250,66 @@ public class ObjectivesMenuUIPresenterTests
         AssertFullyVisible(fixture.UnlocksScrollRect, lastCard.transform as RectTransform);
     }
 
+    [Test]
+    public void DevButtons_DefaultOff_InspectorSwitchRestoresAuthoredControls()
+    {
+        PresenterFixture fixture = CreatePresenter(CreateCatalog());
+        Button reset = CreateButton("DevResetProgressButton", fixture.ScreenRoot.transform);
+        Button max = CreateButton("DevMaxUpgradesButton", fixture.ScreenRoot.transform);
+        SetPrivate(fixture.Presenter, "_devResetProgressButton", reset);
+        SetPrivate(fixture.Presenter, "_devMaxUpgradesButton", max);
+
+        fixture.Presenter.Show();
+        AssertDevButtons(false);
+
+        fixture.Presenter.Hide();
+        SetPrivate(fixture.Presenter, "_enableDevButtons", true);
+        fixture.Presenter.Show();
+        AssertDevButtons(true);
+
+        fixture.Presenter.Hide();
+        SetPrivate(fixture.Presenter, "_enableDevButtons", false);
+        fixture.Presenter.Show();
+        AssertDevButtons(false);
+
+        void AssertDevButtons(bool enabled)
+        {
+            Assert.That(reset.gameObject.activeSelf, Is.EqualTo(enabled));
+            Assert.That(max.gameObject.activeSelf, Is.EqualTo(enabled));
+            Assert.That(reset.interactable, Is.EqualTo(enabled));
+            Assert.That(max.interactable, Is.EqualTo(enabled));
+            Assert.That(fixture.ScreenRoot.transform.Find("DevResetProgressButton"), Is.EqualTo(reset.transform));
+            Assert.That(fixture.ScreenRoot.transform.Find("DevMaxUpgradesButton"), Is.EqualTo(max.transform));
+        }
+    }
+
+    [Test]
+    public void DevButtons_DisabledHandlersCannotModifyProgressEvenWithStaleListeners()
+    {
+        PresenterFixture fixture = CreatePresenter(CreateCatalog());
+        Button reset = CreateButton("DevResetProgressButton", fixture.ScreenRoot.transform);
+        Button max = CreateButton("DevMaxUpgradesButton", fixture.ScreenRoot.transform);
+        SetPrivate(fixture.Presenter, "_devResetProgressButton", reset);
+        SetPrivate(fixture.Presenter, "_devMaxUpgradesButton", max);
+        SetPrivate(fixture.Presenter, "_enableDevButtons", true);
+        fixture.Presenter.Show();
+
+        _saveData.Scrap = 77;
+        _saveData.TotalEnemiesKilled = 42;
+        SetPrivate(fixture.Presenter, "_enableDevButtons", false);
+        // Invoke bypasses Button.interactable, including listeners wired before the toggle changed.
+        reset.onClick.Invoke();
+        max.onClick.Invoke();
+        typeof(ObjectivesMenuUI).GetMethod("HandleDevResetProgressRequested", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(fixture.Presenter, null);
+        typeof(ObjectivesMenuUI).GetMethod("HandleDevMaxUpgradesRequested", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(fixture.Presenter, null);
+
+        Assert.That(_saveManager.Scrap, Is.EqualTo(77));
+        Assert.That(_saveData.TotalEnemiesKilled, Is.EqualTo(42));
+        Assert.That(File.Exists(_savePath), Is.False, "Disabled dev handlers must not write the save file.");
+    }
+
     private PresenterFixture CreatePresenter(UnlockCatalog catalog, bool includeObjectiveTemplate = true)
     {
         GameObject host = Own(new GameObject("ObjectivesPresenterHost"));

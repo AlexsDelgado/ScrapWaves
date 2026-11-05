@@ -115,6 +115,8 @@ public readonly struct WeaponDamageRoll
 
 public readonly struct WeaponDamageContext
 {
+    // Capture at launch: kill credit must not depend on VFX or a mutable weapon instance.
+    public readonly string SourceWeaponId;
     public readonly WeaponType SourceWeaponType;
     public readonly int SourceLevel;
     public readonly WeaponUpgradePath SourcePath;
@@ -166,6 +168,7 @@ public readonly struct WeaponDamageContext
         float weaponDamageScale = 1f,
         bool useModeDamageOverride = true)
     {
+        SourceWeaponId = weapon?.Data != null ? weapon.Data.WeaponId : null;
         SourceWeaponType = weapon?.Data != null ? weapon.Data.WeaponType : default;
         SourceLevel = weapon?.Level ?? 0;
         SourcePath = weapon != null && weapon.Level >= 6 ? weapon.SelectedPath : WeaponUpgradePath.None;
@@ -247,6 +250,7 @@ public readonly struct WeaponDamageContext
         float damageScaleMultiplier = 1f,
         float knockbackScaleMultiplier = 1f)
     {
+        SourceWeaponId = source.SourceWeaponId;
         SourceWeaponType = source.SourceWeaponType;
         SourceLevel = source.SourceLevel;
         SourcePath = source.SourcePath;

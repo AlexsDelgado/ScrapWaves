@@ -19,6 +19,69 @@ public static class DemoLeaderboardAuthoring
     private static readonly Color Green = new(.659f, .78f, .561f, 1f);
     private static readonly Color Rust = new(.851f, .416f, .196f, 1f);
 
+    [MenuItem("Tools/ScrapWaves/Demo Leaderboard/Add Remembered Player UI")]
+    public static void AddRememberedPlayerUI()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            throw new InvalidOperationException("Author player controls outside Play Mode.");
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+            if (SceneManager.GetSceneAt(i).isDirty)
+                throw new InvalidOperationException("Unsaved scene work is present. No scene was changed.");
+        SceneSetup[] previous = EditorSceneManager.GetSceneManagerSetup();
+        try
+        {
+            Scene scene = EditorSceneManager.OpenScene(ScenePath);
+            TitleScreenController controller = All<TitleScreenController>(scene).Single();
+            var controllerFields = new SerializedObject(controller);
+            if (controllerFields.FindProperty("_playerProfileRoot").objectReferenceValue != null)
+            {
+                Debug.Log("Remembered player UI is already authored; designer changes preserved.");
+                return;
+            }
+            TMP_FontAsset font = controller.PlayButton.GetComponentInChildren<TMP_Text>(true).font;
+            RectTransform root = Rect("PlayerProfile", Named(scene, "MainMenuScreen"));
+            Fixed(root, Vector2.one, new Vector2(-46f, -32f), new Vector2(640f, 112f));
+            root.pivot = Vector2.one;
+            TMP_Text welcome = Label("WelcomeLabel", root, font, "Welcome back, Player!", 28f, Bone);
+            TopSpan(welcome.rectTransform, 0f, 44f, 0f, 0f);
+            welcome.alignment = TextAlignmentOptions.Right;
+            welcome.enableAutoSizing = true;
+            welcome.fontSizeMin = 20f;
+            welcome.fontSizeMax = 28f;
+            Button change = MakeButton("ChangeNameButton", root, font, "CHANGE NAME", Vector2.zero, Steel, Bone);
+            Fixed((RectTransform)change.transform, Vector2.one, new Vector2(-110f, -78f), new Vector2(220f, 48f));
+            change.GetComponentInChildren<TMP_Text>().fontSize = 21f;
+            controllerFields.FindProperty("_playerProfileRoot").objectReferenceValue = root.gameObject;
+            controllerFields.FindProperty("_welcomeLabel").objectReferenceValue = welcome;
+            controllerFields.FindProperty("_changeNameButton").objectReferenceValue = change;
+            controllerFields.ApplyModifiedPropertiesWithoutUndo();
+
+            PlayerNameEntryView entry = All<PlayerNameEntryView>(scene).Single();
+            var entryFields = new SerializedObject(entry);
+            Button start = entryFields.FindProperty("_startButton").objectReferenceValue as Button;
+            TMP_Text description = entry.transform.Find("Panel/Description").GetComponent<TMP_Text>();
+            entryFields.FindProperty("_confirmLabel").objectReferenceValue = start.GetComponentInChildren<TMP_Text>(true);
+            entryFields.FindProperty("_description").objectReferenceValue = description;
+            description.text = entryFields.FindProperty("_firstNameDescription").stringValue;
+            description.enableAutoSizing = true;
+            description.fontSizeMin = 18f;
+            description.fontSizeMax = 22f;
+            entryFields.ApplyModifiedPropertiesWithoutUndo();
+
+            var objectives = new SerializedObject(All<ObjectivesMenuUI>(scene).Single());
+            objectives.FindProperty("_enableDevButtons").boolValue = false;
+            objectives.ApplyModifiedPropertiesWithoutUndo();
+            Validate(scene);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("REMEMBERED_PLAYER_UI_AUTHORED: Saved welcome label, change-name button, prompt labels and disabled unlock developer controls in TitleScreen.");
+        }
+        finally
+        {
+            if (previous.Length > 0) EditorSceneManager.RestoreSceneManagerSetup(previous);
+        }
+    }
+
     [MenuItem("Tools/ScrapWaves/Demo Leaderboard/Add Authored UI")]
     public static void Author()
     {

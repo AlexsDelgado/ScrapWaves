@@ -124,13 +124,12 @@ public static class WeaponRadialDamage
                 : hit.transform;
             Vector3 impactPosition = target != null ? target.position : hit.bounds.center;
             int finalDamage = damageContext.CalculateDamage(target, falloffScale);
-            string weaponId = damageContext.Weapon?.Data != null ? damageContext.Weapon.Data.WeaponId : null;
             DamageApplicationResult result = WeaponDamageApplier.ApplyDamage(
                 damageable,
                 finalDamage,
                 channel,
                 statusKind,
-                sourceWeaponId: weaponId);
+                sourceWeaponId: damageContext.SourceWeaponId);
             if (result.Applied)
             {
                 EnemyKnockbackReceiver.TryApply(

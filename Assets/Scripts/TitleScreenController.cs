@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
@@ -37,6 +38,9 @@ public sealed class TitleScreenController : MonoBehaviour
     [SerializeField] private DemoLeaderboardSettings _demoLeaderboardSettings;
     [SerializeField] private DemoLeaderboardView _leaderboardView;
     [SerializeField] private PlayerNameEntryView _playerNameEntry;
+    [SerializeField] private GameObject _playerProfileRoot;
+    [SerializeField] private TMP_Text _welcomeLabel;
+    [SerializeField] private Button _changeNameButton;
 
     [Header("Authored item views")]
     [SerializeField] private MainMenuItemView _playItem;
@@ -51,6 +55,8 @@ public sealed class TitleScreenController : MonoBehaviour
     private bool _nameEntryRequested;
     private bool _tutorialRequested;
     private bool _launchRequested;
+    private bool _changingName;
+    private DemoLeaderboardPlayerProfile _playerProfile;
 
     public bool IncludeTestingButtons => _includeTestingButtons;
     public Button PlayButton => _playButton;
@@ -65,6 +71,8 @@ public sealed class TitleScreenController : MonoBehaviour
     {
         ShowCursorForMenu();
         DemoLeaderboardSession.ResetForMenu();
+        if (Application.isPlaying)
+            _playerProfile = new DemoLeaderboardPlayerProfile();
         if (UserSettingsService.Instance != null)
             _settingsService = UserSettingsService.Instance;
         if (ScrapSceneTransition.Instance != null)
@@ -187,6 +195,30 @@ public sealed class TitleScreenController : MonoBehaviour
             return;
         }
 
+        if (!string.IsNullOrEmpty(_playerProfile?.Name))
+        {
+            BeginPlayLaunch(_playerProfile.Name);
+            return;
+        }
+
+        OpenNameEntry(false, tutorial ? _tutorialButton : _playButton);
+    }
+
+    private void ChangePlayerName()
+    {
+        if (!DemoLeaderboardEnabled || _launchRequested || _nameEntryRequested ||
+            (_presentation != null && !_presentation.IsInteractive) ||
+            (_sceneTransition != null && _sceneTransition.IsTransitioning) ||
+            _screenStack == null || _screenStack.IsInputLocked ||
+            _screenStack.CurrentState != TitleScreenLocalState.MainMenu)
+            return;
+        _tutorialRequested = false;
+        OpenNameEntry(true, _changeNameButton);
+    }
+
+    private void OpenNameEntry(bool changingName, Button source)
+    {
+
         if (_playerNameEntry == null || !_playerNameEntry.HasRequiredReferences ||
             _screenStack == null || !_screenStack.HasPlayerNameEntryBinding)
         {
@@ -196,8 +228,8 @@ public sealed class TitleScreenController : MonoBehaviour
             return;
         }
 
-        _playerNameEntry.Prepare();
-        Button source = tutorial ? _tutorialButton : _playButton;
+        _changingName = changingName;
+        _playerNameEntry.Prepare(changingName ? _playerProfile?.Name : null, changingName);
         _nameEntryRequested = _screenStack.OpenPlayerNameEntry(source != null ? source.gameObject : null);
         if (!_nameEntryRequested)
             _tutorialRequested = false;
@@ -209,7 +241,19 @@ public sealed class TitleScreenController : MonoBehaviour
             _screenStack == null || _screenStack.IsInputLocked ||
             _screenStack.CurrentState != TitleScreenLocalState.PlayerNameEntry)
             return;
-        BeginPlayLaunch(playerName);
+        if (_playerProfile == null || !_playerProfile.TrySave(playerName))
+        {
+            _playerNameEntry.ShowSaveError();
+            return;
+        }
+        RefreshPlayerProfile();
+        if (_changingName)
+        {
+            // Only the remembered alias changes; existing results and queued identities stay intact.
+            _screenStack.CloseCurrent();
+            return;
+        }
+        BeginPlayLaunch(_playerProfile.Name);
     }
 
     private void BeginPlayLaunch(string playerName)
@@ -273,6 +317,7 @@ public sealed class TitleScreenController : MonoBehaviour
 
     private void ApplyLeaderboardVisibility()
     {
+        RefreshPlayerProfile();
         if (Application.isPlaying)
         {
             if (DemoLeaderboardEnabled && _demoLeaderboardSettings.UseOnlineLeaderboard)
@@ -286,6 +331,19 @@ public sealed class TitleScreenController : MonoBehaviour
         // Edit-mode authoring validation must not access the user's demonstration save.
         if (DemoLeaderboardEnabled && Application.isPlaying)
             _leaderboardView.Refresh(_demoLeaderboardSettings);
+    }
+
+    private void RefreshPlayerProfile()
+    {
+        bool hasName = !string.IsNullOrEmpty(_playerProfile?.Name);
+        if (_playerProfileRoot != null)
+            _playerProfileRoot.SetActive(DemoLeaderboardEnabled && hasName);
+        if (_welcomeLabel != null)
+        {
+            _welcomeLabel.richText = false;
+            _welcomeLabel.text = hasName ? $"Welcome back, {_playerProfile.Name}!" : string.Empty;
+        }
+        ConfigureNavigation();
     }
 
     private void LoadWeaponSandbox()
@@ -332,6 +390,7 @@ public sealed class TitleScreenController : MonoBehaviour
             case TitleScreenLocalState.PlayerNameEntry:
                 _playerNameEntry?.ResetEntry();
                 _nameEntryRequested = false;
+                _changingName = false;
                 if (!_launchRequested)
                 {
                     _tutorialRequested = false;
@@ -352,6 +411,7 @@ public sealed class TitleScreenController : MonoBehaviour
 
     private void HandlePresentationInteractionAvailable()
     {
+        ConfigureNavigation();
         TryApplyInitialFocus();
     }
 
@@ -388,6 +448,7 @@ public sealed class TitleScreenController : MonoBehaviour
             return;
         _wired = true;
         Wire(_playButton, LoadPlay);
+        Wire(_changeNameButton, ChangePlayerName);
         Wire(_objectivesButton, OpenObjectives);
         Wire(_settingsButton, OpenSettings);
         Wire(_quitButton, OpenQuitConfirmation);
@@ -402,6 +463,7 @@ public sealed class TitleScreenController : MonoBehaviour
             return;
         _wired = false;
         Unwire(_playButton, LoadPlay);
+        Unwire(_changeNameButton, ChangePlayerName);
         Unwire(_objectivesButton, OpenObjectives);
         Unwire(_settingsButton, OpenSettings);
         Unwire(_quitButton, OpenQuitConfirmation);
@@ -448,6 +510,7 @@ public sealed class TitleScreenController : MonoBehaviour
             AddVisibleDestination(destinations, _weaponSandboxButton);
             AddVisibleDestination(destinations, _enemiesTestingButton);
         }
+        AddVisibleDestination(destinations, _changeNameButton);
 
         for (int index = 0; index < destinations.Count; index++)
         {
@@ -458,6 +521,17 @@ public sealed class TitleScreenController : MonoBehaviour
             navigation.selectOnLeft = null;
             navigation.selectOnRight = null;
             destinations[index].navigation = navigation;
+        }
+        if (_playButton != null && _changeNameButton != null && _changeNameButton.gameObject.activeInHierarchy)
+        {
+            Navigation playNavigation = _playButton.navigation;
+            playNavigation.selectOnRight = _changeNameButton;
+            _playButton.navigation = playNavigation;
+            Navigation changeNavigation = _changeNameButton.navigation;
+            changeNavigation.mode = Navigation.Mode.Explicit;
+            changeNavigation.selectOnLeft = _playButton;
+            changeNavigation.selectOnDown = _playButton;
+            _changeNameButton.navigation = changeNavigation;
         }
     }
 

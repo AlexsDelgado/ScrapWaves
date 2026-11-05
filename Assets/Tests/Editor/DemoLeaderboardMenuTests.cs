@@ -72,6 +72,36 @@ public sealed class DemoLeaderboardMenuTests
     }
 
     [Test]
+    public void NameEntry_EditPrefillsNameAndSaveFailureAllowsRetryWithoutDiscardingInput()
+    {
+        PlayerNameEntryView view = CreateNameEntry(out TMP_InputField input, out Button start);
+        TMP_Text confirm = Label("Confirm label", start.transform);
+        TMP_Text description = Label("Description", _root.transform);
+        Set(view, "_confirmLabel", confirm);
+        Set(view, "_description", description);
+        int submissions = 0;
+        view.Confirmed += _ => submissions++;
+        view.Prepare("Original", true);
+        Assert.That(input.text, Is.EqualTo("Original"));
+        Assert.That(confirm.text, Is.EqualTo("SAVE"));
+        Assert.That(start.interactable, Is.False, "Opening animation must finish before editing can submit.");
+        view.ActivateInput();
+        input.text = "New alias";
+        start.onClick.Invoke();
+        view.ShowSaveError();
+        Assert.That(input.text, Is.EqualTo("New alias"));
+        Assert.That(start.interactable, Is.True);
+        Assert.That(input.interactable, Is.True);
+        start.onClick.Invoke();
+        Assert.That(submissions, Is.EqualTo(2));
+
+        view.ResetEntry();
+        view.Prepare();
+        Assert.That(input.text, Is.Empty);
+        Assert.That(confirm.text, Is.EqualTo("START"));
+    }
+
+    [Test]
     public void Boards_PopulateAuthoredRowsWithoutCreatingObjectsAndRenderNamesAsPlainText()
     {
         DemoLeaderboardView view = _root.AddComponent<DemoLeaderboardView>();

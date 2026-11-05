@@ -12,6 +12,10 @@ public sealed class PlayerNameEntryView : MonoBehaviour
     [SerializeField] private TMP_Text _validation;
     [SerializeField] private Button _startButton;
     [SerializeField] private Button _cancelButton;
+    [SerializeField] private TMP_Text _confirmLabel;
+    [SerializeField] private TMP_Text _description;
+    [SerializeField] private string _firstNameDescription = "Your name is saved on this PC for future games.";
+    [SerializeField] private string _changeNameDescription = "Previous scores stay with their original name.";
 
     private bool _bound;
     private bool _ready;
@@ -34,18 +38,22 @@ public sealed class PlayerNameEntryView : MonoBehaviour
             _startButton.onClick.RemoveListener(Submit);
     }
 
-    public void Prepare()
+    public void Prepare(string currentName = null, bool changingName = false)
     {
         Bind();
         _ready = false;
         _submitted = false;
         if (_input != null)
         {
-            _input.SetTextWithoutNotify(string.Empty);
+            _input.SetTextWithoutNotify(currentName ?? string.Empty);
             _input.interactable = true;
         }
         if (_cancelButton != null)
             _cancelButton.interactable = true;
+        if (_confirmLabel != null)
+            _confirmLabel.text = changingName ? "SAVE" : "START";
+        if (_description != null)
+            _description.text = changingName ? _changeNameDescription : _firstNameDescription;
         RefreshValidation(false);
     }
 
@@ -72,6 +80,16 @@ public sealed class PlayerNameEntryView : MonoBehaviour
 
     public void ShowLaunchError()
     {
+        ShowError("Unable to start. Please try again.");
+    }
+
+    public void ShowSaveError()
+    {
+        ShowError("Unable to save your name. Please try again.");
+    }
+
+    private void ShowError(string message)
+    {
         _submitted = false;
         if (_input != null)
             _input.interactable = true;
@@ -79,7 +97,7 @@ public sealed class PlayerNameEntryView : MonoBehaviour
             _cancelButton.interactable = true;
         ActivateInput();
         if (_validation != null)
-            _validation.text = "Unable to start. Please try again.";
+            _validation.text = message;
     }
 
     private void Bind()

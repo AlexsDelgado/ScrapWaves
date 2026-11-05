@@ -28,13 +28,17 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _scrapText;
     [SerializeField, Tooltip("Optional title-screen stack. When assigned, Back requests its authored close transition after purchase cancellation.")]
     private TitleScreenScreenStack _screenStack;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [Header("Developer controls")]
+    [SerializeField, Tooltip("Show and enable the authored development buttons in the Editor or a Development Build. Leave off for event builds.")]
+    private bool _enableDevButtons;
+
     [SerializeField, Tooltip("DEV: optional authored reset button. If empty, the control stays unavailable at runtime.")]
     private Button _devResetProgressButton;
 
     [SerializeField, Tooltip("DEV: optional authored max-upgrades button. If empty, the control stays unavailable at runtime.")]
     private Button _devMaxUpgradesButton;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private const int DevScrapTarget = 9999;
 #endif
 
@@ -167,6 +171,7 @@ public class ObjectivesMenuUI : MonoBehaviour
 
     private void OnEnable()
     {
+        RefreshDevButtons();
         if (_isVisible)
             SubscribeToProgression();
     }
@@ -221,6 +226,7 @@ public class ObjectivesMenuUI : MonoBehaviour
     public void Show()
     {
         EnsureInitialized();
+        RefreshDevButtons();
         EnsureFilterBars();
         ReportMissingAuthoredReferences();
 
@@ -423,12 +429,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         WireButton(_unlocksTabButton, ShowUnlocksTab);
         WireButton(_upgradesTabButton, ShowUpgradesTab);
         WireButton(_purchaseButton, HandlePurchaseRequested);
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        EnsureDevResetProgressButton();
-        WireButton(_devResetProgressButton, HandleDevResetProgressRequested);
-        EnsureDevMaxUpgradesButton();
-        WireButton(_devMaxUpgradesButton, HandleDevMaxUpgradesRequested);
-#endif
+        RefreshDevButtons();
     }
 
     private void UnwireAuthoredControls()
@@ -446,27 +447,49 @@ public class ObjectivesMenuUI : MonoBehaviour
 #endif
     }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-    private void EnsureDevResetProgressButton()
+    private bool DevButtonsEnabled
     {
-        if (Application.isPlaying || _devResetProgressButton != null || _screenRoot == null)
-            return;
-
-        _devResetProgressButton = HudUiFactory.CreateButton(
-            _screenRoot.transform,
-            "DEV: Reset progress",
-            new Vector2(220f, 40f));
-        _devResetProgressButton.name = "DevResetProgressButton";
-
-        RectTransform rt = _devResetProgressButton.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(1f, 0f);
-        rt.anchorMax = new Vector2(1f, 0f);
-        rt.pivot = new Vector2(1f, 0f);
-        rt.anchoredPosition = new Vector2(-24f, 24f);
+        get
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            return _enableDevButtons;
+#else
+            return false;
+#endif
+        }
     }
 
+    private void RefreshDevButtons()
+    {
+        bool enabled = DevButtonsEnabled;
+        SetDevButtonState(_devResetProgressButton, enabled);
+        SetDevButtonState(_devMaxUpgradesButton, enabled);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        UnwireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+        UnwireButton(_devMaxUpgradesButton, HandleDevMaxUpgradesRequested);
+        if (enabled)
+        {
+            WireButton(_devResetProgressButton, HandleDevResetProgressRequested);
+            WireButton(_devMaxUpgradesButton, HandleDevMaxUpgradesRequested);
+        }
+#endif
+    }
+
+    private static void SetDevButtonState(Button button, bool enabled)
+    {
+        if (button == null)
+            return;
+
+        button.interactable = enabled;
+        button.gameObject.SetActive(enabled);
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void HandleDevResetProgressRequested()
     {
+        if (!DevButtonsEnabled)
+            return;
+
         SaveManager save = SaveManager.Instance;
         if (save == null)
             return;
@@ -481,27 +504,11 @@ public class ObjectivesMenuUI : MonoBehaviour
         Debug.Log("ObjectivesMenuUI: DEV reset — scrap, unlocks y challenges borrados.");
     }
 
-    private void EnsureDevMaxUpgradesButton()
-    {
-        if (Application.isPlaying || _devMaxUpgradesButton != null || _screenRoot == null)
-            return;
-
-        _devMaxUpgradesButton = HudUiFactory.CreateButton(
-            _screenRoot.transform,
-            "DEV: Max upgrades + 9999 scrap",
-            new Vector2(260f, 40f));
-        _devMaxUpgradesButton.name = "DevMaxUpgradesButton";
-
-        RectTransform rt = _devMaxUpgradesButton.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(1f, 0f);
-        rt.anchorMax = new Vector2(1f, 0f);
-        rt.pivot = new Vector2(1f, 0f);
-        // Stacked above the reset button so neither overlaps the other.
-        rt.anchoredPosition = new Vector2(-24f, 72f);
-    }
-
     private void HandleDevMaxUpgradesRequested()
     {
+        if (!DevButtonsEnabled)
+            return;
+
         SaveManager save = SaveManager.Instance;
         if (save == null)
             return;

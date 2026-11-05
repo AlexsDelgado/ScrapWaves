@@ -17,7 +17,10 @@ Open `Assets/Scenes/TitleScreen.unity`, select the root **Developer - Demo Leade
 and change **Enable Demo Leaderboard** in the Inspector. Save the scene to apply the
 choice to builds. It is enabled for the demonstration.
 
-- **ON:** Play and Play Tutorial ask for a name before starting.
+- **ON:** Play and Play Tutorial ask for a name only until one is saved on this PC.
+  Future launches reuse it. The main menu displays **Welcome back, [name]!** at
+  the top right, with **CHANGE NAME** underneath. Saving a changed name returns
+  to the menu without starting a run; Cancel keeps the previous name.
 - **OFF:** both tables disappear, both Play routes skip the prompt, and those runs
   cannot write leaderboard scores. No new online operations are started. An already
   in-flight request may finish; it cannot be recalled. Existing local scores, pending
@@ -79,8 +82,16 @@ or another score format; entries also require the `scrapwaves-pair-v1` metadata 
 Each completed attempt is captured once. Network retries may submit it again, so
 both remote boards must use **Best Score**, not Total Score.
 
-Retry retains the name and starts a new attempt. Returning to the menu asks again
-on the next Play. Abandoning a run, quitting, a tutorial-only death, or a failed/cancelled
+The remembered name is stored separately in `scrapwaves_demo_player.json`, beside
+the local leaderboard file. It survives application restarts. Existing installations
+choose their name once after this update; no name is guessed from old scores.
+Changing it selects that alias for future runs, using the existing name-to-profile
+mapping. Old scores and pending uploads retain their original alias and player
+identity. Switching back to an old alias reuses its existing profile on this PC.
+Invalid entries cannot be saved; a failed save leaves the prompt open for retry.
+
+Retry retains the run's name and starts a new attempt. Returning to the menu reuses
+the saved name on the next Play. Abandoning a run, quitting, a tutorial-only death, or a failed/cancelled
 launch never submits a score.
 
 ## Shared boards and deployment

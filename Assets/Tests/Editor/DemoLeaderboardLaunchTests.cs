@@ -52,6 +52,11 @@ public sealed class DemoLeaderboardLaunchTests
         yield return new EnterPlayMode();
         yield return null;
 
+        BindRunningMenu();
+    }
+
+    private void BindRunningMenu()
+    {
         _routes = 0;
         _testDirectory = SessionState.GetString(IsolationState + ".Directory", string.Empty);
         Time.timeScale = 1f;
@@ -161,6 +166,7 @@ public sealed class DemoLeaderboardLaunchTests
             Assert.That(PendingName(), Is.Null);
             Assert.That(IsReplayArmed(), Is.False);
             Assert.That(_routes, Is.Zero);
+            Assert.That(new DemoLeaderboardPlayerProfile().Name, Is.Null.Or.Empty);
         }
         AssertNoLeaderboardWrites();
     }
@@ -179,11 +185,94 @@ public sealed class DemoLeaderboardLaunchTests
         Assert.That(_transition.IsTransitioning, Is.True);
         Assert.That(_routes, Is.Zero, "Gameplay must wait for the existing transition to cover the title scene.");
         Assert.That(PendingName(), Is.EqualTo("Ana R"));
+        Assert.That(new DemoLeaderboardPlayerProfile().Name, Is.EqualTo("Ana R"),
+            "Confirmation must durably remember the normalized name before gameplay starts.");
         Assert.That(IsReplayArmed(), Is.False);
         AdvanceTransition(2f);
         AdvanceTransition(2f);
         Assert.That(_routes, Is.EqualTo(1));
         Assert.That(_transition.IsTransitioning, Is.True, "The route stub deliberately leaves gameplay unloaded.");
+        AssertNoLeaderboardWrites();
+    }
+
+    [UnityTest]
+    public IEnumerator RememberedName_SurvivesPlaySessionRestartAndPlaySkipsPrompt()
+    {
+        Submit(_controller.PlayButton);
+        yield return WaitForScreen();
+        _input.text = "Returning Ada";
+        Submit(_start);
+        Assert.That(new DemoLeaderboardPlayerProfile().Name, Is.EqualTo("Returning Ada"));
+
+        // Restart actual MonoBehaviour/static lifetimes, retaining only the isolated files.
+        yield return new ExitPlayMode();
+        yield return new EnterPlayMode();
+        yield return null;
+        BindRunningMenu();
+
+        TMP_Text welcome = Read<TMP_Text>(_controller, "_welcomeLabel");
+        Assert.That(welcome.text, Is.EqualTo("Welcome back, Returning Ada!"));
+        Assert.That(Read<GameObject>(_controller, "_playerProfileRoot").activeSelf, Is.True);
+        Button change = Read<Button>(_controller, "_changeNameButton");
+        Assert.That(change.navigation.mode, Is.EqualTo(Navigation.Mode.Explicit));
+        Assert.That(change.navigation.selectOnLeft, Is.SameAs(_controller.PlayButton));
+        Submit(_controller.PlayButton);
+        Assert.That(_stack.CurrentState, Is.EqualTo(TitleScreenLocalState.MainMenu));
+        Assert.That(_nameEntry.gameObject.activeInHierarchy, Is.False);
+        Assert.That(PendingName(), Is.EqualTo("Returning Ada"));
+        AdvanceTransition(2f);
+        Assert.That(_routes, Is.EqualTo(1));
+        AssertNoLeaderboardWrites();
+    }
+
+    [UnityTest]
+    public IEnumerator ChangeName_RejectsInvalidInputCancelPreservesNameAndSaveReturnsToMenu()
+    {
+        var profile = Read<DemoLeaderboardPlayerProfile>(_controller, "_playerProfile");
+        Assert.That(profile.TrySave("Original"), Is.True);
+        Invoke(_controller, "RefreshPlayerProfile");
+        Button change = Read<Button>(_controller, "_changeNameButton");
+        GameObject profileRoot = Read<GameObject>(_controller, "_playerProfileRoot");
+        int authoredCount = profileRoot.GetComponentsInChildren<Transform>(true).Length;
+        Assert.That(_controller.PlayButton.navigation.selectOnRight, Is.SameAs(change));
+        Assert.That(change.navigation.selectOnLeft, Is.SameAs(_controller.PlayButton));
+
+        Submit(change);
+        yield return WaitForScreen();
+        Assert.That(_input.text, Is.EqualTo("Original"));
+        Assert.That(Read<TMP_Text>(_nameEntry, "_confirmLabel").text, Is.EqualTo("SAVE"));
+        _input.text = "   ";
+        _start.onClick.Invoke();
+        Assert.That(_start.interactable, Is.False);
+        Assert.That(new DemoLeaderboardPlayerProfile().Name, Is.EqualTo("Original"));
+        Assert.That(_routes, Is.Zero);
+
+        _input.text = "Discard me";
+        Submit(_cancel);
+        yield return WaitForScreen();
+        Assert.That(new DemoLeaderboardPlayerProfile().Name, Is.EqualTo("Original"));
+        Assert.That(_eventSystem.currentSelectedGameObject, Is.SameAs(change.gameObject));
+
+        Submit(change);
+        yield return WaitForScreen();
+        Assert.That(_input.text, Is.EqualTo("Original"));
+        _input.text = "<b>Ada</b>";
+        Submit(_start);
+        _start.onClick.Invoke();
+        _input.onSubmit.Invoke(_input.text);
+        yield return WaitForScreen();
+
+        Assert.That(_stack.CurrentState, Is.EqualTo(TitleScreenLocalState.MainMenu));
+        Assert.That(new DemoLeaderboardPlayerProfile().Name, Is.EqualTo("<b>Ada</b>"));
+        TMP_Text welcome = Read<TMP_Text>(_controller, "_welcomeLabel");
+        Assert.That(welcome.text, Is.EqualTo("Welcome back, <b>Ada</b>!"));
+        Assert.That(welcome.richText, Is.False);
+        Assert.That(_eventSystem.currentSelectedGameObject, Is.SameAs(change.gameObject));
+        Assert.That(_routes, Is.Zero);
+        Assert.That(change.navigation.mode, Is.EqualTo(Navigation.Mode.Explicit));
+        Assert.That(PendingName(), Is.Null);
+        Assert.That(IsReplayArmed(), Is.False);
+        Assert.That(profileRoot.GetComponentsInChildren<Transform>(true).Length, Is.EqualTo(authoredCount));
         AssertNoLeaderboardWrites();
     }
 
@@ -223,11 +312,10 @@ public sealed class DemoLeaderboardLaunchTests
         Submit(_cancel);
         yield return WaitForScreen();
         Submit(_controller.PlayButton);
-        yield return WaitForScreen();
-        _input.text = "Ben";
-        Submit(_start);
+        Assert.That(_stack.CurrentState, Is.EqualTo(TitleScreenLocalState.MainMenu));
+        Assert.That(_nameEntry.gameObject.activeInHierarchy, Is.False);
         Assert.That(IsReplayArmed(), Is.False, "A failed tutorial attempt must not change the following normal Play route.");
-        Assert.That(PendingName(), Is.EqualTo("Ben"));
+        Assert.That(PendingName(), Is.EqualTo("Ada"), "The confirmed name remains remembered even when scene loading failed.");
         AssertNoLeaderboardWrites();
     }
 
