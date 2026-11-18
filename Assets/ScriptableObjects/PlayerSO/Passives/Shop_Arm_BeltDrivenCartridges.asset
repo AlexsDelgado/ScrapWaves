@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Arm_BeltDrivenCartridges
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Belt-driven cartridges
+  _description: Weapons fire faster.
   _slot: 2
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: 847b2b7b2df3293429831f1e23259c07, type: 3}

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Head_BountyHunterModule
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Bounty-hunter module
+  _description: Deal more damage to elite enemies.
   _slot: 0
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: 329f626e82ef18748be40cf0063fb5f5, type: 3}

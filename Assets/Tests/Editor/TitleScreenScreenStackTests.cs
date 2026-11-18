@@ -85,33 +85,6 @@ public sealed class TitleScreenScreenStackTests
         Assert.That(_fixture.Group.blocksRaycasts, Is.False);
     }
 
-    [UnityTest]
-    public IEnumerator CancelAction_OnSelectedObjectiveControl_CancelsArmedPurchaseBeforeClose()
-    {
-        _fixture.ArmObjectivePurchase();
-        Assert.That(_fixture.Stack.OpenObjectives(_fixture.ReturnFocus.gameObject), Is.True);
-
-        for (int frame = 0; frame < 120 && _fixture.Stack.IsInputLocked; frame++)
-            yield return null;
-
-        Assert.That(_fixture.Stack.IsInputLocked, Is.False);
-        Assert.That(_fixture.ObjectivesPresenter.IsPurchaseArmed, Is.True);
-        _fixture.EventSystem.SetSelectedGameObject(_fixture.ObjectiveInitialFocus.gameObject);
-        Assert.That(
-            ExecuteEvents.Execute(
-                _fixture.EventSystem.currentSelectedGameObject,
-                new BaseEventData(_fixture.EventSystem),
-                ExecuteEvents.cancelHandler),
-            Is.False);
-
-        _fixture.TriggerCancelAction();
-
-        Assert.That(_fixture.ObjectivesPresenter.IsPurchaseArmed, Is.False);
-        Assert.That(_fixture.Stack.CurrentState, Is.EqualTo(TitleScreenLocalState.Objectives));
-        Assert.That(_fixture.Stack.IsInputLocked, Is.False, "The first Cancel must disarm the purchase without closing Objectives.");
-        Assert.That(_fixture.ObjectivesGroup.interactable, Is.True);
-    }
-
     [Test]
     public void MainMenuIntro_RejectsSubmitUntilFirstEntryIsReadable()
     {

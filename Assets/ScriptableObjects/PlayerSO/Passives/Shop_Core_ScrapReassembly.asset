@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Core_ScrapReassembly
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Scrap Reassembly
+  _description: Recover a little health from the damage you deal.
   _slot: 1
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: 9b990172ab407a849bd0f61d23d008e8, type: 3}

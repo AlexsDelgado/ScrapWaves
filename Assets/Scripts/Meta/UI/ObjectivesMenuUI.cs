@@ -83,6 +83,7 @@ public class ObjectivesMenuUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _unlockTypeText;
     [SerializeField] private TextMeshProUGUI _unlockStatusText;
     [SerializeField] private TextMeshProUGUI _unlockRequirementText;
+    [SerializeField] private TextMeshProUGUI _unlockDescriptionText;
     [SerializeField] private Button _purchaseButton;
     [SerializeField] private TextMeshProUGUI _purchaseButtonLabel;
     [SerializeField] private TextMeshProUGUI _purchaseFeedbackText;
@@ -743,7 +744,7 @@ public class ObjectivesMenuUI : MonoBehaviour
     private void CreateUnlockCard(IUnlockable item, string displayName, string itemType, SaveManager saveManager)
     {
         UnlockCardState state = ResolveUnlockState(item, saveManager);
-        if (ShouldHideUnlock(state))
+        if (ShouldHideUnlock(item, state))
             return;
 
         if (_unlockCards.Count >= _authoredUnlocks.Length) { Debug.LogError("Objectives: authored unlock capacity exhausted. Re-author the title scene.", this); return; }
@@ -753,8 +754,11 @@ public class ObjectivesMenuUI : MonoBehaviour
         _unlockCards.Add(card);
     }
 
-    private bool ShouldHideUnlock(UnlockCardState state)
+    private bool ShouldHideUnlock(IUnlockable item, UnlockCardState state)
     {
+        // Starting content is always owned, so listing it only buries what can still be earned.
+        if (state == UnlockCardState.Owned && item != null && item.UnlockedFromStart)
+            return true;
         if (_hideUnlockOwned && state == UnlockCardState.Owned)
             return true;
         if (_hideUnlockAvailable && state == UnlockCardState.Purchasable)
@@ -919,6 +923,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         SetText(_unlockTypeText, _selectedUnlockCard.ItemType);
         SetText(_unlockStatusText, GetUnlockStateLabel(_selectedUnlockCard.State));
         SetText(_unlockRequirementText, BuildRequirementText(requirement));
+        SetText(_unlockDescriptionText, item.Description);
 
         if (_purchaseButton == null)
             return;
@@ -954,15 +959,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         if (requirement == null)
             return;
 
-        if (requirement.ScrapPrice > 0 &&
-            (_armedPurchase == null || _armedPurchase.UnlockId != item.UnlockId))
-        {
-            _armedPurchase = item;
-            SetPurchaseFeedback("PRESS AGAIN TO CONFIRM");
-            UpdateUnlockDetails();
-            return;
-        }
-
+        // Single-click purchase: no confirmation step (playtest feedback).
         _handlingPurchase = true;
         bool purchased = SaveManager.Instance.TryPurchase(item);
         _handlingPurchase = false;
@@ -995,6 +992,7 @@ public class ObjectivesMenuUI : MonoBehaviour
         SetText(_unlockTypeText, string.Empty);
         SetText(_unlockStatusText, string.Empty);
         SetText(_unlockRequirementText, string.Empty);
+        SetText(_unlockDescriptionText, string.Empty);
         SetText(_purchaseButtonLabel, "UNAVAILABLE");
         SetPurchaseFeedback(string.Empty);
         if (_purchaseButton != null)

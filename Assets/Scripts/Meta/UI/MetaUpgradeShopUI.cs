@@ -595,14 +595,7 @@ public class MetaUpgradeShopUI : MonoBehaviour
         if (offer == null || offer.State != UnlockCardState.Purchasable)
             return;
 
-        if (!_armed)
-        {
-            _armed = true;
-            UpdateDetails(offer);
-            SetFeedback("Press again to confirm.");
-            return;
-        }
-
+        // Single-click purchase: no confirmation step (playtest feedback).
         _handlingPurchase = true;
         bool ok = offer.Kind == OfferKind.Stat
             ? SaveManager.Instance.TryPurchaseMetaStatUpgrade(offer.StatType, _costs)

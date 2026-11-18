@@ -137,7 +137,7 @@ public class OverheatObjectiveHud : MonoBehaviour
         if ((_bossManager != null && _bossManager.IsWaitingForBase) ||
             (_eliteSpawner != null && _eliteSpawner.IsWaitingForBase))
         {
-            _objectiveText.text = "Bajá al suelo";
+            _objectiveText.text = "Get to ground level";
             return;
         }
 
@@ -146,17 +146,17 @@ public class OverheatObjectiveHud : MonoBehaviour
             int alive = _bossManager.ActiveBosses.Count;
             _objectiveText.text = alive > 1
                 ? $"Bosses: {alive}"
-                : "Derrotá al boss";
+                : "Defeat the boss - it drops a battery";
             return;
         }
 
         if (_eliteSpawner != null && _eliteSpawner.IsEliteWaveActive)
         {
             int defeated = Mathf.Max(0, _eliteSpawner.EliteWaveTotal - _eliteSpawner.ElitesRemaining);
-            _objectiveText.text = $"Élites: {defeated}/{_eliteSpawner.EliteWaveTotal}";
+            _objectiveText.text = $"Elites: {defeated}/{_eliteSpawner.EliteWaveTotal}";
             return;
         }
 
-        _objectiveText.text = "Completá el objetivo";
+        _objectiveText.text = "Complete the objective";
     }
 }

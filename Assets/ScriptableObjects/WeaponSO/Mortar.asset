@@ -14,6 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   WeaponId: Mortar
   DisplayName: Mortar
+  Description: 'Lobs shells that land after a short delay and explode in an area.
+
+    Specialty:
+    heavy area damage on groups, even behind cover.
+
+    Active: calls down a barrage
+    of shells around the target area.'
   WeaponType: 3
   AutoTargetingMode: 1
   AutomaticAimConstraint: 0

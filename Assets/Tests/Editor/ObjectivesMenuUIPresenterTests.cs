@@ -138,25 +138,14 @@ public class ObjectivesMenuUIPresenterTests
     }
 
     [Test]
-    public void ScrapPurchase_ArmsThenBackCancelsAndSecondConfirmPurchasesExactlyOnce()
+    public void ScrapPurchase_SingleClickPurchasesExactlyOnce()
     {
         _saveData.Scrap = 75;
         PassiveItemData item = CreatePassive("shock-coil", "Shock Coil", 50);
         PresenterFixture fixture = CreatePresenter(CreateCatalog(item));
         fixture.Presenter.Show();
         fixture.Presenter.ShowUnlocksTab();
-
-        fixture.PurchaseButton.onClick.Invoke();
-
-        Assert.That(fixture.Presenter.IsPurchaseArmed, Is.True);
-        Assert.That(_saveManager.Scrap, Is.EqualTo(75));
-        Assert.That(fixture.PurchaseButtonLabel.text, Is.EqualTo("CONFIRM — 50 SCRAP"));
-
-        fixture.Presenter.HandleBackRequested();
-
-        Assert.That(fixture.Presenter.IsPurchaseArmed, Is.False);
-        Assert.That(fixture.Presenter.IsVisible, Is.True, "The first Back cancels an armed purchase instead of closing the screen.");
-        Assert.That(_saveManager.Scrap, Is.EqualTo(75));
+        Assert.That(fixture.PurchaseButtonLabel.text, Is.EqualTo("PURCHASE — 50 SCRAP"));
 
         fixture.PurchaseButton.onClick.Invoke();
         fixture.PurchaseButton.onClick.Invoke();
@@ -170,7 +159,7 @@ public class ObjectivesMenuUIPresenterTests
     }
 
     [Test]
-    public void FocusingAnotherUnlockCard_CancelsArmedPurchaseWithoutSpendingScrap()
+    public void FocusingAnotherUnlockCard_DoesNotSpendScrap()
     {
         _saveData.Scrap = 100;
         PassiveItemData first = CreatePassive("first", "First", 40);
@@ -178,15 +167,11 @@ public class ObjectivesMenuUIPresenterTests
         PresenterFixture fixture = CreatePresenter(CreateCatalog(first, second));
         fixture.Presenter.Show();
         fixture.Presenter.ShowUnlocksTab();
-        fixture.PurchaseButton.onClick.Invoke();
-
-        Assert.That(fixture.Presenter.IsPurchaseArmed, Is.True);
         Assert.That(fixture.Presenter.SelectedUnlockId, Is.EqualTo("first"));
 
         UnlockCardView secondCard = fixture.UnlocksContent.GetChild(1).GetComponent<UnlockCardView>();
         secondCard.Button.onClick.Invoke();
 
-        Assert.That(fixture.Presenter.IsPurchaseArmed, Is.False);
         Assert.That(fixture.Presenter.SelectedUnlockId, Is.EqualTo("second"));
         Assert.That(_saveManager.Scrap, Is.EqualTo(100));
         Assert.That(_saveManager.IsUnlocked(first), Is.False);

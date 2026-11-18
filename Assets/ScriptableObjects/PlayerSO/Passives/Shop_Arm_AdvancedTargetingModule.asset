@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Arm_AdvancedTargetingModule
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Advanced targeting module
+  _description: Increases critical hit chance.
   _slot: 2
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: 1ea402b3d357f6d4cafabd0c3755a3e0, type: 3}

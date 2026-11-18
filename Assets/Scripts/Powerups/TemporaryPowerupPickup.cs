@@ -37,6 +37,8 @@ public class TemporaryPowerupPickup : MonoBehaviour, IPickable
 
         if (!_useAuthoredVisual)
             ApplyVisual(type);
+
+        PickupHighlight.Attach(gameObject, ResolveColor(type), shell: true, ring: true, ringDiameter: 1.6f);
     }
 
     public void OnPickedUp()

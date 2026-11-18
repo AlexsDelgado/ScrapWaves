@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Shop_Core_RegenerativeNanotech
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Regenerative Nano-tech
+  _description: Regenerate health over time, and start regenerating sooner after
+    taking a hit.
   _slot: 1
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: cae14d83cafd44f4c9ce79ef5ab468dc, type: 3}

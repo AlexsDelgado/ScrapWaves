@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Arm_OrdnanceProduction
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Ordnance production
+  _description: Increases manual ammo capacity.
   _slot: 2
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: e3c0173f721e8fc4cb949a48c8d19c0d, type: 3}

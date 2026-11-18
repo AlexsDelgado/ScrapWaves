@@ -118,7 +118,21 @@ public sealed class RocketLauncherPresentationTests
                 Assert.That(core.GetComponent<Renderer>().sharedMaterial,
                     Is.SameAs(authoredCore.GetComponent<Renderer>().sharedMaterial));
 
-                foreach (float age in new[] { 0f, 0.08f, 0.2f, 0.45f })
+                // The blast now expands from a point to the damage sphere (first 20% of its life),
+                // never beyond it. At age 0 it must be small but present; from 0.2 on it fills the sphere.
+                typeof(RocketLauncherCueVfx).GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(vfx, new object[] { 0f });
+                if (radius > 0f)
+                {
+                    Transform startCore = instance.transform.Find("Explosion Core");
+                    float startRadius = 0f;
+                    foreach (Vector3 vertex in startCore.GetComponent<MeshFilter>().sharedMesh.vertices)
+                        startRadius = Mathf.Max(startRadius, (startCore.TransformPoint(vertex) - instance.transform.position).magnitude);
+                    Assert.That(startRadius, Is.LessThan(radius * 0.25f), "The blast must start near a point.");
+                    Assert.That(startRadius, Is.GreaterThan(0f));
+                }
+
+                foreach (float age in new[] { 0.2f, 0.45f })
                 {
                     typeof(RocketLauncherCueVfx).GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)
                         .Invoke(vfx, new object[] { age });
@@ -375,6 +389,11 @@ public sealed class RocketLauncherPresentationTests
 
     private static void AssertMainBlast(GameObject instance, float radius)
     {
+        // The blast bursts out over the first 20% of its life; measure it once settled at the full damage sphere.
+        RocketLauncherCueVfx cueVfx = instance.GetComponent<RocketLauncherCueVfx>();
+        if (cueVfx != null)
+            typeof(RocketLauncherCueVfx).GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(cueVfx, new object[] { 0.2f });
         Transform core = instance.transform.Find("Explosion Core");
         Assert.That(core, Is.Not.Null, "The test must measure the main explosion, not the radius ring or debris.");
         Renderer renderer = core.GetComponent<Renderer>();

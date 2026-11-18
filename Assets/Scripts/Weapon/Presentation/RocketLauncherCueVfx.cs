@@ -397,6 +397,9 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             ? material.GetFloat(VertexJitterId) : 0f;
     }
 
+    private const float BlastStartFraction = 0.12f;
+    private const float BlastExpandFraction = 0.2f;
+
     private void ApplyMainBlastVolume(float normalizedLife)
     {
         if (_mainBlastRenderer == null) return;
@@ -404,9 +407,12 @@ public sealed class RocketLauncherCueVfx : MonoBehaviour, IWeaponVfxPrewarm, IWe
             || (_resolvedBlastRadius > 0f && normalizedLife < 1f));
         if (!_usesResolvedBlastVolume) return;
 
-        // Damage is instantaneous. Show its full volume from the first visible frame;
-        // brightness/dissolve provide the animation instead of delayed, undersized growth.
-        Vector3 scale = _mainBlastScalePerMetre * _resolvedBlastRadius;
+        // The blast starts as a small bright point and bursts out to the captured damage sphere within
+        // BlastExpandFraction of its life (ease-out, so most of the growth is in the first frames).
+        // It never exceeds the damage radius; the footprint ring keeps showing the full radius.
+        float expansion = Mathf.Lerp(BlastStartFraction, 1f,
+            1f - Mathf.Pow(1f - Mathf.Clamp01(normalizedLife / BlastExpandFraction), 3f));
+        Vector3 scale = _mainBlastScalePerMetre * (_resolvedBlastRadius * expansion);
         Vector3 parentScale = _mainBlastRenderer.transform.parent.lossyScale;
         _mainBlastRenderer.transform.localScale = new Vector3(
             scale.x / Mathf.Max(0.000001f, Mathf.Abs(parentScale.x)),

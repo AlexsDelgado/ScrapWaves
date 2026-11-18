@@ -207,6 +207,8 @@ public class WeaponData : ScriptableObject, IUnlockable
 {
     public string WeaponId;
     public string DisplayName;
+    [TextArea(2, 6), Tooltip("Player-facing summary shown in the Unlocks menu: behavior, specialty, active ability.")]
+    public string Description;
     public WeaponType WeaponType = WeaponType.AutomaticCannon;
     public WeaponTargetingMode AutoTargetingMode = WeaponTargetingMode.ClosestInRange;
     public WeaponAutomaticAimConstraint AutomaticAimConstraint = WeaponAutomaticAimConstraint.CameraCone;
@@ -234,6 +236,7 @@ public class WeaponData : ScriptableObject, IUnlockable
     [field: SerializeField] public UnlockRequirement Requirement { get; private set; }
 
     public string UnlockId => WeaponId;
+    string IUnlockable.Description => Description ?? string.Empty;
 
     public List<WeaponLevelData> LevelData = new();
     public List<WeaponBalanceStatRow> BalanceStats = new();

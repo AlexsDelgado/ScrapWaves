@@ -213,11 +213,17 @@ public class TemporaryPowerupPool : MonoBehaviour
 
     private void EnsureAllPrefabs()
     {
+        EnsureCatalog();
         if (_prefabsByType == null || _prefabsByType.Length != PrefabNames.Length)
             _prefabsByType = new GameObject[PrefabNames.Length];
 
         for (int i = 0; i < PrefabNames.Length; i++)
         {
+            if (_prefabsByType[i] != null)
+                continue;
+            // Builds: the Resources catalog carries the prefabs (AssetDatabase only exists in the Editor).
+            if (_visualCatalog != null)
+                _prefabsByType[i] = _visualCatalog.GetPrefab((TemporaryPowerupType)i);
             if (_prefabsByType[i] != null)
                 continue;
 #if UNITY_EDITOR

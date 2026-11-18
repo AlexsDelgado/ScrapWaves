@@ -11,6 +11,8 @@ public class TemporaryPowerupVisualCatalog : ScriptableObject
     {
         public TemporaryPowerupType Type;
         public Mesh Mesh;
+        [Tooltip("Authored pickup prefab. Serialized here (Resources) so builds do not depend on AssetDatabase.")]
+        public GameObject Prefab;
     }
 
     [SerializeField] private Entry[] _entries =
@@ -33,6 +35,21 @@ public class TemporaryPowerupVisualCatalog : ScriptableObject
             Entry entry = _entries[i];
             if (entry != null && entry.Type == type)
                 return entry.Mesh;
+        }
+
+        return null;
+    }
+
+    public GameObject GetPrefab(TemporaryPowerupType type)
+    {
+        if (_entries == null)
+            return null;
+
+        for (int i = 0; i < _entries.Length; i++)
+        {
+            Entry entry = _entries[i];
+            if (entry != null && entry.Type == type)
+                return entry.Prefab;
         }
 
         return null;

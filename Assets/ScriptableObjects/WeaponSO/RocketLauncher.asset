@@ -14,6 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   WeaponId: RocketLauncher
   DisplayName: Rocket Launcher
+  Description: 'Fires rockets that explode on impact and hurt everything in the blast.
+
+    Specialty:
+    area damage at long range.
+
+    Active (hold): lock onto several targets, release
+    to send a rocket at each one.'
   WeaponType: 2
   AutoTargetingMode: 0
   AutomaticAimConstraint: 1

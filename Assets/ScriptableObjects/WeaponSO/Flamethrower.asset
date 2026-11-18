@@ -14,6 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   WeaponId: Flamethrower
   DisplayName: Flamethrower
+  Description: 'Short-range stream of fire that keeps burning enemies it touches.
+
+    Specialty:
+    constant damage on crowds up close.
+
+    Active: a wave of fire expands outward
+    from you and pushes enemies back.'
   WeaponType: 1
   AutoTargetingMode: 2
   AutomaticAimConstraint: 0

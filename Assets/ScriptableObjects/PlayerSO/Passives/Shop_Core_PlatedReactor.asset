@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Core_PlatedReactor
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Plated Reactor
+  _description: Raises your maximum health.
   _slot: 1
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: 41c28b8ee435c4f4ab9f6173d4bcb289, type: 3}

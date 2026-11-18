@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Head_ScavengerModule
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Scavenger module
+  _description: Enemies drop more scrap and materials.
   _slot: 0
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: b501fc357efe1174db55c1278fdc32d2, type: 3}

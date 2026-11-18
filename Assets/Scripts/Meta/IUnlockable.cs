@@ -5,6 +5,8 @@
 public interface IUnlockable
 {
     string UnlockId { get; }
+    /// <summary>Player-facing summary (English): what it does, how it plays, active ability.</summary>
+    string Description { get; }
     bool UnlockedFromStart { get; }
     UnlockRequirement Requirement { get; }
 }

@@ -112,6 +112,97 @@ public static class OverheatPreparationAuthoring
         OverheatWarningPreview.Capture();
     }
 
+    /// <summary>
+    /// Playtest feedback: the banner must read as a hazard alert. Yellow body, black text and tiled
+    /// yellow/black hazard-stripe rules (the existing Animator pulses the rules). Idempotent.
+    /// </summary>
+    [MenuItem("ScrapWaves/UI/Restyle Overheat Warning (Hazard)")]
+    public static void RestyleHazard()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            throw new InvalidOperationException("Author outside Play Mode.");
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+            if (SceneManager.GetSceneAt(i).isDirty)
+                throw new InvalidOperationException("Unsaved scene edits detected; no scene changed.");
+        Scene scene = EditorSceneManager.OpenScene(UpperLevelOverheatAuthoring.ScenePath);
+        OverheatWarningHud presenter = Find<OverheatWarningHud>(scene).Single();
+        Transform root = presenter.transform;
+
+        const string folder = "Assets/Art/UI/Authored/";
+        Sprite stripes = EnsureHazardStripes(folder + "HazardStripes.png");
+        var yellow = new Color(1f, .8f, .04f, 1f);
+        var black = new Color(.04f, .035f, .03f, 1f);
+
+        Image body = root.GetComponent<Image>();
+        body.color = new Color(1f, .8f, .04f, .96f);
+
+        foreach (TextMeshProUGUI text in root.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            text.color = black;
+            text.fontStyle = FontStyles.Bold;
+        }
+
+        const string materialPath = folder + "OverheatWarningText.mat";
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+        if (material != null)
+        {
+            // A thin yellow halo keeps the black glyphs crisp without the old cream outline.
+            material.SetColor(ShaderUtilities.ID_OutlineColor, yellow);
+            material.SetFloat(ShaderUtilities.ID_OutlineWidth, .08f);
+            EditorUtility.SetDirty(material);
+        }
+
+        foreach (string name in new[] { "TopRule", "BottomRule" })
+        {
+            Transform rule = root.Find(name);
+            if (rule == null) continue;
+            var rect = (RectTransform)rule;
+            rect.sizeDelta = new Vector2(0f, 28f);
+            Image graphic = rule.GetComponent<Image>();
+            graphic.sprite = stripes;
+            graphic.type = Image.Type.Tiled;
+            graphic.pixelsPerUnitMultiplier = 1f;
+            graphic.color = Color.white;
+        }
+
+        EditorUtility.SetDirty(body);
+        EditorSceneManager.MarkSceneDirty(scene);
+        if (!EditorSceneManager.SaveScene(scene)) throw new InvalidOperationException("Could not save Overheat warning restyle.");
+        AssetDatabase.SaveAssets();
+        Debug.Log("OVERHEAT_WARNING_RESTYLED_HAZARD");
+    }
+
+    private static Sprite EnsureHazardStripes(string path)
+    {
+        if (AssetDatabase.LoadAssetAtPath<Sprite>(path) == null)
+        {
+            const int size = 32;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var pixels = new Color32[size * size];
+            var yellow = new Color32(255, 204, 10, 255);
+            var black = new Color32(10, 9, 8, 255);
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    pixels[y * size + x] = (x + y) % size < size / 2 ? yellow : black;
+            texture.SetPixels32(pixels);
+            System.IO.File.WriteAllBytes(path, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(path);
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.mipmapEnabled = false;
+            importer.spritePixelsPerUnit = 32f;
+            var settings = new TextureImporterSettings();
+            importer.ReadTextureSettings(settings);
+            settings.spriteMeshType = SpriteMeshType.FullRect;
+            importer.SetTextureSettings(settings);
+            importer.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
     private static void StyleWarning(Transform root, OverheatWarningHud presenter, bool createdView)
     {
         var rect = (RectTransform)root;

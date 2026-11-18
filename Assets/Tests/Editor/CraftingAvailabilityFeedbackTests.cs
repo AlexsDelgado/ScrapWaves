@@ -38,6 +38,20 @@ public sealed class CraftingAvailabilityFeedbackTests
         SetSaveManager(_previousSave);
     }
 
+    [Test]
+    public void SelectedSlot_KeepsMarkerButHidesPerimeterSoSelectionBorderStaysClear()
+    {
+        GameObject root = Track(Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/RunMenus/CraftingMenu.prefab")));
+        CraftingAvailabilityView view = root.GetComponentsInChildren<CraftingAvailabilityView>(true)[0];
+
+        view.Bind(CraftingActionKind.UpgradeLevel, selected: true);
+        Assert.That(view.Marker.gameObject.activeSelf, Is.True);
+        Assert.That(view.Glow.gameObject.activeSelf, Is.False);
+
+        view.Bind(CraftingActionKind.UpgradeLevel, selected: false);
+        Assert.That(view.Glow.gameObject.activeSelf, Is.True);
+    }
+
     [TestCase("Assets/Prefabs/UI/RunMenus/CraftingMenu.prefab")]
     [TestCase("Assets/Prefabs/UI/GameplayHud V2.prefab")]
     public void AuthoredPulse_HasStrongPerimeterAndStableReadableContentWhilePaused(string path)
@@ -79,7 +93,7 @@ public sealed class CraftingAvailabilityFeedbackTests
             for (int i = 0; i < 8; i++)
             {
                 indicator.Bind(null);
-                Assert.That(indicator.Glow.gameObject.activeSelf, Is.False);
+                Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
                 Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
                 indicator.Bind(CraftingActionKind.TinkerNewWeapon);
                 Assert.That(indicator.Marker.text, Is.EqualTo("+"));
@@ -102,29 +116,29 @@ public sealed class CraftingAvailabilityFeedbackTests
         Open(harness);
         int childCount = harness.View.GetComponentsInChildren<Transform>(true).Length;
         CraftingAvailabilityView indicator = harness.View.Slots[0].Availability;
-        Assert.That(indicator.Glow.gameObject.activeSelf, Is.False);
+        Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
         for (int i = 0; i < costs.Count; i++)
             harness.Inventory.Add(costs[i].Material, costs[i].Amount - (i == costs.Count - 1 ? 1 : 0));
-        Assert.That(indicator.Glow.gameObject.activeSelf, Is.False, "Every material must meet the price.");
+        Assert.That(indicator.Marker.gameObject.activeSelf, Is.False, "Every material must meet the price.");
         harness.Inventory.Add(costs[costs.Count - 1].Material, 1);
-        Assert.That(indicator.Glow.gameObject.activeSelf, Is.True);
+        Assert.That(indicator.Marker.gameObject.activeSelf, Is.True);
         Assert.That((level == 5 ? harness.View.AdvancedPurchaseButton : harness.View.UpgradeButton).interactable, Is.True);
         foreach (MaterialCost cost in costs)
         {
             Assert.That(harness.Inventory.TrySpend(new[] { new MaterialCost(cost.Material, 1) }), Is.True);
-            Assert.That(indicator.Glow.gameObject.activeSelf, Is.False, cost.Material + " must independently meet the price.");
+            Assert.That(indicator.Marker.gameObject.activeSelf, Is.False, cost.Material + " must independently meet the price.");
             Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
             Assert.That((level == 5 ? harness.View.AdvancedPurchaseButton : harness.View.UpgradeButton).interactable, Is.False);
             harness.Inventory.Add(cost.Material, 1);
-            Assert.That(indicator.Glow.gameObject.activeSelf, Is.True);
+            Assert.That(indicator.Marker.gameObject.activeSelf, Is.True);
         }
         Assert.That(harness.Inventory.TrySpend(new[] { new MaterialCost(costs[0].Material, 1) }), Is.True);
-        Assert.That(indicator.Glow.gameObject.activeSelf, Is.False);
+        Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
         Assert.That(indicator.Marker.gameObject.activeSelf, Is.False);
         harness.View.CloseButton.onClick.Invoke();
         harness.Inventory.Add(costs[0].Material, 1);
         Open(harness);
-        Assert.That(indicator.Glow.gameObject.activeSelf, Is.True);
+        Assert.That(indicator.Marker.gameObject.activeSelf, Is.True);
         Assert.That(harness.View.GetComponentsInChildren<Transform>(true).Length, Is.EqualTo(childCount));
     }
 
@@ -135,9 +149,9 @@ public sealed class CraftingAvailabilityFeedbackTests
         Harness harness = CreateHarness(level);
         foreach (MaterialType type in Enum.GetValues(typeof(MaterialType))) harness.Inventory.Add(type, 100);
         Open(harness);
-        Assert.That(harness.View.Slots[0].Availability.Glow.gameObject.activeSelf, Is.True);
-        Assert.That(harness.View.Slots[1].Availability.Glow.gameObject.activeSelf, Is.True);
-        Assert.That(harness.View.Slots[2].Availability.Glow.gameObject.activeSelf, Is.False, "Only the next empty slot is actionable.");
+        Assert.That(harness.View.Slots[0].Availability.Marker.gameObject.activeSelf, Is.True);
+        Assert.That(harness.View.Slots[1].Availability.Marker.gameObject.activeSelf, Is.True);
+        Assert.That(harness.View.Slots[2].Availability.Marker.gameObject.activeSelf, Is.False, "Only the next empty slot is actionable.");
         harness.View.Slots[1].Button.onClick.Invoke();
         harness.View.TinkerButton.onClick.Invoke();
         Assert.That(harness.Service.HasPendingTinkeringChoice, Is.True);
@@ -159,7 +173,7 @@ public sealed class CraftingAvailabilityFeedbackTests
         Harness harness = CreateHarness(10);
         foreach (MaterialType type in Enum.GetValues(typeof(MaterialType))) harness.Inventory.Add(type, 100);
         Open(harness);
-        Assert.That(harness.View.Slots[0].Availability.Glow.gameObject.activeSelf, Is.False);
+        Assert.That(harness.View.Slots[0].Availability.Marker.gameObject.activeSelf, Is.False);
         Assert.That(harness.View.UpgradeButton.interactable, Is.False);
         Assert.That(harness.Service.GetAvailableAction(new WeaponInstance { Data = harness.Weapon.Data, Level = 1 }), Is.Null);
     }
@@ -170,7 +184,7 @@ public sealed class CraftingAvailabilityFeedbackTests
         Assert.That(harness.Service.HasAnyAvailableCraftingAction(), Is.False);
         foreach (CraftingWeaponSlotView slot in harness.View.Slots)
         {
-            Assert.That(slot.Availability.Glow.gameObject.activeSelf, Is.False);
+            Assert.That(slot.Availability.Marker.gameObject.activeSelf, Is.False);
             Assert.That(slot.Availability.Marker.gameObject.activeSelf, Is.False);
             Assert.That(slot.Button.interactable, Is.False);
         }

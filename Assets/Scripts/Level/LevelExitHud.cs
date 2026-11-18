@@ -16,15 +16,15 @@ public class LevelExitHud : MonoBehaviour
     [SerializeField] private GameObject _root;
 
     [Header("Status text")]
-    [SerializeField, TextArea(1, 3)] private string _discoveryText = "Find a way to escape";
+    [SerializeField, TextArea(1, 3)] private string _discoveryText = "Escape: trigger Overheat, defeat the boss, collect batteries";
     [SerializeField, Tooltip("Available tokens: {collected}, {required}.")]
-    private string _batteryProgressText = "Batteries: {collected}/{required}";
-    [SerializeField, TextArea(1, 3)] private string _activationText = "¡Salida desbloqueada! Acercate a la puerta y pulsa [E]";
+    private string _batteryProgressText = "Batteries: {collected}/{required} - then reach the exit";
+    [SerializeField, TextArea(1, 3)] private string _activationText = "Exit unlocked! Go to the door and press [E]";
     [SerializeField, TextArea(1, 3), Tooltip("Available token: {progress}.")]
-    private string _chargingText = "Abriendo: {progress}% - salta y atravesala";
-    [SerializeField, TextArea(1, 3)] private string _readyText = "Salida abierta - atravesala para escapar";
+    private string _chargingText = "Opening: {progress}% - jump through the door";
+    [SerializeField, TextArea(1, 3)] private string _readyText = "Exit open - go through it to escape";
     [SerializeField, TextArea(1, 3), Tooltip("Available token: {multiplier}.")]
-    private string _pressureText = "¡Salida desbloqueada! Oleadas x{multiplier} — encontrá la puerta";
+    private string _pressureText = "Exit unlocked! Waves x{multiplier} - find the door";
 
     [Header("Status colors")]
     [SerializeField] private Color _objectiveColor = new(0.95f, 0.85f, 0.35f, 1f);

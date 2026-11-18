@@ -218,7 +218,8 @@ public class CraftingUI : MonoBehaviour
             WeaponInstance runtime = i < equipped.Count ? equipped[i]?.Runtime : null;
             _view.Slots[i].Bind(runtime, i == _selectedSlot, i <= equipped.Count);
             _view.Slots[i].Availability?.Bind(runtime != null ? _crafting.GetAvailableAction(runtime)
-                : i == equipped.Count && _crafting.CanTinkerNewWeapon() ? CraftingActionKind.TinkerNewWeapon : null);
+                : i == equipped.Count && _crafting.CanTinkerNewWeapon() ? CraftingActionKind.TinkerNewWeapon : null,
+                i == _selectedSlot);
             if (HasPendingChoice) _view.Slots[i].Button.interactable = false;
         }
         _view.CloseButton.interactable = !HasPendingChoice;

@@ -83,7 +83,30 @@ public class MaterialDrop : MonoBehaviour
         }
 
         instance.SetActive(true);
+        ApplyRareHighlight(instance, material);
     }
+
+    private void ApplyRareHighlight(GameObject visual, MaterialType material)
+    {
+        PickupHighlight existing = GetComponent<PickupHighlight>();
+        if (MaterialCatalog.GetCategory(material) != MaterialCategory.Rare)
+        {
+            if (existing != null)
+                existing.SetVisible(false);
+            return;
+        }
+
+        MeshFilter source = visual.GetComponentInChildren<MeshFilter>();
+        PickupHighlight.Attach(gameObject, RareColor(material), shell: source != null, ring: true, ringDiameter: 1.3f, shellSource: source);
+    }
+
+    private static Color RareColor(MaterialType material) => material switch
+    {
+        MaterialType.JellifiedFuel => new Color(1f, 0.55f, 0.1f),
+        MaterialType.PlasticExplosive => new Color(1f, 0.3f, 0.45f),
+        MaterialType.Wiring => new Color(0.3f, 0.8f, 1f),
+        _ => Color.white
+    };
 
     private static void StripGameplayComponents(GameObject root)
     {

@@ -14,6 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   WeaponId: RotatingBlade
   DisplayName: Rotating Blade
+  Description: 'A blade orbits around you and cuts anything it touches. In manual
+    mode, hold fire for cone slashes.
+
+    Specialty: close-range defense and crowd
+    shredding.
+
+    Active: a thick thrust forward whose reach grows with Heat.'
   WeaponType: 4
   AutoTargetingMode: 2
   AutomaticAimConstraint: 0

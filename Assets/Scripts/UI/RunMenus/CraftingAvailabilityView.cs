@@ -30,10 +30,14 @@ public sealed class CraftingAvailabilityView : MonoBehaviour
             foreach (Image edge in OutlineEdges)
                 if (edge != null) edge.color = outline;
     }
-    public void Bind(CraftingActionKind? action)
+    /// <summary>
+    /// The selected slot keeps its own selection border clean: only the corner marker signals availability there,
+    /// while unselected slots get the pulsing perimeter.
+    /// </summary>
+    public void Bind(CraftingActionKind? action, bool selected = false)
     {
         bool available = _available = action.HasValue;
-        Glow.gameObject.SetActive(available);
+        Glow.gameObject.SetActive(available && !selected);
         Marker.gameObject.SetActive(available);
         if (!available) return;
         RefreshPulse(Time.unscaledTime);

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Core_ElectromagneticShield
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Electromagnetic Shield
+  _description: Grants shield charges that absorb hits, then recharge after a delay.
   _slot: 1
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: c9cae94a848366c4eb9f56a14f9fa2c4, type: 3}

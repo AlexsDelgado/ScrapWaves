@@ -10,6 +10,7 @@ public class WeaponPathUnlockData : ScriptableObject, IUnlockable
     [SerializeField] private WeaponUpgradePath _path = WeaponUpgradePath.PathB;
     [SerializeField] private string _unlockId;
     [SerializeField] private string _displayName;
+    [SerializeField, TextArea(2, 5)] private string _description;
     [SerializeField] private bool _unlockedFromStart;
     [SerializeField] private UnlockRequirement _requirement = new();
 
@@ -21,6 +22,7 @@ public class WeaponPathUnlockData : ScriptableObject, IUnlockable
     public string DisplayName => string.IsNullOrEmpty(_displayName)
         ? (_weapon != null ? $"{_weapon.DisplayName} — {_path}" : name)
         : _displayName;
+    public string Description => _description ?? string.Empty;
     public bool UnlockedFromStart => _unlockedFromStart;
     public UnlockRequirement Requirement => _requirement;
 

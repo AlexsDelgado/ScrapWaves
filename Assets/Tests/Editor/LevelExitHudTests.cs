@@ -78,18 +78,18 @@ public sealed class LevelExitHudTests
     public void BatteryDiscoveryThenEscapeStatesKeepTheirExistingPriority()
     {
         Assert.That(_panel.activeSelf, Is.True);
-        Assert.That(_text.text, Is.EqualTo("Find a way to escape"));
+        Assert.That(_text.text, Is.EqualTo("Escape: trigger Overheat, defeat the boss, collect batteries"));
         _objective.RegisterKey();
-        Assert.That(_text.text, Is.EqualTo("Batteries: 1/2"));
+        Assert.That(_text.text, Is.EqualTo("Batteries: 1/2 - then reach the exit"));
 
         _objective.RegisterKey();
         Assert.That(_door.State, Is.EqualTo(ExitDoorState.AwaitingActivation));
-        Assert.That(_text.text, Is.EqualTo("¡Salida desbloqueada! Acercate a la puerta y pulsa [E]"));
+        Assert.That(_text.text, Is.EqualTo("Exit unlocked! Go to the door and press [E]"));
         Assert.That(_door.TryStartCharging(), Is.True);
         Call(_door, "TickCharge", 10f);
-        Assert.That(_text.text, Is.EqualTo("Abriendo: 50% - salta y atravesala"));
+        Assert.That(_text.text, Is.EqualTo("Opening: 50% - jump through the door"));
         Call(_door, "TickCharge", 10f);
-        Assert.That(_text.text, Is.EqualTo("Salida abierta - atravesala para escapar"));
+        Assert.That(_text.text, Is.EqualTo("Exit open - go through it to escape"));
 
         // This test only renders the completed state; it never submits a run or saves a profile.
         Set(_door, "_state", ExitDoorState.Used);
@@ -112,7 +112,7 @@ public sealed class LevelExitHudTests
         Set(tutorial, "_active", false);
         Call(_hud, "Refresh");
         Assert.That(_panel.activeSelf, Is.True);
-        Assert.That(_text.text, Is.EqualTo("Salida abierta - atravesala para escapar"));
+        Assert.That(_text.text, Is.EqualTo("Exit open - go through it to escape"));
     }
 
     [Test]

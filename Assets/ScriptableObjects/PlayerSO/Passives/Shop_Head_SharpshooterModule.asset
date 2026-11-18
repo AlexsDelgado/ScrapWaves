@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Shop_Head_SharpshooterModule
   m_EditorClassIdentifier: Assembly-CSharp::PassiveItemData
   _displayName: Sharpshooter module
+  _description: Deal more damage to distant enemies.
   _slot: 0
   _maxLevel: 6
   _icon: {fileID: 21300000, guid: cf57c14071552bc4fb11e259684af914, type: 3}

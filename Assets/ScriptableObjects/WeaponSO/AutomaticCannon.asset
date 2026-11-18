@@ -14,6 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   WeaponId: AutomaticCannon
   DisplayName: Automatic Cannon
+  Description: 'Rapid-fire cannon that locks onto the nearest enemy in front of you.
+    Hold fire for precise manual shots.
+
+    Specialty: sustained single-target damage.
+
+    Active:
+    unleashes a volley of bullets that grows with Heat.'
   WeaponType: 0
   AutoTargetingMode: 0
   AutomaticAimConstraint: 2

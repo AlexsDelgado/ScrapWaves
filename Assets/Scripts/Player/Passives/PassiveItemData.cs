@@ -25,6 +25,7 @@ public struct PassiveStatBonus
 public class PassiveItemData : ScriptableObject, IUnlockable
 {
     [SerializeField] private string _displayName;
+    [SerializeField, TextArea(2, 5), Tooltip("Player-facing summary shown in the Unlocks menu.")] private string _description;
     [SerializeField] private PassiveItemSlot _slot;
     [SerializeField, Min(1)] private int _maxLevel = 5;
     [SerializeField] private Sprite _icon;
@@ -38,6 +39,7 @@ public class PassiveItemData : ScriptableObject, IUnlockable
     [SerializeField] private UnlockRequirement _requirement;
 
     public string DisplayName => string.IsNullOrEmpty(_displayName) ? name : _displayName;
+    public string Description => _description ?? string.Empty;
     public PassiveItemSlot Slot => _slot;
     public int MaxLevel => _maxLevel;
     public Sprite Icon => _icon;
