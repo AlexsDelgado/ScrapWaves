@@ -50,11 +50,11 @@ public class ReticleAimProvider : MonoBehaviour
         => TryGetAimSolutionCore(origin, fallbackDistance, preferDamageableAimPoint, 1f, out solution);
 
     private bool TryGetAimSolutionCore(Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint,
-        float minimumDistance, out AimSolution solution)
+        float minimumDistance, out AimSolution solution, bool rejectBehindOrigin = false)
     {
         solution = default;
         if (!TryGetGameplayRay(ResolveCamera(), out Ray ray)) return false;
-        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint, minimumDistance), Time.frameCount);
+        solution = new AimSolution(origin, GetTargetPoint(ray, origin, fallbackDistance, preferDamageableAimPoint, minimumDistance, rejectBehindOrigin), Time.frameCount);
         return solution.IsValid;
     }
 
@@ -63,7 +63,7 @@ public class ReticleAimProvider : MonoBehaviour
         float? authored = GetAuthoredConvergenceDistance(behaviour);
         float distance = authored ?? (weapon?.Data != null ? weapon.Data.BaseRange : _maxAimDistance);
         float minimumDistance = authored.HasValue ? 0f : 1f;
-        return TryGetAimSolutionCore(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), minimumDistance, out AimSolution solution)
+        return TryGetAimSolutionCore(origin, distance, WeaponAimPolicy.PreferDamageableAimPoint(weapon), minimumDistance, out AimSolution solution, WeaponAimPolicy.UsesOwnerOrigin(weapon))
             ? solution : CreateFallback(origin, distance, ResolveCamera(), transform.forward, minimumDistance);
     }
 
@@ -197,17 +197,22 @@ public class ReticleAimProvider : MonoBehaviour
         return _aimCamera;
     }
 
-    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, float minimumDistance = 1f)
+    private Vector3 GetTargetPoint(Ray ray, Vector3 origin, float fallbackDistance, bool preferDamageableAimPoint, float minimumDistance = 1f, bool rejectBehindOrigin = false)
     {
         int hitCount = Physics.RaycastNonAlloc(ray, _hitBuffer, _maxAimDistance, _aimMask.value, QueryTriggerInteraction.Ignore);
         float closestDistance = float.PositiveInfinity;
         Vector3 closestPoint = GetNoHitTargetPoint(ray, origin, fallbackDistance, minimumDistance);
         bool directlyHitsEnemy = false;
+        // A third-person camera can see a collider between itself and the player.
+        // It must not reverse a sword attack away from the gameplay view direction.
+        if (rejectBehindOrigin && Vector3.Dot(closestPoint - origin, ray.direction) <= 0.0001f)
+            closestPoint = origin + ray.direction * Mathf.Max(1f, fallbackDistance);
 
         for (int i = 0; i < hitCount; i++)
         {
             RaycastHit hit = _hitBuffer[i];
-            if (IsIgnoredHit(hit))
+            if (IsIgnoredHit(hit)
+                || (rejectBehindOrigin && Vector3.Dot(hit.point - origin, ray.direction) <= 0.0001f))
                 continue;
 
             if (hit.distance >= closestDistance)

@@ -319,6 +319,102 @@ public sealed class GameplayAimTests
             "The muzzle still converges on the reticle despite camera offset.");
     }
 
+    [TestCase(WeaponUpgradePath.None, 0f)]
+    [TestCase(WeaponUpgradePath.PathA, 0f)]
+    [TestCase(WeaponUpgradePath.PathB, 0f)]
+    [TestCase(WeaponUpgradePath.None, 90f)]
+    [TestCase(WeaponUpgradePath.PathA, -90f)]
+    public void SwordManagersConvergeFromOwnerNotOffsetMuzzle(WeaponUpgradePath path, float pitch)
+    {
+        Quaternion rotation = Quaternion.Euler(pitch, 0f, 0f);
+        Camera camera = CameraAt(rotation * new Vector3(0f, 0.4f, -3f));
+        camera.transform.rotation = rotation;
+        ReticleAimProvider provider = Provider(camera);
+        Transform muzzle = Go("Offset animated muzzle").transform;
+        muzzle.position = rotation * new Vector3(0.8f, 1.4f, 0.6f);
+        GameObject enemy = Go("Very close direct enemy");
+        enemy.transform.SetPositionAndRotation(rotation * new Vector3(0f, 0.4f, 1f), rotation);
+        enemy.AddComponent<BoxCollider>().size = Vector3.one * 0.4f;
+        enemy.AddComponent<AimTestDamageable>();
+        Physics.SyncTransforms();
+
+        var manager = provider.gameObject.AddComponent<WeaponManager>();
+        Set(manager, "_reticleAimProvider", provider);
+        Set(manager, "_projectileSpawn", muzzle);
+        var sandboxObject = Go("Inactive sword origin sandbox");
+        sandboxObject.SetActive(false);
+        var sandbox = sandboxObject.AddComponent<WeaponTestingSandboxManager>();
+        Set(sandbox, "_aimProvider", provider);
+        Set(sandbox, "<PlayerTransform>k__BackingField", provider.transform);
+        Set(sandbox, "<ProjectileSpawn>k__BackingField", muzzle);
+        WeaponInstance instance = Weapon(WeaponType.RotatingBlade);
+        instance.Level = path == WeaponUpgradePath.None ? 1 : 7;
+        instance.SelectedPath = path;
+        var sword = new RotatingBladeWeapon(null, null, muzzle);
+        sword.Setup(instance, provider.transform, null, null);
+        ((List<IWeaponBehaviour>)manager.GetEquippedWeapons()).Add(sword);
+        ((WeaponInstance[])Get(sandbox, "_instances"))[0] = instance;
+        ((IWeaponBehaviour[])Get(sandbox, "_behaviours"))[0] = sword;
+
+        Invoke(manager, "GetAimDirection");
+        Invoke(sandbox, "ResolveAimDirection");
+        Vector3 target = rotation * new Vector3(0f, 0.4f, 0.8f);
+        Assert.That(manager.CurrentAimSolution.Origin, Is.EqualTo(provider.transform.position));
+        Assert.That(Vector3.Distance(manager.CurrentAimSolution.TargetPoint, target), Is.LessThan(0.001f));
+        Assert.That(Vector3.Angle(manager.CurrentAimSolution.Direction, target.normalized), Is.LessThan(0.01f));
+        Assert.That(sandbox.CurrentAimSolution.Origin, Is.EqualTo(manager.CurrentAimSolution.Origin));
+        Assert.That(sandbox.CurrentAimSolution.Direction, Is.EqualTo(manager.CurrentAimSolution.Direction));
+
+        // A pose update must not change the sword line; guns must still use their muzzle.
+        muzzle.position += rotation * Vector3.right;
+        Invoke(manager, "GetAimDirection");
+        Assert.That(Vector3.Angle(manager.CurrentAimSolution.Direction, target.normalized), Is.LessThan(0.01f));
+        instance.Data.WeaponType = WeaponType.AutomaticCannon;
+        Invoke(manager, "GetAimDirection");
+        Invoke(sandbox, "ResolveAimDirection");
+        Assert.That(manager.CurrentAimSolution.Origin, Is.EqualTo(muzzle.position));
+        Assert.That(sandbox.CurrentAimSolution.Origin, Is.EqualTo(muzzle.position));
+
+        instance.Data.WeaponType = WeaponType.RotatingBlade;
+        Set(manager, "_reticleAimProvider", null);
+        Set(sandbox, "_aimProvider", null);
+        Invoke(manager, "GetAimDirection");
+        Invoke(sandbox, "ResolveAimDirection");
+        Assert.That(manager.CurrentAimSolution.Origin, Is.EqualTo(provider.transform.position));
+        Assert.That(sandbox.CurrentAimSolution.Origin, Is.EqualTo(provider.transform.position));
+    }
+
+    [TestCase(0f, false)]
+    [TestCase(0f, true)]
+    [TestCase(90f, false)]
+    [TestCase(-90f, true)]
+    public void SwordIgnoresCameraHitsBehindAttackOrigin(float pitch, bool forwardTarget)
+    {
+        Quaternion rotation = Quaternion.Euler(pitch, 0f, 0f);
+        Vector3 forward = rotation * Vector3.forward;
+        Camera camera = CameraAt(-forward * 3f);
+        camera.transform.rotation = rotation;
+        ReticleAimProvider provider = Provider(camera);
+        GameObject behind = Go("Enemy between camera and sword origin");
+        behind.transform.position = -forward;
+        behind.AddComponent<SphereCollider>().radius = 0.2f;
+        behind.AddComponent<AimTestDamageable>();
+        if (forwardTarget)
+        {
+            GameObject ahead = Go("Valid enemy beyond sword origin");
+            ahead.transform.position = forward;
+            ahead.AddComponent<SphereCollider>().radius = 0.2f;
+            ahead.AddComponent<AimTestDamageable>();
+        }
+        Physics.SyncTransforms();
+        AimSolution sword = provider.ResolveWeaponAim(Vector3.zero, Weapon(WeaponType.RotatingBlade));
+        Assert.That(Vector3.Dot(sword.Direction, forward), Is.GreaterThan(0.999f));
+        Assert.That(sword.TargetPoint.magnitude, Is.EqualTo(forwardTarget ? 0.8f : 25f).Within(0.001f));
+        // Keep this protection sword-specific; do not silently change projectile targeting.
+        AimSolution cannon = provider.ResolveWeaponAim(Vector3.zero, Weapon(WeaponType.AutomaticCannon));
+        Assert.That(Vector3.Dot(cannon.Direction, forward), Is.LessThan(-0.999f));
+    }
+
     private ThirdPersonCamera Controller(Camera camera)
     {
         var controller = camera.gameObject.AddComponent<ThirdPersonCamera>();

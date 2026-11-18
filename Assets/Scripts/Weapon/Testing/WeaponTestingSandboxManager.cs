@@ -432,7 +432,7 @@ public sealed class WeaponTestingSandboxManager : MonoBehaviour
         WeaponInstance manualWeapon = CurrentManualWeapon;
         BasicProjectileWeapon geometrySource = CurrentManualBehaviour as BasicProjectileWeapon;
         Transform spawn = ProjectileSpawn != null ? ProjectileSpawn : PlayerTransform;
-        Vector3 origin = spawn != null ? spawn.position : transform.position;
+        Vector3 origin = WeaponAimPolicy.ResolveOrigin(manualWeapon, PlayerTransform != null ? PlayerTransform : transform, spawn);
         CurrentAimSolution = _aimProvider != null
             ? _aimProvider.ResolveWeaponAim(origin, manualWeapon, geometrySource)
             : ReticleAimProvider.CreateWeaponFallback(origin, manualWeapon, geometrySource, Camera.main,

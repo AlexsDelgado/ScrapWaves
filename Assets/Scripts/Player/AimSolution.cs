@@ -22,6 +22,14 @@ public readonly struct AimSolution
 
 public static class WeaponAimPolicy
 {
+    // Sword damage and visuals originate at the owner, not the animated gun muzzle.
+    public static bool UsesOwnerOrigin(WeaponInstance weapon)
+        => weapon?.Data != null && weapon.Data.WeaponType == WeaponType.RotatingBlade;
+
+    public static Vector3 ResolveOrigin(WeaponInstance weapon, Transform owner, Transform muzzle)
+        => UsesOwnerOrigin(weapon) && owner != null ? owner.position
+            : muzzle != null ? muzzle.position : owner != null ? owner.position : Vector3.zero;
+
     public static bool PreferDamageableAimPoint(WeaponInstance weapon)
     {
         if (weapon?.Data == null) return false;
