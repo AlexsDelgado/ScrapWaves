@@ -71,18 +71,29 @@ Resultado conocido al cerrar esta etapa:
 - Los tests de arriba pasan, **salvo** `AuthoredRocketExplosion_EmitsImpactDamageAndKineticStatusAtDetonation` (NullReference dentro de `Projectile.ApplyExplosionDamage`; no se tocó `Projectile` y no se comprobó si ya fallaba en `main`).
 - 4 tests de `RunMenuUiTests` (los `Tinker_*`) fallan: esperan que el costo del slot sea 15 de Sheet Metal y se cobra 10. No se tocaron costos ni lógica de tinkering; falta confirmar si ya fallaban en `main`.
 
-## 3. Pendientes
+## 3. Lotes y pendientes
 
-### Para el próximo bloque de trabajo
-1. **Verificación visual** de todo lo marcado "sin ver en pantalla" (aura, banner, explosión, panel de Unlocks, tooltip) y un build de prueba.
-2. **Sub-tabs WEAPONS / ITEMS / PATHS** en Unlocks (3c). Requiere re-autorar botones y agrupar tarjetas en `TitleScreen`. Probablemente conviene hacerlo junto con el rework completo del menú que se quiere a futuro.
-3. **Objetivos, parte 2 (7b/7c)**: el juego todavía no guía el loop *matar enemigos → Overheat → matar bosses → baterías → puerta*. Falta un panel de objetivos y un indicador de baterías que lo expliquen paso a paso. Hay mucho más que no se explica o demuestra (el propio playtester lo notó).
-4. **Partículas de overheat en el mundo (5)**: no empezado; medir el costo en GPU antes de dejarlo fijo.
-5. **Triage de los tests rotos** (el de `Projectile` y los 4 de tinkering): comparar contra `main`.
+El trabajo se dividió en tres lotes. Los lotes 1 y 2 están implementados y pusheados; el 3 no se empezó.
 
-### Opcionales
-- Brillo/glint para materiales **comunes** (hoy solo los raros tienen aura).
-- Extender el indicador de upgrade a un badge/chip también en los slots del HUD de armas.
-- Soporte de mando para el tooltip del crafteo.
-- Código sin uso que quedó de la compra con confirmación: campos `_armedPurchase` / `IsPurchaseArmed` en `ObjectivesMenuUI` y el helper `ArmObjectivePurchase` en `TitleScreenScreenStackTests`. Se pueden limpiar.
-- Tooltip de crafteo: conviene revisar si un material nuevo necesita también su fila de hover (se regenera con el menú, pero la fila se agrega en `CraftingReadoutAuthoring`).
+### Lote 1 — hecho (falta verificar)
+Compra con un click (3b), power-ups/materiales raros con aura (1) y fix del pool para builds (1b), indicador de mejora (8), cartel de overheat (4), explosión del cohete (6) y textos de objetivos (7a).
+
+Pendiente de este lote:
+- Verificación visual de aura, cartel y explosión, y un build de prueba (confirmar el fix 1b).
+- Medir costo en GPU de las auras con muchos materiales en el piso.
+- Triage del test `AuthoredRocketExplosion_EmitsImpactDamageAndKineticStatusAtDetonation` (NRE en `Projectile`): comparar contra `main`.
+- Opcional: badge/chip del indicador de mejora también en el HUD de armas; limpiar código sin uso de la compra con confirmación (`_armedPurchase` / `IsPurchaseArmed` en `ObjectivesMenuUI`, helper `ArmObjectivePurchase` en `TitleScreenScreenStackTests`).
+
+### Lote 2 — hecho a medias
+Hecho: descripciones de armas y pasivos (3a), items base ocultos y panel de detalle reordenado (3c parcial), tooltip "Dropped by" en crafteo (2).
+
+Pendiente de este lote:
+- **Sub-tabs WEAPONS / ITEMS / PATHS** en Unlocks (3c): re-autorar botones y agrupar tarjetas en `TitleScreen`; conviene hacerlo junto con el rework completo del menú.
+- Revisar los textos de las descripciones y el layout del panel de detalle (las anclas se calcularon a ojo; una descripción larga podría cortarse).
+- Verificación visual del panel de Unlocks y del tooltip.
+- Triage de los 4 tests `RunMenuUiTests.Tinker_*` (esperan costo 15, se cobra 10): comparar contra `main`.
+- Opcional: glint para materiales comunes; soporte de mando en el tooltip; fila de hover para materiales nuevos (`CraftingReadoutAuthoring`).
+
+### Lote 3 — sin empezar
+- **7b/7c Objetivos**: el juego no guía el loop *matar enemigos → Overheat → matar bosses → baterías → puerta*. Falta un panel de objetivos y un indicador de baterías que lo expliquen paso a paso; hay más cosas sin explicar o demostrar.
+- **5 Partículas de overheat en el mundo**: medir el costo en GPU antes de dejarlas fijas.
